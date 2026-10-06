@@ -5,7 +5,19 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "cli": "bun cli/index.ts"
+    "cli": "bun cli/index.ts",
+    "build": "zig build",
+    "run": "zig build run",
+    "start": "bun --filter hello start",
+    "editor-config": "zig build editor-config",
+    "clean": "rm -rf zig-out .zig-cache host/compile_flags.txt",
+    "setup": "bun install && zig build editor-config",
+    "typecheck": "tsc --noEmit",
+    "fmt": "bun run fmt:ts && bun run fmt:zig && bun run fmt:qml",
+    "fmt:ts": "prettier --write .",
+    "fmt:zig": "zig fmt build.zig bridge",
+    "fmt:qml": "$(sh scripts/qmlformat.sh) -i $(git ls-files '*.qml')",
+    "fmt:check": "prettier --check . && zig fmt --check build.zig bridge"
   },
   "workspaces": [
     "core/sdk",
@@ -13,7 +25,8 @@
     "examples/*"
   ],
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "prettier": "^3.9.9"
   },
   "peerDependencies": {
     "typescript": "^5"

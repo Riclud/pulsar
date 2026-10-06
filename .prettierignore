@@ -1,0 +1,7 @@
+node_modules
+zig-out
+.zig-cache
+bun.lock
+examples/hello/bun.lock
+host/compile_flags.txt
+.qmlls.ini
