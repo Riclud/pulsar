@@ -1,0 +1,15 @@
+{
+  "name": "windows",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "pulsar run",
+    "build": "pulsar build"
+  },
+  "dependencies": {
+    "pulsar": "workspace:*"
+  },
+  "devDependencies": {
+    "pulsar-cli": "workspace:*"
+  }
+}

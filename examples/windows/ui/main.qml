@@ -1,0 +1,53 @@
+import QtQuick
+import QtQuick.Controls
+import Pulsar 1.0
+
+ApplicationWindow {
+    visible: true
+
+    Column {
+        anchors.fill: parent
+        anchors.margins: 16
+        spacing: 12
+
+        Label {
+            text: "Shared counter: " + (Store.counter ?? 0)
+            font.pixelSize: 20
+        }
+
+        Label { text: "Panel open: " + (Store.panelOpen ? "yes" : "no") }
+
+        Label {
+            text: Store.lastClosed ? "Last closed window: " + Store.lastClosed : ""
+            color: "#888"
+        }
+
+        Row {
+            spacing: 8
+
+            Button {
+                text: "+1"
+                onClicked: Pulsar.emit("increment", {})
+            }
+
+            Button {
+                text: Store.panelOpen ? "Hide panel" : "Show panel"
+                onClicked: Pulsar.emit("togglePanel", {})
+            }
+
+            Button {
+                text: "Rename panel"
+                onClicked: Pulsar.emit("renamePanel", {
+                    title: "Panel " + ((Store.counter ?? 0) + 1)
+                })
+            }
+        }
+
+        Label {
+            text: "Both windows share Store; the app controls them via app.window(label)."
+            wrapMode: Text.WordWrap
+            width: parent.width
+            color: "#666"
+        }
+    }
+}
