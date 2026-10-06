@@ -4,6 +4,9 @@ node_modules
 # example lockfiles
 examples/hello/bun.lock
 
+# editor QML language server config (machine-specific absolute path)
+.qmlls.ini
+
 # zig build artifacts
 .zig-cache/
 zig-out/

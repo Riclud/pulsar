@@ -13,22 +13,35 @@ ApplicationWindow {
         anchors.margins: 12
         spacing: 8
 
-        Label { text: Store.greeting || "" }
-        Label { text: Store.error || ""; color: "red" }
+        Label {
+            text: Store.greeting || ""
+        }
+        Label {
+            text: Store.error || ""
+            color: "red"
+        }
 
         Row {
             spacing: 8
-            TextField { id: nameField; text: "Riclud"; width: 300 }
+            TextField {
+                id: nameField
+                text: "Riclud"
+                width: 300
+            }
             Button {
                 text: "Greet"
-                onClicked: Pulsar.emit("greet", { name: nameField.text })
+                onClicked: Pulsar.emit("greet", {
+                    name: nameField.text
+                })
             }
         }
     }
 
     Component.onCompleted: {
         Pulsar.ready.connect(function () {
-            Pulsar.emit("greet", { name: "World" });
+            Pulsar.emit("greet", {
+                name: "World"
+            });
         });
     }
 }
