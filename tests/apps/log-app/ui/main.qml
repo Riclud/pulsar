@@ -8,7 +8,7 @@ Item {
         target: Pulsar
         function onLog(level, message, source) {
             if (source === "js" && String(message).indexOf("from-js-log") >= 0)
-                Pulsar.emit("jsLogSeen", {})
+                Pulsar.emit("jsLogSeen", {});
         }
     }
 }
