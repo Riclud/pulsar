@@ -1,5 +1,6 @@
 {
   "name": "pulsar-monorepo",
+  "version": "0.1.0",
   "author": "Riclud",
   "license": "MIT",
   "type": "module",
@@ -15,11 +16,12 @@
     "test": "bun test core && bun scripts/smoke.ts",
     "test:unit": "bun test core",
     "typecheck": "tsc --noEmit",
+    "version:check": "bun scripts/version-check.ts",
     "fmt": "bun run fmt:ts && bun run fmt:zig && bun run fmt:qml",
     "fmt:ts": "prettier --write .",
     "fmt:zig": "zig fmt build.zig bridge",
     "fmt:qml": "bun scripts/qmlformat.ts",
-    "fmt:check": "prettier --check . && zig fmt --check build.zig bridge"
+    "fmt:check": "prettier --check . && zig fmt --check build.zig bridge && bun run version:check"
   },
   "workspaces": [
     "core/sdk",

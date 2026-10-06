@@ -37,3 +37,6 @@ jobs:
 
       - name: Typecheck
         run: bun run typecheck
+
+      - name: Version check
+        run: bun run version:check
