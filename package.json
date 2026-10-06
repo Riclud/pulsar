@@ -1,7 +1,14 @@
 {
-  "name": "pulsar",
+  "name": "pulsar-monorepo",
   "type": "module",
   "private": true,
+  "scripts": {
+    "cli": "bun cli/index.ts"
+  },
+  "workspaces": [
+    "core/sdk",
+    "examples/*"
+  ],
   "devDependencies": {
     "@types/bun": "latest"
   },
