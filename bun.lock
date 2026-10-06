@@ -6,6 +6,7 @@
       "name": "q",
       "devDependencies": {
         "@types/bun": "latest",
+        "prettier": "^3.9.9",
       },
       "peerDependencies": {
         "typescript": "^5",
@@ -40,6 +41,8 @@
     "bun-types": ["bun-types@1.4.2", "", { "dependencies": { "@types/node": "*" } }, "sha512-bxV1FgK7yBIzjRe5zBozIM4Bem11ZJcCXSrjWRG3YWLt8yFDePu4cLjpebO8OvPeIE9trbyPF4fuj3Cia4Fj3w=="],
 
     "hello": ["hello@workspace:examples/hello"],
+
+    "prettier": ["prettier@3.9.9", "", { "bin": { "prettier": "bin/prettier.cjs" } }, "sha512-Z/CJHIkdujO/OtN7nXUii0Rf3VT5SRuhjBA82Xvu2XhBUgX3nhP67T0LHceBdQLex7OOFGTox+Q5Yg8Jk2Qivg=="],
 
     "pulsar": ["pulsar@workspace:core/sdk"],
 
