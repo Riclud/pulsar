@@ -1,5 +1,7 @@
 {
   "name": "pulsar-monorepo",
+  "author": "Riclud",
+  "license": "MIT",
   "type": "module",
   "private": true,
   "scripts": {
