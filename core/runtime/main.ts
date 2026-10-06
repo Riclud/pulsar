@@ -17,10 +17,29 @@ if (!bunVersionCompatible(bunVersion)) {
   process.exit(1)
 }
 
-// stdout is reserved for the protocol; app logging goes to stderr.
-console.log = (...args: unknown[]) => console.error(...args)
-console.info = console.log
-console.debug = console.log
+// stdout is reserved for the protocol. App logs go to stderr and are forwarded
+// to the host so the UI can subscribe to them (see Pulsar's `log` signal).
+function formatLogArg(value: unknown): string {
+  if (typeof value === "string") return value
+  if (value instanceof Error) return value.stack ?? value.message
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+function emitLog(level: string, args: unknown[]): void {
+  const message = args.map(formatLogArg).join(" ")
+  process.stderr.write(`[${level}] ${message}\n`)
+  send({ jsonrpc: "2.0", method: "__log", params: { level, source: "js", message } })
+}
+
+console.log = (...args: unknown[]) => emitLog("log", args)
+console.info = (...args: unknown[]) => emitLog("info", args)
+console.debug = (...args: unknown[]) => emitLog("debug", args)
+console.error = (...args: unknown[]) => emitLog("error", args)
+console.warn = (...args: unknown[]) => emitLog("warn", args)
 
 // Test hook: force the runtime to die so supervision can be exercised.
 const testCrashMs = Number(process.env.PULSAR_TEST_CRASH_MS ?? 0)
@@ -166,6 +185,12 @@ function startHostChannel(): void {
       req = JSON.parse(raw)
     } catch {
       send({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "parse error" } })
+      return
+    }
+
+    // Notifications from the host carry no id and expect no response.
+    if (req.id === undefined) {
+      if (req.method === "__log") App.current?.dispatchEvent("log", req.params ?? {})
       return
     }
 
