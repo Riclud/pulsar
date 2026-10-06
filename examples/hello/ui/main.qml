@@ -41,6 +41,7 @@ ApplicationWindow {
             cellHeight: 150
             model: Store.photos
             delegate: Image {
+                required property var modelData
                 width: 190
                 height: 140
                 source: modelData.url
