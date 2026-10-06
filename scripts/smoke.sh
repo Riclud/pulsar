@@ -6,7 +6,7 @@ DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 ROOT="$(dirname "$DIR")"
 cd "$ROOT"
 
-zig build
+zig build -j1
 
 LOG="$(mktemp)"
 trap 'rm -f "$LOG"' EXIT
