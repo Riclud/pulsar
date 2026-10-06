@@ -3,6 +3,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QQmlPropertyMap>
@@ -33,6 +34,7 @@ Bridge::Bridge(QJSEngine *engine, QQmlPropertyMap *store, QObject *parent)
                 readyEmitted_ = true;
                 Q_EMIT ready();
             }
+            pollTimer_->start();
         }
     });
 
@@ -40,6 +42,17 @@ Bridge::Bridge(QJSEngine *engine, QQmlPropertyMap *store, QObject *parent)
     startTimer->setSingleShot(true);
     QObject::connect(startTimer, &QTimer::timeout, this, &Bridge::startBridge);
     startTimer->start(0);
+
+    bool okPoll = false;
+    int pollMs = qEnvironmentVariableIntValue("PULSAR_POLL_MS", &okPoll);
+    if (!okPoll || pollMs <= 0)
+        pollMs = 200;
+    pollTimer_ = new QTimer(this);
+    pollTimer_->setInterval(pollMs);
+    QObject::connect(pollTimer_, &QTimer::timeout, this, [this]() {
+        if (process_.state() == QProcess::Running)
+            invoke(QStringLiteral("__poll"), QJSValue());
+    });
 }
 
 Bridge::~Bridge()
@@ -163,13 +176,34 @@ void Bridge::handleResponse(const QByteArray &line)
 
     const QJsonValue sv = obj.value(QStringLiteral("state"));
     if (store_ && sv.isObject()) {
+        QVariantHash values;
         const QJsonObject state = sv.toObject();
         for (auto it = state.begin(); it != state.end(); ++it) {
-            store_->insert(it.key(), it.value().toVariant());
+            values.insert(it.key(), it.value().toVariant());
+            if (qEnvironmentVariableIsSet("PULSAR_DEBUG")) {
+                const QVariant v = it.value().toVariant();
+                if (v.metaType().id() == QMetaType::QVariantList)
+                    qInfo().noquote() << "STORE" << it.key() << "(list size" << v.toList().size() << ")";
+                else
+                    qInfo().noquote() << "STORE" << it.key() << "=" << v;
+            }
+        }
+        if (!values.isEmpty())
+            store_->insert(values);
+    }
+
+    const QJsonValue uv = obj.value(QStringLiteral("unset"));
+    if (store_ && uv.isArray()) {
+        const QJsonArray keys = uv.toArray();
+        for (const QJsonValue &v : keys) {
             if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
-                qInfo().noquote() << "STORE" << it.key() << "=" << it.value().toVariant();
+                qInfo().noquote() << "STORE unset" << v.toString();
+            store_->clear(v.toString());
         }
     }
+
+    if (obj.value(QStringLiteral("poll")).toBool())
+        return;
 
     Q_EMIT response(id, result, error);
 }
