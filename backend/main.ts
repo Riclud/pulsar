@@ -1,33 +1,5 @@
 import { createInterface } from "node:readline";
-import { promises as fs } from "node:fs";
-
-const handlers: Record<string, (p: any) => Promise<unknown>> = {
-  "fs.readFile": async (p) => {
-    const c = await fs.readFile(p.path, "utf8");
-    return c;
-  },
-  "fs.writeFile": async (p) => {
-    await fs.writeFile(p.path, p.content, "utf8");
-    return true;
-  },
-  "fs.listDir": async (p) => {
-    const entries = await fs.readdir(p.path ?? ".", { withFileTypes: true });
-    return entries.map((e) => (e.isDirectory() ? e.name + "/" : e.name));
-  },
-  "fs.exists": async (p) => {
-    try {
-      await fs.access(p.path);
-      return true;
-    } catch {
-      return false;
-    }
-  },
-  "nw.fetch": async (p) => {
-    const res = await fetch(p.url);
-    const text = await res.text();
-    return { status: res.status, url: res.url, text };
-  },
-};
+import { capabilities } from "./caps/index.ts";
 
 function send(msg: unknown) {
   process.stdout.write(JSON.stringify(msg) + "\n");
@@ -48,7 +20,7 @@ rl.on("line", (raw) => {
     return;
   }
 
-  const handler = handlers[req.method];
+  const handler = capabilities[req.method];
   if (!handler) {
     send({
       jsonrpc: "2.0",
@@ -70,4 +42,4 @@ rl.on("line", (raw) => {
     });
 });
 
-console.error("[bun] backend ready (fs.* RPC)");
+console.error("[bun] backend ready");
