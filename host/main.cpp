@@ -7,6 +7,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QFileSystemWatcher>
 #include <QJSValue>
 #include <QTimer>
 #include <QUrl>
@@ -18,6 +19,11 @@
 
 static QStringList gQmlErrors;
 static bool gErrorShown = false;
+static bool gWatch = false;
+static bool gLoaded = false;
+static QUrl gLoadedUrl;
+static QFileSystemWatcher *gWatcher = nullptr;
+static Bridge *gBridge = nullptr;
 
 struct WindowConfig {
     QString ui;
@@ -133,6 +139,48 @@ static void showErrorView(QQmlApplicationEngine &engine, const QString &detail)
     }
 }
 
+static bool watchMode()
+{
+    static const bool w = qEnvironmentVariableIsSet("PULSAR_WATCH");
+    return w;
+}
+
+static void requestFullSync()
+{
+    if (gBridge)
+        gBridge->invoke(QStringLiteral("__sync"), QJSValue());
+}
+
+static void rebaseWatcher(const QUrl &url)
+{
+    if (!gWatch || !gWatcher)
+        return;
+    const QString path = url.toLocalFile();
+    if (path.isEmpty())
+        return;
+    gWatcher->removePaths(gWatcher->files());
+    gWatcher->addPath(path);
+}
+
+static void showUi(QQmlApplicationEngine &engine, const QUrl &url)
+{
+    gLoaded = true;
+    gLoadedUrl = url;
+    engine.load(url);
+    rebaseWatcher(url);
+}
+
+static void reloadUi(QQmlApplicationEngine &engine, const QUrl &url)
+{
+    qInfo().noquote() << "reload ui:" << url.toString();
+    const QList<QObject*> roots = engine.rootObjects();
+    for (QObject *root : roots)
+        delete root;
+    engine.clearComponentCache();
+    showUi(engine, url);
+    requestFullSync();
+}
+
 int main(int argc, char **argv)
 {
     pulsar::initLogs();
@@ -147,24 +195,25 @@ int main(int argc, char **argv)
     QQmlPropertyMap *store = new QQmlPropertyMap(&app);
     Bridge *bridge = new Bridge(&engine, store, &app);
 
-    // Exposed to QML as `import Pulsar 1.0` -> Pulsar.emit(...) / Store.*
+// Exposed to QML as `import Pulsar 1.0` -> Pulsar.emit(...) / Store.*
     qmlRegisterSingletonInstance("Pulsar", 1, 0, "Pulsar", bridge);
     qmlRegisterSingletonInstance("Pulsar", 1, 0, "Store", store);
 
-    bool loaded = false;
-    QUrl loadedUrl;
+    gWatch = watchMode();
+    gBridge = bridge;
 
-    auto loadUi = [&engine, &loaded, &loadedUrl](const QUrl &url) {
-        if (loaded)
-            return;
-        loaded = true;
-        loadedUrl = url;
-        engine.load(url);
-    };
+    gWatcher = new QFileSystemWatcher(&app);
+    QObject::connect(gWatcher, &QFileSystemWatcher::fileChanged, &app, [&engine]() {
+        qInfo().noquote() << "qml changed; reloading";
+        reloadUi(engine, gLoadedUrl);
+        applyConfig(engine.rootObjects().value(0));
+    });
 
-    // The app (Bun) configures the window via a __config notification.
+    // The app (Bun) configures the window via a __config notification. In
+    // watch mode a repeated __config means the JS side reloaded (bun --watch),
+    // so the QML view and the store snapshot are refreshed too.
     QObject::connect(bridge, &Bridge::notification, &app,
-                     [&engine, &loaded, &loadUi](const QString &method, const QJSValue &params) {
+                     [&engine, bridge](const QString &method, const QJSValue &params) {
                          if (method == QLatin1String("__config")) {
                              const QVariantMap m = params.toVariant().toMap();
                              g_config.ui = m.value(QStringLiteral("ui")).toString();
@@ -184,19 +233,25 @@ int main(int argc, char **argv)
                                  qInfo().noquote() << "CONFIG ui=" << g_config.ui
                                                    << "size=" << g_config.width << "x" << g_config.height
                                                    << "title=" << g_config.title;
-                             if (!loaded)
-                                 loadUi(resolveUi(g_config.ui));
+                             if (!gLoaded)
+                                 showUi(engine, resolveUi(g_config.ui));
+                             else if (gWatch)
+                                 reloadUi(engine, resolveUi(g_config.ui));
                              else
                                  applyConfig(engine.rootObjects().value(0));
                          } else if (method == QLatin1String("__quit")) {
                              QCoreApplication::quit();
-} else if (method == QLatin1String("__error")) {
-                              const QVariantMap m = params.toVariant().toMap();
-                              qCritical().noquote()
-                                  << "app error in" << m.value(QStringLiteral("scope")).toString()
-                                  << ":" << m.value(QStringLiteral("message")).toString();
-                          }
-                      });
+                         } else if (method == QLatin1String("__reload")) {
+                             // Dev hot reload: the runtime saw app changes.
+                             if (gWatch)
+                                 bridge->restart();
+                         } else if (method == QLatin1String("__error")) {
+                             const QVariantMap m = params.toVariant().toMap();
+                             qCritical().noquote()
+                                 << "app error in" << m.value(QStringLiteral("scope")).toString()
+                                 << ":" << m.value(QStringLiteral("message")).toString();
+                         }
+                     });
 
     // Bun supervision: the bridge reports if the runtime dies.
     QObject::connect(bridge, &Bridge::crashed, &app, [](const QString &kind, int code) {
@@ -210,16 +265,16 @@ int main(int argc, char **argv)
     });
 
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated, &app,
-                     [&engine, &loadedUrl](QObject *obj, const QUrl &objUrl) {
-                         if (loadedUrl.isValid() && objUrl == loadedUrl) {
-                             if (!obj) {
-                                 showErrorView(engine,
-                                               gQmlErrors.isEmpty()
-                                                   ? QStringLiteral("The app UI could not be loaded.")
-                                                   : gQmlErrors.join(QLatin1Char('\n')));
-                             } else {
-                                 applyConfig(obj);
-                             }
+                     [&engine](QObject *obj, const QUrl &objUrl) {
+                         if (!gLoadedUrl.isValid() || objUrl != gLoadedUrl)
+                             return;
+                         if (!obj) {
+                             showErrorView(engine,
+                                           gQmlErrors.isEmpty()
+                                               ? QStringLiteral("The app UI could not be loaded.")
+                                               : gQmlErrors.join(QLatin1Char('\n')));
+                         } else {
+                             applyConfig(obj);
                          }
                      },
                      Qt::QueuedConnection);
@@ -228,7 +283,7 @@ int main(int argc, char **argv)
     // app config, with a fallback to <app>/ui/main.qml.
     const QByteArray qmlOverride = qgetenv("QML_MAIN");
     if (!qmlOverride.isEmpty()) {
-        loadUi(QUrl::fromLocalFile(QString::fromLocal8Bit(qmlOverride)));
+        showUi(engine, QUrl::fromLocalFile(QString::fromLocal8Bit(qmlOverride)));
     } else {
         bool cfgOk = false;
         int timeout = qEnvironmentVariableIntValue("PULSAR_CONFIG_TIMEOUT_MS", &cfgOk);
@@ -236,7 +291,7 @@ int main(int argc, char **argv)
             timeout = 700;
         QTimer *fallback = new QTimer(&app);
         fallback->setSingleShot(true);
-        QObject::connect(fallback, &QTimer::timeout, &app, [&loadUi]() { loadUi(resolveUi(QString())); });
+        QObject::connect(fallback, &QTimer::timeout, &app, [&engine]() { showUi(engine, resolveUi(QString())); });
         fallback->start(timeout);
     }
 

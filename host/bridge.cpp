@@ -97,6 +97,13 @@ void Bridge::startBridge()
 
 void Bridge::restart()
 {
+    restarting_ = true;
+    if (process_.state() != QProcess::NotRunning) {
+        process_.terminate();
+        if (!process_.waitForFinished(1000))
+            process_.kill();
+    }
+    restarting_ = false;
     stdoutBuffer_.clear();
     stderrBuffer_.clear();
     pendingWrites_.clear();
@@ -219,6 +226,10 @@ void Bridge::onProcessFinished(int exitCode, QProcess::ExitStatus status)
 {
     Q_UNUSED(exitCode);
     Q_UNUSED(status);
+    if (restarting_) {
+        restarting_ = false;
+        return;
+    }
     if (!stderrBuffer_.isEmpty()) {
         pulsar::forwardLine(QString::fromUtf8(stderrBuffer_.trimmed()));
         stderrBuffer_.clear();
