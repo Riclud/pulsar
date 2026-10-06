@@ -21,6 +21,7 @@ const bigLog = join(tmp, "big.log")
 const callLog = join(tmp, "call.log")
 const qmlErrLog = join(tmp, "qml-error.log")
 const storageLog = join(tmp, "storage.log")
+const logLog = join(tmp, "log.log")
 
 let failed = false
 
@@ -116,6 +117,18 @@ try {
   check(storageLog, "STORE storageOk = QVariant(bool, true)")
   check(storageLog, "min= 320")
   check(storageLog, "resizable= false")
+
+  // Two-way logging: QML console reaches the app (qmlLog) and app logs reach
+  // QML subscribers and come back (jsLog).
+  runHost({
+    PULSAR_DEBUG: "1",
+    QT_QPA_PLATFORM: "offscreen",
+    PULSAR_APP: join(root, "tests", "apps", "log-app"),
+    AUTO_QUIT_MS: "4000",
+    QT_LOG_FILE: logLog,
+  })
+  check(logLog, "STORE qmlLog = QVariant(bool, true)")
+  check(logLog, "STORE jsLog = QVariant(bool, true)")
 
   // Single-file build: `pulsar build` must produce one self-contained
   // executable that extracts itself and runs the QML app.
