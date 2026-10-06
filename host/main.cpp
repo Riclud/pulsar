@@ -4,6 +4,8 @@
 #include <QQmlContext>
 #include <QQmlError>
 #include <QQmlPropertyMap>
+#include <QQuickWindow>
+#include <QIcon>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -33,6 +35,20 @@ struct WindowConfig {
     bool hasHeight = false;
     QString title;
     bool hasTitle = false;
+    int minWidth = 0;
+    int minHeight = 0;
+    int maxWidth = 0;
+    int maxHeight = 0;
+    bool hasMinWidth = false;
+    bool hasMinHeight = false;
+    bool hasMaxWidth = false;
+    bool hasMaxHeight = false;
+    bool resizable = false;
+    bool hasResizable = false;
+    bool frameless = false;
+    bool hasFrameless = false;
+    QString icon;
+    bool hasIcon = false;
 };
 
 static WindowConfig g_config;
@@ -61,12 +77,52 @@ static void applyConfig(QObject *root)
 {
     if (!root)
         return;
+    auto *window = qobject_cast<QQuickWindow *>(root);
+    if (!window) {
+        // Non-window root (plain QML); fall back to generic properties.
+        if (g_config.hasWidth)
+            root->setProperty("width", g_config.width);
+        if (g_config.hasHeight)
+            root->setProperty("height", g_config.height);
+        if (g_config.hasTitle)
+            root->setProperty("title", g_config.title);
+        return;
+    }
     if (g_config.hasWidth)
-        root->setProperty("width", g_config.width);
+        window->setWidth(g_config.width);
     if (g_config.hasHeight)
-        root->setProperty("height", g_config.height);
+        window->setHeight(g_config.height);
     if (g_config.hasTitle)
-        root->setProperty("title", g_config.title);
+        window->setTitle(g_config.title);
+    if (g_config.hasMinWidth)
+        window->setMinimumWidth(g_config.minWidth);
+    if (g_config.hasMinHeight)
+        window->setMinimumHeight(g_config.minHeight);
+    if (g_config.hasMaxWidth)
+        window->setMaximumWidth(g_config.maxWidth);
+    if (g_config.hasMaxHeight)
+        window->setMaximumHeight(g_config.maxHeight);
+    if (g_config.hasResizable)
+        window->setProperty("resizable", g_config.resizable);
+    if (g_config.hasFrameless) {
+        Qt::WindowFlags flags = window->flags();
+        if (g_config.frameless)
+            flags |= Qt::FramelessWindowHint;
+        else
+            flags &= ~Qt::FramelessWindowHint;
+        window->setFlags(flags);
+    }
+    if (g_config.hasIcon && !g_config.icon.isEmpty())
+        window->setIcon(QIcon(g_config.icon));
+}
+
+template <typename T>
+static bool setIfPresent(const QVariantMap &map, const QString &key, T &out)
+{
+    if (!map.contains(key))
+        return false;
+    out = static_cast<T>(map.value(key).template value<T>());
+    return true;
 }
 
 // Fallback window shown when the app's QML fails to load, instead of exiting
@@ -226,13 +282,27 @@ int main(int argc, char **argv)
                                  g_config.hasHeight = true;
                              }
                              if (m.contains(QStringLiteral("title"))) {
-                                 g_config.title = m.value(QStringLiteral("title")).toString();
-                                 g_config.hasTitle = true;
-                             }
-                             if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
-                                 qInfo().noquote() << "CONFIG ui=" << g_config.ui
-                                                   << "size=" << g_config.width << "x" << g_config.height
-                                                   << "title=" << g_config.title;
+g_config.title = m.value(QStringLiteral("title")).toString();
+                                  g_config.hasTitle = true;
+                              }
+                              g_config.hasMinWidth = setIfPresent(m, "minWidth", g_config.minWidth);
+                              g_config.hasMinHeight = setIfPresent(m, "minHeight", g_config.minHeight);
+                              g_config.hasMaxWidth = setIfPresent(m, "maxWidth", g_config.maxWidth);
+                              g_config.hasMaxHeight = setIfPresent(m, "maxHeight", g_config.maxHeight);
+                              g_config.hasResizable = setIfPresent(m, "resizable", g_config.resizable);
+                              g_config.hasFrameless = setIfPresent(m, "frameless", g_config.frameless);
+                              if (m.contains(QStringLiteral("icon"))) {
+                                  g_config.icon = m.value(QStringLiteral("icon")).toString();
+                                  g_config.hasIcon = true;
+                              }
+                              if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
+                                  qInfo().noquote() << "CONFIG ui=" << g_config.ui
+                                                    << "size=" << g_config.width << "x" << g_config.height
+                                                    << "title=" << g_config.title
+                                                    << "min=" << g_config.minWidth << "x" << g_config.minHeight
+                                                    << "max=" << g_config.maxWidth << "x" << g_config.maxHeight
+                                                    << "resizable=" << g_config.resizable
+                                                    << "frameless=" << g_config.frameless;
                              if (!gLoaded)
                                  showUi(engine, resolveUi(g_config.ui));
                              else if (gWatch)

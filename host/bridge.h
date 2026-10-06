@@ -25,6 +25,10 @@ public:
     // Called by the host to restart the whole Bun side (dev hot reload).
     Q_INVOKABLE void restart();
 
+    // Native OS conveniences exposed to QML.
+    Q_INVOKABLE void clipboardWrite(const QString &text);
+    Q_INVOKABLE QString clipboardText() const;
+
 signals:
     void ready();
     void response(qint64 id, const QJSValue &result, const QJSValue &error);

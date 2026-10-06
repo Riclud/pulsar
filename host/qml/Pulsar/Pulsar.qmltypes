@@ -31,6 +31,16 @@ Module {
         }
 
         Method {
+            name: "clipboardWrite"
+            Parameter { name: "text"; type: "QString" }
+        }
+
+        Method {
+            name: "clipboardText"
+            type: "QString"
+        }
+
+        Method {
             name: "diagnostics"
             type: "QString"
         }
