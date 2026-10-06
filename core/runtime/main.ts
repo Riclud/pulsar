@@ -22,6 +22,23 @@ function patchState(): { state?: Record<string, unknown>; unset?: string[] } {
   return out
 }
 
+let inRequest = false
+let pushScheduled = false
+
+/** Push store changes that happen outside a request (timers, async work). */
+function schedulePush() {
+  if (inRequest || pushScheduled) return
+  pushScheduled = true
+  queueMicrotask(() => {
+    pushScheduled = false
+    if (inRequest) return
+    const patch = patchState()
+    if (patch.state || patch.unset) {
+      send({ jsonrpc: "2.0", method: "__state", params: patch })
+    }
+  })
+}
+
 const appDir = resolve(process.env.PULSAR_APP ?? "examples/hello")
 const entry = resolve(appDir, "main.ts")
 
@@ -30,6 +47,7 @@ try {
 } catch (e) {
   console.error("[pulsar] failed to load app:", e)
 }
+if (App.current) App.current.store.onChange = schedulePush
 console.error(`[pulsar] app loaded: ${appDir}`)
 
 const rl = createInterface({ input: process.stdin, terminal: false })
@@ -52,11 +70,7 @@ rl.on("line", async (raw) => {
     return
   }
 
-  if (req.method === "__poll") {
-    send({ jsonrpc: "2.0", id: req.id, result: true, poll: true, ...patchState() })
-    return
-  }
-
+  inRequest = true
   try {
     let result: unknown = null
 
@@ -73,5 +87,7 @@ rl.on("line", async (raw) => {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     send({ jsonrpc: "2.0", id: req.id, error: { code: -32000, message: msg }, ...patchState() })
+  } finally {
+    inRequest = false
   }
 })

@@ -12,6 +12,9 @@ export class Store {
   private readonly dirty = new Set<string>()
   private readonly removed = new Set<string>()
 
+  /** Called whenever the store changes; the runtime uses it to push updates. */
+  onChange?: () => void
+
   get(key: string): unknown {
     return this.data.has(key) ? this.data.get(key) : null
   }
@@ -21,6 +24,7 @@ export class Store {
     if (!existed || !Object.is(this.data.get(key), value)) {
       this.dirty.add(key)
       this.removed.delete(key)
+      this.onChange?.()
     }
     this.data.set(key, value)
     return this
@@ -35,6 +39,7 @@ export class Store {
     if (had) {
       this.removed.add(key)
       this.dirty.delete(key)
+      this.onChange?.()
     }
     return had
   }
