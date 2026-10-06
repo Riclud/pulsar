@@ -34,13 +34,15 @@ int main(int argc, char **argv)
     app.setApplicationName(QStringLiteral("qml-bun-bridge"));
 
     QQmlApplicationEngine engine;
-    Bridge bridge(&engine);
-    engine.rootContext()->setContextProperty(QStringLiteral("bridge"), &bridge);
-    engine.rootContext()->setContextProperty(QStringLiteral("Pulsar"), &bridge);
 
+    // Reactive state, pushed from Bun. QML binds to Store.*.
     QQmlPropertyMap *store = new QQmlPropertyMap(&app);
-    store->insert(QStringLiteral("greeting"), QStringLiteral("Hello, Pulsar"));
     engine.rootContext()->setContextProperty(QStringLiteral("Store"), store);
+
+    Bridge bridge(&engine, store);
+
+    // QML-facing singleton: Pulsar.emit(event, payload)
+    engine.rootContext()->setContextProperty(QStringLiteral("Pulsar"), &bridge);
 
     QByteArray qml = qgetenv("QML_MAIN");
     if (qml.isEmpty()) {
@@ -79,10 +81,10 @@ int main(int argc, char **argv)
         QTimer *selfTestTimer = new QTimer(&app);
         selfTestTimer->setSingleShot(true);
         QObject::connect(selfTestTimer, &QTimer::timeout, &app, [&engine, &bridge]() {
-            qInfo() << "SELFTEST invoke fs.readFile package.json";
+            qInfo() << "SELFTEST emit greet";
             QJSValue params = engine.newObject();
-            params.setProperty(QStringLiteral("path"), QJSValue(QStringLiteral("package.json")));
-            bridge.invoke(QStringLiteral("fs.readFile"), params);
+            params.setProperty(QStringLiteral("name"), QJSValue(QStringLiteral("SelfTest")));
+            bridge.invoke(QStringLiteral("greet"), params);
         });
         selfTestTimer->start(selfTest);
     }

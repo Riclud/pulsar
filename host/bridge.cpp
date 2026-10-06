@@ -5,11 +5,13 @@
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QQmlPropertyMap>
 #include <QTimer>
 
-Bridge::Bridge(QJSEngine *engine, QObject *parent)
+Bridge::Bridge(QJSEngine *engine, QQmlPropertyMap *store, QObject *parent)
     : QObject(parent)
     , engine_(engine)
+    , store_(store)
 {
     connect(&process_, &QProcess::readyReadStandardOutput,
             this, &Bridge::onReadyReadStandardOutput);
@@ -23,9 +25,13 @@ Bridge::Bridge(QJSEngine *engine, QObject *parent)
             for (const QByteArray &w : std::as_const(pendingWrites_))
                 process_.write(w);
             pendingWrites_.clear();
+            if (!synced_) {
+                synced_ = true;
+                invoke(QStringLiteral("__sync"), QJSValue());
+            }
             if (!readyEmitted_) {
                 readyEmitted_ = true;
-                emit ready();
+                Q_EMIT ready();
             }
         }
     });
@@ -65,8 +71,8 @@ void Bridge::startBridge()
         }
     }
     if (chosen.isEmpty()) {
-        emit response(-1, QJSValue(QJSValue::NullValue),
-                      engine_->toScriptValue(QStringLiteral("Zig bridge binary not found")));
+        Q_EMIT response(-1, QJSValue(QJSValue::NullValue),
+                        engine_->toScriptValue(QStringLiteral("Zig bridge binary not found")));
         return;
     }
 
@@ -111,12 +117,9 @@ qint64 Bridge::invoke(const QString &method, const QJSValue &params)
     return id;
 }
 
-qint64 Bridge::call(const QString &method, const QJSValue &params, const QJSValue &callback)
+qint64 Bridge::emit(const QString &method, const QJSValue &params)
 {
-    const qint64 id = invoke(method, params);
-    if (callback.isCallable())
-        callbacks_.insert(id, callback);
-    return id;
+    return invoke(method, params);
 }
 
 void Bridge::onReadyReadStandardOutput()
@@ -135,19 +138,8 @@ void Bridge::onProcessFinished(int exitCode, QProcess::ExitStatus status)
 {
     Q_UNUSED(exitCode);
     Q_UNUSED(status);
-    const QJSValue error =
-        engine_->toScriptValue(QStringLiteral("zig bridge exited unexpectedly"));
-    if (!callbacks_.isEmpty()) {
-        QJSValueList args;
-        args << QJSValue(QJSValue::NullValue) << error;
-        const auto pending = callbacks_;
-        callbacks_.clear();
-        for (const QJSValue &cb : pending) {
-            if (cb.isCallable())
-                cb.call(args);
-        }
-    }
-    emit response(-1, QJSValue(QJSValue::NullValue), error);
+    Q_EMIT response(-1, QJSValue(QJSValue::NullValue),
+                    engine_->toScriptValue(QStringLiteral("zig bridge exited unexpectedly")));
 }
 
 void Bridge::handleResponse(const QByteArray &line)
@@ -169,14 +161,15 @@ void Bridge::handleResponse(const QByteArray &line)
     if (!ev.isUndefined())
         error = engine_->toScriptValue(ev.toVariant());
 
-    if (callbacks_.contains(id)) {
-        const QJSValue cb = callbacks_.take(id);
-        if (cb.isCallable()) {
-            QJSValueList args;
-            args << result << error;
-            cb.call(args);
+    const QJsonValue sv = obj.value(QStringLiteral("state"));
+    if (store_ && sv.isObject()) {
+        const QJsonObject state = sv.toObject();
+        for (auto it = state.begin(); it != state.end(); ++it) {
+            store_->insert(it.key(), it.value().toVariant());
+            if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
+                qInfo().noquote() << "STORE" << it.key() << "=" << it.value().toVariant();
         }
     }
 
-    emit response(id, result, error);
+    Q_EMIT response(id, result, error);
 }

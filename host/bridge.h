@@ -1,22 +1,23 @@
 #pragma once
 
 #include <QByteArray>
-#include <QHash>
 #include <QJSEngine>
 #include <QJSValue>
 #include <QList>
 #include <QObject>
 #include <QProcess>
 
+class QQmlPropertyMap;
+
 class Bridge : public QObject {
     Q_OBJECT
 
 public:
-    explicit Bridge(QJSEngine *engine, QObject *parent = nullptr);
+    explicit Bridge(QJSEngine *engine, QQmlPropertyMap *store, QObject *parent = nullptr);
     ~Bridge() override;
 
     Q_INVOKABLE qint64 invoke(const QString &method, const QJSValue &params);
-    Q_INVOKABLE qint64 call(const QString &method, const QJSValue &params, const QJSValue &callback);
+    Q_INVOKABLE qint64 emit(const QString &method, const QJSValue &params);
     Q_INVOKABLE QString diagnostics() const;
 
 signals:
@@ -33,9 +34,10 @@ private:
 
     QProcess process_;
     QJSEngine *engine_;
+    QQmlPropertyMap *store_ = nullptr;
     QByteArray stdoutBuffer_;
     qint64 nextId_ = 1;
     bool readyEmitted_ = false;
-    QHash<qint64, QJSValue> callbacks_;
+    bool synced_ = false;
     QList<QByteArray> pendingWrites_;
 };
