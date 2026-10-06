@@ -18,35 +18,51 @@ const [cmd, ...args] = process.argv.slice(2)
 
 const MAIN_TS = `import { App } from "pulsar";
 
-const app = new App({ ui: "ui/main.qml", width: 800, height: 600, title: "My App" });
+const app = new App();
 
 app.store.set("greeting", "Hello from Pulsar");
 
-app.handle("hello", async (params: { name: string }) => \`Hello, \${params.name}!\`);
+app.on("hello", (params: { name: string }) => {
+  app.store.set("greeting", \`Hello, \${params.name}!\`);
+});
 
 app.run();
 `
 
 const MAIN_QML = `import QtQuick
 import QtQuick.Controls
+import Pulsar 1.0
 
 ApplicationWindow {
     visible: true
-    width: 800
-    height: 600
-    title: "My App"
 
     Column {
         anchors.centerIn: parent
         spacing: 12
-        Label { text: Store.greeting }
+        Label { text: Store.greeting || "" }
         Button {
             text: "Call backend"
-            onClicked: Pulsar.call("hello", { name: "World" }, function (res, err) {
-                console.log(res, err);
-            })
+            onClicked: Pulsar.emit("hello", { name: "World" })
         }
     }
+}
+`
+
+const MAIN_JSON = `{
+  "id": "com.example.myapp",
+  "name": "my-app",
+  "version": "0.1.0",
+  "main": "main.ts",
+  "windows": [
+    {
+      "label": "main",
+      "ui": "ui/main.qml",
+      "width": 800,
+      "height": 600,
+      "title": "My App"
+    }
+  ],
+  "permissions": []
 }
 `
 
@@ -75,13 +91,15 @@ function flagValue(name: string): string | undefined {
   return undefined
 }
 
-/** Launcher file name derived from the app's package.json name. */
+/** Output name from the manifest, falling back to package.json. */
 function launcherName(dir: string): string {
-  try {
-    const name = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")).name
-    if (typeof name === "string" && name.length > 0)
-      return name.replace(/^@[^/]+\//, "").replace(/[^a-zA-Z0-9._-]+/g, "-")
-  } catch {}
+  for (const file of ["pulsar.json", "package.json"]) {
+    try {
+      const name = JSON.parse(readFileSync(join(dir, file), "utf8")).name
+      if (typeof name === "string" && name.length > 0)
+        return name.replace(/^@[^/]+\//, "").replace(/[^a-zA-Z0-9._-]+/g, "-")
+    } catch {}
+  }
   return "app"
 }
 
@@ -227,6 +245,7 @@ function init() {
   mkdirSync(join(dir, "ui"), { recursive: true })
   writeFileSync(join(dir, "main.ts"), MAIN_TS)
   writeFileSync(join(dir, "ui", "main.qml"), MAIN_QML)
+  writeFileSync(join(dir, "pulsar.json"), MAIN_JSON)
   writeFileSync(
     join(dir, "package.json"),
     JSON.stringify(
