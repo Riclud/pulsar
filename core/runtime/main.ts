@@ -1,7 +1,7 @@
-import { createInterface } from "node:readline"
-import { watch } from "node:fs"
-import { join, resolve } from "node:path"
-import { pathToFileURL } from "node:url"
+import { createInterface } from "readline"
+import { existsSync, watch } from "fs"
+import { join, resolve } from "path"
+import { pathToFileURL } from "url"
 import { installCapabilities } from "../caps/index.ts"
 import { App, callCapability, hasCapability } from "../sdk/index.ts"
 import { MIN_BUN, bunVersionCompatible } from "./version.ts"
@@ -71,31 +71,46 @@ function schedulePush() {
   })
 }
 
+// `pulsar build` compiles runtime + app + SDK into one executable: the
+// generated entry imports this module, then the app, then calls wireApp().
+// From sources we instead load the app below and wire it ourselves.
+const bundled = process.env.PULSAR_BUNDLED === "1"
 const appDir = resolve(process.env.PULSAR_APP ?? "examples/hello")
-const entry = resolve(appDir, "main.ts")
+let channelStarted = false
 
-try {
-  await import(pathToFileURL(entry).href)
-} catch (e) {
-  reportError("load " + entry, e)
-}
-console.error(`[pulsar] app loaded: ${appDir}`)
-
-if (App.current) {
+/** Wire the loaded App to the host. Runs after the app module has evaluated. */
+export function wireApp(): void {
   const app = App.current
-  app.store.onChange = schedulePush
-  app.onQuit = () => send({ jsonrpc: "2.0", method: "__quit" })
+  if (app) {
+    app.store.onChange = schedulePush
+    app.onQuit = () => send({ jsonrpc: "2.0", method: "__quit" })
 
-  // Test hook: push a state value large enough to exceed the old line limit.
-  const testBigItems = Number(process.env.PULSAR_TEST_BIG_ITEMS ?? 0)
-  if (testBigItems > 0) {
-    app.store.set(
-      "big",
-      Array.from({ length: testBigItems }, (_, i) => `item-${i}`),
-    )
+    // Test hook: push a state value large enough to exceed the old line limit.
+    const testBigItems = Number(process.env.PULSAR_TEST_BIG_ITEMS ?? 0)
+    if (testBigItems > 0) {
+      app.store.set(
+        "big",
+        Array.from({ length: testBigItems }, (_, i) => `item-${i}`),
+      )
+    }
+
+    send({ jsonrpc: "2.0", method: "__config", params: app.config })
   }
+  // Only now may the host ask for the initial __sync.
+  startHostChannel()
+}
 
-  send({ jsonrpc: "2.0", method: "__config", params: app.config })
+if (!bundled) {
+  // Sources run directly as main.ts; a plain bundle may ship main.js.
+  const entryTs = resolve(appDir, "main.ts")
+  const entry = existsSync(entryTs) ? entryTs : resolve(appDir, "main.js")
+  try {
+    await import(pathToFileURL(entry).href)
+  } catch (e) {
+    reportError("load " + entry, e)
+  }
+  console.error(`[pulsar] app loaded: ${appDir}`)
+  wireApp()
 }
 
 // Dev hot reload: watch the app files and ask the host to restart the Bun side
@@ -128,52 +143,62 @@ function setupReloadWatcher() {
   }
 }
 
-setupReloadWatcher()
+/**
+ * Start reading host requests. Deferred until after the app is loaded so the
+ * initial __sync sees the app's state (a bundle loads the app after this
+ * module has finished evaluating).
+ */
+function startHostChannel(): void {
+  if (channelStarted) return
+  channelStarted = true
 
-const rl = createInterface({ input: process.stdin, terminal: false })
+  setupReloadWatcher()
 
-// The bridge owns our stdin; when it closes, the host is gone.
-rl.on("close", () => process.exit(0))
+  const rl = createInterface({ input: process.stdin, terminal: false })
 
-rl.on("line", async (raw) => {
-  let req: any
-  try {
-    req = JSON.parse(raw)
-  } catch {
-    send({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "parse error" } })
-    return
-  }
+  // The bridge owns our stdin; when it closes, the host is gone.
+  rl.on("close", () => process.exit(0))
 
-  const app = App.current
-
-  if (req.method === "__sync") {
-    const state = fullState()
-    app?.store.takePatch()
-    send({ jsonrpc: "2.0", id: req.id, result: true, state })
-    return
-  }
-
-  inRequest = true
-  try {
-    let result: unknown = null
-
-    if (app?.hasEvent(req.method)) {
-      try {
-        app.dispatchEvent(req.method, req.params ?? {})
-      } catch (e) {
-        reportError("event " + req.method, e)
-      }
-      result = true
-    } else {
-      if (!hasCapability(req.method)) throw new Error("method not found: " + req.method)
-      result = await callCapability(req.method, req.params ?? {})
+  rl.on("line", async (raw) => {
+    let req: any
+    try {
+      req = JSON.parse(raw)
+    } catch {
+      send({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "parse error" } })
+      return
     }
 
-    send({ jsonrpc: "2.0", id: req.id, result, ...patchState() })
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    send({ jsonrpc: "2.0", id: req.id, error: { code: -32000, message: msg }, ...patchState() })
-  } finally {
-    inRequest = false
-  }
-})
+    const app = App.current
+
+    if (req.method === "__sync") {
+      const state = fullState()
+      app?.store.takePatch()
+      send({ jsonrpc: "2.0", id: req.id, result: true, state })
+      return
+    }
+
+    inRequest = true
+    try {
+      let result: unknown = null
+
+      if (app?.hasEvent(req.method)) {
+        try {
+          app.dispatchEvent(req.method, req.params ?? {})
+        } catch (e) {
+          reportError("event " + req.method, e)
+        }
+        result = true
+      } else {
+        if (!hasCapability(req.method)) throw new Error("method not found: " + req.method)
+        result = await callCapability(req.method, req.params ?? {})
+      }
+
+      send({ jsonrpc: "2.0", id: req.id, result, ...patchState() })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      send({ jsonrpc: "2.0", id: req.id, error: { code: -32000, message: msg }, ...patchState() })
+    } finally {
+      inRequest = false
+    }
+  })
+}
