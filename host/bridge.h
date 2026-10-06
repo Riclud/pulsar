@@ -1,8 +1,10 @@
 #pragma once
 
 #include <QByteArray>
+#include <QHash>
 #include <QJSEngine>
 #include <QJSValue>
+#include <QList>
 #include <QObject>
 #include <QProcess>
 
@@ -14,6 +16,7 @@ public:
     ~Bridge() override;
 
     Q_INVOKABLE qint64 invoke(const QString &method, const QJSValue &params);
+    Q_INVOKABLE qint64 call(const QString &method, const QJSValue &params, const QJSValue &callback);
     Q_INVOKABLE QString diagnostics() const;
 
 signals:
@@ -33,4 +36,6 @@ private:
     QByteArray stdoutBuffer_;
     qint64 nextId_ = 1;
     bool readyEmitted_ = false;
+    QHash<qint64, QJSValue> callbacks_;
+    QList<QByteArray> pendingWrites_;
 };

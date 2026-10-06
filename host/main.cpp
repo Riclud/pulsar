@@ -1,6 +1,7 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QQmlPropertyMap>
 #include <QDir>
 #include <QFile>
 #include <QJSValue>
@@ -35,10 +36,20 @@ int main(int argc, char **argv)
     QQmlApplicationEngine engine;
     Bridge bridge(&engine);
     engine.rootContext()->setContextProperty(QStringLiteral("bridge"), &bridge);
+    engine.rootContext()->setContextProperty(QStringLiteral("Pulsar"), &bridge);
+
+    QQmlPropertyMap *store = new QQmlPropertyMap(&app);
+    store->insert(QStringLiteral("greeting"), QStringLiteral("Hello, Pulsar"));
+    engine.rootContext()->setContextProperty(QStringLiteral("Store"), store);
 
     QByteArray qml = qgetenv("QML_MAIN");
-    if (qml.isEmpty())
-        qml = QDir::current().filePath("qml/main.qml").toUtf8();
+    if (qml.isEmpty()) {
+        const QByteArray appDir = qgetenv("PULSAR_APP");
+        if (!appDir.isEmpty())
+            qml = QDir(QString::fromLocal8Bit(appDir)).filePath(QStringLiteral("ui/main.qml")).toUtf8();
+        else
+            qml = QDir::current().filePath(QStringLiteral("examples/hello/ui/main.qml")).toUtf8();
+    }
     const QUrl url = QUrl::fromLocalFile(QString::fromLocal8Bit(qml));
 
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
@@ -76,7 +87,7 @@ int main(int argc, char **argv)
         selfTestTimer->start(selfTest);
     }
 
-    engine.addImportPath(QStringLiteral("qml"));
+    engine.addImportPath(QStringLiteral("examples/hello/ui"));
     engine.load(url);
 
     return app.exec();
