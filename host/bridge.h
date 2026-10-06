@@ -4,6 +4,7 @@
 #include <QHash>
 #include <QJSEngine>
 #include <QJSValue>
+#include <QJsonObject>
 #include <QList>
 #include <QObject>
 #include <QProcess>
@@ -29,11 +30,17 @@ public:
     Q_INVOKABLE void clipboardWrite(const QString &text);
     Q_INVOKABLE QString clipboardText() const;
 
+    // Send an unsolicited notification to the runtime (no response expected).
+    void notify(const QString &method, const QJsonObject &params);
+    // Re-emit a runtime log line to QML subscribers.
+    void postLog(const QString &level, const QString &message, const QString &source);
+
 signals:
     void ready();
     void response(qint64 id, const QJSValue &result, const QJSValue &error);
     void notification(const QString &method, const QJSValue &params);
     void crashed(const QString &kind, int code);
+    void log(const QString &level, const QString &message, const QString &source);
 
 private slots:
     void onReadyReadStandardOutput();

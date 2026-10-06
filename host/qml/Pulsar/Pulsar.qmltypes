@@ -50,6 +50,13 @@ Module {
         }
 
         Signal {
+            name: "log"
+            Parameter { name: "level"; type: "QString" }
+            Parameter { name: "message"; type: "QString" }
+            Parameter { name: "source"; type: "QString" }
+        }
+
+        Signal {
             name: "response"
             Parameter { name: "id"; type: "qint64" }
             Parameter { name: "result"; type: "QVariant" }

@@ -188,6 +188,26 @@ qint64 Bridge::emit(const QString &method, const QJSValue &params)
     return invoke(method, params);
 }
 
+void Bridge::notify(const QString &method, const QJsonObject &params)
+{
+    QJsonObject body;
+    body.insert(QStringLiteral("jsonrpc"), QStringLiteral("2.0"));
+    body.insert(QStringLiteral("method"), method);
+    body.insert(QStringLiteral("params"), params);
+    const QByteArray line = QJsonDocument(body).toJson(QJsonDocument::Compact) + '\n';
+
+    if (process_.state() != QProcess::Running) {
+        pendingWrites_.append(line);
+        return;
+    }
+    process_.write(line);
+}
+
+void Bridge::postLog(const QString &level, const QString &message, const QString &source)
+{
+    Q_EMIT log(level, message, source);
+}
+
 void Bridge::ensurePromiseFactory()
 {
     if (promiseFactory_.isCallable())

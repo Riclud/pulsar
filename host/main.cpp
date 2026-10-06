@@ -8,6 +8,7 @@
 #include <QIcon>
 #include <QDir>
 #include <QFile>
+#include <QJsonObject>
 #include <QFileInfo>
 #include <QFileSystemWatcher>
 #include <QJSValue>
@@ -277,6 +278,17 @@ int main(int argc, char **argv)
     gWatch = watchMode();
     gBridge = bridge;
 
+    // Forward QML console messages to the runtime so the app can observe them.
+    pulsar::setLogSink([bridge](const QString &level, const QString &message, const QString &file, int line) {
+        QJsonObject params;
+        params.insert(QStringLiteral("level"), level);
+        params.insert(QStringLiteral("source"), QStringLiteral("qml"));
+        params.insert(QStringLiteral("message"), message);
+        params.insert(QStringLiteral("file"), QFileInfo(file).fileName());
+        params.insert(QStringLiteral("line"), line);
+        bridge->notify(QStringLiteral("__log"), params);
+    });
+
     gWatcher = new QFileSystemWatcher(&app);
     QObject::connect(gWatcher, &QFileSystemWatcher::fileChanged, &app, [&engine]() {
         qInfo().noquote() << "qml changed; reloading";
@@ -334,6 +346,12 @@ g_config.title = m.value(QStringLiteral("title")).toString();
                              // Dev hot reload: the runtime saw app changes.
                              if (gWatch)
                                  bridge->restart();
+                         } else if (method == QLatin1String("__log")) {
+                             // Runtime log line; re-emit it as a QML signal.
+                             const QVariantMap m = params.toVariant().toMap();
+                             bridge->postLog(m.value(QStringLiteral("level")).toString(),
+                                             m.value(QStringLiteral("message")).toString(),
+                                             m.value(QStringLiteral("source")).toString());
                          } else if (method == QLatin1String("__error")) {
                              const QVariantMap m = params.toVariant().toMap();
                              qCritical().noquote()

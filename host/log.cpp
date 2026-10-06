@@ -5,6 +5,7 @@
 #include <QByteArray>
 
 #include <cstdio>
+#include <utility>
 
 #ifdef Q_OS_WIN
 #include <io.h>
@@ -21,6 +22,24 @@ namespace {
 
 QFile *gLogFile = nullptr;
 bool gColor = true;
+pulsar::LogSink gSink;
+
+QString levelName(QtMsgType type)
+{
+    switch (type) {
+    case QtDebugMsg:
+        return QStringLiteral("log");
+    case QtInfoMsg:
+        return QStringLiteral("info");
+    case QtWarningMsg:
+        return QStringLiteral("warn");
+    case QtCriticalMsg:
+        return QStringLiteral("error");
+    case QtFatalMsg:
+        return QStringLiteral("fatal");
+    }
+    return QStringLiteral("log");
+}
 
 void writeErr(const QByteArray &text)
 {
@@ -30,7 +49,11 @@ void writeErr(const QByteArray &text)
 
 void messageHandler(QtMsgType type, const QMessageLogContext &ctx, const QString &message)
 {
-    Q_UNUSED(ctx);
+    const QString file = ctx.file ? QString::fromUtf8(ctx.file) : QString();
+    const bool qml = (ctx.category && qstrcmp(ctx.category, "qml") == 0)
+                     || file.endsWith(QLatin1String(".qml"));
+    if (qml && gSink)
+        gSink(levelName(type), message, file, ctx.line);
 
     if (gLogFile) {
         gLogFile->write(message.toUtf8());
@@ -96,6 +119,11 @@ void initLogs()
     }
 
     qInstallMessageHandler(pulsar::messageHandler);
+}
+
+void setLogSink(LogSink sink)
+{
+    gSink = std::move(sink);
 }
 
 void forwardLine(const QString &line)
