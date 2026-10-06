@@ -12,12 +12,12 @@
     "editor-config": "zig build editor-config",
     "clean": "rm -rf zig-out .zig-cache host/compile_flags.txt",
     "setup": "bun install && zig build editor-config",
-    "test": "sh scripts/smoke.sh",
+    "test": "bun scripts/smoke.ts",
     "typecheck": "tsc --noEmit",
     "fmt": "bun run fmt:ts && bun run fmt:zig && bun run fmt:qml",
     "fmt:ts": "prettier --write .",
     "fmt:zig": "zig fmt build.zig bridge",
-    "fmt:qml": "$(sh scripts/qmlformat.sh) -i $(git ls-files '*.qml')",
+    "fmt:qml": "bun scripts/qmlformat.ts",
     "fmt:check": "prettier --check . && zig fmt --check build.zig bridge"
   },
   "workspaces": [
