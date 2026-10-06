@@ -4,8 +4,18 @@ import { join, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import { installCapabilities } from "../caps/index.ts"
 import { App, callCapability, hasCapability } from "../sdk/index.ts"
+import { MIN_BUN, bunVersionCompatible } from "./version.ts"
 
 installCapabilities()
+
+// Compatibility gate: fail early with a clear message instead of letting an
+// old Bun crash in obscure ways later.
+const bunVersion = Bun.version ?? "0.0.0"
+if (!bunVersionCompatible(bunVersion)) {
+  const message = `Bun ${bunVersion} is too old; Pulsar requires Bun >= ${MIN_BUN}`
+  console.error(`[pulsar] ${message}`)
+  process.exit(1)
+}
 
 // stdout is reserved for the protocol; app logging goes to stderr.
 console.log = (...args: unknown[]) => console.error(...args)
