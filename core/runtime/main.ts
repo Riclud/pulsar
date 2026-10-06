@@ -72,6 +72,16 @@ if (App.current) {
   const app = App.current
   app.store.onChange = schedulePush
   app.onQuit = () => send({ jsonrpc: "2.0", method: "__quit" })
+
+  // Test hook: push a state value large enough to exceed the old line limit.
+  const testBigItems = Number(process.env.PULSAR_TEST_BIG_ITEMS ?? 0)
+  if (testBigItems > 0) {
+    app.store.set(
+      "big",
+      Array.from({ length: testBigItems }, (_, i) => `item-${i}`),
+    )
+  }
+
   send({ jsonrpc: "2.0", method: "__config", params: app.config })
 }
 
