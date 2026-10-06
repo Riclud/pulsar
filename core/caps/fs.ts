@@ -1,4 +1,4 @@
-import { promises as fs } from "node:fs"
+import { promises as fs } from "fs"
 import type { CapRegistry } from "./types.ts"
 
 export const fsCaps: CapRegistry = {

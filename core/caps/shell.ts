@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process"
+import { spawn } from "child_process"
 import type { CapRegistry } from "../sdk/index.ts"
 
 /** Platform command that opens a URL in the default application. */

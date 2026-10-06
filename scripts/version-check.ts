@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 // Ensures all packages share the same version (lockstep release).
-import { readFileSync } from "node:fs"
-import { resolve } from "node:path"
+import { readFileSync } from "fs"
+import { resolve } from "path"
 
 const root = resolve(import.meta.dir, "..")
 const manifests = ["./package.json", "./core/sdk/package.json", "./cli/package.json"]

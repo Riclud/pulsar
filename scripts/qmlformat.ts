@@ -2,8 +2,8 @@
 // Cross-platform replacement for scripts/qmlformat.sh. Resolves Qt 6's
 // qmlformat (PATH may point at Qt 5) and formats the tracked QML files, or
 // forwards explicit arguments.
-import { existsSync } from "node:fs"
-import { join } from "node:path"
+import { existsSync } from "fs"
+import { join } from "path"
 
 const exe = process.platform === "win32" ? ".exe" : ""
 
