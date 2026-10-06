@@ -113,7 +113,7 @@ export function wireApp(): void {
       )
     }
 
-    send({ jsonrpc: "2.0", method: "__config", params: app.config })
+    send({ jsonrpc: "2.0", method: "__config", params: { windows: app.windows } })
   }
   // Only now may the host ask for the initial __sync.
   startHostChannel()

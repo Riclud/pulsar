@@ -1,6 +1,6 @@
 export { App, Store } from "./app.ts"
 export type { AppConfig, EventHandler } from "./app.ts"
-export { loadManifest, resolveAppConfig } from "./manifest.ts"
+export { loadManifest, resolveAppConfig, resolveWindows } from "./manifest.ts"
 export type { AppManifest, ManifestWindow } from "./manifest.ts"
 export {
   fs,

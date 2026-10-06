@@ -38,6 +38,7 @@ export interface AppManifest {
 }
 
 const WINDOW_KEYS = [
+  "label",
   "ui",
   "width",
   "height",
@@ -73,6 +74,26 @@ export function resolveAppConfig(manifest: AppManifest | null, overrides: Partia
     ui: overrides.ui ?? manifest?.windows?.[0]?.ui ?? "ui/main.qml",
     id: overrides.id ?? manifest?.id,
   }
+}
+
+/** Default label for the window at `index`. */
+function defaultLabel(index: number): string {
+  return index === 0 ? "main" : `window-${index + 1}`
+}
+
+/**
+ * Resolve the windows to open. Manifest windows are used unless explicit
+ * options are given, which collapse to a single window (overrides win).
+ */
+export function resolveWindows(manifest: AppManifest | null, overrides: Partial<AppConfig> = {}): AppConfig[] {
+  const hasOverrides = Object.keys(overrides).length > 0
+  if (hasOverrides || !manifest?.windows?.length) return [resolveAppConfig(manifest, overrides)]
+  return manifest.windows.map((win, i) => ({
+    ...windowToConfig(win),
+    label: win.label ?? defaultLabel(i),
+    ui: win.ui ?? "ui/main.qml",
+    id: manifest.id,
+  }))
 }
 
 /** Read pulsar.json from the app directory. Returns null when absent/invalid. */
