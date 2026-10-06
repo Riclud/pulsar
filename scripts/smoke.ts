@@ -23,6 +23,7 @@ const qmlErrLog = join(tmp, "qml-error.log")
 const storageLog = join(tmp, "storage.log")
 const logLog = join(tmp, "log.log")
 const twoLog = join(tmp, "two.log")
+const winLog = join(tmp, "window-ctl.log")
 
 let failed = false
 
@@ -143,6 +144,19 @@ try {
   check(twoLog, "window-second-ready")
   check(twoLog, "CONFIG window second")
   check(twoLog, "title= Second Window")
+
+  // Window control + lifecycle: app.window(label) commands reach the host and
+  // a closed window emits a window-close event back to the app.
+  runHost({
+    PULSAR_DEBUG: "1",
+    QT_QPA_PLATFORM: "offscreen",
+    PULSAR_APP: join(root, "tests", "apps", "window-ctl"),
+    AUTO_QUIT_MS: "3000",
+    QT_LOG_FILE: winLog,
+  })
+  check(winLog, "WINDOW setTitle second")
+  check(winLog, "STORE closedLabel = QVariant(QString, second)")
+  check(winLog, "STORE secondClosed = QVariant(bool, true)")
 
   // Single-file build: `pulsar build` must produce one self-contained
   // executable that extracts itself and runs the QML app.

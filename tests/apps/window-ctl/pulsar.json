@@ -1,0 +1,10 @@
+{
+  "id": "com.pulsar.windowctl",
+  "name": "window-ctl",
+  "version": "0.1.0",
+  "main": "main.ts",
+  "windows": [
+    { "label": "main", "ui": "ui/main.qml", "width": 320, "height": 200, "title": "Main" },
+    { "label": "second", "ui": "ui/second.qml", "width": 400, "height": 300, "title": "Second" }
+  ]
+}
