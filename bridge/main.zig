@@ -2,14 +2,35 @@ const std = @import("std");
 
 const kBufSize = 1 << 16;
 
-fn extractId(s: []const u8) ?i64 {
-    const idx = std.mem.indexOf(u8, s, "\"id\":") orelse return null;
-    var i = idx + 5;
-    while (i < s.len and (s[i] == ' ' or s[i] == '\t')) i += 1;
-    const beg = i;
-    while (i < s.len and s[i] >= '0' and s[i] <= '9') i += 1;
-    if (i == beg) return null;
-    return std.fmt.parseInt(i64, s[beg..i], 10) catch null;
+/// Forwards lines from the host (stdin) into Bun's stdin.
+fn pumpHostToBun(
+    host_reader: *std.Io.File.Reader,
+    bun_writer: *std.Io.File.Writer,
+) std.Io.Cancelable!void {
+    while (true) {
+        const maybe = host_reader.interface.takeDelimiter('\n') catch return;
+        const line = maybe orelse return;
+        if (line.len == 0) continue;
+        bun_writer.interface.writeAll(line) catch return;
+        bun_writer.interface.writeAll("\n") catch return;
+        bun_writer.interface.flush() catch return;
+    }
+}
+
+/// Forwards every line Bun writes to stdout (responses *and* unsolicited
+/// notifications) to the host.
+fn pumpBunToHost(
+    bun_reader: *std.Io.File.Reader,
+    host_writer: *std.Io.File.Writer,
+) std.Io.Cancelable!void {
+    while (true) {
+        const maybe = bun_reader.interface.takeDelimiter('\n') catch return;
+        const line = maybe orelse return;
+        if (line.len == 0) continue;
+        host_writer.interface.writeAll(line) catch return;
+        host_writer.interface.writeAll("\n") catch return;
+        host_writer.interface.flush() catch return;
+    }
 }
 
 pub fn main(init: std.process.Init) !void {
@@ -19,11 +40,10 @@ pub fn main(init: std.process.Init) !void {
     defer args_it.deinit();
 
     _ = args_it.next();
-    const current_dir: []const u8 = ".";
     const project_root: []const u8 = if (args_it.next()) |a|
         try allocator.dupe(u8, a)
     else
-        current_dir;
+        ".";
 
     const bun_bin = init.environ_map.get("BUN_BIN") orelse "bun";
     const server_path = try std.fs.path.join(allocator, &.{ project_root, "core", "runtime", "main.ts" });
@@ -50,26 +70,9 @@ pub fn main(init: std.process.Init) !void {
     var bun_writer = bun_in.writerStreaming(init.io, &bun_wbuf);
     var bun_reader = bun_out.readerStreaming(init.io, &bun_rbuf);
 
-    while (true) {
-        const line = stdin_reader.interface.takeDelimiter('\n') catch break orelse break;
-        if (line.len == 0) break;
-
-        if (std.mem.indexOf(u8, line, "\"method\":\"zig.ping\"") != null) {
-            if (extractId(line)) |n| {
-                const resp = try std.fmt.allocPrint(allocator, "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"result\":\"pong\"}}\n", .{n});
-                stdout_writer.interface.writeAll(resp) catch break;
-                stdout_writer.interface.flush() catch break;
-            }
-            continue;
-        }
-
-        bun_writer.interface.writeAll(line) catch break;
-        bun_writer.interface.writeAll("\n") catch break;
-        bun_writer.interface.flush() catch break;
-
-        const resp = bun_reader.interface.takeDelimiter('\n') catch break orelse break;
-        stdout_writer.interface.writeAll(resp) catch break;
-        stdout_writer.interface.writeAll("\n") catch break;
-        stdout_writer.interface.flush() catch break;
-    }
+    // Bun -> host runs concurrently; host -> Bun runs on the main task.
+    var group: std.Io.Group = .init;
+    group.async(init.io, pumpBunToHost, .{ &bun_reader, &stdout_writer });
+    pumpHostToBun(&stdin_reader, &bun_writer) catch {};
+    group.cancel(init.io);
 }
