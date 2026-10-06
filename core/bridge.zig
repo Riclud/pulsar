@@ -26,7 +26,7 @@ pub fn main(init: std.process.Init) !void {
         current_dir;
 
     const bun_bin = init.environ_map.get("BUN_BIN") orelse "bun";
-    const server_path = try std.fs.path.join(allocator, &.{ project_root, "backend", "server.ts" });
+    const server_path = try std.fs.path.join(allocator, &.{ project_root, "backend", "main.ts" });
 
     var bun = std.process.spawn(init.io, .{
         .argv = &.{ bun_bin, "--watch", server_path },
