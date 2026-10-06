@@ -1,0 +1,10 @@
+{
+  "id": "com.pulsar.windows",
+  "name": "windows",
+  "version": "0.1.0",
+  "main": "main.ts",
+  "windows": [
+    { "label": "main", "ui": "ui/main.qml", "width": 440, "height": 340, "title": "Pulsar - Windows" },
+    { "label": "panel", "ui": "ui/panel.qml", "width": 360, "height": 260, "title": "Panel" }
+  ]
+}
