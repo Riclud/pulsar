@@ -68,7 +68,7 @@ static QString appDir()
 {
     const QByteArray a = qgetenv("PULSAR_APP");
     if (!a.isEmpty())
-        return QString::fromLocal8Bit(a);
+        return QFileInfo(QString::fromLocal8Bit(a)).absoluteFilePath();
     // Dev convenience: running the host from the repo root loads the example.
     const QString dev = QDir::current().filePath(QStringLiteral("examples/hello"));
     if (QFileInfo::exists(dev))
@@ -80,7 +80,7 @@ static QUrl resolveUi(const QString &ui)
 {
     const QString rel = ui.isEmpty() ? QStringLiteral("ui/main.qml") : ui;
     const QFileInfo fi(rel);
-    const QString path = fi.isAbsolute() ? rel : QDir(appDir()).filePath(rel);
+    const QString path = fi.isAbsolute() ? rel : QDir(appDir()).absoluteFilePath(rel);
     return QUrl::fromLocalFile(path);
 }
 
@@ -295,6 +295,63 @@ static void destroyWindows(QQmlApplicationEngine &engine)
         gWatcher->removePaths(gWatcher->files());
 }
 
+/// Send a lifecycle event to the runtime (dispatched as an App event).
+static void emitWindowEvent(const QString &name, const QString &label)
+{
+    if (!gBridge)
+        return;
+    QJsonObject data;
+    if (!label.isEmpty())
+        data.insert(QStringLiteral("label"), label);
+    QJsonObject params;
+    params.insert(QStringLiteral("name"), name);
+    params.insert(QStringLiteral("data"), data);
+    gBridge->notify(QStringLiteral("__event"), params);
+}
+
+static void handleWindowCommand(const QVariantMap &m)
+{
+    QString label = m.value(QStringLiteral("label")).toString();
+    if (label.isEmpty())
+        label = gPrimaryLabel;
+    const QString action = m.value(QStringLiteral("action")).toString();
+    if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
+        qInfo().noquote() << "WINDOW" << action << label;
+    auto *window = qobject_cast<QQuickWindow *>(g_roots.value(label));
+    if (!window)
+        return;
+    if (action == QLatin1String("show"))
+        window->show();
+    else if (action == QLatin1String("hide"))
+        window->hide();
+    else if (action == QLatin1String("close"))
+        window->close();
+    else if (action == QLatin1String("focus"))
+        window->requestActivate();
+    else if (action == QLatin1String("minimize"))
+        window->showMinimized();
+    else if (action == QLatin1String("maximize"))
+        window->showMaximized();
+    else if (action == QLatin1String("restore"))
+        window->showNormal();
+    else if (action == QLatin1String("setTitle"))
+        window->setTitle(m.value(QStringLiteral("title")).toString());
+    else if (action == QLatin1String("setSize")) {
+        window->setWidth(m.value(QStringLiteral("width")).toInt());
+        window->setHeight(m.value(QStringLiteral("height")).toInt());
+    } else if (action == QLatin1String("setPosition")) {
+        window->setX(m.value(QStringLiteral("x")).toInt());
+        window->setY(m.value(QStringLiteral("y")).toInt());
+    } else if (action == QLatin1String("fullscreen")) {
+        if (m.value(QStringLiteral("value")).toBool())
+            window->showFullScreen();
+        else
+            window->showNormal();
+    } else if (action == QLatin1String("alwaysOnTop")) {
+        window->setFlag(Qt::WindowStaysOnTopHint, m.value(QStringLiteral("value")).toBool());
+    }
+}
+
 int main(int argc, char **argv)
 {
     pulsar::initLogs();
@@ -400,6 +457,8 @@ int main(int argc, char **argv)
                              bridge->postLog(m.value(QStringLiteral("level")).toString(),
                                              m.value(QStringLiteral("message")).toString(),
                                              m.value(QStringLiteral("source")).toString());
+                         } else if (method == QLatin1String("__window")) {
+                             handleWindowCommand(params.toVariant().toMap());
                          } else if (method == QLatin1String("__error")) {
                              const QVariantMap m = params.toVariant().toMap();
                              qCritical().noquote()
@@ -413,6 +472,11 @@ int main(int argc, char **argv)
         qWarning().noquote() << "bun crashed: kind=" << kind << "code=" << code;
     });
 
+    // Lifecycle: tell the app when the last window is gone.
+    QObject::connect(&app, &QGuiApplication::lastWindowClosed, &app, []() {
+        emitWindowEvent(QStringLiteral("window-all-closed"), QString());
+    });
+
     // Collect QML loading errors so the fallback view can explain failures.
     QObject::connect(&engine, &QQmlEngine::warnings, &app, [](const QList<QQmlError> &list) {
         for (const QQmlError &e : list)
@@ -420,7 +484,7 @@ int main(int argc, char **argv)
     });
 
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated, &app,
-                     [&engine](QObject *obj, const QUrl &objUrl) {
+                     [&engine, &app](QObject *obj, const QUrl &objUrl) {
                          const QString label = g_urlLabels.value(objUrl.toString());
                          if (label.isEmpty())
                              return;
@@ -433,6 +497,12 @@ int main(int argc, char **argv)
                          }
                          applyConfig(obj, g_configs.value(label));
                          g_roots.insert(label, obj);
+                         if (auto *window = qobject_cast<QQuickWindow *>(obj)) {
+                             QObject::connect(window, &QQuickWindow::closing, &app,
+                                              [label](QQuickCloseEvent *) {
+                                                  emitWindowEvent(QStringLiteral("window-close"), label);
+                                              });
+                         }
                      },
                      Qt::QueuedConnection);
 

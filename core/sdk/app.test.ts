@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { Store } from "./app.ts"
+import { Store, WindowHandle } from "./app.ts"
+import { registerCapability } from "./caps.ts"
 
 describe("Store", () => {
   test("accepts plain JSON values", () => {
@@ -40,5 +41,21 @@ describe("Store", () => {
     const patch = store.takePatch()
     expect(patch.removed).toEqual(["a"])
     expect(patch.changed).toEqual({ b: 3 })
+  })
+})
+
+describe("WindowHandle", () => {
+  test("sends commands through the window capability", async () => {
+    const seen: unknown[] = []
+    registerCapability("window", (params) => {
+      seen.push(params)
+      return Promise.resolve(true)
+    })
+
+    await new WindowHandle("second").setTitle("Hi")
+    await new WindowHandle("second").close()
+
+    expect(seen[0]).toEqual({ label: "second", action: "setTitle", title: "Hi" })
+    expect(seen[1]).toEqual({ label: "second", action: "close" })
   })
 })

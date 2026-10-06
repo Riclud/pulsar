@@ -1,3 +1,4 @@
+import { callCapability } from "./caps.ts"
 import { loadManifest, resolveWindows, type AppManifest } from "./manifest.ts"
 
 export interface AppConfig {
@@ -143,6 +144,52 @@ export class Store {
   }
 }
 
+/** Controls a single window declared in pulsar.json, addressed by label. */
+export class WindowHandle {
+  constructor(private readonly label: string) {}
+
+  private command(action: string, extra: Record<string, unknown> = {}): Promise<boolean> {
+    return callCapability("window", { label: this.label, action, ...extra }) as Promise<boolean>
+  }
+
+  show(): Promise<boolean> {
+    return this.command("show")
+  }
+  hide(): Promise<boolean> {
+    return this.command("hide")
+  }
+  close(): Promise<boolean> {
+    return this.command("close")
+  }
+  focus(): Promise<boolean> {
+    return this.command("focus")
+  }
+  minimize(): Promise<boolean> {
+    return this.command("minimize")
+  }
+  maximize(): Promise<boolean> {
+    return this.command("maximize")
+  }
+  restore(): Promise<boolean> {
+    return this.command("restore")
+  }
+  setTitle(title: string): Promise<boolean> {
+    return this.command("setTitle", { title })
+  }
+  setSize(width: number, height: number): Promise<boolean> {
+    return this.command("setSize", { width, height })
+  }
+  setPosition(x: number, y: number): Promise<boolean> {
+    return this.command("setPosition", { x, y })
+  }
+  setFullscreen(value: boolean): Promise<boolean> {
+    return this.command("fullscreen", { value })
+  }
+  setAlwaysOnTop(value: boolean): Promise<boolean> {
+    return this.command("alwaysOnTop", { value })
+  }
+}
+
 export class App {
   static current: App | null = null
 
@@ -172,6 +219,11 @@ export class App {
   /** Quit the application. */
   quit(): void {
     this.onQuit?.()
+  }
+
+  /** Handle for a window declared in pulsar.json (defaults to the first). */
+  window(label = this.config.label ?? "main"): WindowHandle {
+    return new WindowHandle(label)
   }
 
   /** Register a handler for an event emitted from QML via Pulsar.emit(event, payload). */
