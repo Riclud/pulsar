@@ -1,13 +1,18 @@
 #include "bridge.h"
 #include "log.h"
 
+#include <QAction>
 #include <QClipboard>
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QGuiApplication>
+#include <QIcon>
+#include <QMenu>
 #include <QMessageBox>
+#include <QSystemTrayIcon>
+#include <QVariantMap>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -56,6 +61,7 @@ Bridge::Bridge(QJSEngine *engine, QQmlPropertyMap *store, QObject *parent)
 
 Bridge::~Bridge()
 {
+    delete trayMenu_;
     pendingCalls_.clear();
     process_.blockSignals(true);
     if (process_.state() != QProcess::NotRunning) {
@@ -167,6 +173,78 @@ QString Bridge::saveFile(const QString &title, const QString &filter, const QStr
 void Bridge::message(const QString &title, const QString &text)
 {
     QMessageBox::information(nullptr, title, text);
+}
+
+bool Bridge::trayAvailable() const
+{
+    return QSystemTrayIcon::isSystemTrayAvailable();
+}
+
+void Bridge::setTrayIcon(const QString &path)
+{
+    if (!QSystemTrayIcon::isSystemTrayAvailable())
+        return;
+    if (!tray_) {
+        tray_ = new QSystemTrayIcon(this);
+        connect(tray_, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason reason) {
+            QJsonObject data;
+            data.insert(QStringLiteral("reason"), int(reason));
+            QJsonObject params;
+            params.insert(QStringLiteral("name"), QStringLiteral("tray-activated"));
+            params.insert(QStringLiteral("data"), data);
+            notify(QStringLiteral("__event"), params);
+        });
+    }
+    tray_->setIcon(path.isEmpty() ? QIcon() : QIcon(path));
+    tray_->setVisible(true);
+}
+
+void Bridge::setTrayTooltip(const QString &text)
+{
+    if (tray_)
+        tray_->setToolTip(text);
+}
+
+void Bridge::setTrayMenu(const QVariantList &items)
+{
+    if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
+        qInfo() << "TRAY menu items=" << items.size();
+    if (!QSystemTrayIcon::isSystemTrayAvailable())
+        return;
+    if (!tray_)
+        setTrayIcon(QString());
+    if (!trayMenu_)
+        trayMenu_ = new QMenu();
+    trayMenu_->clear();
+    for (const QVariant &value : items) {
+        const QVariantMap m = value.toMap();
+        if (m.value(QStringLiteral("separator")).toBool()) {
+            trayMenu_->addSeparator();
+            continue;
+        }
+        QAction *action = trayMenu_->addAction(m.value(QStringLiteral("label")).toString());
+        action->setEnabled(m.value(QStringLiteral("enabled"), true).toBool());
+        if (m.contains(QStringLiteral("checked"))) {
+            action->setCheckable(true);
+            action->setChecked(m.value(QStringLiteral("checked")).toBool());
+        }
+        const QString event = m.value(QStringLiteral("event")).toString();
+        connect(action, &QAction::triggered, this, [this, event]() {
+            QJsonObject data;
+            data.insert(QStringLiteral("event"), event);
+            QJsonObject params;
+            params.insert(QStringLiteral("name"), QStringLiteral("tray-menu"));
+            params.insert(QStringLiteral("data"), data);
+            notify(QStringLiteral("__event"), params);
+        });
+    }
+    tray_->setContextMenu(trayMenu_);
+}
+
+void Bridge::hideTray()
+{
+    if (tray_)
+        tray_->setVisible(false);
 }
 
 QString Bridge::diagnostics() const

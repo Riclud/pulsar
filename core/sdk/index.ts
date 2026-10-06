@@ -9,9 +9,18 @@ export {
   paths,
   shell,
   storage,
+  tray,
   callCapability,
   hasCapability,
   registerCapability,
   registerCapabilities,
 } from "./caps.ts"
-export type { AppPaths, CapHandler, CapRegistry, FetchResult, FileDialogOptions, MessageDialogOptions } from "./caps.ts"
+export type {
+  AppPaths,
+  CapHandler,
+  CapRegistry,
+  FetchResult,
+  FileDialogOptions,
+  MessageDialogOptions,
+  TrayMenuItem,
+} from "./caps.ts"

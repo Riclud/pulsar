@@ -5,6 +5,25 @@ import Pulsar 1.0
 ApplicationWindow {
     visible: true
 
+    MenuBar {
+        Menu {
+            title: "File"
+            MenuItem {
+                text: "Increment"
+                onTriggered: Pulsar.emit("increment", {})
+            }
+            MenuItem {
+                text: "Toggle panel"
+                onTriggered: Pulsar.emit("togglePanel", {})
+            }
+            MenuSeparator {}
+            MenuItem {
+                text: "Quit"
+                onTriggered: Pulsar.emit("quit", {})
+            }
+        }
+    }
+
     Column {
         anchors.fill: parent
         anchors.margins: 16
@@ -15,7 +34,9 @@ ApplicationWindow {
             font.pixelSize: 20
         }
 
-        Label { text: "Panel open: " + (Store.panelOpen ? "yes" : "no") }
+        Label {
+            text: "Panel open: " + (Store.panelOpen ? "yes" : "no")
+        }
 
         Label {
             text: Store.lastClosed ? "Last closed window: " + Store.lastClosed : ""
