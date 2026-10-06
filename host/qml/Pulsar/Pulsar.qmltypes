@@ -24,6 +24,13 @@ Module {
         }
 
         Method {
+            name: "call"
+            type: "QJSValue"
+            Parameter { name: "method"; type: "QString" }
+            Parameter { name: "params"; type: "QVariant" }
+        }
+
+        Method {
             name: "diagnostics"
             type: "QString"
         }

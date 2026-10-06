@@ -1,8 +1,10 @@
 import { createInterface } from "node:readline"
 import { resolve } from "node:path"
 import { pathToFileURL } from "node:url"
-import { capabilities } from "../caps/index.ts"
-import { App } from "../sdk/index.ts"
+import { installCapabilities } from "../caps/index.ts"
+import { App, callCapability, hasCapability } from "../sdk/index.ts"
+
+installCapabilities()
 
 // stdout is reserved for the protocol; app logging goes to stderr.
 console.log = (...args: unknown[]) => console.error(...args)
@@ -120,9 +122,8 @@ rl.on("line", async (raw) => {
       }
       result = true
     } else {
-      const cap = capabilities[req.method]
-      if (!cap) throw new Error("method not found: " + req.method)
-      result = await cap(req.params ?? {})
+      if (!hasCapability(req.method)) throw new Error("method not found: " + req.method)
+      result = await callCapability(req.method, req.params ?? {})
     }
 
     send({ jsonrpc: "2.0", id: req.id, result, ...patchState() })
