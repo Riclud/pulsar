@@ -4,8 +4,10 @@
 #include <QClipboard>
 #include <QCoreApplication>
 #include <QDir>
+#include <QFileDialog>
 #include <QFileInfo>
 #include <QGuiApplication>
+#include <QMessageBox>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -150,6 +152,21 @@ void Bridge::clipboardWrite(const QString &text)
 QString Bridge::clipboardText() const
 {
     return QGuiApplication::clipboard() ? QGuiApplication::clipboard()->text() : QString();
+}
+
+QString Bridge::openFile(const QString &title, const QString &filter, const QString &dir)
+{
+    return QFileDialog::getOpenFileName(nullptr, title, dir, filter);
+}
+
+QString Bridge::saveFile(const QString &title, const QString &filter, const QString &dir)
+{
+    return QFileDialog::getSaveFileName(nullptr, title, dir, filter);
+}
+
+void Bridge::message(const QString &title, const QString &text)
+{
+    QMessageBox::information(nullptr, title, text);
 }
 
 QString Bridge::diagnostics() const

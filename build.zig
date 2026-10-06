@@ -1,12 +1,12 @@
 const std = @import("std");
 
 const qt_modules = [_][]const u8{
-    "Qt6Core",    "Qt6Gui",    "Qt6Qml",            "Qt6Quick",
+    "Qt6Core",    "Qt6Gui",    "Qt6Widgets",        "Qt6Qml", "Qt6Quick",
     "Qt6Network", "Qt6OpenGL", "Qt6QmlIntegration",
 };
 
 const fallback_includes = [_][]const u8{
-    "QtCore", "QtGui", "QtQml", "QtQuick", "QtNetwork", "QtOpenGL", "QtQmlIntegration",
+    "QtCore", "QtGui", "QtWidgets", "QtQml", "QtQuick", "QtNetwork", "QtOpenGL", "QtQmlIntegration",
 };
 
 /// Pulsar needs at least this Qt (major.minor). Lower versions are rejected.
@@ -213,6 +213,7 @@ pub fn build(b: *std.Build) void {
         libs.append(b.allocator, "-lQt6OpenGL") catch {};
         libs.append(b.allocator, "-lQt6Qml") catch {};
         libs.append(b.allocator, "-lQt6Network") catch {};
+        libs.append(b.allocator, "-lQt6Widgets") catch {};
         libs.append(b.allocator, "-lQt6Gui") catch {};
         libs.append(b.allocator, "-lQt6Core") catch {};
     }

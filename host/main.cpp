@@ -1,3 +1,4 @@
+#include <QApplication>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
@@ -10,8 +11,10 @@
 #include <QFile>
 #include <QHash>
 #include <QJsonObject>
+#include <QFileDialog>
 #include <QFileInfo>
 #include <QFileSystemWatcher>
+#include <QMessageBox>
 #include <QJSValue>
 #include <QSet>
 #include <QTimer>
@@ -309,6 +312,54 @@ static void emitWindowEvent(const QString &name, const QString &label)
     gBridge->notify(QStringLiteral("__event"), params);
 }
 
+static void handleDialogRequest(const QVariantMap &m)
+{
+    Bridge *bridge = gBridge;
+    if (!bridge)
+        return;
+
+    const QString token = m.value(QStringLiteral("token")).toString();
+    const QString kind = m.value(QStringLiteral("kind")).toString();
+    const QString title = m.value(QStringLiteral("title")).toString();
+    const QString filter = m.value(QStringLiteral("filter")).toString();
+    const QString dir = m.value(QStringLiteral("dir")).toString();
+    const QString text = m.value(QStringLiteral("text")).toString();
+
+    // Headless/test hook: skip the modal dialog and return a stub result.
+    const QByteArray stub = qgetenv("PULSAR_DIALOG_STUB");
+    if (!stub.isEmpty()) {
+        QJsonObject params;
+        params.insert(QStringLiteral("token"), token);
+        params.insert(QStringLiteral("value"),
+                      kind == QLatin1String("message") ? QJsonValue(true)
+                                                       : QJsonValue(QString::fromLocal8Bit(stub)));
+        bridge->notify(QStringLiteral("__dialog-result"), params);
+        return;
+    }
+
+    // Defer out of the response handler before opening a modal dialog.
+    QTimer::singleShot(0, QCoreApplication::instance(),
+                       [bridge, token, kind, title, filter, dir, text]() {
+                           QString result;
+                           if (kind == QLatin1String("open"))
+                               result = QFileDialog::getOpenFileName(nullptr, title, dir, filter);
+                           else if (kind == QLatin1String("save"))
+                               result = QFileDialog::getSaveFileName(nullptr, title, dir, filter);
+                           else if (kind == QLatin1String("message"))
+                               QMessageBox::information(nullptr, title, text);
+
+                           QJsonObject params;
+                           params.insert(QStringLiteral("token"), token);
+                           if (kind == QLatin1String("message"))
+                               params.insert(QStringLiteral("value"), true);
+                           else if (result.isEmpty())
+                               params.insert(QStringLiteral("value"), QJsonValue::Null);
+                           else
+                               params.insert(QStringLiteral("value"), result);
+                           bridge->notify(QStringLiteral("__dialog-result"), params);
+                       });
+}
+
 static void handleWindowCommand(const QVariantMap &m)
 {
     QString label = m.value(QStringLiteral("label")).toString();
@@ -356,7 +407,9 @@ int main(int argc, char **argv)
 {
     pulsar::initLogs();
 
-    QGuiApplication app(argc, argv);
+    // QApplication (Widgets) so native dialogs and the tray work; QQml works
+    // with it as well.
+    QApplication app(argc, argv);
     app.setOrganizationName(QStringLiteral("Pulsar"));
     app.setApplicationName(QStringLiteral("pulsar-host"));
 
@@ -459,6 +512,8 @@ int main(int argc, char **argv)
                                              m.value(QStringLiteral("source")).toString());
                          } else if (method == QLatin1String("__window")) {
                              handleWindowCommand(params.toVariant().toMap());
+                         } else if (method == QLatin1String("__dialog")) {
+                             handleDialogRequest(params.toVariant().toMap());
                          } else if (method == QLatin1String("__error")) {
                              const QVariantMap m = params.toVariant().toMap();
                              qCritical().noquote()

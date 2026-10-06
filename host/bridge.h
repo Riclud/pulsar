@@ -30,6 +30,11 @@ public:
     Q_INVOKABLE void clipboardWrite(const QString &text);
     Q_INVOKABLE QString clipboardText() const;
 
+    // Native dialogs, callable directly from QML (synchronous/modal).
+    Q_INVOKABLE QString openFile(const QString &title, const QString &filter, const QString &dir);
+    Q_INVOKABLE QString saveFile(const QString &title, const QString &filter, const QString &dir);
+    Q_INVOKABLE void message(const QString &title, const QString &text);
+
     // Send an unsolicited notification to the runtime (no response expected).
     void notify(const QString &method, const QJsonObject &params);
     // Re-emit a runtime log line to QML subscribers.
