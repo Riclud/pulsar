@@ -22,6 +22,7 @@ const callLog = join(tmp, "call.log")
 const qmlErrLog = join(tmp, "qml-error.log")
 const storageLog = join(tmp, "storage.log")
 const logLog = join(tmp, "log.log")
+const twoLog = join(tmp, "two.log")
 
 let failed = false
 
@@ -129,6 +130,19 @@ try {
   })
   check(logLog, "STORE qmlLog = QVariant(bool, true)")
   check(logLog, "STORE jsLog = QVariant(bool, true)")
+
+  // Multi-window: every window in pulsar.json is created and shares the store.
+  runHost({
+    PULSAR_DEBUG: "1",
+    QT_QPA_PLATFORM: "offscreen",
+    PULSAR_APP: join(root, "tests", "apps", "two-window"),
+    AUTO_QUIT_MS: "3000",
+    QT_LOG_FILE: twoLog,
+  })
+  check(twoLog, "window-main-ready")
+  check(twoLog, "window-second-ready")
+  check(twoLog, "CONFIG window second")
+  check(twoLog, "title= Second Window")
 
   // Single-file build: `pulsar build` must produce one self-contained
   // executable that extracts itself and runs the QML app.
