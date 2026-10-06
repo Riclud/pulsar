@@ -1,0 +1,51 @@
+import QtQuick.tooling 1.2
+
+// Static description of the Pulsar QML module, consumed by qmllint / qmlls / Qt Creator.
+// The types themselves are registered at runtime with qmlRegisterSingletonInstance().
+Module {
+    dependencies: ["QtQuick"]
+
+    Component {
+        name: "Pulsar"
+        prototype: "QObject"
+        exports: ["Pulsar/Pulsar 1.0"]
+        isSingleton: true
+
+        Method {
+            name: "emit"
+            type: "qint64"
+            Parameter { name: "method"; type: "QString" }
+            Parameter { name: "params"; type: "QVariant" }
+        }
+
+        Method {
+            name: "invoke"
+            type: "qint64"
+            Parameter { name: "method"; type: "QString" }
+            Parameter { name: "params"; type: "QVariant" }
+        }
+
+        Method {
+            name: "diagnostics"
+            type: "QString"
+        }
+
+        Signal {
+            name: "ready"
+        }
+
+        Signal {
+            name: "response"
+            Parameter { name: "id"; type: "qint64" }
+            Parameter { name: "result"; type: "QVariant" }
+            Parameter { name: "error"; type: "QVariant" }
+        }
+    }
+
+    Component {
+        name: "Store"
+        prototype: "QObject"
+        exports: ["Pulsar/Store 1.0"]
+        isSingleton: true
+    }
+}

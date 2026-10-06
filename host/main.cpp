@@ -1,11 +1,11 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
-#include <QQmlContext>
 #include <QQmlPropertyMap>
 #include <QDir>
 #include <QFile>
 #include <QJSValue>
 #include <QTimer>
+#include <QtQml/qqml.h>
 #include <QtGlobal>
 
 #include "bridge.h"
@@ -30,19 +30,18 @@ int main(int argc, char **argv)
         qInstallMessageHandler(logToFile);
     }
     QGuiApplication app(argc, argv);
-    app.setOrganizationName(QStringLiteral("demo"));
-    app.setApplicationName(QStringLiteral("qml-bun-bridge"));
+    app.setOrganizationName(QStringLiteral("Pulsar"));
+    app.setApplicationName(QStringLiteral("pulsar-host"));
 
     QQmlApplicationEngine engine;
 
-    // Reactive state, pushed from Bun. QML binds to Store.*.
+    // Types are owned by `app` so they outlive the engine.
     QQmlPropertyMap *store = new QQmlPropertyMap(&app);
-    engine.rootContext()->setContextProperty(QStringLiteral("Store"), store);
+    Bridge *bridge = new Bridge(&engine, store, &app);
 
-    Bridge bridge(&engine, store);
-
-    // QML-facing singleton: Pulsar.emit(event, payload)
-    engine.rootContext()->setContextProperty(QStringLiteral("Pulsar"), &bridge);
+    // Exposed to QML as `import Pulsar 1.0` -> Pulsar.emit(...) / Store.*
+    qmlRegisterSingletonInstance("Pulsar", 1, 0, "Pulsar", bridge);
+    qmlRegisterSingletonInstance("Pulsar", 1, 0, "Store", store);
 
     QByteArray qml = qgetenv("QML_MAIN");
     if (qml.isEmpty()) {
@@ -72,7 +71,7 @@ int main(int argc, char **argv)
 
     const int selfTest = qEnvironmentVariableIntValue("SELFTEST", &ok);
     if (ok && selfTest > 0) {
-        QObject::connect(&bridge, &Bridge::response,
+        QObject::connect(bridge, &Bridge::response,
                          [](qint64 id, const QJSValue &result, const QJSValue &error) {
                              qInfo().noquote().nospace() << "SELFTEST resp id=" << id
                                                          << " result=" << result.toString()
@@ -80,11 +79,11 @@ int main(int argc, char **argv)
                          });
         QTimer *selfTestTimer = new QTimer(&app);
         selfTestTimer->setSingleShot(true);
-        QObject::connect(selfTestTimer, &QTimer::timeout, &app, [&engine, &bridge]() {
+        QObject::connect(selfTestTimer, &QTimer::timeout, &app, [&engine, bridge]() {
             qInfo() << "SELFTEST emit greet";
             QJSValue params = engine.newObject();
             params.setProperty(QStringLiteral("name"), QJSValue(QStringLiteral("SelfTest")));
-            bridge.invoke(QStringLiteral("greet"), params);
+            bridge->invoke(QStringLiteral("greet"), params);
         });
         selfTestTimer->start(selfTest);
     }
