@@ -25,6 +25,7 @@ const logLog = join(tmp, "log.log")
 const twoLog = join(tmp, "two.log")
 const winLog = join(tmp, "window-ctl.log")
 const dialogLog = join(tmp, "dialog.log")
+const trayLog = join(tmp, "tray.log")
 
 let failed = false
 
@@ -171,6 +172,17 @@ try {
   })
   check(dialogLog, "STORE picked = QVariant(QString, /tmp/picked.txt)")
   check(dialogLog, "STORE messaged = QVariant(bool, true)")
+
+  // System tray: the app can configure the menu through the tray capability.
+  runHost({
+    PULSAR_DEBUG: "1",
+    QT_QPA_PLATFORM: "offscreen",
+    PULSAR_APP: join(root, "tests", "apps", "tray-app"),
+    AUTO_QUIT_MS: "3000",
+    QT_LOG_FILE: trayLog,
+  })
+  check(trayLog, "TRAY menu items= 3")
+  check(trayLog, "STORE traySet = QVariant(bool, true)")
 
   // Single-file build: `pulsar build` must produce one self-contained
   // executable that extracts itself and runs the QML app.
