@@ -19,6 +19,7 @@ const log = join(tmp, "main.log")
 const crashLog = join(tmp, "crash.log")
 const bigLog = join(tmp, "big.log")
 const callLog = join(tmp, "call.log")
+const qmlErrLog = join(tmp, "qml-error.log")
 
 let failed = false
 
@@ -81,6 +82,17 @@ try {
     QT_LOG_FILE: callLog,
   })
   check(callLog, "CALLRESULT true")
+
+  // Error surface: a broken app QML must surface a clear message instead of a
+  // silent exit.
+  runHost({
+    PULSAR_DEBUG: "1",
+    QT_QPA_PLATFORM: "offscreen",
+    PULSAR_APP: join(root, "tests", "apps", "bad-qml"),
+    AUTO_QUIT_MS: "4000",
+    QT_LOG_FILE: qmlErrLog,
+  })
+  check(qmlErrLog, "app failed to load")
 
   if (failed) {
     console.error("smoke: FAILED")

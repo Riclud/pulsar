@@ -30,6 +30,7 @@ signals:
 
 private slots:
     void onReadyReadStandardOutput();
+    void onReadyReadStandardError();
     void onProcessFinished(int exitCode, QProcess::ExitStatus status);
 
 private:
@@ -48,6 +49,7 @@ private:
     QJSEngine *engine_;
     QQmlPropertyMap *store_ = nullptr;
     QByteArray stdoutBuffer_;
+    QByteArray stderrBuffer_;
     qint64 nextId_ = 1;
     bool readyEmitted_ = false;
     bool synced_ = false;

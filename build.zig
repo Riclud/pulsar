@@ -248,11 +248,13 @@ pub fn build(b: *std.Build) void {
 
     const main_o = compileCxx(b, cxx, cflags.items, b.path("host/main.cpp"), "main.o");
     const bridge_o = compileCxx(b, cxx, cflags.items, b.path("host/bridge.cpp"), "bridge.o");
+    const log_o = compileCxx(b, cxx, cflags.items, b.path("host/log.cpp"), "log.o");
     const moc_o = compileCxx(b, cxx, cflags.items, moc_cpp, "moc.o");
 
     const link = b.addSystemCommand(&.{cxx});
     link.addFileArg(main_o);
     link.addFileArg(bridge_o);
+    link.addFileArg(log_o);
     link.addFileArg(moc_o);
     link.addArgs(libs.items);
     link.addArg("-o");
