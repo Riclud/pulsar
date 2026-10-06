@@ -9,12 +9,19 @@ export type EventHandler = (payload: any) => void
 
 export class Store {
   private readonly data = new Map<string, unknown>()
+  private readonly dirty = new Set<string>()
+  private readonly removed = new Set<string>()
 
   get(key: string): unknown {
     return this.data.has(key) ? this.data.get(key) : null
   }
 
   set(key: string, value: unknown): this {
+    const existed = this.data.has(key)
+    if (!existed || !Object.is(this.data.get(key), value)) {
+      this.dirty.add(key)
+      this.removed.delete(key)
+    }
     this.data.set(key, value)
     return this
   }
@@ -24,16 +31,31 @@ export class Store {
   }
 
   delete(key: string): boolean {
-    return this.data.delete(key)
+    const had = this.data.delete(key)
+    if (had) {
+      this.removed.add(key)
+      this.dirty.delete(key)
+    }
+    return had
   }
 
   keys(): string[] {
     return [...this.data.keys()]
   }
 
-  /** Plain object with all current state, pushed to the UI after each emit. */
+  /** Full state. Used once on the initial __sync. */
   snapshot(): Record<string, unknown> {
     return Object.fromEntries(this.data)
+  }
+
+  /** Keys changed/removed since the last call; clears the tracking. */
+  takePatch(): { changed: Record<string, unknown>; removed: string[] } {
+    const changed: Record<string, unknown> = {}
+    for (const key of this.dirty) changed[key] = this.data.get(key)
+    const removed = [...this.removed]
+    this.dirty.clear()
+    this.removed.clear()
+    return { changed, removed }
   }
 }
 

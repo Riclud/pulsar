@@ -8,8 +8,18 @@ function send(msg: unknown) {
   process.stdout.write(JSON.stringify(msg) + "\n")
 }
 
-function currentState(): Record<string, unknown> {
+function fullState(): Record<string, unknown> {
   return App.current ? App.current.store.snapshot() : {}
+}
+
+function patchState(): { state?: Record<string, unknown>; unset?: string[] } {
+  const app = App.current
+  if (!app) return {}
+  const { changed, removed } = app.store.takePatch()
+  const out: { state?: Record<string, unknown>; unset?: string[] } = {}
+  if (Object.keys(changed).length > 0) out.state = changed
+  if (removed.length > 0) out.unset = removed
+  return out
 }
 
 const appDir = resolve(process.env.PULSAR_APP ?? "examples/hello")
@@ -29,21 +39,28 @@ rl.on("line", async (raw) => {
   try {
     req = JSON.parse(raw)
   } catch {
-    send({
-      jsonrpc: "2.0",
-      id: null,
-      error: { code: -32700, message: "parse error" },
-    })
+    send({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "parse error" } })
     return
   }
 
   const app = App.current
+
+  if (req.method === "__sync") {
+    const state = fullState()
+    app?.store.takePatch()
+    send({ jsonrpc: "2.0", id: req.id, result: true, state })
+    return
+  }
+
+  if (req.method === "__poll") {
+    send({ jsonrpc: "2.0", id: req.id, result: true, poll: true, ...patchState() })
+    return
+  }
+
   try {
     let result: unknown = null
 
-    if (req.method === "__sync") {
-      result = true
-    } else if (app?.hasEvent(req.method)) {
+    if (app?.hasEvent(req.method)) {
       app.dispatchEvent(req.method, req.params ?? {})
       result = true
     } else {
@@ -52,14 +69,9 @@ rl.on("line", async (raw) => {
       result = await cap(req.params ?? {})
     }
 
-    send({ jsonrpc: "2.0", id: req.id, result, state: currentState() })
+    send({ jsonrpc: "2.0", id: req.id, result, ...patchState() })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
-    send({
-      jsonrpc: "2.0",
-      id: req.id,
-      error: { code: -32000, message: msg },
-      state: currentState(),
-    })
+    send({ jsonrpc: "2.0", id: req.id, error: { code: -32000, message: msg }, ...patchState() })
   }
 })
