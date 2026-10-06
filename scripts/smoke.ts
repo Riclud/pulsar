@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 // Headless end-to-end smoke test: config, initial state sync, live push, and
 // Bun supervision. Cross-platform replacement for scripts/smoke.sh.
-import { mkdtempSync, readFileSync, rmSync } from "node:fs"
-import { tmpdir } from "node:os"
-import { join, resolve } from "node:path"
+import { mkdtempSync, readFileSync, rmSync } from "fs"
+import { tmpdir } from "os"
+import { join, resolve } from "path"
 
 const root = resolve(import.meta.dir, "..")
 const host = join(root, "zig-out", "bin", process.platform === "win32" ? "qml-host.exe" : "qml-host")
@@ -24,8 +24,12 @@ const storageLog = join(tmp, "storage.log")
 
 let failed = false
 
+function runHostBinary(bin: string, env: Record<string, string>) {
+  Bun.spawnSync({ cmd: [bin], cwd: root, env: { ...process.env, ...env }, stdio: ["ignore", "ignore", "ignore"] })
+}
+
 function runHost(env: Record<string, string>) {
-  Bun.spawnSync({ cmd: [host], cwd: root, env: { ...process.env, ...env }, stdio: ["ignore", "ignore", "ignore"] })
+  runHostBinary(host, env)
 }
 
 function check(file: string, needle: string) {
@@ -112,6 +116,31 @@ try {
   check(storageLog, "STORE storageOk = QVariant(bool, true)")
   check(storageLog, "min= 320")
   check(storageLog, "resizable= false")
+
+  // Single-file build: `pulsar build` must produce one self-contained
+  // executable that extracts itself and runs the QML app.
+  const singleDir = join(tmp, "single")
+  const singleLog = join(tmp, "single.log")
+  const built = Bun.spawnSync({
+    cmd: ["bun", join(root, "cli", "index.ts"), "build", "--out", singleDir],
+    cwd: join(root, "examples", "hello"),
+    stdio: ["ignore", "ignore", "inherit"],
+  })
+  if (built.exitCode !== 0) {
+    console.error("smoke: pulsar build failed")
+    failed = true
+  } else {
+    const app = join(singleDir, process.platform === "win32" ? "hello.exe" : "hello")
+    runHostBinary(app, {
+      PULSAR_DEBUG: "1",
+      QT_QPA_PLATFORM: "offscreen",
+      XDG_CACHE_HOME: join(tmp, "single-cache"),
+      AUTO_QUIT_MS: "4000",
+      QT_LOG_FILE: singleLog,
+    })
+    check(singleLog, "extracted embedded app")
+    check(singleLog, "STORE greeting = QVariant(QString, Hello, World!)")
+  }
 
   if (failed) {
     console.error("smoke: FAILED")
