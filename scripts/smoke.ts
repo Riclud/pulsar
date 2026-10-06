@@ -24,6 +24,7 @@ const storageLog = join(tmp, "storage.log")
 const logLog = join(tmp, "log.log")
 const twoLog = join(tmp, "two.log")
 const winLog = join(tmp, "window-ctl.log")
+const dialogLog = join(tmp, "dialog.log")
 
 let failed = false
 
@@ -157,6 +158,19 @@ try {
   check(winLog, "WINDOW setTitle second")
   check(winLog, "STORE closedLabel = QVariant(QString, second)")
   check(winLog, "STORE secondClosed = QVariant(bool, true)")
+
+  // Native dialogs: the runtime/host round-trip resolves the app's promise
+  // (PULSAR_DIALOG_STUB skips the modal dialog in headless CI).
+  runHost({
+    PULSAR_DEBUG: "1",
+    QT_QPA_PLATFORM: "offscreen",
+    PULSAR_DIALOG_STUB: "/tmp/picked.txt",
+    PULSAR_APP: join(root, "tests", "apps", "dialog-app"),
+    AUTO_QUIT_MS: "3000",
+    QT_LOG_FILE: dialogLog,
+  })
+  check(dialogLog, "STORE picked = QVariant(QString, /tmp/picked.txt)")
+  check(dialogLog, "STORE messaged = QVariant(bool, true)")
 
   // Single-file build: `pulsar build` must produce one self-contained
   // executable that extracts itself and runs the QML app.
