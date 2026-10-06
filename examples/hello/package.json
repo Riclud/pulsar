@@ -1,0 +1,12 @@
+{
+  "name": "hello",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "pulsar run",
+    "build": "pulsar build"
+  },
+  "dependencies": {
+    "pulsar": "workspace:*"
+  }
+}

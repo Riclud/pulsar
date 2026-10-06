@@ -1,6 +1,9 @@
 # dependencies (bun install)
 node_modules
 
+# example lockfiles
+examples/hello/bun.lock
+
 # zig build artifacts
 .zig-cache/
 zig-out/
