@@ -113,6 +113,65 @@ function run() {
   process.exit(r.status ?? 0)
 }
 
+/** Run with hot reload: watch app sources and restart the runtime on change. */
+function dev() {
+  const appDir = process.cwd()
+  const host = findHost()
+  console.log("pulsar: dev mode (watching for changes)")
+  const r = spawnSync(host, [], {
+    stdio: "inherit",
+    env: { ...process.env, PULSAR_APP: appDir, PULSAR_WATCH: "1" },
+  })
+  process.exit(r.status ?? 0)
+}
+
+function version() {
+  try {
+    const pkg = JSON.parse(readFileSync(join(import.meta.dir, "package.json"), "utf8")) as { version?: string }
+    console.log(`pulsar ${pkg.version ?? "0.0.0"}`)
+  } catch {
+    console.log("pulsar (unknown version)")
+  }
+}
+
+/** Check the toolchain and report what is missing. */
+function doctor() {
+  const lines: string[] = []
+  let critical = true
+
+  let host = ""
+  try {
+    host = findHost()
+    lines.push(`ok    host binary: ${host}`)
+  } catch (e) {
+    critical = false
+    lines.push(`FAIL  host binary: ${e instanceof Error ? e.message : e}`)
+  }
+
+  if (host) {
+    try {
+      lines.push(`ok    bridge binary: ${findBridge(host)}`)
+    } catch (e) {
+      critical = false
+      lines.push(`FAIL  bridge binary: ${e instanceof Error ? e.message : e}`)
+    }
+  }
+
+  lines.push(`ok    bun: ${Bun.version ?? "unknown"}`)
+
+  const qt = spawnSync("pkg-config", ["--modversion", "Qt6Core"], { encoding: "utf8" })
+  if (qt.status === 0 && qt.stdout) lines.push(`ok    Qt6: ${qt.stdout.trim()}`)
+  else lines.push(`warn  Qt6: not found via pkg-config (the host may still be built)`)
+
+  const manifest = join(process.cwd(), "pulsar.json")
+  lines.push(
+    existsSync(manifest) ? `ok    pulsar.json: ${manifest}` : `warn  pulsar.json: not found in ${process.cwd()}`,
+  )
+
+  console.log(lines.join("\n"))
+  process.exit(critical ? 0 : 1)
+}
+
 type PayloadEntry = { path: string; data: Buffer }
 
 /** 64-bit FNV-1a over the payload shape; used as the extraction cache id. */
@@ -264,11 +323,26 @@ function init() {
 
 function usage() {
   console.log(
-    "pulsar <command>\n\n  init [dir]   scaffold a new app\n  run          run the app in the current directory\n  build        build a distributable bundle",
+    [
+      "pulsar <command>",
+      "",
+      "  init [dir]   scaffold a new app",
+      "  dev          run with hot reload (watch sources)",
+      "  run          run the app in the current directory",
+      "  build        build a single-file executable",
+      "  doctor       check the toolchain (host, bridge, Qt, Bun)",
+      "  version      print the version",
+      "",
+      "  -h, --help     show this help",
+      "  -v, --version  print the version",
+    ].join("\n"),
   )
 }
 
 switch (cmd) {
+  case "dev":
+    dev()
+    break
   case "run":
     run()
     break
@@ -277,6 +351,19 @@ switch (cmd) {
     break
   case "build":
     await build()
+    break
+  case "doctor":
+    doctor()
+    break
+  case "version":
+  case "-v":
+  case "--version":
+    version()
+    break
+  case "help":
+  case "-h":
+  case "--help":
+    usage()
     break
   default:
     usage()
