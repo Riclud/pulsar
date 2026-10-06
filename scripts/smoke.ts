@@ -83,6 +83,7 @@ try {
     QT_LOG_FILE: callLog,
   })
   check(callLog, "CALLRESULT true")
+  check(callLog, "CALLCLIP hi pulsar")
 
   // Error surface: a broken app QML must surface a clear message instead of a
   // silent exit.
@@ -109,6 +110,8 @@ try {
     QT_LOG_FILE: storageLog,
   })
   check(storageLog, "STORE storageOk = QVariant(bool, true)")
+  check(storageLog, "min= 320")
+  check(storageLog, "resizable= false")
 
   if (failed) {
     console.error("smoke: FAILED")
