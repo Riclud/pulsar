@@ -137,9 +137,15 @@ pub fn main(init: std.process.Init) !void {
         ".";
 
     const bun_bin = init.environ_map.get("BUN_BIN") orelse "bun";
+    // A self-contained runtime executable (e.g. `bun build --compile`) replaces
+    // the `bun <script>` pair. This is what lets the runtime be swapped later.
+    const runtime_bin = init.environ_map.get("PULSAR_RUNTIME");
     const server_path = try std.fs.path.join(allocator, &.{ project_root, "core", "runtime", "main.ts" });
 
-    const argv: []const []const u8 = &.{ bun_bin, server_path };
+    const argv: []const []const u8 = if (runtime_bin) |rt|
+        &.{rt}
+    else
+        &.{ bun_bin, server_path };
 
     var bun = std.process.spawn(init.io, .{
         .argv = argv,
