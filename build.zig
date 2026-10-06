@@ -240,6 +240,14 @@ pub fn build(b: *std.Build) void {
     const bridge = b.addExecutable(.{ .name = "bridge", .root_module = zig_zig });
     b.installArtifact(bridge);
 
+    // Qt-free launcher for single-file apps (extracts the payload, runs host).
+    const launcher_cmd = b.addSystemCommand(&.{ cxx, "-std=c++20", "-O2" });
+    launcher_cmd.addFileArg(b.path("launcher/main.cpp"));
+    launcher_cmd.addArg("-o");
+    const launcher_exe = launcher_cmd.addOutputFileArg("launcher");
+    const install_launcher = b.addInstallFile(launcher_exe, b.fmt("bin/launcher{s}", .{exe_suffix}));
+    b.getInstallStep().dependOn(&install_launcher.step);
+
     // --- C++ host ---
     const moc_cmd = b.addSystemCommand(&.{ moc, "-Ihost", "-DQT_NO_EMIT" });
     moc_cmd.addArgs(cflags.items);
@@ -260,6 +268,12 @@ pub fn build(b: *std.Build) void {
     link.addFileArg(embedded_o);
     link.addFileArg(moc_o);
     link.addArgs(libs.items);
+    // Prefer bundled Qt next to the host, falling back to the system when the
+    // bundled tree is absent (dev builds).
+    link.addArg(if (os == .macos)
+        "-Wl,-rpath,@executable_path/../lib/Qt/lib"
+    else
+        "-Wl,-rpath,$ORIGIN/../lib/Qt/lib");
     link.addArg("-o");
     const host_exe = link.addOutputFileArg("qml-host");
 
