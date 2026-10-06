@@ -56,7 +56,7 @@ pub fn build(b: *std.Build) void {
     const install_host = b.addInstallFile(host_exe, "bin/qml-host");
     install.dependOn(&install_host.step);
 
-    const run_cmd = b.addSystemCommand(&.{ "./zig-out/bin/qml-host" });
+    const run_cmd = b.addSystemCommand(&.{"./zig-out/bin/qml-host"});
     run_cmd.step.dependOn(b.getInstallStep());
     const run_step = b.step("run", "Run QML host (starts Bun through Zig bridge)");
     run_step.dependOn(&run_cmd.step);
