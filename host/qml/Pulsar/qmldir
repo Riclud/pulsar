@@ -1,2 +1,6 @@
 module Pulsar
+linktarget Pulsarplugin
+optional plugin pulsarplugin
+classname PulsarPlugin
 typeinfo Pulsar.qmltypes
+import QtQml auto
