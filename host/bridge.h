@@ -22,6 +22,9 @@ public:
     Q_INVOKABLE QJSValue call(const QString &method, const QJSValue &params);
     Q_INVOKABLE QString diagnostics() const;
 
+    // Called by the host to restart the whole Bun side (dev hot reload).
+    Q_INVOKABLE void restart();
+
 signals:
     void ready();
     void response(qint64 id, const QJSValue &result, const QJSValue &error);
@@ -40,7 +43,6 @@ private:
     };
 
     void startBridge();
-    void restart();
     void ensurePromiseFactory();
     void failPending(const QString &reason);
     void handleResponse(const QByteArray &line);
@@ -54,6 +56,7 @@ private:
     bool readyEmitted_ = false;
     bool synced_ = false;
     bool crashed_ = false;
+    bool restarting_ = false;
     int restartBudget_ = 0;
     QJSValue promiseFactory_;
     QHash<qint64, PendingCall> pendingCalls_;
