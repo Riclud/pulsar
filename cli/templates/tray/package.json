@@ -1,0 +1,10 @@
+{
+  "name": "{{name}}",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pulsar dev",
+    "start": "pulsar run",
+    "build": "pulsar build"
+  }
+}
