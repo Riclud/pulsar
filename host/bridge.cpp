@@ -66,13 +66,45 @@ Bridge::~Bridge()
 void Bridge::startBridge()
 {
     const QString appDir = QCoreApplication::applicationDirPath();
+
+    QString qmlRootDir;
+    const QByteArray rootEnv = qgetenv("PULSAR_ROOT");
+    if (!rootEnv.isEmpty()) {
+        qmlRootDir = QString::fromLocal8Bit(rootEnv);
+    } else {
+        // Walk up from the executable until the runtime is found, so an
+        // installed layout (bin/ + core/ + app/) works just like the dev one
+        // (zig-out/bin/ + core/).
+        QDir dir(appDir);
+        for (int i = 0; i < 8; ++i) {
+            if (QFileInfo::exists(dir.filePath(QStringLiteral("core/runtime/main.ts")))) {
+                qmlRootDir = dir.absolutePath();
+                break;
+            }
+            if (!dir.cdUp())
+                break;
+        }
+        if (qmlRootDir.isEmpty()) {
+            QDir root(appDir);
+            if (root.cd(QStringLiteral("../..")))
+                qmlRootDir = root.absolutePath();
+        }
+    }
+
     QStringList candidates;
-    const QString installed = appDir + QStringLiteral("/bridge");
-    if (QFileInfo::exists(installed))
-        candidates << installed;
-    const QString rel = QDir::current().filePath(QStringLiteral("zig-out/bin/bridge"));
-    if (QFileInfo::exists(rel))
-        candidates << rel;
+    const auto consider = [&candidates](const QString &path) {
+        if (path.isEmpty())
+            return;
+        const QString exe = path + QStringLiteral(".exe");
+        if (QFileInfo::exists(path))
+            candidates << path;
+        else if (QFileInfo::exists(exe))
+            candidates << exe;
+    };
+    consider(QString::fromLocal8Bit(qgetenv("PULSAR_BRIDGE")));
+    consider(appDir + QStringLiteral("/bridge"));
+    consider(qmlRootDir + QStringLiteral("/bridge"));
+    consider(QDir::current().filePath(QStringLiteral("zig-out/bin/bridge")));
 
     QString chosen;
     for (const QString &c : std::as_const(candidates)) {
@@ -87,12 +119,6 @@ void Bridge::startBridge()
         return;
     }
 
-    QString qmlRootDir;
-    {
-        QDir root(appDir);
-        if (root.cd(QStringLiteral("../..")))
-            qmlRootDir = root.absolutePath();
-    }
     process_.setWorkingDirectory(qmlRootDir);
     process_.start(chosen, QStringList{ qmlRootDir });
 }

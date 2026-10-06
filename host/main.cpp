@@ -17,6 +17,7 @@
 #include <QtGlobal>
 
 #include "bridge.h"
+#include "embedded.h"
 #include "log.h"
 
 static QStringList gQmlErrors;
@@ -244,6 +245,19 @@ int main(int argc, char **argv)
     QGuiApplication app(argc, argv);
     app.setOrganizationName(QStringLiteral("Pulsar"));
     app.setApplicationName(QStringLiteral("pulsar-host"));
+
+    // Single-file distribution: if this executable carries an appended payload,
+    // extract it and point the runtime/bridge at the extracted tree.
+    QString embeddedRoot;
+    if (pulsarExtractEmbedded(QCoreApplication::applicationFilePath(), &embeddedRoot)) {
+        QString runtime = embeddedRoot + QStringLiteral("/runtime");
+        if (!QFileInfo::exists(runtime) && QFileInfo::exists(runtime + QStringLiteral(".exe")))
+            runtime += QStringLiteral(".exe");
+        qputenv("PULSAR_ROOT", embeddedRoot.toLocal8Bit());
+        qputenv("PULSAR_APP", (embeddedRoot + QStringLiteral("/app")).toLocal8Bit());
+        qputenv("PULSAR_RUNTIME", runtime.toLocal8Bit());
+        qInfo().noquote() << "pulsar: extracted embedded app to" << embeddedRoot;
+    }
 
     QQmlApplicationEngine engine;
 
