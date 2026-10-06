@@ -1,10 +1,11 @@
-import { App, tray } from "pulsar"
+import { App, dialog, tray } from "pulsar"
 
 const app = new App()
 
 app.store.set("counter", 0)
 app.store.set("panelOpen", true)
 app.store.set("lastClosed", "")
+app.store.set("picked", "")
 
 function increment() {
   app.store.set("counter", (app.store.get("counter") as number) + 1)
@@ -20,6 +21,15 @@ async function togglePanel() {
 app.on("increment", increment)
 app.on("togglePanel", togglePanel)
 app.on("quit", () => app.quit())
+
+app.on("openFile", async () => {
+  const picked = await dialog.openFile({ title: "Open a file", filter: "All files (*)" })
+  if (picked) app.store.set("picked", picked)
+})
+
+app.on("showMessage", async () => {
+  await dialog.message({ title: "Pulsar", text: "This is a native message dialog." })
+})
 
 app.on("renamePanel", async (params: { title: string }) => {
   await app.window("panel").setTitle(params.title)
