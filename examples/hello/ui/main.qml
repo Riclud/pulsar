@@ -14,15 +14,11 @@ ApplicationWindow {
         spacing: 8
 
         Row {
-            Rectangle {
-                width: 100
-
-                Text {
-                    text: Store.name || ""
-                }
-            }
-
             spacing: 12
+            Label {
+                text: Store.name || ""
+                anchors.verticalCenter: parent.verticalCenter
+            }
             Label {
                 text: Store.greeting || ""
                 anchors.verticalCenter: parent.verticalCenter
@@ -58,10 +54,8 @@ ApplicationWindow {
     }
 
     Component.onCompleted: {
-        Pulsar.ready.connect(function () {
-            Pulsar.emit("greet", {
-                name: "World"
-            });
+        Pulsar.emit("greet", {
+            name: "World"
         });
     }
 }

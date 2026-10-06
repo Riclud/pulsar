@@ -48,8 +48,14 @@ pub fn main(init: std.process.Init) !void {
     const bun_bin = init.environ_map.get("BUN_BIN") orelse "bun";
     const server_path = try std.fs.path.join(allocator, &.{ project_root, "core", "runtime", "main.ts" });
 
+    const watch = init.environ_map.get("PULSAR_WATCH") != null;
+    const argv: []const []const u8 = if (watch)
+        &.{ bun_bin, "--watch", server_path }
+    else
+        &.{ bun_bin, server_path };
+
     var bun = std.process.spawn(init.io, .{
-        .argv = &.{ bun_bin, "--watch", server_path },
+        .argv = argv,
         .cwd = .{ .path = project_root },
         .stdin = .pipe,
         .stdout = .pipe,

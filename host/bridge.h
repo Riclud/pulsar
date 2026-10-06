@@ -23,6 +23,7 @@ public:
 signals:
     void ready();
     void response(qint64 id, const QJSValue &result, const QJSValue &error);
+    void notification(const QString &method, const QJSValue &params);
 
 private slots:
     void onReadyReadStandardOutput();

@@ -153,17 +153,20 @@ void Bridge::handleResponse(const QByteArray &line)
     // Responses carry an "id"; unsolicited notifications (Bun push) do not.
     const bool hasId = obj.contains(QStringLiteral("id"));
 
+    QString notifyMethod;
+    QJsonObject notifyParams;
     QJsonObject state;
     QJsonArray unset;
     if (hasId) {
         state = obj.value(QStringLiteral("state")).toObject();
         unset = obj.value(QStringLiteral("unset")).toArray();
     } else {
-        const QJsonObject params = obj.value(QStringLiteral("params")).toObject();
-        state = params.value(QStringLiteral("state")).toObject();
-        unset = params.value(QStringLiteral("unset")).toArray();
+        notifyMethod = obj.value(QStringLiteral("method")).toString();
+        notifyParams = obj.value(QStringLiteral("params")).toObject();
+        state = notifyParams.value(QStringLiteral("state")).toObject();
+        unset = notifyParams.value(QStringLiteral("unset")).toArray();
         if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
-            qInfo().noquote() << "NOTIFY" << obj.value(QStringLiteral("method")).toString();
+            qInfo().noquote() << "NOTIFY" << notifyMethod;
     }
 
     if (store_ && !state.isEmpty()) {
@@ -190,8 +193,10 @@ void Bridge::handleResponse(const QByteArray &line)
         }
     }
 
-    if (!hasId)
+    if (!hasId) {
+        Q_EMIT notification(notifyMethod, engine_->toScriptValue(notifyParams.toVariantMap()));
         return;
+    }
 
     const qint64 id = qint64(obj.value(QStringLiteral("id")).toDouble());
 
