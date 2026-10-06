@@ -18,7 +18,7 @@ ApplicationWindow {
                 width: 100
 
                 Text {
-                    text: Store.name
+                    text: Store.name || ""
                 }
             }
 

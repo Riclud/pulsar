@@ -8,7 +8,6 @@
 #include <QProcess>
 
 class QQmlPropertyMap;
-class QTimer;
 
 class Bridge : public QObject {
     Q_OBJECT
@@ -41,5 +40,4 @@ private:
     bool readyEmitted_ = false;
     bool synced_ = false;
     QList<QByteArray> pendingWrites_;
-    QTimer *pollTimer_ = nullptr;
 };

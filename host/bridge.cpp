@@ -34,7 +34,6 @@ Bridge::Bridge(QJSEngine *engine, QQmlPropertyMap *store, QObject *parent)
                 readyEmitted_ = true;
                 Q_EMIT ready();
             }
-            pollTimer_->start();
         }
     });
 
@@ -42,17 +41,6 @@ Bridge::Bridge(QJSEngine *engine, QQmlPropertyMap *store, QObject *parent)
     startTimer->setSingleShot(true);
     QObject::connect(startTimer, &QTimer::timeout, this, &Bridge::startBridge);
     startTimer->start(0);
-
-    bool okPoll = false;
-    int pollMs = qEnvironmentVariableIntValue("PULSAR_POLL_MS", &okPoll);
-    if (!okPoll || pollMs <= 0)
-        pollMs = 200;
-    pollTimer_ = new QTimer(this);
-    pollTimer_->setInterval(pollMs);
-    QObject::connect(pollTimer_, &QTimer::timeout, this, [this]() {
-        if (process_.state() == QProcess::Running)
-            invoke(QStringLiteral("__poll"), QJSValue());
-    });
 }
 
 Bridge::~Bridge()
@@ -162,22 +150,24 @@ void Bridge::handleResponse(const QByteArray &line)
         return;
     const QJsonObject obj = doc.object();
 
-    const qint64 id = qint64(obj.value(QStringLiteral("id")).toDouble());
+    // Responses carry an "id"; unsolicited notifications (Bun push) do not.
+    const bool hasId = obj.contains(QStringLiteral("id"));
 
-    QJSValue result(QJSValue::NullValue);
-    const QJsonValue rv = obj.value(QStringLiteral("result"));
-    if (rv.isObject() || rv.isArray() || rv.isDouble() || rv.isBool() || rv.isString())
-        result = engine_->toScriptValue(rv.toVariant());
+    QJsonObject state;
+    QJsonArray unset;
+    if (hasId) {
+        state = obj.value(QStringLiteral("state")).toObject();
+        unset = obj.value(QStringLiteral("unset")).toArray();
+    } else {
+        const QJsonObject params = obj.value(QStringLiteral("params")).toObject();
+        state = params.value(QStringLiteral("state")).toObject();
+        unset = params.value(QStringLiteral("unset")).toArray();
+        if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
+            qInfo().noquote() << "NOTIFY" << obj.value(QStringLiteral("method")).toString();
+    }
 
-    QJSValue error(QJSValue::NullValue);
-    const QJsonValue ev = obj.value(QStringLiteral("error"));
-    if (!ev.isUndefined())
-        error = engine_->toScriptValue(ev.toVariant());
-
-    const QJsonValue sv = obj.value(QStringLiteral("state"));
-    if (store_ && sv.isObject()) {
+    if (store_ && !state.isEmpty()) {
         QVariantHash values;
-        const QJsonObject state = sv.toObject();
         for (auto it = state.begin(); it != state.end(); ++it) {
             values.insert(it.key(), it.value().toVariant());
             if (qEnvironmentVariableIsSet("PULSAR_DEBUG")) {
@@ -192,18 +182,28 @@ void Bridge::handleResponse(const QByteArray &line)
             store_->insert(values);
     }
 
-    const QJsonValue uv = obj.value(QStringLiteral("unset"));
-    if (store_ && uv.isArray()) {
-        const QJsonArray keys = uv.toArray();
-        for (const QJsonValue &v : keys) {
+    if (store_ && !unset.isEmpty()) {
+        for (const QJsonValue &v : unset) {
             if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
                 qInfo().noquote() << "STORE unset" << v.toString();
             store_->clear(v.toString());
         }
     }
 
-    if (obj.value(QStringLiteral("poll")).toBool())
+    if (!hasId)
         return;
+
+    const qint64 id = qint64(obj.value(QStringLiteral("id")).toDouble());
+
+    QJSValue result(QJSValue::NullValue);
+    const QJsonValue rv = obj.value(QStringLiteral("result"));
+    if (rv.isObject() || rv.isArray() || rv.isDouble() || rv.isBool() || rv.isString())
+        result = engine_->toScriptValue(rv.toVariant());
+
+    QJSValue error(QJSValue::NullValue);
+    const QJsonValue ev = obj.value(QStringLiteral("error"));
+    if (!ev.isUndefined())
+        error = engine_->toScriptValue(ev.toVariant());
 
     Q_EMIT response(id, result, error);
 }
