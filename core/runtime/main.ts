@@ -3,10 +3,18 @@ import { existsSync, watch } from "fs"
 import { join, resolve } from "path"
 import { pathToFileURL } from "url"
 import { installCapabilities } from "../caps/index.ts"
-import { App, callCapability, hasCapability, loadManifest } from "../sdk/index.ts"
+import { App, callCapability, hasCapability, loadManifest, registerCapability } from "../sdk/index.ts"
 import { MIN_BUN, bunVersionCompatible } from "./version.ts"
 
 installCapabilities()
+
+// Window control is a capability, so both the app (App.window) and QML
+// (Pulsar.call) go through the same path. It reaches the host as a
+// notification; there is nothing to return to the caller.
+registerCapability("window", (params: unknown) => {
+  send({ jsonrpc: "2.0", method: "__window", params: params ?? {} })
+  return Promise.resolve(true)
+})
 
 // Compatibility gate: fail early with a clear message instead of letting an
 // old Bun crash in obscure ways later.
@@ -190,7 +198,9 @@ function startHostChannel(): void {
 
     // Notifications from the host carry no id and expect no response.
     if (req.id === undefined) {
-      if (req.method === "__log") App.current?.dispatchEvent("log", req.params ?? {})
+      const params = req.params ?? {}
+      if (req.method === "__log") App.current?.dispatchEvent("log", params)
+      else if (req.method === "__event") App.current?.dispatchEvent(params.name, params.data ?? {})
       return
     }
 
