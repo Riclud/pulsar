@@ -27,7 +27,7 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     const zig_zig = b.createModule(.{
-        .root_source_file = b.path("core/bridge.zig"),
+        .root_source_file = b.path("bridge/main.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
