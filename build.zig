@@ -30,6 +30,7 @@ fn tokenize(b: *std.Build, out: *std.ArrayList([]const u8), text: []const u8) vo
 
 /// pkg-config flags for Qt (Linux, Homebrew/macOS).
 fn pkgConfig(b: *std.Build, mode: []const u8) ?[]const u8 {
+    if (b.graph.environ_map.get("PULSAR_NO_PKGCONFIG") != null) return null;
     var argv: std.ArrayList([]const u8) = .empty;
     defer argv.deinit(b.allocator);
     argv.append(b.allocator, "pkg-config") catch return null;
@@ -40,7 +41,13 @@ fn pkgConfig(b: *std.Build, mode: []const u8) ?[]const u8 {
 }
 
 /// qmake fallback for Qt paths (Windows MinGW, some macOS installs).
+/// PULSAR_QMAKE overrides the qmake binary (multiple Qt installs).
 fn qmakeQuery(b: *std.Build, key: []const u8) ?[]const u8 {
+    if (b.graph.environ_map.get("PULSAR_QMAKE")) |qm| {
+        if (execCapture(b, &.{ qm, "-query", key })) |v| {
+            if (v.len > 0) return v;
+        }
+    }
     if (execCapture(b, &.{ "qmake6", "-query", key })) |v| {
         if (v.len > 0) return v;
     }
@@ -83,7 +90,17 @@ fn compileCxx(
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const os = target.result.os.tag;
+    // The Qt host is always built for the host OS (Qt is a host library).
+    // Only the Zig bridge follows -Dtarget.
+    const host_os = b.graph.host.result.os.tag;
+    const os = host_os;
+    const target_os = target.result.os.tag;
+    if (target_os != host_os)
+        std.log.warn(
+            "Qt host builds for the host OS ({s}); the Zig bridge targets {s}. " ++
+                "Cross-compiling the Qt host needs a target Qt build, which is not supported yet.",
+            .{ @tagName(host_os), @tagName(target_os) },
+        );
 
     var cflags: std.ArrayList([]const u8) = .empty;
     if (pkgConfig(b, "--cflags")) |text| {
