@@ -33,6 +33,12 @@ registerCapability("dialog.openFile", (params: unknown) => requestDialog("open",
 registerCapability("dialog.saveFile", (params: unknown) => requestDialog("save", params))
 registerCapability("dialog.message", (params: unknown) => requestDialog("message", params))
 
+// The system tray is host-side too.
+registerCapability("tray", (params: unknown) => {
+  send({ jsonrpc: "2.0", method: "__tray", params: params ?? {} })
+  return Promise.resolve(true)
+})
+
 // Compatibility gate: fail early with a clear message instead of letting an
 // old Bun crash in obscure ways later.
 const bunVersion = Bun.version ?? "0.0.0"

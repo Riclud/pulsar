@@ -58,6 +58,30 @@ Module {
         }
 
         Method {
+            name: "trayAvailable"
+            type: "bool"
+        }
+
+        Method {
+            name: "setTrayIcon"
+            Parameter { name: "path"; type: "QString" }
+        }
+
+        Method {
+            name: "setTrayTooltip"
+            Parameter { name: "text"; type: "QString" }
+        }
+
+        Method {
+            name: "setTrayMenu"
+            Parameter { name: "items"; type: "QVariantList" }
+        }
+
+        Method {
+            name: "hideTray"
+        }
+
+        Method {
             name: "clipboardText"
             type: "QString"
         }

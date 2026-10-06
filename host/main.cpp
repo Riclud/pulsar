@@ -360,6 +360,21 @@ static void handleDialogRequest(const QVariantMap &m)
                        });
 }
 
+static void handleTrayCommand(const QVariantMap &m)
+{
+    if (!gBridge)
+        return;
+    const QString action = m.value(QStringLiteral("action")).toString();
+    if (action == QLatin1String("setIcon"))
+        gBridge->setTrayIcon(m.value(QStringLiteral("path")).toString());
+    else if (action == QLatin1String("setTooltip"))
+        gBridge->setTrayTooltip(m.value(QStringLiteral("text")).toString());
+    else if (action == QLatin1String("setMenu"))
+        gBridge->setTrayMenu(m.value(QStringLiteral("items")).toList());
+    else if (action == QLatin1String("hide"))
+        gBridge->hideTray();
+}
+
 static void handleWindowCommand(const QVariantMap &m)
 {
     QString label = m.value(QStringLiteral("label")).toString();
@@ -514,6 +529,8 @@ int main(int argc, char **argv)
                              handleWindowCommand(params.toVariant().toMap());
                          } else if (method == QLatin1String("__dialog")) {
                              handleDialogRequest(params.toVariant().toMap());
+                         } else if (method == QLatin1String("__tray")) {
+                             handleTrayCommand(params.toVariant().toMap());
                          } else if (method == QLatin1String("__error")) {
                              const QVariantMap m = params.toVariant().toMap();
                              qCritical().noquote()

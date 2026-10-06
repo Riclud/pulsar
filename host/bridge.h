@@ -8,8 +8,11 @@
 #include <QList>
 #include <QObject>
 #include <QProcess>
+#include <QVariantList>
 
 class QQmlPropertyMap;
+class QMenu;
+class QSystemTrayIcon;
 
 class Bridge : public QObject {
     Q_OBJECT
@@ -34,6 +37,13 @@ public:
     Q_INVOKABLE QString openFile(const QString &title, const QString &filter, const QString &dir);
     Q_INVOKABLE QString saveFile(const QString &title, const QString &filter, const QString &dir);
     Q_INVOKABLE void message(const QString &title, const QString &text);
+
+    // System tray, callable directly from QML.
+    Q_INVOKABLE bool trayAvailable() const;
+    Q_INVOKABLE void setTrayIcon(const QString &path);
+    Q_INVOKABLE void setTrayTooltip(const QString &text);
+    Q_INVOKABLE void setTrayMenu(const QVariantList &items);
+    Q_INVOKABLE void hideTray();
 
     // Send an unsolicited notification to the runtime (no response expected).
     void notify(const QString &method, const QJsonObject &params);
@@ -77,4 +87,7 @@ private:
     QJSValue promiseFactory_;
     QHash<qint64, PendingCall> pendingCalls_;
     QList<QByteArray> pendingWrites_;
+
+    QSystemTrayIcon *tray_ = nullptr;
+    QMenu *trayMenu_ = nullptr;
 };

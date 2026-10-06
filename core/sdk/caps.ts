@@ -82,6 +82,25 @@ export const dialog = {
     callCapability("dialog.message", options) as Promise<boolean>,
 }
 
+export interface TrayMenuItem {
+  label?: string
+  /** Event name emitted to the app when the item is clicked. */
+  event?: string
+  separator?: boolean
+  checked?: boolean
+  enabled?: boolean
+}
+
+/** System tray icon and menu (implemented in the Qt host). */
+export const tray = {
+  setIcon: (path: string): Promise<boolean> => callCapability("tray", { action: "setIcon", path }) as Promise<boolean>,
+  setTooltip: (text: string): Promise<boolean> =>
+    callCapability("tray", { action: "setTooltip", text }) as Promise<boolean>,
+  setMenu: (items: TrayMenuItem[]): Promise<boolean> =>
+    callCapability("tray", { action: "setMenu", items }) as Promise<boolean>,
+  hide: (): Promise<boolean> => callCapability("tray", { action: "hide" }) as Promise<boolean>,
+}
+
 /** Open URLs and show desktop notifications via the OS shell. */
 export const shell = {
   open: (url: string): Promise<boolean> => callCapability("shell.open", { url }) as Promise<boolean>,
