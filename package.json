@@ -1,6 +1,6 @@
 {
   "name": "pulsar",
-  "module": "index.ts",
+  "module": "examples/ffi/index.ts",
   "type": "module",
   "private": true,
   "devDependencies": {
