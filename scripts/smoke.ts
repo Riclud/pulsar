@@ -189,7 +189,7 @@ try {
   const singleDir = join(tmp, "single")
   const singleLog = join(tmp, "single.log")
   const built = Bun.spawnSync({
-    cmd: ["bun", join(root, "cli", "index.ts"), "build", "--out", singleDir],
+    cmd: ["bun", join(root, "cli", "index.ts"), "build", "--slim", "--out", singleDir],
     cwd: join(root, "examples", "hello"),
     stdio: ["ignore", "ignore", "inherit"],
   })
@@ -205,7 +205,7 @@ try {
       AUTO_QUIT_MS: "4000",
       QT_LOG_FILE: singleLog,
     })
-    check(singleLog, "extracted embedded app")
+    check(singleLog, "CONFIG window main")
     check(singleLog, "STORE greeting = QVariant(QString, Hello, World!)")
   }
 
