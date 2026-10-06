@@ -361,7 +361,12 @@ g_config.title = m.value(QStringLiteral("title")).toString();
             timeout = 700;
         QTimer *fallback = new QTimer(&app);
         fallback->setSingleShot(true);
-        QObject::connect(fallback, &QTimer::timeout, &app, [&engine]() { showUi(engine, resolveUi(QString())); });
+        QObject::connect(fallback, &QTimer::timeout, &app, [&engine]() {
+            // The app may already have configured the UI via __config; only
+            // fall back when nothing has been shown yet.
+            if (!gLoaded)
+                showUi(engine, resolveUi(QString()));
+        });
         fallback->start(timeout);
     }
 
