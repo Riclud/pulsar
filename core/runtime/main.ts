@@ -1,5 +1,5 @@
 import { createInterface } from "node:readline";
-import { capabilities } from "./caps/index.ts";
+import { capabilities } from "../caps/index.ts";
 
 function send(msg: unknown) {
   process.stdout.write(JSON.stringify(msg) + "\n");
