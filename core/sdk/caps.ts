@@ -60,6 +60,28 @@ export const paths = {
   get: (): Promise<AppPaths> => callCapability("paths.get", {}) as Promise<AppPaths>,
 }
 
+export interface FileDialogOptions {
+  title?: string
+  /** Qt name filter, e.g. "Images (*.png *.jpg);;All files (*)". */
+  filter?: string
+  dir?: string
+}
+
+export interface MessageDialogOptions {
+  title?: string
+  text?: string
+}
+
+/** Native file and message dialogs (implemented in the Qt host). */
+export const dialog = {
+  openFile: (options: FileDialogOptions = {}): Promise<string | null> =>
+    callCapability("dialog.openFile", options) as Promise<string | null>,
+  saveFile: (options: FileDialogOptions = {}): Promise<string | null> =>
+    callCapability("dialog.saveFile", options) as Promise<string | null>,
+  message: (options: MessageDialogOptions = {}): Promise<boolean> =>
+    callCapability("dialog.message", options) as Promise<boolean>,
+}
+
 /** Open URLs and show desktop notifications via the OS shell. */
 export const shell = {
   open: (url: string): Promise<boolean> => callCapability("shell.open", { url }) as Promise<boolean>,

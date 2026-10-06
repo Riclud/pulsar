@@ -3,6 +3,7 @@ export type { AppConfig, EventHandler } from "./app.ts"
 export { loadManifest, resolveAppConfig, resolveWindows } from "./manifest.ts"
 export type { AppManifest, ManifestWindow } from "./manifest.ts"
 export {
+  dialog,
   fs,
   net,
   paths,
@@ -13,4 +14,4 @@ export {
   registerCapability,
   registerCapabilities,
 } from "./caps.ts"
-export type { AppPaths, CapHandler, CapRegistry, FetchResult } from "./caps.ts"
+export type { AppPaths, CapHandler, CapRegistry, FetchResult, FileDialogOptions, MessageDialogOptions } from "./caps.ts"

@@ -36,6 +36,28 @@ Module {
         }
 
         Method {
+            name: "openFile"
+            type: "QString"
+            Parameter { name: "title"; type: "QString" }
+            Parameter { name: "filter"; type: "QString" }
+            Parameter { name: "dir"; type: "QString" }
+        }
+
+        Method {
+            name: "saveFile"
+            type: "QString"
+            Parameter { name: "title"; type: "QString" }
+            Parameter { name: "filter"; type: "QString" }
+            Parameter { name: "dir"; type: "QString" }
+        }
+
+        Method {
+            name: "message"
+            Parameter { name: "title"; type: "QString" }
+            Parameter { name: "text"; type: "QString" }
+        }
+
+        Method {
             name: "clipboardText"
             type: "QString"
         }

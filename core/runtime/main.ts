@@ -16,6 +16,23 @@ registerCapability("window", (params: unknown) => {
   return Promise.resolve(true)
 })
 
+// Dialogs run in the host (native Qt), so the runtime sends a request with a
+// token and resolves the caller's promise when the host replies.
+const pendingDialogs = new Map<string, (value: unknown) => void>()
+let dialogToken = 0
+
+function requestDialog(kind: string, params: unknown): Promise<unknown> {
+  const token = String(++dialogToken)
+  return new Promise((resolve) => {
+    pendingDialogs.set(token, resolve)
+    send({ jsonrpc: "2.0", method: "__dialog", params: { token, kind, ...(params as object) } })
+  })
+}
+
+registerCapability("dialog.openFile", (params: unknown) => requestDialog("open", params))
+registerCapability("dialog.saveFile", (params: unknown) => requestDialog("save", params))
+registerCapability("dialog.message", (params: unknown) => requestDialog("message", params))
+
 // Compatibility gate: fail early with a clear message instead of letting an
 // old Bun crash in obscure ways later.
 const bunVersion = Bun.version ?? "0.0.0"
@@ -105,6 +122,13 @@ const bundled = process.env.PULSAR_BUNDLED === "1"
 const appDir = resolve(process.env.PULSAR_APP ?? "examples/hello")
 let channelStarted = false
 
+// The host channel starts before the app loads (so dialogs and other host
+// round-trips work during startup), but __sync waits until the app is wired.
+let markAppReady: () => void = () => {}
+const appReady = new Promise<void>((resolve) => {
+  markAppReady = resolve
+})
+
 /** Wire the loaded App to the host. Runs after the app module has evaluated. */
 export function wireApp(): void {
   const app = App.current
@@ -123,9 +147,13 @@ export function wireApp(): void {
 
     send({ jsonrpc: "2.0", method: "__config", params: { windows: app.windows } })
   }
-  // Only now may the host ask for the initial __sync.
-  startHostChannel()
+  // The host's initial __sync can now be answered with the app's full state.
+  markAppReady()
 }
+
+// Read host requests before loading the app so round-trips (e.g. dialogs) work
+// during startup; __sync still waits for markAppReady().
+startHostChannel()
 
 if (!bundled) {
   // Entry comes from the manifest; a plain bundle may ship main.js instead.
@@ -201,12 +229,20 @@ function startHostChannel(): void {
       const params = req.params ?? {}
       if (req.method === "__log") App.current?.dispatchEvent("log", params)
       else if (req.method === "__event") App.current?.dispatchEvent(params.name, params.data ?? {})
+      else if (req.method === "__dialog-result") {
+        const resolve = pendingDialogs.get(String(params.token))
+        if (resolve) {
+          pendingDialogs.delete(String(params.token))
+          resolve(params.value ?? null)
+        }
+      }
       return
     }
 
     const app = App.current
 
     if (req.method === "__sync") {
+      await appReady
       const state = fullState()
       app?.store.takePatch()
       send({ jsonrpc: "2.0", id: req.id, result: true, state })
