@@ -1,4 +1,5 @@
 #include "bridge.h"
+#include "log.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -20,6 +21,8 @@ Bridge::Bridge(QJSEngine *engine, QQmlPropertyMap *store, QObject *parent)
 
     connect(&process_, &QProcess::readyReadStandardOutput,
             this, &Bridge::onReadyReadStandardOutput);
+    connect(&process_, &QProcess::readyReadStandardError,
+            this, &Bridge::onReadyReadStandardError);
     connect(&process_, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &Bridge::onProcessFinished);
     connect(&process_, &QProcess::errorOccurred, this, [this](QProcess::ProcessError e) {
@@ -95,6 +98,7 @@ void Bridge::startBridge()
 void Bridge::restart()
 {
     stdoutBuffer_.clear();
+    stderrBuffer_.clear();
     pendingWrites_.clear();
     synced_ = false;
     readyEmitted_ = false;
@@ -199,10 +203,26 @@ void Bridge::onReadyReadStandardOutput()
     }
 }
 
+void Bridge::onReadyReadStandardError()
+{
+    stderrBuffer_ += process_.readAllStandardError();
+    int idx;
+    while ((idx = stderrBuffer_.indexOf('\n')) >= 0) {
+        const QByteArray line = stderrBuffer_.left(idx).trimmed();
+        stderrBuffer_.remove(0, idx + 1);
+        if (!line.isEmpty())
+            pulsar::forwardLine(QString::fromUtf8(line));
+    }
+}
+
 void Bridge::onProcessFinished(int exitCode, QProcess::ExitStatus status)
 {
     Q_UNUSED(exitCode);
     Q_UNUSED(status);
+    if (!stderrBuffer_.isEmpty()) {
+        pulsar::forwardLine(QString::fromUtf8(stderrBuffer_.trimmed()));
+        stderrBuffer_.clear();
+    }
     failPending(QStringLiteral("zig bridge exited"));
     if (restartBudget_ > 0) {
         --restartBudget_;
