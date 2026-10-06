@@ -1,7 +1,7 @@
 import { App } from "pulsar"
-import { readdirSync } from "node:fs"
-import { extname, join } from "node:path"
-import { pathToFileURL } from "node:url"
+import { readdirSync } from "fs"
+import { extname, join } from "path"
+import { pathToFileURL } from "url"
 
 const PHOTOS_DIR = process.env.PULSAR_PHOTOS ?? "/home/user/Screenshots"
 const IMAGE_EXT = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"])

@@ -1,7 +1,7 @@
 import { describe, expect, test, beforeAll, afterAll } from "bun:test"
-import { mkdtempSync, rmSync } from "node:fs"
-import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { mkdtempSync, rmSync } from "fs"
+import { tmpdir } from "os"
+import { join } from "path"
 import { storageCaps } from "./storage.ts"
 
 let dir: string
