@@ -4,9 +4,24 @@ import { pathToFileURL } from "node:url"
 import { capabilities } from "../caps/index.ts"
 import { App } from "../sdk/index.ts"
 
+// stdout is reserved for the protocol; app logging goes to stderr.
+console.log = (...args: unknown[]) => console.error(...args)
+console.info = console.log
+console.debug = console.log
+
 function send(msg: unknown) {
   process.stdout.write(JSON.stringify(msg) + "\n")
 }
+
+function reportError(scope: string, e: unknown) {
+  const message = e instanceof Error ? e.message : String(e)
+  const stack = e instanceof Error ? e.stack : undefined
+  console.error(`[pulsar] ${scope}:`, e)
+  send({ jsonrpc: "2.0", method: "__error", params: { scope, message, stack } })
+}
+
+process.on("uncaughtException", (e) => reportError("uncaughtException", e))
+process.on("unhandledRejection", (e) => reportError("unhandledRejection", e))
 
 function fullState(): Record<string, unknown> {
   return App.current ? App.current.store.snapshot() : {}
@@ -45,10 +60,16 @@ const entry = resolve(appDir, "main.ts")
 try {
   await import(pathToFileURL(entry).href)
 } catch (e) {
-  console.error("[pulsar] failed to load app:", e)
+  reportError("load " + entry, e)
 }
-if (App.current) App.current.store.onChange = schedulePush
 console.error(`[pulsar] app loaded: ${appDir}`)
+
+if (App.current) {
+  const app = App.current
+  app.store.onChange = schedulePush
+  app.onQuit = () => send({ jsonrpc: "2.0", method: "__quit" })
+  send({ jsonrpc: "2.0", method: "__config", params: app.config })
+}
 
 const rl = createInterface({ input: process.stdin, terminal: false })
 
@@ -75,7 +96,11 @@ rl.on("line", async (raw) => {
     let result: unknown = null
 
     if (app?.hasEvent(req.method)) {
-      app.dispatchEvent(req.method, req.params ?? {})
+      try {
+        app.dispatchEvent(req.method, req.params ?? {})
+      } catch (e) {
+        reportError("event " + req.method, e)
+      }
       result = true
     } else {
       const cap = capabilities[req.method]

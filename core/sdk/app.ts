@@ -72,10 +72,18 @@ export class App {
 
   private readonly events = new Map<string, EventHandler[]>()
 
+  /** Installed by the runtime; terminates the host. */
+  onQuit?: () => void
+
   constructor(config: AppConfig) {
     this.config = config
     this.store = new Store()
     App.current = this
+  }
+
+  /** Quit the application. */
+  quit(): void {
+    this.onQuit?.()
   }
 
   /** Register a handler for an event emitted from QML via Pulsar.emit(event, payload). */
