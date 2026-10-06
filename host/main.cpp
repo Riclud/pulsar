@@ -136,6 +136,11 @@ int main(int argc, char **argv)
                          }
                      });
 
+    // Bun supervision: the bridge reports if the runtime dies.
+    QObject::connect(bridge, &Bridge::crashed, &app, [](const QString &kind, int code) {
+        qWarning().noquote() << "bun crashed: kind=" << kind << "code=" << code;
+    });
+
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated, &app,
                      [&loadedUrl](QObject *obj, const QUrl &objUrl) {
                          if (loadedUrl.isValid() && objUrl == loadedUrl) {

@@ -24,6 +24,7 @@ signals:
     void ready();
     void response(qint64 id, const QJSValue &result, const QJSValue &error);
     void notification(const QString &method, const QJSValue &params);
+    void crashed(const QString &kind, int code);
 
 private slots:
     void onReadyReadStandardOutput();
@@ -31,6 +32,7 @@ private slots:
 
 private:
     void startBridge();
+    void restart();
     void handleResponse(const QByteArray &line);
 
     QProcess process_;
@@ -40,5 +42,7 @@ private:
     qint64 nextId_ = 1;
     bool readyEmitted_ = false;
     bool synced_ = false;
+    bool crashed_ = false;
+    int restartBudget_ = 0;
     QList<QByteArray> pendingWrites_;
 };

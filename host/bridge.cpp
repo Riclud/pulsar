@@ -14,6 +14,10 @@ Bridge::Bridge(QJSEngine *engine, QQmlPropertyMap *store, QObject *parent)
     , engine_(engine)
     , store_(store)
 {
+    bool hasRestart = false;
+    const int restart = qEnvironmentVariableIntValue("PULSAR_RESTART", &hasRestart);
+    restartBudget_ = (hasRestart && restart > 0) ? restart : 0;
+
     connect(&process_, &QProcess::readyReadStandardOutput,
             this, &Bridge::onReadyReadStandardOutput);
     connect(&process_, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
@@ -87,6 +91,16 @@ void Bridge::startBridge()
     process_.start(chosen, QStringList{ qmlRootDir });
 }
 
+void Bridge::restart()
+{
+    stdoutBuffer_.clear();
+    pendingWrites_.clear();
+    synced_ = false;
+    readyEmitted_ = false;
+    crashed_ = false;
+    startBridge();
+}
+
 QString Bridge::diagnostics() const
 {
     return QStringLiteral("bridge=%1 root=%2")
@@ -139,6 +153,15 @@ void Bridge::onProcessFinished(int exitCode, QProcess::ExitStatus status)
 {
     Q_UNUSED(exitCode);
     Q_UNUSED(status);
+    if (restartBudget_ > 0) {
+        --restartBudget_;
+        qWarning().noquote() << "bridge exited; restarting (attempts left:" << restartBudget_ << ")";
+        restart();
+        return;
+    }
+    // A Bun crash was already surfaced through the crashed() signal.
+    if (crashed_)
+        return;
     Q_EMIT response(-1, QJSValue(QJSValue::NullValue),
                     engine_->toScriptValue(QStringLiteral("zig bridge exited unexpectedly")));
 }
@@ -194,6 +217,18 @@ void Bridge::handleResponse(const QByteArray &line)
     }
 
     if (!hasId) {
+        // Bun supervision: the Zig bridge reports a dead Bun runtime here.
+        if (notifyMethod == QLatin1String("__crash")) {
+            crashed_ = true;
+            const QString kind = notifyParams.value(QStringLiteral("kind")).toString();
+            const int code = notifyParams.contains(QStringLiteral("code"))
+                                 ? notifyParams.value(QStringLiteral("code")).toInt()
+                                 : notifyParams.value(QStringLiteral("signal")).toInt(-1);
+            Q_EMIT crashed(kind, code);
+            if (restartBudget_ <= 0)
+                QCoreApplication::exit(70);
+            return;
+        }
         Q_EMIT notification(notifyMethod, engine_->toScriptValue(notifyParams.toVariantMap()));
         return;
     }
