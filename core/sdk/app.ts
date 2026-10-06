@@ -3,6 +3,8 @@ export interface AppConfig {
   width?: number
   height?: number
   title?: string
+  /** Stable identifier used for per-app data/config/cache directories. */
+  id?: string
 }
 
 export type EventHandler = (payload: any) => void
@@ -66,7 +68,7 @@ function findStoreIssue(value: unknown, path: string, seen: Set<object>): StoreI
   return null
 }
 
-function assertSerializable(value: unknown, key: string) {
+export function assertSerializable(value: unknown, key: string) {
   const issue = findStoreIssue(value, key, new Set())
   if (issue) throw new Error(`store.set("${key}"): value at "${issue.path}" ${issue.reason}`)
 }

@@ -7,6 +7,14 @@ export interface FetchResult {
   text: string
 }
 
+export interface AppPaths {
+  data: string
+  config: string
+  cache: string
+  temp: string
+  home: string
+}
+
 // Handlers are installed by the runtime so that calls made from the app and
 // from QML go through the same registry.
 const capabilities: CapRegistry = {}
@@ -45,4 +53,18 @@ export const fs = {
 /** Built-in network capabilities. */
 export const net = {
   fetch: (url: string): Promise<FetchResult> => callCapability("nw.fetch", { url }) as Promise<FetchResult>,
+}
+
+/** Standard per-OS directories the app is allowed to write to. */
+export const paths = {
+  get: (): Promise<AppPaths> => callCapability("paths.get", {}) as Promise<AppPaths>,
+}
+
+/** Persist JSON-safe values to the app data directory (storage.json). */
+export const storage = {
+  get: (key: string): Promise<unknown> => callCapability("storage.get", { key }),
+  has: (key: string): Promise<boolean> => callCapability("storage.has", { key }) as Promise<boolean>,
+  set: (key: string, value: unknown): Promise<boolean> =>
+    callCapability("storage.set", { key, value }) as Promise<boolean>,
+  remove: (key: string): Promise<boolean> => callCapability("storage.remove", { key }) as Promise<boolean>,
 }

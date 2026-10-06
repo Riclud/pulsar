@@ -20,6 +20,7 @@ const crashLog = join(tmp, "crash.log")
 const bigLog = join(tmp, "big.log")
 const callLog = join(tmp, "call.log")
 const qmlErrLog = join(tmp, "qml-error.log")
+const storageLog = join(tmp, "storage.log")
 
 let failed = false
 
@@ -93,6 +94,21 @@ try {
     QT_LOG_FILE: qmlErrLog,
   })
   check(qmlErrLog, "app failed to load")
+
+  // Storage + app paths: a fixture app persists a value and reports it via the
+  // store; XDG dirs point at temp so the user's home stays untouched.
+  runHost({
+    PULSAR_DEBUG: "1",
+    QT_QPA_PLATFORM: "offscreen",
+    PULSAR_APP: join(root, "tests", "apps", "storage-app"),
+    XDG_DATA_HOME: join(tmp, "data"),
+    XDG_CONFIG_HOME: join(tmp, "config"),
+    XDG_CACHE_HOME: join(tmp, "cache"),
+    HOME: join(tmp, "home"),
+    AUTO_QUIT_MS: "4000",
+    QT_LOG_FILE: storageLog,
+  })
+  check(storageLog, "STORE storageOk = QVariant(bool, true)")
 
   if (failed) {
     console.error("smoke: FAILED")
