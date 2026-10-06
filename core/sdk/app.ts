@@ -5,6 +5,14 @@ export interface AppConfig {
   title?: string
   /** Stable identifier used for per-app data/config/cache directories. */
   id?: string
+  minWidth?: number
+  minHeight?: number
+  maxWidth?: number
+  maxHeight?: number
+  resizable?: boolean
+  frameless?: boolean
+  /** Path to the window/app icon. */
+  icon?: string
 }
 
 export type EventHandler = (payload: any) => void

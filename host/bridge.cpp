@@ -1,9 +1,11 @@
 #include "bridge.h"
 #include "log.h"
 
+#include <QClipboard>
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
+#include <QGuiApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -111,6 +113,17 @@ void Bridge::restart()
     readyEmitted_ = false;
     crashed_ = false;
     startBridge();
+}
+
+void Bridge::clipboardWrite(const QString &text)
+{
+    if (QGuiApplication::clipboard())
+        QGuiApplication::clipboard()->setText(text);
+}
+
+QString Bridge::clipboardText() const
+{
+    return QGuiApplication::clipboard() ? QGuiApplication::clipboard()->text() : QString();
 }
 
 QString Bridge::diagnostics() const

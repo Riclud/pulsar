@@ -1,6 +1,6 @@
 import { App, storage } from "../../../core/sdk/index.ts"
 
-const app = new App({ ui: "ui/main.qml", id: "smokestorage", title: "Storage" })
+const app = new App({ ui: "ui/main.qml", id: "smokestorage", title: "Storage", minWidth: 320, resizable: false })
 
 const key = "smoke-kv"
 await storage.set(key, { n: 42 })
