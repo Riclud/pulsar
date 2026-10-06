@@ -6,9 +6,6 @@ node_modules
 zig-out/
 *.o
 
-# native build output (compiled from lib.zig)
-libhello.so
-
 # output
 out
 dist
