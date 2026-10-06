@@ -57,16 +57,45 @@ export function qtFiles(hostPath: string): QtFile[] | null {
   if (!libsDir || !existsSync(libsDir)) return null
 
   const files: QtFile[] = []
-  for (const lib of neededLibs(hostPath)) {
+  const seen = new Set<string>()
+
+  // Copy Qt (and ICU) libraries, deduplicated.
+  const addLib = (lib: string) => {
     const name = lib.split("/").pop() ?? ""
-    const isQt = lib.startsWith(libsDir)
-    const isIcu = /^libicu/.test(name)
-    if ((isQt || isIcu) && existsSync(lib)) files.push({ rel: `lib/Qt/lib/${name}`, src: lib })
+    if (!existsSync(lib)) return
+    if (!(lib.startsWith(libsDir) || /^libicu/.test(name)) || seen.has(name)) return
+    seen.add(name)
+    files.push({ rel: `lib/Qt/lib/${name}`, src: lib })
   }
+
+  for (const lib of neededLibs(hostPath)) addLib(lib)
+
+  // Platform/image plugins, plus the Qt libraries *they* link (e.g.
+  // libQt6WaylandClient / libQt6XcbQpa), which the host does not link itself.
   if (pluginsDir) {
-    for (const group of ["platforms", "imageformats", "iconengines", "xcbglintegrations", "generic"])
-      addTree(files, join(pluginsDir, group), `lib/Qt/plugins/${group}`)
+    const groups = [
+      "platforms",
+      "imageformats",
+      "iconengines",
+      "xcbglintegrations",
+      "generic",
+      "platformthemes",
+      "platforminputcontexts",
+      "wayland-shell-integration",
+      "wayland-graphics-integration-client",
+      "wayland-decoration-client",
+    ]
+    for (const group of groups) {
+      const groupFiles: QtFile[] = []
+      addTree(groupFiles, join(pluginsDir, group), `lib/Qt/plugins/${group}`)
+      files.push(...groupFiles)
+      for (const file of groupFiles) {
+        if (file.src.endsWith(".so")) for (const dep of neededLibs(file.src)) addLib(dep)
+      }
+    }
   }
+
+  // QML modules used by typical apps.
   if (qmlDir) {
     for (const module of ["QtQuick", "QtQml"]) addTree(files, join(qmlDir, module), `lib/Qt/qml/${module}`)
   }
