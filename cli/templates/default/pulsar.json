@@ -1,0 +1,16 @@
+{
+  "id": "{{id}}",
+  "name": "{{name}}",
+  "version": "0.1.0",
+  "main": "main.ts",
+  "windows": [
+    {
+      "label": "main",
+      "ui": "ui/main.qml",
+      "width": 800,
+      "height": 600,
+      "title": "{{title}}"
+    }
+  ],
+  "permissions": []
+}

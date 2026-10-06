@@ -13,73 +13,18 @@ import {
 } from "fs"
 import { tmpdir } from "os"
 import { basename, dirname, join, resolve } from "path"
+import { cliVersion, findBridge, findHost, findLauncher, pulsarRoot } from "./core.ts"
+import { create } from "./create.ts"
+import { install } from "./install.ts"
+import { collectQt } from "./qt.ts"
+import { update } from "./update.ts"
 
 const [cmd, ...args] = process.argv.slice(2)
 
-const MAIN_TS = `import { App } from "pulsar";
-
-const app = new App();
-
-app.store.set("greeting", "Hello from Pulsar");
-
-app.on("hello", (params: { name: string }) => {
-  app.store.set("greeting", \`Hello, \${params.name}!\`);
-});
-
-app.run();
-`
-
-const MAIN_QML = `import QtQuick
-import QtQuick.Controls
-import Pulsar 1.0
-
-ApplicationWindow {
-    visible: true
-
-    Column {
-        anchors.centerIn: parent
-        spacing: 12
-        Label { text: Store.greeting || "" }
-        Button {
-            text: "Call backend"
-            onClicked: Pulsar.emit("hello", { name: "World" })
-        }
-    }
-}
-`
-
-const MAIN_JSON = `{
-  "id": "com.example.myapp",
-  "name": "my-app",
-  "version": "0.1.0",
-  "main": "main.ts",
-  "windows": [
-    {
-      "label": "main",
-      "ui": "ui/main.qml",
-      "width": 800,
-      "height": 600,
-      "title": "My App"
-    }
-  ],
-  "permissions": []
-}
-`
-
-function findHost(): string {
-  const fromEnv = process.env.PULSAR_HOST
-  if (fromEnv && existsSync(fromEnv)) return fromEnv
-  const candidates = [resolve(import.meta.dir, "..", "zig-out", "bin", "qml-host"), "/usr/local/bin/pulsar-host"]
-  for (const c of candidates) if (existsSync(c)) return c
-  throw new Error("pulsar host binary not found (set PULSAR_HOST)")
-}
-
-function findBridge(host: string): string {
-  const fromEnv = process.env.PULSAR_BRIDGE
-  if (fromEnv && existsSync(fromEnv)) return fromEnv
-  const candidates = [join(dirname(host), "bridge"), resolve(import.meta.dir, "..", "zig-out", "bin", "bridge")]
-  for (const c of candidates) if (existsSync(c)) return c
-  throw new Error("pulsar bridge binary not found (set PULSAR_BRIDGE)")
+// Model B: the CLI needs Bun. Fail clearly instead of crashing under Node.
+if (!(process.versions as { bun?: string }).bun) {
+  console.error("pulsar: requires the Bun runtime (https://bun.sh). Install Bun, then run `pulsar` again.")
+  process.exit(1)
 }
 
 function flagValue(name: string): string | undefined {
@@ -108,7 +53,7 @@ function run() {
   const host = findHost()
   const r = spawnSync(host, [], {
     stdio: "inherit",
-    env: { ...process.env, PULSAR_APP: appDir },
+    env: { ...process.env, PULSAR_APP: appDir, PULSAR_ROOT: pulsarRoot() },
   })
   process.exit(r.status ?? 0)
 }
@@ -120,18 +65,13 @@ function dev() {
   console.log("pulsar: dev mode (watching for changes)")
   const r = spawnSync(host, [], {
     stdio: "inherit",
-    env: { ...process.env, PULSAR_APP: appDir, PULSAR_WATCH: "1" },
+    env: { ...process.env, PULSAR_APP: appDir, PULSAR_ROOT: pulsarRoot(), PULSAR_WATCH: "1" },
   })
   process.exit(r.status ?? 0)
 }
 
 function version() {
-  try {
-    const pkg = JSON.parse(readFileSync(join(import.meta.dir, "package.json"), "utf8")) as { version?: string }
-    console.log(`pulsar ${pkg.version ?? "0.0.0"}`)
-  } catch {
-    console.log("pulsar (unknown version)")
-  }
+  console.log(`pulsar ${cliVersion()}`)
 }
 
 /** Check the toolchain and report what is missing. */
@@ -188,11 +128,18 @@ function fnv1a64(parts: string[]): bigint {
   return h
 }
 
-/** The runtime executable plus every app file (except build noise). */
-function collectPayload(appDir: string, runtime: string, bridge: string, skipOut: string): PayloadEntry[] {
+/** The native host/bridge, runtime and every app file (except build noise). */
+function collectPayload(
+  appDir: string,
+  runtime: string,
+  bridge: string,
+  host: string,
+  skipOut: string,
+): PayloadEntry[] {
   const entries: PayloadEntry[] = [
-    { path: basename(runtime), data: readFileSync(runtime) },
-    { path: basename(bridge), data: readFileSync(bridge) },
+    { path: "bin/qml-host", data: readFileSync(host) },
+    { path: "bin/bridge", data: readFileSync(bridge) },
+    { path: "runtime", data: readFileSync(runtime) },
   ]
   const skip = new Set(["node_modules", ".git", "dist", ".zig-cache", ".cache", skipOut])
   const walk = (dir: string, rel: string) => {
@@ -236,7 +183,7 @@ async function build() {
     process.exit(1)
   }
 
-  const root = resolve(import.meta.dir, "..")
+  const root = pulsarRoot()
   const runtimeTs = join(root, "core", "runtime", "main.ts")
   if (!existsSync(runtimeTs)) {
     console.error(`pulsar build: runtime not found at ${runtimeTs}`)
@@ -245,6 +192,8 @@ async function build() {
 
   const host = findHost()
   const bridge = findBridge(host)
+  const launcher = findLauncher()
+  const slim = args.includes("--slim")
   const outDir = resolve(flagValue("--out") ?? flagValue("-o") ?? "dist")
   const name = launcherName(appDir)
   console.log(`pulsar: building ${basename(appDir)} -> ${join(outDir, name)}`)
@@ -276,19 +225,22 @@ async function build() {
       process.exit(1)
     }
 
-    const entries = collectPayload(appDir, runtimeOut, bridge, basename(outDir))
+    const entries = collectPayload(appDir, runtimeOut, bridge, host, basename(outDir))
+    if (!slim) collectQt(entries, host)
     const buildId = fnv1a64(entries.map((e) => `${e.path}:${e.data.length}`))
     const container = encodeContainer(entries, buildId)
 
-    const hostBytes = readFileSync(host)
+    // The outer binary is the Qt-free launcher; it extracts the payload and
+    // exec()s the bundled host (which loads the bundled Qt via its RPATH).
+    const outerBytes = readFileSync(launcher)
     const trailer = Buffer.alloc(16)
-    trailer.writeBigUInt64LE(BigInt(hostBytes.length), 0)
+    trailer.writeBigUInt64LE(BigInt(outerBytes.length), 0)
     trailer.write("PLSRPAYL", 8, "latin1")
 
     mkdirSync(outDir, { recursive: true })
     const fileName = process.platform === "win32" ? `${name}.exe` : name
     const finalPath = join(outDir, fileName)
-    writeFileSync(finalPath, Buffer.concat([hostBytes, container, trailer]))
+    writeFileSync(finalPath, Buffer.concat([outerBytes, container, trailer]))
     chmodSync(finalPath, 0o755)
 
     const mb = (statSync(finalPath).size / (1024 * 1024)).toFixed(1)
@@ -299,39 +251,40 @@ async function build() {
   }
 }
 
+/** Legacy alias: scaffold the default template into the current directory. */
 function init() {
-  const dir = resolve(args[0] ?? ".")
-  mkdirSync(join(dir, "ui"), { recursive: true })
-  writeFileSync(join(dir, "main.ts"), MAIN_TS)
-  writeFileSync(join(dir, "ui", "main.qml"), MAIN_QML)
-  writeFileSync(join(dir, "pulsar.json"), MAIN_JSON)
-  writeFileSync(
-    join(dir, "package.json"),
-    JSON.stringify(
-      {
-        name: "my-app",
-        private: true,
-        type: "module",
-        dependencies: { pulsar: "latest" },
-      },
-      null,
-      2,
-    ) + "\n",
-  )
-  console.log(`pulsar: initialized ${dir}`)
+  const name = basename(process.cwd())
+  create([name, "--dir", dirname(process.cwd()), "--force"])
 }
 
+const LOGO = String.raw`
+                     /$$                              
+                    | $$                              
+  /$$$$$$  /$$   /$$| $$  /$$$$$$$  /$$$$$$   /$$$$$$ 
+ /$$__  $$| $$  | $$| $$ /$$_____/ |____  $$ /$$__  $$
+| $$  \ $$| $$  | $$| $$|  $$$$$$   /$$$$$$$| $$  \__/
+| $$  | $$| $$  | $$| $$ \____  $$ /$$$$$$$| $$      
+| $$$$$$$/|  $$$$$$/| $$ /$$$$$$$/|  $$$$$$$| $$      
+| $$____/  \______/ |__/|_______/  \_______/|__/      
+| $$                                                  
+| $$                                                  
+|__/ 
+`
+
 function usage() {
+  console.log(LOGO)
   console.log(
     [
       "pulsar <command>",
       "",
-      "  init [dir]   scaffold a new app",
-      "  dev          run with hot reload (watch sources)",
-      "  run          run the app in the current directory",
-      "  build        build a single-file executable",
-      "  doctor       check the toolchain (host, bridge, Qt, Bun)",
-      "  version      print the version",
+      "  create <name>  scaffold a new app (--template default|windows|tray)",
+      "  install        download the native toolchain for this platform",
+      "  update         update the CLI to the latest release",
+      "  dev            run with hot reload (watch sources)",
+      "  run            run the app in the current directory",
+      "  build          build a single-file executable",
+      "  doctor         check the toolchain (host, bridge, Qt, Bun)",
+      "  version        print the version",
       "",
       "  -h, --help     show this help",
       "  -v, --version  print the version",
@@ -340,6 +293,15 @@ function usage() {
 }
 
 switch (cmd) {
+  case "create":
+    create(args)
+    break
+  case "install":
+    await install(args)
+    break
+  case "update":
+    await update()
+    break
   case "dev":
     dev()
     break
