@@ -17,12 +17,7 @@ function listPhotos() {
   }
 }
 
-const app = new App({
-  ui: "ui/main.qml",
-  width: 960,
-  height: 640,
-  title: "Hello Pulsar",
-})
+const app = new App()
 
 app.store.set("greeting", "Hello, Pulsar")
 app.store.set("error", "")

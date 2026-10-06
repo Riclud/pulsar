@@ -1,0 +1,16 @@
+{
+  "id": "com.pulsar.hello",
+  "name": "hello",
+  "version": "0.1.0",
+  "main": "main.ts",
+  "windows": [
+    {
+      "label": "main",
+      "ui": "ui/main.qml",
+      "width": 960,
+      "height": 640,
+      "title": "Hello Pulsar"
+    }
+  ],
+  "permissions": []
+}
