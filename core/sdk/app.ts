@@ -5,13 +5,10 @@ export interface AppConfig {
   title?: string;
 }
 
-export type Handler = (params: any) => unknown | Promise<unknown>;
-export type EventHandler = (data: any) => void;
+export type EventHandler = (payload: any) => void;
 
 export class Store {
   private readonly data = new Map<string, unknown>();
-
-  constructor(private readonly app: App) {}
 
   get(key: string): unknown {
     return this.data.has(key) ? this.data.get(key) : null;
@@ -19,7 +16,6 @@ export class Store {
 
   set(key: string, value: unknown): this {
     this.data.set(key, value);
-    this.app.notifyStore(key, value);
     return this;
   }
 
@@ -34,6 +30,11 @@ export class Store {
   keys(): string[] {
     return [...this.data.keys()];
   }
+
+  /** Plain object with all current state, pushed to the UI after each emit. */
+  snapshot(): Record<string, unknown> {
+    return Object.fromEntries(this.data);
+  }
 }
 
 export class App {
@@ -42,22 +43,15 @@ export class App {
   readonly config: AppConfig;
   readonly store: Store;
 
-  private readonly handlers = new Map<string, Handler>();
   private readonly events = new Map<string, EventHandler[]>();
 
   constructor(config: AppConfig) {
     this.config = config;
-    this.store = new Store(this);
+    this.store = new Store();
     App.current = this;
   }
 
-  /** Register a request/response handler callable from QML via Pulsar.call(name, ...). */
-  handle(name: string, fn: Handler): this {
-    this.handlers.set(name, fn);
-    return this;
-  }
-
-  /** Register a handler for an event emitted from QML via Pulsar.emit(event, ...). */
+  /** Register a handler for an event emitted from QML via Pulsar.emit(event, payload). */
   on(event: string, fn: EventHandler): this {
     const list = this.events.get(event) ?? [];
     list.push(fn);
@@ -65,26 +59,16 @@ export class App {
     return this;
   }
 
-  /** Send an event to the UI. TODO(M3): requires the event channel. */
-  emit(event: string, data?: unknown): void {
-    void event;
-    void data;
-  }
-
   /** Show the window and start the app. The host owns the event loop. */
   run(): void {}
 
   // --- internal API used by the runtime ---
 
-  resolve(name: string): Handler | undefined {
-    return this.handlers.get(name);
+  hasEvent(event: string): boolean {
+    return this.events.has(event);
   }
 
-  dispatchEvent(event: string, data: unknown): void {
-    for (const fn of this.events.get(event) ?? []) fn(data);
-  }
-
-  notifyStore(_key: string, _value: unknown): void {
-    // TODO(M3): push store updates to the UI once the event channel exists.
+  dispatchEvent(event: string, payload: unknown): void {
+    for (const fn of this.events.get(event) ?? []) fn(payload);
   }
 }

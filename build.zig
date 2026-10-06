@@ -12,6 +12,7 @@ const qt_cflags = [_][]const u8{
     "-DQT_QML_LIB",
     "-DQT_QUICK_LIB",
     "-DQT_NETWORK_LIB",
+    "-DQT_NO_EMIT",
 };
 
 fn compileCxx(b: *std.Build, src: std.Build.LazyPath, out_name: []const u8) std.Build.LazyPath {

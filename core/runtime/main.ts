@@ -8,6 +8,10 @@ function send(msg: unknown) {
   process.stdout.write(JSON.stringify(msg) + "\n");
 }
 
+function currentState(): Record<string, unknown> {
+  return App.current ? App.current.store.snapshot() : {};
+}
+
 const appDir = resolve(process.env.PULSAR_APP ?? "examples/hello");
 const entry = resolve(appDir, "main.ts");
 
@@ -20,7 +24,7 @@ console.error(`[pulsar] app loaded: ${appDir}`);
 
 const rl = createInterface({ input: process.stdin, terminal: false });
 
-rl.on("line", (raw) => {
+rl.on("line", async (raw) => {
   let req: any;
   try {
     req = JSON.parse(raw);
@@ -34,24 +38,28 @@ rl.on("line", (raw) => {
   }
 
   const app = App.current;
-  const handler = capabilities[req.method] ?? app?.resolve(req.method);
-  if (!handler) {
+  try {
+    let result: unknown = null;
+
+    if (req.method === "__sync") {
+      result = true;
+    } else if (app?.hasEvent(req.method)) {
+      app.dispatchEvent(req.method, req.params ?? {});
+      result = true;
+    } else {
+      const cap = capabilities[req.method];
+      if (!cap) throw new Error("method not found: " + req.method);
+      result = await cap(req.params ?? {});
+    }
+
+    send({ jsonrpc: "2.0", id: req.id, result, state: currentState() });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
     send({
       jsonrpc: "2.0",
       id: req.id,
-      error: { code: -32601, message: "method not found: " + req.method },
+      error: { code: -32000, message: msg },
+      state: currentState(),
     });
-    return;
   }
-
-  Promise.resolve(handler(req.params ?? {}))
-    .then((result) => send({ jsonrpc: "2.0", id: req.id, result }))
-    .catch((e: unknown) => {
-      const msg = e instanceof Error ? e.message : String(e);
-      send({
-        jsonrpc: "2.0",
-        id: req.id,
-        error: { code: -32000, message: msg },
-      });
-    });
 });
