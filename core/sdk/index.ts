@@ -4,6 +4,7 @@ export {
   fs,
   net,
   paths,
+  shell,
   storage,
   callCapability,
   hasCapability,

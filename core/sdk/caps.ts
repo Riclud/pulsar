@@ -60,6 +60,13 @@ export const paths = {
   get: (): Promise<AppPaths> => callCapability("paths.get", {}) as Promise<AppPaths>,
 }
 
+/** Open URLs and show desktop notifications via the OS shell. */
+export const shell = {
+  open: (url: string): Promise<boolean> => callCapability("shell.open", { url }) as Promise<boolean>,
+  notify: (title: string, body?: string): Promise<boolean> =>
+    callCapability("shell.notify", { title, body }) as Promise<boolean>,
+}
+
 /** Persist JSON-safe values to the app data directory (storage.json). */
 export const storage = {
   get: (key: string): Promise<unknown> => callCapability("storage.get", { key }),
