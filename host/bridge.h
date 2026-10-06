@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QByteArray>
+#include <QHash>
 #include <QJSEngine>
 #include <QJSValue>
 #include <QList>
@@ -18,6 +19,7 @@ public:
 
     Q_INVOKABLE qint64 invoke(const QString &method, const QJSValue &params);
     Q_INVOKABLE qint64 emit(const QString &method, const QJSValue &params);
+    Q_INVOKABLE QJSValue call(const QString &method, const QJSValue &params);
     Q_INVOKABLE QString diagnostics() const;
 
 signals:
@@ -31,8 +33,15 @@ private slots:
     void onProcessFinished(int exitCode, QProcess::ExitStatus status);
 
 private:
+    struct PendingCall {
+        QJSValue resolve;
+        QJSValue reject;
+    };
+
     void startBridge();
     void restart();
+    void ensurePromiseFactory();
+    void failPending(const QString &reason);
     void handleResponse(const QByteArray &line);
 
     QProcess process_;
@@ -44,5 +53,7 @@ private:
     bool synced_ = false;
     bool crashed_ = false;
     int restartBudget_ = 0;
+    QJSValue promiseFactory_;
+    QHash<qint64, PendingCall> pendingCalls_;
     QList<QByteArray> pendingWrites_;
 };

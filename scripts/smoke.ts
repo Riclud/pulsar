@@ -18,6 +18,7 @@ const tmp = mkdtempSync(join(tmpdir(), "pulsar-smoke-"))
 const log = join(tmp, "main.log")
 const crashLog = join(tmp, "crash.log")
 const bigLog = join(tmp, "big.log")
+const callLog = join(tmp, "call.log")
 
 let failed = false
 
@@ -70,6 +71,16 @@ try {
     QT_LOG_FILE: bigLog,
   })
   check(bigLog, "STORE big (list size 20000")
+
+  // QML -> capability round trip through the promise API.
+  runHost({
+    PULSAR_DEBUG: "1",
+    QT_QPA_PLATFORM: "offscreen",
+    QML_MAIN: join(root, "tests", "qml", "call.qml"),
+    AUTO_QUIT_MS: "4000",
+    QT_LOG_FILE: callLog,
+  })
+  check(callLog, "CALLRESULT true")
 
   if (failed) {
     console.error("smoke: FAILED")

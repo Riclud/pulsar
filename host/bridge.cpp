@@ -49,6 +49,7 @@ Bridge::Bridge(QJSEngine *engine, QQmlPropertyMap *store, QObject *parent)
 
 Bridge::~Bridge()
 {
+    pendingCalls_.clear();
     process_.blockSignals(true);
     if (process_.state() != QProcess::NotRunning) {
         process_.terminate();
@@ -137,6 +138,55 @@ qint64 Bridge::emit(const QString &method, const QJSValue &params)
     return invoke(method, params);
 }
 
+void Bridge::ensurePromiseFactory()
+{
+    if (promiseFactory_.isCallable())
+        return;
+
+    // Creates a Promise and hands back its resolve/reject callbacks; the
+    // correlation with a response id is done in C++ (see handleResponse).
+    const QString src = QStringLiteral(
+        "(function () {"
+        "  var resolve, reject;"
+        "  var promise = new Promise(function (res, rej) { resolve = res; reject = rej; });"
+        "  return { promise: promise, resolve: resolve, reject: reject };"
+        "})");
+    promiseFactory_ = engine_->evaluate(src);
+    if (promiseFactory_.isError())
+        qWarning().noquote() << "bridge: promise factory failed:" << promiseFactory_.toString();
+}
+
+QJSValue Bridge::call(const QString &method, const QJSValue &params)
+{
+    ensurePromiseFactory();
+    if (!promiseFactory_.isCallable())
+        return engine_->evaluate(QStringLiteral("Promise.reject(new Error('pulsar: bridge not ready'))"));
+
+    const QJSValue handle = promiseFactory_.call();
+    if (!handle.isObject())
+        return engine_->evaluate(QStringLiteral("Promise.reject(new Error('pulsar: cannot create promise'))"));
+
+    const qint64 id = invoke(method, params);
+    PendingCall pending;
+    pending.resolve = handle.property(QStringLiteral("resolve"));
+    pending.reject = handle.property(QStringLiteral("reject"));
+    pendingCalls_.insert(id, pending);
+    return handle.property(QStringLiteral("promise"));
+}
+
+void Bridge::failPending(const QString &reason)
+{
+    if (pendingCalls_.isEmpty())
+        return;
+    const QJSValue reasonValue = engine_->toScriptValue(reason);
+    const QList<qint64> ids = pendingCalls_.keys();
+    for (const qint64 id : ids) {
+        const PendingCall pending = pendingCalls_.take(id);
+        if (pending.reject.isCallable())
+            pending.reject.call(QJSValueList{ reasonValue });
+    }
+}
+
 void Bridge::onReadyReadStandardOutput()
 {
     stdoutBuffer_ += process_.readAllStandardOutput();
@@ -153,6 +203,7 @@ void Bridge::onProcessFinished(int exitCode, QProcess::ExitStatus status)
 {
     Q_UNUSED(exitCode);
     Q_UNUSED(status);
+    failPending(QStringLiteral("zig bridge exited"));
     if (restartBudget_ > 0) {
         --restartBudget_;
         qWarning().noquote() << "bridge exited; restarting (attempts left:" << restartBudget_ << ")";
@@ -246,4 +297,14 @@ void Bridge::handleResponse(const QByteArray &line)
         error = engine_->toScriptValue(ev.toVariant());
 
     Q_EMIT response(id, result, error);
+
+    if (pendingCalls_.contains(id)) {
+        const PendingCall pending = pendingCalls_.take(id);
+        if (error.isNull() || error.isUndefined()) {
+            if (pending.resolve.isCallable())
+                pending.resolve.call(QJSValueList{ result });
+        } else if (pending.reject.isCallable()) {
+            pending.reject.call(QJSValueList{ error });
+        }
+    }
 }

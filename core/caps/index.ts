@@ -1,10 +1,10 @@
+import { registerCapabilities } from "../sdk/caps.ts"
 import { fsCaps } from "./fs.ts"
 import { netCaps } from "./net.ts"
-import type { CapRegistry } from "./types.ts"
 
-export type { CapHandler, CapRegistry } from "./types.ts"
+export type { CapHandler, CapRegistry } from "../sdk/caps.ts"
 
-export const capabilities: CapRegistry = {
-  ...fsCaps,
-  ...netCaps,
+/** Wire the built-in capabilities into the shared registry. */
+export function installCapabilities(): void {
+  registerCapabilities({ ...fsCaps, ...netCaps })
 }
