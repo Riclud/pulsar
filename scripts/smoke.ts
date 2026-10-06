@@ -17,6 +17,7 @@ if (build.exitCode !== 0) {
 const tmp = mkdtempSync(join(tmpdir(), "pulsar-smoke-"))
 const log = join(tmp, "main.log")
 const crashLog = join(tmp, "crash.log")
+const bigLog = join(tmp, "big.log")
 
 let failed = false
 
@@ -58,6 +59,17 @@ try {
     QT_LOG_FILE: crashLog,
   })
   check(crashLog, "bun crashed")
+
+  // Large messages: a state snapshot well beyond the old 64 KiB line limit
+  // must still reach the host intact.
+  runHost({
+    PULSAR_DEBUG: "1",
+    QT_QPA_PLATFORM: "offscreen",
+    PULSAR_TEST_BIG_ITEMS: "20000",
+    AUTO_QUIT_MS: "4000",
+    QT_LOG_FILE: bigLog,
+  })
+  check(bigLog, "STORE big (list size 20000")
 
   if (failed) {
     console.error("smoke: FAILED")

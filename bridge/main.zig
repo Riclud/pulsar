@@ -10,19 +10,42 @@ const Shared = struct {
     stdout_lock: std.Io.Mutex = .init,
 };
 
+/// Upper bound for a single protocol line. Lines are streamed through without
+/// buffering, so this only guards against runaway or hostile input.
+const kMaxLine: usize = 64 << 20; // 64 MiB
+
+/// Streams one newline-terminated line from `src` to `dst`. Empty lines are
+/// skipped. Returns true while there may be more input.
+fn pumpLine(src: *std.Io.Reader, dst: *std.Io.Writer) bool {
+    const n = src.streamDelimiterLimit(dst, '\n', .limited(kMaxLine)) catch |e| switch (e) {
+        error.StreamTooLong => {
+            std.log.err("bridge: message exceeds {d} bytes; closing channel", .{kMaxLine});
+            return false;
+        },
+        error.ReadFailed, error.WriteFailed => return false,
+    };
+
+    // An empty buffer means the stream ended.
+    if (src.seek == src.end) {
+        if (n == 0) return false;
+        dst.writeByte('\n') catch return false; // trailing, unterminated line
+        dst.flush() catch return false;
+        return false;
+    }
+
+    src.toss(1); // consume the delimiter, which the stream leaves untouched
+    if (n == 0) return true; // skip empty lines
+    dst.writeByte('\n') catch return false;
+    dst.flush() catch return false;
+    return true;
+}
+
 /// Forwards lines from the host (stdin) into Bun's stdin.
 fn pumpHostToBun(
     host_reader: *std.Io.File.Reader,
     bun_writer: *std.Io.File.Writer,
 ) std.Io.Cancelable!void {
-    while (true) {
-        const maybe = host_reader.interface.takeDelimiter('\n') catch return;
-        const line = maybe orelse return;
-        if (line.len == 0) continue;
-        bun_writer.interface.writeAll(line) catch return;
-        bun_writer.interface.writeAll("\n") catch return;
-        bun_writer.interface.flush() catch return;
-    }
+    while (pumpLine(&host_reader.interface, &bun_writer.interface)) {}
 }
 
 /// Forwards every line Bun writes to stdout (responses *and* unsolicited
@@ -34,18 +57,10 @@ fn pumpBunToHost(
     shared: *Shared,
 ) std.Io.Cancelable!void {
     while (true) {
-        const maybe = bun_reader.interface.takeDelimiter('\n') catch return;
-        const line = maybe orelse return;
-        if (line.len == 0) continue;
         try shared.stdout_lock.lock(io);
-        const ok = blk: {
-            host_writer.interface.writeAll(line) catch break :blk false;
-            host_writer.interface.writeAll("\n") catch break :blk false;
-            host_writer.interface.flush() catch break :blk false;
-            break :blk true;
-        };
+        const more = pumpLine(&bun_reader.interface, &host_writer.interface);
         shared.stdout_lock.unlock(io);
-        if (!ok) return;
+        if (!more) return;
     }
 }
 
