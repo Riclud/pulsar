@@ -1,5 +1,6 @@
 import { createInterface } from "node:readline"
-import { resolve } from "node:path"
+import { watch } from "node:fs"
+import { join, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import { installCapabilities } from "../caps/index.ts"
 import { App, callCapability, hasCapability } from "../sdk/index.ts"
@@ -86,6 +87,38 @@ if (App.current) {
 
   send({ jsonrpc: "2.0", method: "__config", params: app.config })
 }
+
+// Dev hot reload: watch the app files and ask the host to restart the Bun side
+// when they change. The framework source is watched too when running from the
+// monorepo (coreDir == resolve(import.meta.dir, "..")).
+function setupReloadWatcher() {
+  if (!process.env.PULSAR_WATCH) return
+  const ignored = (name: string | null) =>
+    !name || name === "storage.json" || name.startsWith(".") || name.endsWith(".lock") || name.endsWith(".qml")
+  let timer: ReturnType<typeof setTimeout> | null = null
+  const schedule = () => {
+    if (timer) return
+    timer = setTimeout(() => {
+      timer = null
+      console.error(`[pulsar] change detected; reloading`)
+      send({ jsonrpc: "2.0", method: "__reload" })
+    }, 150)
+  }
+  const dirs: Array<{ path: string; recursive: boolean }> = [
+    { path: appDir, recursive: false },
+    { path: join(appDir, "ui"), recursive: false },
+    { path: resolve(import.meta.dir, ".."), recursive: true },
+  ]
+  for (const d of dirs) {
+    try {
+      watch(d.path, { recursive: d.recursive }, (_event, filename) => {
+        if (!ignored(filename)) schedule()
+      })
+    } catch {}
+  }
+}
+
+setupReloadWatcher()
 
 const rl = createInterface({ input: process.stdin, terminal: false })
 
