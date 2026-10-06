@@ -16,6 +16,14 @@ ApplicationWindow {
                 text: "Toggle panel"
                 onTriggered: Pulsar.emit("togglePanel", {})
             }
+            MenuItem {
+                text: "Open file..."
+                onTriggered: Pulsar.emit("openFile", {})
+            }
+            MenuItem {
+                text: "Message..."
+                onTriggered: Pulsar.emit("showMessage", {})
+            }
             MenuSeparator {}
             MenuItem {
                 text: "Quit"
@@ -62,6 +70,23 @@ ApplicationWindow {
                     title: "Panel " + ((Store.counter ?? 0) + 1)
                 })
             }
+
+            Button {
+                text: "Open file..."
+                onClicked: Pulsar.emit("openFile", {})
+            }
+
+            Button {
+                text: "Message..."
+                onClicked: Pulsar.emit("showMessage", {})
+            }
+        }
+
+        Label {
+            text: Store.picked ? "Picked: " + Store.picked : "No file picked yet"
+            wrapMode: Text.WordWrap
+            width: parent.width
+            color: "#888"
         }
 
         Label {
