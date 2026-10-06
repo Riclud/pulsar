@@ -1,0 +1,10 @@
+{
+  "id": "com.pulsar.twowindow",
+  "name": "two-window",
+  "version": "0.1.0",
+  "main": "main.ts",
+  "windows": [
+    { "label": "main", "ui": "ui/main.qml", "width": 320, "height": 200, "title": "Main Window" },
+    { "label": "second", "ui": "ui/second.qml", "width": 480, "height": 360, "title": "Second Window" }
+  ]
+}
