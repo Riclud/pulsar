@@ -8,14 +8,18 @@
 #include <QIcon>
 #include <QDir>
 #include <QFile>
+#include <QHash>
 #include <QJsonObject>
 #include <QFileInfo>
 #include <QFileSystemWatcher>
 #include <QJSValue>
+#include <QSet>
 #include <QTimer>
 #include <QUrl>
 #include <QtQml/qqml.h>
 #include <QtGlobal>
+
+#include <utility>
 
 #include "bridge.h"
 #include "embedded.h"
@@ -24,12 +28,11 @@
 static QStringList gQmlErrors;
 static bool gErrorShown = false;
 static bool gWatch = false;
-static bool gLoaded = false;
-static QUrl gLoadedUrl;
 static QFileSystemWatcher *gWatcher = nullptr;
 static Bridge *gBridge = nullptr;
 
 struct WindowConfig {
+    QString label;
     QString ui;
     int width = 0;
     int height = 0;
@@ -53,7 +56,13 @@ struct WindowConfig {
     bool hasIcon = false;
 };
 
-static WindowConfig g_config;
+// Windows are addressed by label; they all share the Store and QML engine.
+static QHash<QString, WindowConfig> g_configs;
+static QHash<QString, QObject *> g_roots;
+static QHash<QString, QString> g_urlLabels;
+static QSet<QString> g_requested;
+static QString gPrimaryLabel;
+static bool gShownAny = false;
 
 static QString appDir()
 {
@@ -75,47 +84,47 @@ static QUrl resolveUi(const QString &ui)
     return QUrl::fromLocalFile(path);
 }
 
-static void applyConfig(QObject *root)
+static void applyConfig(QObject *root, const WindowConfig &cfg)
 {
     if (!root)
         return;
     auto *window = qobject_cast<QQuickWindow *>(root);
     if (!window) {
         // Non-window root (plain QML); fall back to generic properties.
-        if (g_config.hasWidth)
-            root->setProperty("width", g_config.width);
-        if (g_config.hasHeight)
-            root->setProperty("height", g_config.height);
-        if (g_config.hasTitle)
-            root->setProperty("title", g_config.title);
+        if (cfg.hasWidth)
+            root->setProperty("width", cfg.width);
+        if (cfg.hasHeight)
+            root->setProperty("height", cfg.height);
+        if (cfg.hasTitle)
+            root->setProperty("title", cfg.title);
         return;
     }
-    if (g_config.hasWidth)
-        window->setWidth(g_config.width);
-    if (g_config.hasHeight)
-        window->setHeight(g_config.height);
-    if (g_config.hasTitle)
-        window->setTitle(g_config.title);
-    if (g_config.hasMinWidth)
-        window->setMinimumWidth(g_config.minWidth);
-    if (g_config.hasMinHeight)
-        window->setMinimumHeight(g_config.minHeight);
-    if (g_config.hasMaxWidth)
-        window->setMaximumWidth(g_config.maxWidth);
-    if (g_config.hasMaxHeight)
-        window->setMaximumHeight(g_config.maxHeight);
-    if (g_config.hasResizable)
-        window->setProperty("resizable", g_config.resizable);
-    if (g_config.hasFrameless) {
+    if (cfg.hasWidth)
+        window->setWidth(cfg.width);
+    if (cfg.hasHeight)
+        window->setHeight(cfg.height);
+    if (cfg.hasTitle)
+        window->setTitle(cfg.title);
+    if (cfg.hasMinWidth)
+        window->setMinimumWidth(cfg.minWidth);
+    if (cfg.hasMinHeight)
+        window->setMinimumHeight(cfg.minHeight);
+    if (cfg.hasMaxWidth)
+        window->setMaximumWidth(cfg.maxWidth);
+    if (cfg.hasMaxHeight)
+        window->setMaximumHeight(cfg.maxHeight);
+    if (cfg.hasResizable)
+        window->setProperty("resizable", cfg.resizable);
+    if (cfg.hasFrameless) {
         Qt::WindowFlags flags = window->flags();
-        if (g_config.frameless)
+        if (cfg.frameless)
             flags |= Qt::FramelessWindowHint;
         else
             flags &= ~Qt::FramelessWindowHint;
         window->setFlags(flags);
     }
-    if (g_config.hasIcon && !g_config.icon.isEmpty())
-        window->setIcon(QIcon(g_config.icon));
+    if (cfg.hasIcon && !cfg.icon.isEmpty())
+        window->setIcon(QIcon(cfg.icon));
 }
 
 template <typename T>
@@ -125,6 +134,49 @@ static bool setIfPresent(const QVariantMap &map, const QString &key, T &out)
         return false;
     out = static_cast<T>(map.value(key).template value<T>());
     return true;
+}
+
+static WindowConfig parseWindowConfig(const QVariantMap &m, const QString &fallbackLabel)
+{
+    WindowConfig c;
+    c.label = m.value(QStringLiteral("label")).toString();
+    if (c.label.isEmpty())
+        c.label = fallbackLabel;
+    c.ui = m.value(QStringLiteral("ui")).toString();
+    if (m.contains(QStringLiteral("width"))) {
+        c.width = m.value(QStringLiteral("width")).toInt();
+        c.hasWidth = true;
+    }
+    if (m.contains(QStringLiteral("height"))) {
+        c.height = m.value(QStringLiteral("height")).toInt();
+        c.hasHeight = true;
+    }
+    if (m.contains(QStringLiteral("title"))) {
+        c.title = m.value(QStringLiteral("title")).toString();
+        c.hasTitle = true;
+    }
+    c.hasMinWidth = setIfPresent(m, QStringLiteral("minWidth"), c.minWidth);
+    c.hasMinHeight = setIfPresent(m, QStringLiteral("minHeight"), c.minHeight);
+    c.hasMaxWidth = setIfPresent(m, QStringLiteral("maxWidth"), c.maxWidth);
+    c.hasMaxHeight = setIfPresent(m, QStringLiteral("maxHeight"), c.maxHeight);
+    c.hasResizable = setIfPresent(m, QStringLiteral("resizable"), c.resizable);
+    c.hasFrameless = setIfPresent(m, QStringLiteral("frameless"), c.frameless);
+    if (m.contains(QStringLiteral("icon"))) {
+        c.icon = m.value(QStringLiteral("icon")).toString();
+        c.hasIcon = true;
+    }
+    return c;
+}
+
+static void logWindowConfig(const WindowConfig &c)
+{
+    if (!qEnvironmentVariableIsSet("PULSAR_DEBUG"))
+        return;
+    qInfo().noquote() << "CONFIG window" << c.label << "ui=" << c.ui
+                      << "size=" << c.width << "x" << c.height << "title=" << c.title
+                      << "min=" << c.minWidth << "x" << c.minHeight
+                      << "max=" << c.maxWidth << "x" << c.maxHeight
+                      << "resizable=" << c.resizable << "frameless=" << c.frameless;
 }
 
 // Fallback window shown when the app's QML fails to load, instead of exiting
@@ -209,34 +261,38 @@ static void requestFullSync()
         gBridge->invoke(QStringLiteral("__sync"), QJSValue());
 }
 
-static void rebaseWatcher(const QUrl &url)
+static void watchQmlFile(const QUrl &url)
 {
     if (!gWatch || !gWatcher)
         return;
     const QString path = url.toLocalFile();
     if (path.isEmpty())
         return;
-    gWatcher->removePaths(gWatcher->files());
-    gWatcher->addPath(path);
+    if (!gWatcher->files().contains(path))
+        gWatcher->addPath(path);
 }
 
-static void showUi(QQmlApplicationEngine &engine, const QUrl &url)
+static void showWindow(QQmlApplicationEngine &engine, const WindowConfig &cfg)
 {
-    gLoaded = true;
-    gLoadedUrl = url;
+    const QUrl url = resolveUi(cfg.ui);
+    g_urlLabels.insert(url.toString(), cfg.label);
+    g_requested.insert(cfg.label);
+    gShownAny = true;
     engine.load(url);
-    rebaseWatcher(url);
+    watchQmlFile(url);
 }
 
-static void reloadUi(QQmlApplicationEngine &engine, const QUrl &url)
+static void destroyWindows(QQmlApplicationEngine &engine)
 {
-    qInfo().noquote() << "reload ui:" << url.toString();
-    const QList<QObject*> roots = engine.rootObjects();
+    const QList<QObject *> roots = engine.rootObjects();
     for (QObject *root : roots)
         delete root;
     engine.clearComponentCache();
-    showUi(engine, url);
-    requestFullSync();
+    g_roots.clear();
+    g_urlLabels.clear();
+    g_requested.clear();
+    if (gWatcher)
+        gWatcher->removePaths(gWatcher->files());
 }
 
 int main(int argc, char **argv)
@@ -292,8 +348,10 @@ int main(int argc, char **argv)
     gWatcher = new QFileSystemWatcher(&app);
     QObject::connect(gWatcher, &QFileSystemWatcher::fileChanged, &app, [&engine]() {
         qInfo().noquote() << "qml changed; reloading";
-        reloadUi(engine, gLoadedUrl);
-        applyConfig(engine.rootObjects().value(0));
+        destroyWindows(engine);
+        for (const WindowConfig &cfg : std::as_const(g_configs))
+            showWindow(engine, cfg);
+        requestFullSync();
     });
 
     // The app (Bun) configures the window via a __config notification. In
@@ -303,43 +361,33 @@ int main(int argc, char **argv)
                      [&engine, bridge](const QString &method, const QJSValue &params) {
                          if (method == QLatin1String("__config")) {
                              const QVariantMap m = params.toVariant().toMap();
-                             g_config.ui = m.value(QStringLiteral("ui")).toString();
-                             if (m.contains(QStringLiteral("width"))) {
-                                 g_config.width = m.value(QStringLiteral("width")).toInt();
-                                 g_config.hasWidth = true;
+                             const QVariantList wins = m.value(QStringLiteral("windows")).toList();
+
+                             QList<WindowConfig> configs;
+                             if (wins.isEmpty()) {
+                                 configs.append(parseWindowConfig(m, QStringLiteral("main")));
+                             } else {
+                                 for (int i = 0; i < wins.size(); ++i)
+                                     configs.append(parseWindowConfig(
+                                         wins.at(i).toMap(),
+                                         i == 0 ? QStringLiteral("main")
+                                                : QStringLiteral("window-%1").arg(i + 1)));
                              }
-                             if (m.contains(QStringLiteral("height"))) {
-                                 g_config.height = m.value(QStringLiteral("height")).toInt();
-                                 g_config.hasHeight = true;
+
+                             // In watch mode a repeated __config means the runtime restarted.
+                             if (gWatch && gShownAny)
+                                 destroyWindows(engine);
+
+                             for (const WindowConfig &cfg : std::as_const(configs)) {
+                                 if (gPrimaryLabel.isEmpty())
+                                     gPrimaryLabel = cfg.label;
+                                 g_configs.insert(cfg.label, cfg);
+                                 logWindowConfig(cfg);
+                                 if (g_requested.contains(cfg.label))
+                                     applyConfig(g_roots.value(cfg.label), cfg);
+                                 else
+                                     showWindow(engine, cfg);
                              }
-                             if (m.contains(QStringLiteral("title"))) {
-g_config.title = m.value(QStringLiteral("title")).toString();
-                                  g_config.hasTitle = true;
-                              }
-                              g_config.hasMinWidth = setIfPresent(m, "minWidth", g_config.minWidth);
-                              g_config.hasMinHeight = setIfPresent(m, "minHeight", g_config.minHeight);
-                              g_config.hasMaxWidth = setIfPresent(m, "maxWidth", g_config.maxWidth);
-                              g_config.hasMaxHeight = setIfPresent(m, "maxHeight", g_config.maxHeight);
-                              g_config.hasResizable = setIfPresent(m, "resizable", g_config.resizable);
-                              g_config.hasFrameless = setIfPresent(m, "frameless", g_config.frameless);
-                              if (m.contains(QStringLiteral("icon"))) {
-                                  g_config.icon = m.value(QStringLiteral("icon")).toString();
-                                  g_config.hasIcon = true;
-                              }
-                              if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
-                                  qInfo().noquote() << "CONFIG ui=" << g_config.ui
-                                                    << "size=" << g_config.width << "x" << g_config.height
-                                                    << "title=" << g_config.title
-                                                    << "min=" << g_config.minWidth << "x" << g_config.minHeight
-                                                    << "max=" << g_config.maxWidth << "x" << g_config.maxHeight
-                                                    << "resizable=" << g_config.resizable
-                                                    << "frameless=" << g_config.frameless;
-                             if (!gLoaded)
-                                 showUi(engine, resolveUi(g_config.ui));
-                             else if (gWatch)
-                                 reloadUi(engine, resolveUi(g_config.ui));
-                             else
-                                 applyConfig(engine.rootObjects().value(0));
                          } else if (method == QLatin1String("__quit")) {
                              QCoreApplication::quit();
                          } else if (method == QLatin1String("__reload")) {
@@ -373,16 +421,18 @@ g_config.title = m.value(QStringLiteral("title")).toString();
 
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated, &app,
                      [&engine](QObject *obj, const QUrl &objUrl) {
-                         if (!gLoadedUrl.isValid() || objUrl != gLoadedUrl)
+                         const QString label = g_urlLabels.value(objUrl.toString());
+                         if (label.isEmpty())
                              return;
                          if (!obj) {
                              showErrorView(engine,
                                            gQmlErrors.isEmpty()
                                                ? QStringLiteral("The app UI could not be loaded.")
                                                : gQmlErrors.join(QLatin1Char('\n')));
-                         } else {
-                             applyConfig(obj);
+                             return;
                          }
+                         applyConfig(obj, g_configs.value(label));
+                         g_roots.insert(label, obj);
                      },
                      Qt::QueuedConnection);
 
@@ -390,7 +440,12 @@ g_config.title = m.value(QStringLiteral("title")).toString();
     // app config, with a fallback to <app>/ui/main.qml.
     const QByteArray qmlOverride = qgetenv("QML_MAIN");
     if (!qmlOverride.isEmpty()) {
-        showUi(engine, QUrl::fromLocalFile(QString::fromLocal8Bit(qmlOverride)));
+        WindowConfig cfg;
+        cfg.label = QStringLiteral("main");
+        cfg.ui = QString::fromLocal8Bit(qmlOverride);
+        g_configs.insert(cfg.label, cfg);
+        gPrimaryLabel = cfg.label;
+        showWindow(engine, cfg);
     } else {
         bool cfgOk = false;
         int timeout = qEnvironmentVariableIntValue("PULSAR_CONFIG_TIMEOUT_MS", &cfgOk);
@@ -401,8 +456,13 @@ g_config.title = m.value(QStringLiteral("title")).toString();
         QObject::connect(fallback, &QTimer::timeout, &app, [&engine]() {
             // The app may already have configured the UI via __config; only
             // fall back when nothing has been shown yet.
-            if (!gLoaded)
-                showUi(engine, resolveUi(QString()));
+            if (gShownAny)
+                return;
+            WindowConfig cfg;
+            cfg.label = QStringLiteral("main");
+            g_configs.insert(cfg.label, cfg);
+            gPrimaryLabel = cfg.label;
+            showWindow(engine, cfg);
         });
         fallback->start(timeout);
     }

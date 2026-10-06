@@ -1,7 +1,9 @@
-import { loadManifest, resolveAppConfig, type AppManifest } from "./manifest.ts"
+import { loadManifest, resolveWindows, type AppManifest } from "./manifest.ts"
 
 export interface AppConfig {
   ui: string
+  /** Window label; addresses windows in multi-window apps. */
+  label?: string
   width?: number
   height?: number
   title?: string
@@ -144,10 +146,16 @@ export class Store {
 export class App {
   static current: App | null = null
 
-  readonly config: AppConfig
+  /** All declared windows, addressed by label. They share store and events. */
+  readonly windows: AppConfig[]
   readonly store: Store
   /** The pulsar.json this app was created from, if any. */
   readonly manifest: AppManifest | null
+
+  /** The first window, for convenience. */
+  get config(): AppConfig {
+    return this.windows[0]!
+  }
 
   private readonly events = new Map<string, EventHandler[]>()
 
@@ -156,7 +164,7 @@ export class App {
 
   constructor(config: Partial<AppConfig> = {}) {
     this.manifest = loadManifest()
-    this.config = resolveAppConfig(this.manifest, config)
+    this.windows = resolveWindows(this.manifest, config)
     this.store = new Store()
     App.current = this
   }
