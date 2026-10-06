@@ -9,6 +9,10 @@ console.log = (...args: unknown[]) => console.error(...args)
 console.info = console.log
 console.debug = console.log
 
+// Test hook: force the runtime to die so supervision can be exercised.
+const testCrashMs = Number(process.env.PULSAR_TEST_CRASH_MS ?? 0)
+if (testCrashMs > 0) setTimeout(() => process.exit(3), testCrashMs)
+
 function send(msg: unknown) {
   process.stdout.write(JSON.stringify(msg) + "\n")
 }
@@ -72,6 +76,9 @@ if (App.current) {
 }
 
 const rl = createInterface({ input: process.stdin, terminal: false })
+
+// The bridge owns our stdin; when it closes, the host is gone.
+rl.on("close", () => process.exit(0))
 
 rl.on("line", async (raw) => {
   let req: any
