@@ -9,6 +9,11 @@ const fallback_includes = [_][]const u8{
     "QtCore", "QtGui", "QtQml", "QtQuick", "QtNetwork", "QtOpenGL", "QtQmlIntegration",
 };
 
+/// Pulsar needs at least this Qt (major.minor). Lower versions are rejected.
+const qt_min = "6.8";
+/// Qt version Pulsar is developed and tested against (major.minor). Mismatches warn.
+const qt_target = "6.8";
+
 fn execCapture(b: *std.Build, argv: []const []const u8) ?[]const u8 {
     const res = std.process.run(b.allocator, b.graph.io, .{
         .argv = argv,
@@ -31,6 +36,8 @@ fn tokenize(b: *std.Build, out: *std.ArrayList([]const u8), text: []const u8) vo
 /// pkg-config flags for Qt (Linux, Homebrew/macOS).
 fn pkgConfig(b: *std.Build, mode: []const u8) ?[]const u8 {
     if (b.graph.environ_map.get("PULSAR_NO_PKGCONFIG") != null) return null;
+    // An explicit Qt root wins over whatever pkg-config happens to report.
+    if (b.graph.environ_map.get("PULSAR_QT") != null) return null;
     var argv: std.ArrayList([]const u8) = .empty;
     defer argv.deinit(b.allocator);
     argv.append(b.allocator, "pkg-config") catch return null;
@@ -48,6 +55,19 @@ fn qmakeQuery(b: *std.Build, key: []const u8) ?[]const u8 {
             if (v.len > 0) return v;
         }
     }
+    // PULSAR_QT points at a Qt installation root (its bin/ holds qmake).
+    if (b.graph.environ_map.get("PULSAR_QT")) |root| {
+        if (std.fmt.allocPrint(b.allocator, "{s}/bin/qmake6", .{root}) catch null) |q| {
+            if (execCapture(b, &.{ q, "-query", key })) |v| {
+                if (v.len > 0) return v;
+            }
+        }
+        if (std.fmt.allocPrint(b.allocator, "{s}/bin/qmake", .{root}) catch null) |q| {
+            if (execCapture(b, &.{ q, "-query", key })) |v| {
+                if (v.len > 0) return v;
+            }
+        }
+    }
     if (execCapture(b, &.{ "qmake6", "-query", key })) |v| {
         if (v.len > 0) return v;
     }
@@ -55,6 +75,68 @@ fn qmakeQuery(b: *std.Build, key: []const u8) ?[]const u8 {
         if (v.len > 0) return v;
     }
     return null;
+}
+
+/// Qt version from pkg-config, falling back to qmake (honours PULSAR_QT/QMAKE).
+fn detectQtVersion(b: *std.Build) ?[]const u8 {
+    if (b.graph.environ_map.get("PULSAR_QT") == null and
+        b.graph.environ_map.get("PULSAR_NO_PKGCONFIG") == null)
+    {
+        if (execCapture(b, &.{ "pkg-config", "--modversion", "Qt6Core" })) |v| {
+            if (v.len > 0) return v;
+        }
+    }
+    return qmakeQuery(b, "QT_VERSION");
+}
+
+fn parseMajorMinor(text: []const u8) ?struct { major: u32, minor: u32 } {
+    var it = std.mem.tokenizeAny(u8, text, ".-");
+    const major_s = it.next() orelse return null;
+    const minor_s = it.next() orelse return null;
+    return .{
+        .major = std.fmt.parseInt(u32, major_s, 10) catch return null,
+        .minor = std.fmt.parseInt(u32, minor_s, 10) catch return null,
+    };
+}
+
+fn reportMissingQt() noreturn {
+    std.log.err(
+        \\Qt {s}+ was not found. The Pulsar QML host needs the Qt6 development
+        \\files and tools (moc, QML modules).
+        \\
+        \\Install Qt and retry, e.g.:
+        \\  Ubuntu/Debian: sudo apt install qt6-base-dev qt6-base-dev-tools qt6-declarative-dev qml6-module-qtquick-controls
+        \\  Fedora:        sudo dnf install qt6-qtbase-devel qt6-qtdeclarative-devel
+        \\  Arch:          sudo pacman -S qt6-base qt6-declarative qt6-quickcontrols2
+        \\  macOS:         brew install qt
+        \\  Windows:       MSYS2: pacman -S mingw-w64-x86_64-qt6-base mingw-w64-x86_64-qt6-declarative mingw-w64-x86_64-gcc
+        \\
+        \\Or point PULSAR_QMAKE (qmake binary) or PULSAR_QT (Qt root) at an
+        \\existing installation. See README for details.
+    , .{qt_min});
+    std.process.exit(1);
+}
+
+fn requireQtVersion(version: []const u8) void {
+    const v = parseMajorMinor(version) orelse {
+        std.log.warn("could not parse Qt version '{s}'; skipping version check", .{version});
+        return;
+    };
+    const min = parseMajorMinor(qt_min).?;
+    const target = parseMajorMinor(qt_target).?;
+    if (v.major < min.major or (v.major == min.major and v.minor < min.minor)) {
+        std.log.err(
+            "Qt {s} found, but Pulsar requires Qt >= {s}. Please install a newer Qt (see README).",
+            .{ version, qt_min },
+        );
+        std.process.exit(1);
+    }
+    if (v.major != target.major or v.minor != target.minor) {
+        std.log.warn(
+            "Qt {s} found; Pulsar targets Qt {s}.x. The build may still work, but Qt {s}.x is recommended.",
+            .{ version, qt_target, qt_target },
+        );
+    }
 }
 
 /// Best-effort clangd flags written next to the sources (gitignored).
@@ -101,6 +183,9 @@ pub fn build(b: *std.Build) void {
                 "Cross-compiling the Qt host needs a target Qt build, which is not supported yet.",
             .{ @tagName(host_os), @tagName(target_os) },
         );
+
+    const qt_version = detectQtVersion(b) orelse reportMissingQt();
+    requireQtVersion(qt_version);
 
     var cflags: std.ArrayList([]const u8) = .empty;
     if (pkgConfig(b, "--cflags")) |text| {
