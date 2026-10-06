@@ -5,6 +5,11 @@
   "scripts": {
     "dev": "pulsar dev",
     "start": "pulsar run",
-    "build": "pulsar build"
+    "build": "pulsar build",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5"
   }
 }
