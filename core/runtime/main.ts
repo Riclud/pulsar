@@ -3,7 +3,7 @@ import { existsSync, watch } from "fs"
 import { join, resolve } from "path"
 import { pathToFileURL } from "url"
 import { installCapabilities } from "../caps/index.ts"
-import { App, callCapability, hasCapability } from "../sdk/index.ts"
+import { App, callCapability, hasCapability, loadManifest } from "../sdk/index.ts"
 import { MIN_BUN, bunVersionCompatible } from "./version.ts"
 
 installCapabilities()
@@ -101,8 +101,9 @@ export function wireApp(): void {
 }
 
 if (!bundled) {
-  // Sources run directly as main.ts; a plain bundle may ship main.js.
-  const entryTs = resolve(appDir, "main.ts")
+  // Entry comes from the manifest; a plain bundle may ship main.js instead.
+  const main = loadManifest(appDir)?.main ?? "main.ts"
+  const entryTs = resolve(appDir, main)
   const entry = existsSync(entryTs) ? entryTs : resolve(appDir, "main.js")
   try {
     await import(pathToFileURL(entry).href)

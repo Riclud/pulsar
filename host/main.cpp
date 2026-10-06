@@ -259,6 +259,11 @@ int main(int argc, char **argv)
         qInfo().noquote() << "pulsar: extracted embedded app to" << embeddedRoot;
     }
 
+    // Keep the runtime's idea of the app directory in sync with the host's, so
+    // it finds pulsar.json even when launched without PULSAR_APP (e.g. dev).
+    if (qEnvironmentVariableIsEmpty("PULSAR_APP"))
+        qputenv("PULSAR_APP", appDir().toLocal8Bit());
+
     QQmlApplicationEngine engine;
 
     // Types are owned by `app` so they outlive the engine.

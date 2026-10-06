@@ -1,3 +1,5 @@
+import { loadManifest, resolveAppConfig, type AppManifest } from "./manifest.ts"
+
 export interface AppConfig {
   ui: string
   width?: number
@@ -144,14 +146,17 @@ export class App {
 
   readonly config: AppConfig
   readonly store: Store
+  /** The pulsar.json this app was created from, if any. */
+  readonly manifest: AppManifest | null
 
   private readonly events = new Map<string, EventHandler[]>()
 
   /** Installed by the runtime; terminates the host. */
   onQuit?: () => void
 
-  constructor(config: AppConfig) {
-    this.config = config
+  constructor(config: Partial<AppConfig> = {}) {
+    this.manifest = loadManifest()
+    this.config = resolveAppConfig(this.manifest, config)
     this.store = new Store()
     App.current = this
   }
