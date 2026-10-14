@@ -35,6 +35,7 @@ const logLog = join(tmp, "log.log")
 const twoLog = join(tmp, "two.log")
 const winLog = join(tmp, "window-ctl.log")
 const dialogLog = join(tmp, "dialog.log")
+const systemLog = join(tmp, "system.log")
 const trayLog = join(tmp, "tray.log")
 
 let failed = false
@@ -190,6 +191,22 @@ try {
   })
   check(dialogLog, "STORE picked = QVariant(QString, /tmp/picked.txt)")
   check(dialogLog, "STORE messaged = QVariant(bool, true)")
+
+  // System APIs: theme, screens, locale, notifications, multi/dir dialogs.
+  runHost({
+    PULSAR_DEBUG: "1",
+    QT_QPA_PLATFORM: "offscreen",
+    PULSAR_DIALOG_STUB: "/tmp/picked.txt",
+    PULSAR_APP: join(root, "tests", "apps", "system-app"),
+    AUTO_QUIT_MS: "3000",
+    QT_LOG_FILE: systemLog,
+  })
+  check(systemLog, "STORE themeOk = QVariant(bool, true)")
+  check(systemLog, "STORE screensOk = QVariant(bool, true)")
+  check(systemLog, "STORE localeOk = QVariant(bool, true)")
+  check(systemLog, "STORE notifyToken = QVariant(QString, 1)")
+  check(systemLog, "STORE multiOk = QVariant(bool, true)")
+  check(systemLog, "STORE dirOk = QVariant(bool, true)")
 
   // System tray: the app can configure the menu through the tray capability.
   runHost({

@@ -16,25 +16,4 @@ export const shellCaps: CapRegistry = {
       child.on("error", reject)
       child.on("exit", () => resolve(true))
     }),
-
-  // Best-effort desktop notification.
-  "shell.notify": (p: { title: string; body?: string }) =>
-    new Promise((resolve) => {
-      const title = p.title ?? ""
-      const body = p.body ?? ""
-      let child: ReturnType<typeof spawn> | null = null
-      if (process.platform === "darwin") {
-        child = spawn("osascript", ["-e", `display notification "${body}" with title "${title}"`], {
-          stdio: "ignore",
-        })
-      } else if (process.platform === "linux") {
-        child = spawn("notify-send", [title, body], { stdio: "ignore" })
-      }
-      if (!child) {
-        resolve(false)
-        return
-      }
-      child.on("error", () => resolve(false))
-      child.on("exit", () => resolve(true))
-    }),
 }

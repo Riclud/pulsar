@@ -16,6 +16,7 @@ class QSystemTrayIcon;
 
 class Bridge : public QObject {
     Q_OBJECT
+    Q_PROPERTY(QString colorScheme READ colorScheme NOTIFY colorSchemeChanged)
 
 public:
     explicit Bridge(QJSEngine *engine, QQmlPropertyMap *store, QObject *parent = nullptr);
@@ -45,6 +46,13 @@ public:
     Q_INVOKABLE void setTrayMenu(const QVariantList &items);
     Q_INVOKABLE void hideTray();
 
+    // Native notification; emits __event notification-click with the token.
+    bool showNotification(const QString &title, const QString &body, const QString &token);
+
+    // System color scheme ("light"/"dark"), reactive to QML.
+    QString colorScheme() const;
+    void refreshColorScheme();
+
     // Send an unsolicited notification to the runtime (no response expected).
     void notify(const QString &method, const QJsonObject &params);
     // Send a binary data frame on the data channel.
@@ -62,6 +70,7 @@ signals:
     void crashed(const QString &kind, int code);
     void log(const QString &level, const QString &message, const QString &source);
     void appEvent(const QString &event, const QVariant &payload, const QString &target);
+    void colorSchemeChanged();
 
 private slots:
     void onReadyReadStandardOutput();
@@ -97,4 +106,7 @@ private:
 
     QSystemTrayIcon *tray_ = nullptr;
     QMenu *trayMenu_ = nullptr;
+    QString lastNotifyToken_;
+
+    void ensureTray();
 };

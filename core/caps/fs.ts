@@ -1,11 +1,51 @@
+import { spawn } from "child_process"
 import { promises as fs } from "fs"
+import { dirname } from "path"
 import type { CapRegistry } from "./types.ts"
 
-export const fsCaps: CapRegistry = {
-  "fs.readFile": async (p: { path: string }) => fs.readFile(p.path, "utf8"),
+type Encoding = "utf8" | "base64"
 
-  "fs.writeFile": async (p: { path: string; content: string }) => {
-    await fs.writeFile(p.path, p.content, "utf8")
+const readEncoding = (encoding?: string): BufferEncoding => {
+  return encoding === "base64" ? "base64" : "utf8"
+}
+
+const run = (cmd: string, args: string[]): Promise<boolean> => {
+  return new Promise((resolve) => {
+    const child = spawn(cmd, args, { stdio: "ignore" })
+    child.on("error", () => resolve(false))
+    child.on("exit", (code) => resolve(code === 0))
+  })
+}
+
+/** Best-effort move to the OS trash/recycle bin. */
+const moveToTrash = async (path: string): Promise<boolean> => {
+  if (process.platform === "darwin")
+    return run("osascript", ["-e", `tell application "Finder" to delete POSIX file ${JSON.stringify(path)}`])
+
+  if (process.platform === "win32") {
+    const escaped = path.replace(/'/g, "''")
+    return run("powershell", [
+      "-NoProfile",
+      "-Command",
+      `Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('${escaped}','OnlyErrorDialogs','SendToRecycleBin')`,
+    ])
+  }
+
+  if (await run("gio", ["trash", path])) return true
+  return run("trash-put", [path])
+}
+
+export const fsCaps: CapRegistry = {
+  "fs.readFile": async (p: { path: string; encoding?: Encoding }) => fs.readFile(p.path, readEncoding(p.encoding)),
+
+  "fs.writeFile": async (p: { path: string; content: string; encoding?: Encoding }) => {
+    await fs.mkdir(dirname(p.path), { recursive: true })
+    await fs.writeFile(p.path, p.content, readEncoding(p.encoding))
+    return true
+  },
+
+  "fs.appendFile": async (p: { path: string; content: string; encoding?: Encoding }) => {
+    await fs.appendFile(p.path, p.content, readEncoding(p.encoding))
     return true
   },
 
@@ -22,4 +62,38 @@ export const fsCaps: CapRegistry = {
       return false
     }
   },
+
+  "fs.stat": async (p: { path: string }) => {
+    const s = await fs.stat(p.path)
+    return {
+      size: s.size,
+      isFile: s.isFile(),
+      isDirectory: s.isDirectory(),
+      mtimeMs: s.mtimeMs,
+      createdAtMs: s.birthtimeMs,
+    }
+  },
+
+  "fs.mkdir": async (p: { path: string; recursive?: boolean }) => {
+    await fs.mkdir(p.path, { recursive: p.recursive ?? true })
+    return true
+  },
+
+  "fs.remove": async (p: { path: string; recursive?: boolean }) => {
+    await fs.rm(p.path, { recursive: p.recursive ?? false, force: true })
+    return true
+  },
+
+  "fs.rename": async (p: { from: string; to: string }) => {
+    await fs.mkdir(dirname(p.to), { recursive: true })
+    await fs.rename(p.from, p.to)
+    return true
+  },
+
+  "fs.copy": async (p: { from: string; to: string; recursive?: boolean }) => {
+    await fs.cp(p.from, p.to, { recursive: p.recursive ?? true })
+    return true
+  },
+
+  "fs.moveToTrash": async (p: { path: string }) => moveToTrash(p.path),
 }

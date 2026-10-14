@@ -95,6 +95,12 @@ Module {
             name: "restart"
         }
 
+        Property {
+            name: "colorScheme"
+            type: "QString"
+            isReadonly: true
+        }
+
         Signal {
             name: "ready"
         }
@@ -111,6 +117,10 @@ Module {
             Parameter { name: "event"; type: "QString" }
             Parameter { name: "payload"; type: "QVariant" }
             Parameter { name: "target"; type: "QString" }
+        }
+
+        Signal {
+            name: "colorSchemeChanged"
         }
 
         Signal {

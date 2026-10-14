@@ -10,13 +10,16 @@
 #include <QDir>
 #include <QFile>
 #include <QHash>
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFileSystemWatcher>
 #include <QMessageBox>
 #include <QJSValue>
+#include <QScreen>
 #include <QSet>
+#include <QStyleHints>
 #include <QTimer>
 #include <QUrl>
 #include <QtQml/qqml.h>
@@ -417,34 +420,95 @@ static void handleDialogRequest(const QVariantMap &m)
     if (!stub.isEmpty()) {
         QJsonObject params;
         params.insert(QStringLiteral("token"), token);
-        params.insert(QStringLiteral("value"),
-                      kind == QLatin1String("message") ? QJsonValue(true)
-                                                       : QJsonValue(QString::fromLocal8Bit(stub)));
+        if (kind == QLatin1String("message"))
+            params.insert(QStringLiteral("value"), true);
+        else if (kind == QLatin1String("open-files")) {
+            QJsonArray files;
+            files.append(QString::fromLocal8Bit(stub));
+            params.insert(QStringLiteral("value"), files);
+        } else {
+            params.insert(QStringLiteral("value"), QString::fromLocal8Bit(stub));
+        }
         bridge->notify(QStringLiteral("__dialog-result"), params);
         return;
     }
 
     // Defer out of the response handler before opening a modal dialog.
-    QTimer::singleShot(0, QCoreApplication::instance(),
-                       [bridge, token, kind, title, filter, dir, text]() {
-                           QString result;
-                           if (kind == QLatin1String("open"))
-                               result = QFileDialog::getOpenFileName(nullptr, title, dir, filter);
-                           else if (kind == QLatin1String("save"))
-                               result = QFileDialog::getSaveFileName(nullptr, title, dir, filter);
-                           else if (kind == QLatin1String("message"))
-                               QMessageBox::information(nullptr, title, text);
+    QTimer::singleShot(0, QCoreApplication::instance(), [bridge, token, kind, title, filter, dir, text]() {
+        if (kind == QLatin1String("open-files")) {
+            const QStringList files = QFileDialog::getOpenFileNames(nullptr, title, dir, filter);
+            QJsonArray array;
+            for (const QString &file : files)
+                array.append(file);
+            QJsonObject params;
+            params.insert(QStringLiteral("token"), token);
+            params.insert(QStringLiteral("value"), array);
+            bridge->notify(QStringLiteral("__dialog-result"), params);
+            return;
+        }
 
-                           QJsonObject params;
-                           params.insert(QStringLiteral("token"), token);
-                           if (kind == QLatin1String("message"))
-                               params.insert(QStringLiteral("value"), true);
-                           else if (result.isEmpty())
-                               params.insert(QStringLiteral("value"), QJsonValue::Null);
-                           else
-                               params.insert(QStringLiteral("value"), result);
-                           bridge->notify(QStringLiteral("__dialog-result"), params);
-                       });
+        QString result;
+        if (kind == QLatin1String("open"))
+            result = QFileDialog::getOpenFileName(nullptr, title, dir, filter);
+        else if (kind == QLatin1String("open-directory"))
+            result = QFileDialog::getExistingDirectory(nullptr, title, dir);
+        else if (kind == QLatin1String("save"))
+            result = QFileDialog::getSaveFileName(nullptr, title, dir, filter);
+        else if (kind == QLatin1String("message"))
+            QMessageBox::information(nullptr, title, text);
+
+        QJsonObject params;
+        params.insert(QStringLiteral("token"), token);
+        if (kind == QLatin1String("message"))
+            params.insert(QStringLiteral("value"), true);
+        else if (result.isEmpty())
+            params.insert(QStringLiteral("value"), QJsonValue::Null);
+        else
+            params.insert(QStringLiteral("value"), result);
+        bridge->notify(QStringLiteral("__dialog-result"), params);
+    });
+}
+
+static void handleQuery(Bridge *bridge, const QVariantMap &m)
+{
+    const QString token = m.value(QStringLiteral("token")).toString();
+    const QString kind = m.value(QStringLiteral("kind")).toString();
+
+    QJsonObject params;
+    params.insert(QStringLiteral("token"), token);
+
+    if (kind == QLatin1String("screen.list")) {
+        QJsonArray screens;
+        QScreen *primary = QGuiApplication::primaryScreen();
+        for (QScreen *s : QGuiApplication::screens()) {
+            const QRect geo = s->geometry();
+            const QRect area = s->availableGeometry();
+
+            QJsonObject work;
+            work.insert(QStringLiteral("x"), area.x());
+            work.insert(QStringLiteral("y"), area.y());
+            work.insert(QStringLiteral("width"), area.width());
+            work.insert(QStringLiteral("height"), area.height());
+
+            QJsonObject screen;
+            screen.insert(QStringLiteral("name"), s->name());
+            screen.insert(QStringLiteral("x"), geo.x());
+            screen.insert(QStringLiteral("y"), geo.y());
+            screen.insert(QStringLiteral("width"), geo.width());
+            screen.insert(QStringLiteral("height"), geo.height());
+            screen.insert(QStringLiteral("workArea"), work);
+            screen.insert(QStringLiteral("scale"), s->devicePixelRatio());
+            screen.insert(QStringLiteral("primary"), s == primary);
+            screens.append(screen);
+        }
+        params.insert(QStringLiteral("value"), screens);
+    } else if (kind == QLatin1String("theme.get")) {
+        QJsonObject value;
+        value.insert(QStringLiteral("scheme"), bridge->colorScheme());
+        params.insert(QStringLiteral("value"), value);
+    }
+
+    bridge->notify(QStringLiteral("__query-result"), params);
 }
 
 static void handleTrayCommand(const QVariantMap &m)
@@ -654,6 +718,13 @@ int main(int argc, char **argv)
                              bridge->postMessage(m.value(QStringLiteral("event")).toString(),
                                                  m.value(QStringLiteral("payload")),
                                                  m.value(QStringLiteral("target")).toString());
+                         } else if (method == QLatin1String("__query")) {
+                             handleQuery(bridge, params.toVariant().toMap());
+                         } else if (method == QLatin1String("__notify")) {
+                             const QVariantMap m = params.toVariant().toMap();
+                             bridge->showNotification(m.value(QStringLiteral("title")).toString(),
+                                                      m.value(QStringLiteral("body")).toString(),
+                                                      m.value(QStringLiteral("token")).toString());
                          } else if (method == QLatin1String("__dialog")) {
                              handleDialogRequest(params.toVariant().toMap());
                          } else if (method == QLatin1String("__tray")) {
@@ -682,6 +753,19 @@ int main(int argc, char **argv)
     QObject::connect(bridge, &Bridge::crashed, &app, [](const QString &kind, int code) {
         qWarning().noquote() << "bun crashed: kind=" << kind << "code=" << code;
     });
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+    // System appearance changes: update the QML property and tell the app.
+    QObject::connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, &app, [bridge]() {
+        bridge->refreshColorScheme();
+        QJsonObject data;
+        data.insert(QStringLiteral("scheme"), bridge->colorScheme());
+        QJsonObject params;
+        params.insert(QStringLiteral("name"), QStringLiteral("theme-changed"));
+        params.insert(QStringLiteral("data"), data);
+        bridge->notify(QStringLiteral("__event"), params);
+    });
+#endif
 
     // Lifecycle: tell the app when the last window is gone.
     QObject::connect(&app, &QGuiApplication::lastWindowClosed, &app, []() {

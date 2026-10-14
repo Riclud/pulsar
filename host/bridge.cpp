@@ -12,6 +12,7 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QSystemTrayIcon>
+#include <QStyleHints>
 #include <QVariantMap>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -212,21 +213,34 @@ bool Bridge::trayAvailable() const
     return QSystemTrayIcon::isSystemTrayAvailable();
 }
 
+void Bridge::ensureTray()
+{
+    if (tray_ || !QSystemTrayIcon::isSystemTrayAvailable())
+        return;
+    tray_ = new QSystemTrayIcon(this);
+    connect(tray_, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason reason) {
+        QJsonObject data;
+        data.insert(QStringLiteral("reason"), int(reason));
+        QJsonObject params;
+        params.insert(QStringLiteral("name"), QStringLiteral("tray-activated"));
+        params.insert(QStringLiteral("data"), data);
+        notify(QStringLiteral("__event"), params);
+    });
+    connect(tray_, &QSystemTrayIcon::messageClicked, this, [this]() {
+        QJsonObject data;
+        data.insert(QStringLiteral("token"), lastNotifyToken_);
+        QJsonObject params;
+        params.insert(QStringLiteral("name"), QStringLiteral("notification-click"));
+        params.insert(QStringLiteral("data"), data);
+        notify(QStringLiteral("__event"), params);
+    });
+}
+
 void Bridge::setTrayIcon(const QString &path)
 {
-    if (!QSystemTrayIcon::isSystemTrayAvailable())
+    ensureTray();
+    if (!tray_)
         return;
-    if (!tray_) {
-        tray_ = new QSystemTrayIcon(this);
-        connect(tray_, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason reason) {
-            QJsonObject data;
-            data.insert(QStringLiteral("reason"), int(reason));
-            QJsonObject params;
-            params.insert(QStringLiteral("name"), QStringLiteral("tray-activated"));
-            params.insert(QStringLiteral("data"), data);
-            notify(QStringLiteral("__event"), params);
-        });
-    }
     tray_->setIcon(path.isEmpty() ? QIcon() : QIcon(path));
     tray_->setVisible(true);
 }
@@ -285,6 +299,31 @@ QString Bridge::diagnostics() const
         .arg(process_.state() == QProcess::Running ? QStringLiteral("running")
                                                    : QStringLiteral("not-running"))
         .arg(process_.workingDirectory());
+}
+
+bool Bridge::showNotification(const QString &title, const QString &body, const QString &token)
+{
+    ensureTray();
+    if (!tray_)
+        return false;
+    lastNotifyToken_ = token;
+    tray_->showMessage(title, body, QSystemTrayIcon::Information, 8000);
+    return true;
+}
+
+QString Bridge::colorScheme() const
+{
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+    return QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark ? QStringLiteral("dark")
+                                                                                 : QStringLiteral("light");
+#else
+    return QStringLiteral("light");
+#endif
+}
+
+void Bridge::refreshColorScheme()
+{
+    Q_EMIT colorSchemeChanged();
 }
 
 qint64 Bridge::invoke(const QString &method, const QJSValue &params)

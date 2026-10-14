@@ -37,6 +37,8 @@ function requestDialog(kind: string, params: unknown): Promise<unknown> {
 }
 
 registerCapability("dialog.openFile", (params: unknown) => requestDialog("open", params))
+registerCapability("dialog.openFiles", (params: unknown) => requestDialog("open-files", params))
+registerCapability("dialog.openDirectory", (params: unknown) => requestDialog("open-directory", params))
 registerCapability("dialog.saveFile", (params: unknown) => requestDialog("save", params))
 registerCapability("dialog.message", (params: unknown) => requestDialog("message", params))
 
@@ -44,6 +46,35 @@ registerCapability("dialog.message", (params: unknown) => requestDialog("message
 registerCapability("tray", (params: unknown) => {
   send({ jsonrpc: "2.0", method: "__tray", params: params ?? {} })
   return Promise.resolve(true)
+})
+
+// Read-only host queries (screens, theme) use a token round-trip like dialogs.
+const pendingQueries = new Map<string, (value: unknown) => void>()
+let queryToken = 0
+
+function hostQuery(kind: string, params: unknown = {}): Promise<unknown> {
+  const token = String(++queryToken)
+  return new Promise((resolve) => {
+    pendingQueries.set(token, resolve)
+    send({ jsonrpc: "2.0", method: "__query", params: { token, kind, ...(params as object) } })
+  })
+}
+
+registerCapability("screen.list", () => hostQuery("screen.list"))
+registerCapability("theme.get", () => hostQuery("theme.get"))
+
+// Native notifications with click support (host tray); returns a token.
+let notifyToken = 0
+registerCapability("shell.notify", (params: unknown) => {
+  const token = String(++notifyToken)
+  send({ jsonrpc: "2.0", method: "__notify", params: { token, ...(params as object) } })
+  return Promise.resolve(token)
+})
+
+registerCapability("system.locale", () => {
+  const resolved = Intl.DateTimeFormat().resolvedOptions()
+  const language = resolved.locale.split("-")[0] ?? resolved.locale
+  return Promise.resolve({ locale: resolved.locale, language, timezone: resolved.timeZone })
 })
 
 // Compatibility gate: fail early with a clear message instead of letting an
@@ -253,6 +284,12 @@ async function handleRequest(message: unknown): Promise<void> {
       const resolve = pendingDialogs.get(String(params.token))
       if (resolve) {
         pendingDialogs.delete(String(params.token))
+        resolve(params.value ?? null)
+      }
+    } else if (req.method === "__query-result") {
+      const resolve = pendingQueries.get(String(params.token))
+      if (resolve) {
+        pendingQueries.delete(String(params.token))
         resolve(params.value ?? null)
       }
     }
