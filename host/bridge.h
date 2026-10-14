@@ -51,6 +51,8 @@ public:
     void sendBinary(quint32 streamId, const QByteArray &data);
     // Re-emit a runtime log line to QML subscribers.
     void postLog(const QString &level, const QString &message, const QString &source);
+    // Re-emit an app event (backend -> UI) to QML subscribers.
+    void postMessage(const QString &event, const QVariant &payload, const QString &target);
 
 signals:
     void ready();
@@ -59,6 +61,7 @@ signals:
     void data(quint32 streamId, const QByteArray &data);
     void crashed(const QString &kind, int code);
     void log(const QString &level, const QString &message, const QString &source);
+    void appEvent(const QString &event, const QVariant &payload, const QString &target);
 
 private slots:
     void onReadyReadStandardOutput();

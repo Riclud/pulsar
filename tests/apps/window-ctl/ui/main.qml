@@ -10,4 +10,13 @@ ApplicationWindow {
         anchors.centerIn: parent
         text: "main"
     }
+
+    Connections {
+        target: Pulsar
+
+        function onAppEvent(event, payload, target) {
+            if (target === "*" || target === PulsarWindowLabel)
+                Pulsar.emit("ui-got", { event: event, target: target });
+        }
+    }
 }

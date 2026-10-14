@@ -107,6 +107,13 @@ Module {
         }
 
         Signal {
+            name: "appEvent"
+            Parameter { name: "event"; type: "QString" }
+            Parameter { name: "payload"; type: "QVariant" }
+            Parameter { name: "target"; type: "QString" }
+        }
+
+        Signal {
             name: "response"
             Parameter { name: "id"; type: "qint64" }
             Parameter { name: "result"; type: "QVariant" }

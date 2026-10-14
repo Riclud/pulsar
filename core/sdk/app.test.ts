@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { Store, WindowHandle } from "./app.ts"
+import { App, Store, WindowHandle } from "./app.ts"
 import { registerCapability } from "./caps.ts"
 
 describe("Store", () => {
@@ -57,5 +57,31 @@ describe("WindowHandle", () => {
 
     expect(seen[0]).toEqual({ label: "second", action: "setTitle", title: "Hi" })
     expect(seen[1]).toEqual({ label: "second", action: "close" })
+  })
+})
+
+describe("App windows", () => {
+  test("createWindow registers the window and notifies the runtime", () => {
+    const app = new App()
+    const created: unknown[] = []
+    app.onCreateWindow = (config) => created.push(config)
+
+    const handle = app.createWindow({ ui: "ui/panel.qml", title: "Panel" })
+
+    expect(handle.label).toBe("window-2")
+    expect(app.windows.map((w) => w.label)).toContain("window-2")
+    expect(created).toEqual([{ ui: "ui/panel.qml", title: "Panel", label: "window-2" }])
+  })
+
+  test("send forwards the event and target to the runtime", () => {
+    const app = new App()
+    const sent: Array<[string, unknown, string]> = []
+    app.onSend = (event, payload, target) => sent.push([event, payload, target])
+
+    app.send("ping", "pong")
+    app.window("main").emit("hi", { n: 1 })
+
+    expect(sent[0]).toEqual(["ping", "pong", "*"])
+    expect(sent[1]).toEqual(["hi", { n: 1 }, "main"])
   })
 })

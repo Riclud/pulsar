@@ -28,7 +28,6 @@
 #include "embedded.h"
 #include "log.h"
 
-static QStringList gQmlErrors;
 static bool gErrorShown = false;
 static bool gWatch = false;
 static QFileSystemWatcher *gWatcher = nullptr;
@@ -62,7 +61,6 @@ struct WindowConfig {
 // Windows are addressed by label; they all share the Store and QML engine.
 static QHash<QString, WindowConfig> g_configs;
 static QHash<QString, QObject *> g_roots;
-static QHash<QString, QString> g_urlLabels;
 static QSet<QString> g_requested;
 static QString gPrimaryLabel;
 static bool gShownAny = false;
@@ -278,41 +276,127 @@ static void watchQmlFile(const QUrl &url)
         gWatcher->addPath(path);
 }
 
+static void wireWindowEvents(QObject *root, const QString &label);
+
 static void showWindow(QQmlApplicationEngine &engine, const WindowConfig &cfg)
 {
     const QUrl url = resolveUi(cfg.ui);
-    g_urlLabels.insert(url.toString(), cfg.label);
     g_requested.insert(cfg.label);
     gShownAny = true;
-    engine.load(url);
     watchQmlFile(url);
+
+    QQmlComponent component(&engine, url, QQmlComponent::PreferSynchronous);
+    if (component.isError()) {
+        QStringList errors;
+        for (const QQmlError &e : component.errors())
+            errors << e.toString();
+        showErrorView(engine, errors.join(QLatin1Char('\n')));
+        return;
+    }
+
+    // Each window gets its own context so QML can read its own label
+    // (PulsarWindowLabel) and filter backend events addressed to it.
+    QQmlContext *context = new QQmlContext(engine.rootContext(), &engine);
+    context->setContextProperty(QStringLiteral("PulsarWindowLabel"), cfg.label);
+
+    QObject *root = component.create(context);
+    if (!root) {
+        QStringList errors;
+        for (const QQmlError &e : component.errors())
+            errors << e.toString();
+        showErrorView(engine, errors.join(QLatin1Char('\n')));
+        return;
+    }
+
+    applyConfig(root, cfg);
+    g_roots.insert(cfg.label, root);
+    wireWindowEvents(root, cfg.label);
 }
 
 static void destroyWindows(QQmlApplicationEngine &engine)
 {
-    const QList<QObject *> roots = engine.rootObjects();
-    for (QObject *root : roots)
+    for (QObject *root : std::as_const(g_roots))
         delete root;
-    engine.clearComponentCache();
     g_roots.clear();
-    g_urlLabels.clear();
     g_requested.clear();
+    engine.clearComponentCache();
     if (gWatcher)
         gWatcher->removePaths(gWatcher->files());
 }
 
 /// Send a lifecycle event to the runtime (dispatched as an App event).
-static void emitWindowEvent(const QString &name, const QString &label)
+static void emitWindowEvent(const QString &name, const QString &label, const QJsonObject &extra = {})
 {
     if (!gBridge)
         return;
-    QJsonObject data;
+    QJsonObject data = extra;
     if (!label.isEmpty())
         data.insert(QStringLiteral("label"), label);
     QJsonObject params;
     params.insert(QStringLiteral("name"), name);
     params.insert(QStringLiteral("data"), data);
     gBridge->notify(QStringLiteral("__event"), params);
+}
+
+static QString windowStateName(Qt::WindowState state)
+{
+    switch (state) {
+    case Qt::WindowMinimized:
+        return QStringLiteral("minimized");
+    case Qt::WindowMaximized:
+        return QStringLiteral("maximized");
+    case Qt::WindowFullScreen:
+        return QStringLiteral("fullscreen");
+    default:
+        return QStringLiteral("normal");
+    }
+}
+
+/// Connect a window's signals to window-* lifecycle events for the app.
+static void wireWindowEvents(QObject *root, const QString &label)
+{
+    auto *window = qobject_cast<QQuickWindow *>(root);
+    if (!window)
+        return;
+
+    auto *sizeTimer = new QTimer(window);
+    sizeTimer->setSingleShot(true);
+    sizeTimer->setInterval(50);
+    QObject::connect(sizeTimer, &QTimer::timeout, window, [window, label]() {
+        QJsonObject extra;
+        extra.insert(QStringLiteral("width"), window->width());
+        extra.insert(QStringLiteral("height"), window->height());
+        emitWindowEvent(QStringLiteral("window-resize"), label, extra);
+    });
+    QObject::connect(window, &QQuickWindow::widthChanged, sizeTimer, qOverload<>(&QTimer::start));
+    QObject::connect(window, &QQuickWindow::heightChanged, sizeTimer, qOverload<>(&QTimer::start));
+
+    auto *moveTimer = new QTimer(window);
+    moveTimer->setSingleShot(true);
+    moveTimer->setInterval(50);
+    QObject::connect(moveTimer, &QTimer::timeout, window, [window, label]() {
+        QJsonObject extra;
+        extra.insert(QStringLiteral("x"), window->x());
+        extra.insert(QStringLiteral("y"), window->y());
+        emitWindowEvent(QStringLiteral("window-move"), label, extra);
+    });
+    QObject::connect(window, &QQuickWindow::xChanged, moveTimer, qOverload<>(&QTimer::start));
+    QObject::connect(window, &QQuickWindow::yChanged, moveTimer, qOverload<>(&QTimer::start));
+
+    QObject::connect(window, &QQuickWindow::windowStateChanged, window, [label](Qt::WindowState state) {
+        QJsonObject extra;
+        extra.insert(QStringLiteral("state"), windowStateName(state));
+        emitWindowEvent(QStringLiteral("window-state"), label, extra);
+    });
+    QObject::connect(window, &QQuickWindow::activeChanged, window, [window, label]() {
+        emitWindowEvent(window->isActive() ? QStringLiteral("window-focus") : QStringLiteral("window-blur"), label);
+    });
+    QObject::connect(window, &QQuickWindow::visibleChanged, window, [window, label]() {
+        emitWindowEvent(window->isVisible() ? QStringLiteral("window-show") : QStringLiteral("window-hide"), label);
+    });
+    QObject::connect(window, &QQuickWindow::closing, window, [label](QQuickCloseEvent *) {
+        emitWindowEvent(QStringLiteral("window-close"), label);
+    });
 }
 
 static void handleDialogRequest(const QVariantMap &m)
@@ -378,12 +462,46 @@ static void handleTrayCommand(const QVariantMap &m)
         gBridge->hideTray();
 }
 
-static void handleWindowCommand(const QVariantMap &m)
+static void handleWindowCommand(QQmlApplicationEngine &engine, const QVariantMap &m)
 {
     QString label = m.value(QStringLiteral("label")).toString();
+    const QString action = m.value(QStringLiteral("action")).toString();
+
+    // Runtime window creation: build the window on demand (windows are no
+    // longer limited to those declared in pulsar.json).
+    if (action == QLatin1String("create")) {
+        WindowConfig cfg = parseWindowConfig(m, label);
+        if (cfg.label.isEmpty())
+            return;
+        if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
+            qInfo().noquote() << "WINDOW" << action << cfg.label;
+        if (gPrimaryLabel.isEmpty())
+            gPrimaryLabel = cfg.label;
+        g_configs.insert(cfg.label, cfg);
+        logWindowConfig(cfg);
+        if (g_roots.contains(cfg.label)) {
+            applyConfig(g_roots.value(cfg.label), cfg);
+            if (auto *existing = qobject_cast<QQuickWindow *>(g_roots.value(cfg.label)))
+                existing->show();
+        } else {
+            showWindow(engine, cfg);
+        }
+        return;
+    }
+
     if (label.isEmpty())
         label = gPrimaryLabel;
-    const QString action = m.value(QStringLiteral("action")).toString();
+
+    if (action == QLatin1String("destroy")) {
+        if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
+            qInfo().noquote() << "WINDOW" << action << label;
+        g_configs.remove(label);
+        g_requested.remove(label);
+        if (QObject *root = g_roots.take(label))
+            root->deleteLater();
+        return;
+    }
+
     if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
         qInfo().noquote() << "WINDOW" << action << label;
     auto *window = qobject_cast<QQuickWindow *>(g_roots.value(label));
@@ -529,7 +647,13 @@ int main(int argc, char **argv)
                                              m.value(QStringLiteral("message")).toString(),
                                              m.value(QStringLiteral("source")).toString());
                          } else if (method == QLatin1String("__window")) {
-                             handleWindowCommand(params.toVariant().toMap());
+                             handleWindowCommand(engine, params.toVariant().toMap());
+                         } else if (method == QLatin1String("__emit")) {
+                             // Backend -> UI event; QML filters by PulsarWindowLabel.
+                             const QVariantMap m = params.toVariant().toMap();
+                             bridge->postMessage(m.value(QStringLiteral("event")).toString(),
+                                                 m.value(QStringLiteral("payload")),
+                                                 m.value(QStringLiteral("target")).toString());
                          } else if (method == QLatin1String("__dialog")) {
                              handleDialogRequest(params.toVariant().toMap());
                          } else if (method == QLatin1String("__tray")) {
@@ -567,31 +691,8 @@ int main(int argc, char **argv)
     // Collect QML loading errors so the fallback view can explain failures.
     QObject::connect(&engine, &QQmlEngine::warnings, &app, [](const QList<QQmlError> &list) {
         for (const QQmlError &e : list)
-            gQmlErrors << e.toString();
+            qWarning().noquote() << "qml:" << e.toString();
     });
-
-    QObject::connect(&engine, &QQmlApplicationEngine::objectCreated, &app,
-                     [&engine, &app](QObject *obj, const QUrl &objUrl) {
-                         const QString label = g_urlLabels.value(objUrl.toString());
-                         if (label.isEmpty())
-                             return;
-                         if (!obj) {
-                             showErrorView(engine,
-                                           gQmlErrors.isEmpty()
-                                               ? QStringLiteral("The app UI could not be loaded.")
-                                               : gQmlErrors.join(QLatin1Char('\n')));
-                             return;
-                         }
-                         applyConfig(obj, g_configs.value(label));
-                         g_roots.insert(label, obj);
-                         if (auto *window = qobject_cast<QQuickWindow *>(obj)) {
-                             QObject::connect(window, &QQuickWindow::closing, &app,
-                                              [label](QQuickCloseEvent *) {
-                                                  emitWindowEvent(QStringLiteral("window-close"), label);
-                                              });
-                         }
-                     },
-                     Qt::QueuedConnection);
 
     // QML_MAIN forces a specific file (used by tests); otherwise wait for the
     // app config, with a fallback to <app>/ui/main.qml.
