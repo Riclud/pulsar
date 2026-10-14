@@ -55,6 +55,17 @@ jobs:
       - name: Version check
         run: bun run version:check
 
+      - name: Package release assets
+        shell: bash
+        run: |
+          set +e
+          bun scripts/package-release.ts 2>&1 | tee package.log
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            grep -iE "error|cannot|failed|not found|missing" package.log | head -30 | while IFS= read -r line; do echo "::error::$line"; done
+            exit "$status"
+          fi
+
       - name: Smoke test (Linux)
         if: runner.os == 'Linux'
         run: bun run test

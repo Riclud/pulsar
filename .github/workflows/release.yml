@@ -8,15 +8,26 @@ permissions:
   contents: write
 
 jobs:
-  linux-x64:
-    runs-on: ubuntu-latest
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: dist-linux-x64
+          - os: macos-latest
+            artifact: dist-macos-arm64
+          - os: windows-latest
+            artifact: dist-windows-x64
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install build tools
+      - name: Install build tools (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y g++ cmake ninja-build pkg-config
+          sudo apt-get install -y g++ cmake pkg-config
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
@@ -30,14 +41,41 @@ jobs:
         run: bun install
 
       - name: Build host, bridge and launcher
+        shell: bash
         run: |
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
-          cmake --build build
+          set +e
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
+          cmake --build build --config Release 2>&1 | tee build.log
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            grep -iE "error|undefined|symbol|cannot|failed|ld: |framework not found" build.log | head -30 | while IFS= read -r line; do echo "::error::$line"; done
+            exit "$status"
+          fi
 
       - name: Package release assets
         run: bun scripts/package-release.ts
 
-      - name: Publish
-        uses: softprops/action-gh-release@v2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Regenerate checksums
+        run: |
+          cd dist
+          rm -f SHA256SUMS
+          sha256sum * > SHA256SUMS
+
+      - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
