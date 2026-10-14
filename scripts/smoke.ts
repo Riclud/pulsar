@@ -6,9 +6,19 @@ import { tmpdir } from "os"
 import { join, resolve } from "path"
 
 const root = resolve(import.meta.dir, "..")
-const host = join(root, "zig-out", "bin", process.platform === "win32" ? "qml-host.exe" : "qml-host")
+const host = join(root, "build", "bin", process.platform === "win32" ? "qml-host.exe" : "qml-host")
 
-const build = Bun.spawnSync({ cmd: ["zig", "build", "-j1"], cwd: root, stdio: ["inherit", "inherit", "inherit"] })
+const configure = Bun.spawnSync({
+  cmd: ["cmake", "-S", ".", "-B", "build", "-DCMAKE_BUILD_TYPE=Release"],
+  cwd: root,
+  stdio: ["inherit", "inherit", "inherit"],
+})
+if (configure.exitCode !== 0) {
+  console.error("smoke: cmake configure failed")
+  process.exit(configure.exitCode ?? 1)
+}
+
+const build = Bun.spawnSync({ cmd: ["cmake", "--build", "build"], cwd: root, stdio: ["inherit", "inherit", "inherit"] })
 if (build.exitCode !== 0) {
   console.error("smoke: build failed")
   process.exit(build.exitCode ?? 1)

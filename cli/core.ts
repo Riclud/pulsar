@@ -59,8 +59,8 @@ export function findHost(): string {
   const candidates = [
     join(toolchainCurrent(), "bin", exe("qml-host")),
     join(pulsarRoot(), "bin", exe("qml-host")),
-    resolve(pulsarRoot(), "zig-out", "bin", exe("qml-host")),
-    resolve(process.cwd(), "zig-out", "bin", exe("qml-host")),
+    resolve(pulsarRoot(), "build", "bin", exe("qml-host")),
+    resolve(process.cwd(), "build", "bin", exe("qml-host")),
     resolve("/usr/local/bin", exe("pulsar-host")),
   ]
   for (const c of candidates) if (existsSync(c)) return c
@@ -73,7 +73,7 @@ export function findBridge(host: string): string {
   const candidates = [
     join(host, "..", exe("bridge")),
     join(toolchainCurrent(), "bin", exe("bridge")),
-    resolve(pulsarRoot(), "zig-out", "bin", exe("bridge")),
+    resolve(pulsarRoot(), "build", "bin", exe("bridge")),
   ]
   for (const c of candidates) if (existsSync(c)) return c
   throw new Error("bridge binary not found; run `pulsar install`")
@@ -94,7 +94,7 @@ export function findLauncher(): string {
   const candidates = [
     join(toolchainCurrent(), "bin", exe("launcher")),
     join(pulsarRoot(), "bin", exe("launcher")),
-    resolve(pulsarRoot(), "zig-out", "bin", exe("launcher")),
+    resolve(pulsarRoot(), "build", "bin", exe("launcher")),
   ]
   for (const c of candidates) if (existsSync(c)) return c
   throw new Error("launcher binary not found; run `pulsar install`")
