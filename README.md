@@ -484,10 +484,10 @@ host, which loads Qt from `lib/Qt` via its RPATH — never from the system. Use
 
 ## Protocol
 
-The host and the runtime exchange newline-delimited JSON-RPC over stdio. The
-runtime announces itself with an `__hello` handshake (protocol version, runtime,
-capabilities), talks through a `Transport` abstraction, and keeps a reserved
-binary/streaming data channel separate from the JSON control channel. See
+The host and the runtime exchange framed messages over stdio: JSON-RPC on the
+control channel and a binary data channel for bulk payloads. The runtime
+announces itself with an `__hello` handshake (protocol version, runtime,
+capabilities) and talks through a `Transport` abstraction. See
 [`docs/protocol.md`](docs/protocol.md).
 
 ## Repository layout
