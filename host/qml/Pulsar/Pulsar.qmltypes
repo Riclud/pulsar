@@ -91,6 +91,10 @@ Module {
             type: "QString"
         }
 
+        Method {
+            name: "restart"
+        }
+
         Signal {
             name: "ready"
         }
