@@ -57,10 +57,10 @@ export function findHost(): string {
   const fromEnv = process.env.PULSAR_HOST
   if (fromEnv && existsSync(fromEnv)) return fromEnv
   const candidates = [
-    join(toolchainCurrent(), "bin", exe("qml-host")),
-    join(pulsarRoot(), "bin", exe("qml-host")),
     resolve(pulsarRoot(), "build", "bin", exe("qml-host")),
     resolve(process.cwd(), "build", "bin", exe("qml-host")),
+    join(toolchainCurrent(), "bin", exe("qml-host")),
+    join(pulsarRoot(), "bin", exe("qml-host")),
     resolve("/usr/local/bin", exe("pulsar-host")),
   ]
   for (const c of candidates) if (existsSync(c)) return c
@@ -92,9 +92,9 @@ export function findLauncher(): string {
   const fromEnv = process.env.PULSAR_LAUNCHER
   if (fromEnv && existsSync(fromEnv)) return fromEnv
   const candidates = [
+    resolve(pulsarRoot(), "build", "bin", exe("launcher")),
     join(toolchainCurrent(), "bin", exe("launcher")),
     join(pulsarRoot(), "bin", exe("launcher")),
-    resolve(pulsarRoot(), "build", "bin", exe("launcher")),
   ]
   for (const c of candidates) if (existsSync(c)) return c
   throw new Error("launcher binary not found; run `pulsar install`")
