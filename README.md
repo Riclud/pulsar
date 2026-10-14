@@ -222,6 +222,10 @@ import {
   shell,
   storage,
   dialog,
+  notify,
+  screen,
+  system,
+  theme,
   tray,
   callCapability,
   registerCapability,
@@ -360,23 +364,64 @@ Tray emits `tray-menu` (`{ event }`) when an item is clicked and
 ### File system, paths, network, shell, storage
 
 ```ts
-import { fs, paths, net, shell, storage } from "pulsar"
+import { fs, paths, net, storage } from "pulsar"
 
-const text = await fs.readFile("notes.txt")
+const text = await fs.readFile("notes.txt") // utf8 by default
 await fs.writeFile("notes.txt", "hello")
+await fs.appendFile("notes.txt", " world")
 const entries = await fs.listDir(".")
 const exists = await fs.exists("notes.txt")
+const info = await fs.stat("notes.txt") // { size, isFile, isDirectory, mtimeMs, createdAtMs }
+
+await fs.mkdir("data/sub", true)
+await fs.rename("a.txt", "b.txt")
+await fs.copy("b.txt", "copy.txt")
+await fs.remove("copy.txt") // recursive: fs.remove(path, true)
+await fs.moveToTrash("b.txt")
+
+const bytes = await fs.readFile("logo.png", "base64") // binary as base64
+await fs.writeFile("logo.png", bytes, "base64")
 
 const dirs = await paths.get() // { data, config, cache, temp, home }
 
 const res = await net.fetch("https://example.com") // { status, url, text }
 
 await shell.open("https://github.com/riclud/pulsar")
-await shell.notify("Pulsar", "Build finished")
 
 await storage.set("todos", [{ id: 1, text: "write docs" }])
 const todos = await storage.get("todos")
 await storage.remove("todos")
+```
+
+Native dialogs live in `dialog`:
+
+```ts
+import { dialog } from "pulsar"
+
+const one = await dialog.openFile({ title: "Open", filter: "Images (*.png *.jpg);;All files (*)" })
+const many = await dialog.openFiles({ title: "Open several" })
+const dir = await dialog.openDirectory({ title: "Choose a folder" })
+const saveTo = await dialog.saveFile({ title: "Save as" })
+await dialog.message({ title: "Pulsar", text: "Done!" })
+```
+
+### Notifications, screens, theme, locale
+
+```ts
+import { notify, screen, system, theme } from "pulsar"
+
+const token = await notify.show({ title: "Pulsar", body: "Build finished" })
+app.on("notification-click", (data) => {
+  if (data.token === token) app.window().focus()
+})
+
+const screens = await screen.list() // [{ name, x, y, width, height, workArea, scale, primary }]
+const mainScreen = await screen.primary()
+
+const { scheme } = await theme.current() // "light" | "dark"
+app.on("theme-changed", (data) => console.log("now", data.scheme))
+
+const { locale, language, timezone } = await system.locale()
 ```
 
 Storage persists JSON-safe values to `storage.json` in the per-app data
@@ -424,10 +469,11 @@ import Pulsar 1.0   // Pulsar singleton + Store
 | `Pulsar.setTrayIcon(path)` / `Pulsar.setTrayTooltip(text)` / `Pulsar.setTrayMenu(items)` / `Pulsar.hideTray()` | Tray control.                                                                                             |
 | `Pulsar.diagnostics()`                                                                                         | Debug string.                                                                                             |
 | `Pulsar.restart()`                                                                                             | Restart the backend (dev).                                                                                |
+| `Pulsar.colorScheme`                                                                                           | `"light"` / `"dark"` (reactive; `colorSchemeChanged`).                                                    |
 
-Signals: `log(level, message, source)` and `appEvent(event, payload, target)` —
-subscribe with `Connections`. Each window also gets a `PulsarWindowLabel` context
-property with its own label.
+Signals: `log(level, message, source)`, `appEvent(event, payload, target)` and
+`colorSchemeChanged` — subscribe with `Connections`. Each window also gets a
+`PulsarWindowLabel` context property with its own label.
 
 ### `Store`
 

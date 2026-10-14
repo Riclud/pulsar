@@ -226,6 +226,10 @@ import {
   shell,
   storage,
   dialog,
+  notify,
+  screen,
+  system,
+  theme,
   tray,
   callCapability,
   registerCapability,
@@ -368,21 +372,62 @@ app.on("tray-menu", (data: { event?: string }) => {
 ```ts
 import { fs, paths, net, shell, storage } from "pulsar"
 
-const text = await fs.readFile("notes.txt")
+const text = await fs.readFile("notes.txt") // utf8 по умолчанию
 await fs.writeFile("notes.txt", "hello")
+await fs.appendFile("notes.txt", " world")
 const entries = await fs.listDir(".")
 const exists = await fs.exists("notes.txt")
+const info = await fs.stat("notes.txt") // { size, isFile, isDirectory, mtimeMs, createdAtMs }
+
+await fs.mkdir("data/sub", true)
+await fs.rename("a.txt", "b.txt")
+await fs.copy("b.txt", "copy.txt")
+await fs.remove("copy.txt") // рекурсивно: fs.remove(path, true)
+await fs.moveToTrash("b.txt")
+
+const bytes = await fs.readFile("logo.png", "base64") // бинарные данные как base64
+await fs.writeFile("logo.png", bytes, "base64")
 
 const dirs = await paths.get() // { data, config, cache, temp, home }
 
 const res = await net.fetch("https://example.com") // { status, url, text }
 
 await shell.open("https://github.com/riclud/pulsar")
-await shell.notify("Pulsar", "Build finished")
 
 await storage.set("todos", [{ id: 1, text: "write docs" }])
 const todos = await storage.get("todos")
 await storage.remove("todos")
+```
+
+Нативные диалоги — в `dialog`:
+
+```ts
+import { dialog } from "pulsar"
+
+const one = await dialog.openFile({ title: "Открыть", filter: "Images (*.png *.jpg);;All files (*)" })
+const many = await dialog.openFiles({ title: "Выбрать несколько" })
+const dir = await dialog.openDirectory({ title: "Выбрать папку" })
+const saveTo = await dialog.saveFile({ title: "Сохранить как" })
+await dialog.message({ title: "Pulsar", text: "Готово!" })
+```
+
+### Уведомления, экраны, тема, локаль
+
+```ts
+import { notify, screen, system, theme } from "pulsar"
+
+const token = await notify.show({ title: "Pulsar", body: "Сборка завершена" })
+app.on("notification-click", (data) => {
+  if (data.token === token) app.window().focus()
+})
+
+const screens = await screen.list() // [{ name, x, y, width, height, workArea, scale, primary }]
+const mainScreen = await screen.primary()
+
+const { scheme } = await theme.current() // "light" | "dark"
+app.on("theme-changed", (data) => console.log("теперь", data.scheme))
+
+const { locale, language, timezone } = await system.locale()
 ```
 
 Хранилище сохраняет JSON-безопасные значения в `storage.json` в каталоге
@@ -431,9 +476,10 @@ import Pulsar 1.0   // синглтоны Pulsar и Store
 | `Pulsar.diagnostics()`                                                                                         | Отладочная строка.                                                                                          |
 | `Pulsar.restart()`                                                                                             | Перезапустить бэкенд (dev).                                                                                 |
 
-Сигналы: `log(level, message, source)` и `appEvent(event, payload, target)` —
-подписка через `Connections`. Каждое окно также получает контекстное свойство
-`PulsarWindowLabel` со своей меткой.
+Сигналы: `log(level, message, source)`, `appEvent(event, payload, target)` и
+`colorSchemeChanged` — подписка через `Connections`. Каждое окно также получает
+контекстное свойство `PulsarWindowLabel` со своей меткой. Свойство
+`Pulsar.colorScheme` равно `"light"`/`"dark"`.
 
 ### `Store`
 
