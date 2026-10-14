@@ -9,6 +9,7 @@ import {
   hasCapability,
   listCapabilities,
   loadManifest,
+  parseLaunchArgs,
   registerCapability,
 } from "../sdk/index.ts"
 import { createStdioTransport, makeHello } from "./protocol.ts"
@@ -22,6 +23,32 @@ const keepAlive = setInterval(() => {}, 1 << 30)
 void keepAlive
 
 const transport = createStdioTransport()
+
+interface LaunchParams {
+  argv?: string[]
+  cwd?: string
+  first?: boolean
+}
+
+let appWired = false
+const pendingLaunch: LaunchParams[] = []
+
+// How the OS handed the app its arguments: deep-link URLs and files become
+// open-url/open-file events; a forwarded launch from a second instance also
+// raises second-instance.
+function dispatchLaunch(params: LaunchParams): void {
+  const app = App.current
+  if (!app) return
+
+  const argv = params.argv ?? []
+  const cwd = params.cwd ?? process.cwd()
+
+  if (params.first === false) app.dispatchEvent("second-instance", { argv, cwd })
+
+  const { urls, files } = parseLaunchArgs(argv, cwd)
+  for (const url of urls) app.dispatchEvent("open-url", { url })
+  for (const path of files) app.dispatchEvent("open-file", { path })
+}
 
 // Window control is a capability, so both the app (App.window) and QML
 // (Pulsar.call) go through the same path. It reaches the host as a
@@ -205,6 +232,12 @@ export function wireApp(): void {
     send({ jsonrpc: "2.0", method: "__config", params: { windows: app.windows } })
     app.flushAllUi()
   }
+
+  // Launch arguments that arrived before the app was wired are replayed now,
+  // when the app's top-level handlers are registered.
+  appWired = true
+  for (const launch of pendingLaunch.splice(0)) dispatchLaunch(launch)
+
   // The host's initial __sync can now be answered with the app's full state.
   markAppReady()
 }
@@ -310,6 +343,9 @@ async function handleRequest(message: unknown): Promise<void> {
         pendingQueries.delete(String(params.token))
         resolve(params.value ?? null)
       }
+    } else if (req.method === "__launch") {
+      if (appWired) dispatchLaunch(params as LaunchParams)
+      else pendingLaunch.push(params as LaunchParams)
     }
     return
   }

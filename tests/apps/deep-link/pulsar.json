@@ -1,0 +1,9 @@
+{
+  "id": "com.pulsar.deeplink",
+  "name": "deep-link",
+  "version": "0.1.0",
+  "main": "main.ts",
+  "singleInstance": true,
+  "protocols": [{ "scheme": "pulsar-test" }],
+  "windows": [{ "label": "main", "ui": "ui/main.qml", "width": 320, "height": 200, "title": "Deep link" }]
+}

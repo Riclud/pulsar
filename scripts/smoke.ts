@@ -3,7 +3,7 @@
 // Bun supervision. Cross-platform replacement for scripts/smoke.sh.
 import { mkdtempSync, readFileSync, rmSync } from "fs"
 import { tmpdir } from "os"
-import { join, resolve } from "path"
+import { basename, join, resolve } from "path"
 
 const root = resolve(import.meta.dir, "..")
 const host = join(root, "build", "bin", process.platform === "win32" ? "qml-host.exe" : "qml-host")
@@ -38,6 +38,7 @@ const dialogLog = join(tmp, "dialog.log")
 const systemLog = join(tmp, "system.log")
 const trayLog = join(tmp, "tray.log")
 const jsUiLog = join(tmp, "js-ui.log")
+const deepLog = join(tmp, "deep.log")
 
 let failed = false
 
@@ -58,6 +59,17 @@ function check(file: string, needle: string) {
     console.error(`smoke: missing: ${needle}`)
     failed = true
   }
+}
+
+async function waitFor(file: string, needle: string, timeoutMs = 4000): Promise<boolean> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    try {
+      if (readFileSync(file, "utf8").includes(needle)) return true
+    } catch {}
+    await Bun.sleep(50)
+  }
+  return false
 }
 
 try {
@@ -233,6 +245,49 @@ try {
   })
   check(trayLog, "TRAY menu items= 3")
   check(trayLog, "STORE traySet = QVariant(bool, true)")
+
+  // Deep links + single instance: launch arguments become open-url/open-file
+  // events, and a second launch is forwarded to the running instance.
+  {
+    const deepEnv = {
+      PULSAR_DEBUG: "1",
+      QT_QPA_PLATFORM: "offscreen",
+      PULSAR_APP: join(root, "tests", "apps", "deep-link"),
+      PULSAR_INSTANCE_KEY: "smoke-" + basename(tmp),
+      AUTO_QUIT_MS: "6000",
+      QT_LOG_FILE: deepLog,
+    }
+    const first = Bun.spawn({
+      cmd: [host, "file:///tmp/pulsar-first.txt", "pulsar-test://hello"],
+      cwd: root,
+      env: { ...process.env, ...deepEnv },
+      stdio: ["ignore", "ignore", "ignore"],
+    })
+
+    if (!(await waitFor(deepLog, "STORE openUrl"))) {
+      console.error("smoke: deep-link first instance did not start")
+      failed = true
+    }
+
+    Bun.spawnSync({
+      cmd: [host, "file:///tmp/pulsar-second.txt"],
+      cwd: root,
+      env: { ...process.env, ...deepEnv },
+      stdio: ["ignore", "ignore", "ignore"],
+    })
+
+    if (!(await waitFor(deepLog, "STORE secondArgv"))) {
+      console.error("smoke: second instance was not forwarded")
+      failed = true
+    }
+
+    first.kill()
+
+    check(deepLog, "STORE openFile = QVariant(QString, /tmp/pulsar-first.txt)")
+    check(deepLog, "STORE openUrl = QVariant(QString, pulsar-test://hello)")
+    check(deepLog, "STORE openFile = QVariant(QString, /tmp/pulsar-second.txt)")
+    check(deepLog, "STORE secondArgv = QVariant(QString,")
+  }
 
   // Single-file build: `pulsar build` must produce one self-contained
   // executable that extracts itself and runs the QML app.

@@ -9,12 +9,16 @@
 #include <QIcon>
 #include <QDir>
 #include <QFile>
+#include <QFileOpenEvent>
 #include <QHash>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFileSystemWatcher>
+#include <QLocalServer>
+#include <QLocalSocket>
 #include <QMessageBox>
 #include <QJSValue>
 #include <QScreen>
@@ -83,6 +87,153 @@ static QString appDir()
         return dev;
     return QDir::currentPath();
 }
+
+struct ManifestInfo {
+    QString id;
+    bool singleInstance = false;
+};
+
+// The host reads a few manifest fields directly: single-instance has to be
+// known before the runtime is even started.
+static ManifestInfo readManifestInfo()
+{
+    ManifestInfo info;
+    QFile file(QDir(appDir()).filePath(QStringLiteral("pulsar.json")));
+    if (!file.open(QIODevice::ReadOnly))
+        return info;
+
+    const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    if (!doc.isObject())
+        return info;
+
+    const QJsonObject obj = doc.object();
+    info.id = obj.value(QStringLiteral("id")).toString();
+    info.singleInstance = obj.value(QStringLiteral("singleInstance")).toBool();
+    return info;
+}
+
+// Send the command line the OS gave us to the runtime (as the __launch
+// notification). The runtime turns it into open-url/open-file events; a
+// forwarded launch also raises second-instance.
+static void deliverLaunch(const QStringList &argv, const QString &cwd, bool first)
+{
+    if (!gBridge)
+        return;
+
+    QJsonArray array;
+    for (const QString &arg : argv)
+        array.append(arg);
+
+    QJsonObject params;
+    params.insert(QStringLiteral("argv"), array);
+    params.insert(QStringLiteral("cwd"), cwd);
+    params.insert(QStringLiteral("first"), first);
+    gBridge->notify(QStringLiteral("__launch"), params);
+}
+
+static QString sanitizeInstanceKey(const QString &raw)
+{
+    QString out;
+    for (const QChar c : raw) {
+        if (c.isLetterOrNumber() || c == QLatin1Char('.') || c == QLatin1Char('-') || c == QLatin1Char('_'))
+            out.append(c);
+        else
+            out.append(QLatin1Char('-'));
+    }
+    if (out.isEmpty())
+        out = QStringLiteral("pulsar-app");
+    return out;
+}
+
+// A second instance connects here, hands over its arguments and exits.
+static bool forwardToInstance(const QString &serverName, const QStringList &argv, const QString &cwd)
+{
+    QLocalSocket socket;
+    socket.connectToServer(serverName);
+    if (!socket.waitForConnected(300))
+        return false;
+
+    QJsonArray array;
+    for (const QString &arg : argv)
+        array.append(arg);
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("argv"), array);
+    payload.insert(QStringLiteral("cwd"), cwd);
+
+    QByteArray data = QJsonDocument(payload).toJson(QJsonDocument::Compact);
+    data.append('\n');
+    socket.write(data);
+    socket.flush();
+    socket.waitForBytesWritten(1000);
+    socket.disconnectFromServer();
+    if (socket.state() != QLocalSocket::UnconnectedState)
+        socket.waitForDisconnected(1000);
+    return true;
+}
+
+static QLocalServer *gInstanceServer = nullptr;
+
+static void startInstanceServer(const QString &serverName, QObject *parent)
+{
+    QLocalServer::removeServer(serverName);
+    gInstanceServer = new QLocalServer(parent);
+    if (!gInstanceServer->listen(serverName)) {
+        qWarning().noquote() << "single-instance: listen failed:" << gInstanceServer->errorString();
+        delete gInstanceServer;
+        gInstanceServer = nullptr;
+        return;
+    }
+
+    QObject::connect(gInstanceServer, &QLocalServer::newConnection, []() {
+        while (QLocalSocket *client = gInstanceServer->nextPendingConnection()) {
+            auto *buffer = new QByteArray();
+            QObject::connect(client, &QLocalSocket::readyRead, client, [client, buffer]() {
+                buffer->append(client->readAll());
+                int idx;
+                while ((idx = buffer->indexOf('\n')) >= 0) {
+                    const QByteArray line = buffer->left(idx);
+                    buffer->remove(0, idx + 1);
+                    const QJsonDocument doc = QJsonDocument::fromJson(line);
+                    if (!doc.isObject())
+                        continue;
+                    const QJsonObject obj = doc.object();
+                    QStringList argv;
+                    for (const QJsonValue &value : obj.value(QStringLiteral("argv")).toArray())
+                        argv << value.toString();
+                    deliverLaunch(argv, obj.value(QStringLiteral("cwd")).toString(), false);
+                }
+            });
+            QObject::connect(client, &QLocalSocket::disconnected, client, [client, buffer]() {
+                delete buffer;
+                client->deleteLater();
+            });
+        }
+    });
+}
+
+// macOS delivers files/URLs through QFileOpenEvent rather than argv.
+class FileOpenFilter : public QObject {
+public:
+    using QObject::QObject;
+
+protected:
+    bool eventFilter(QObject *object, QEvent *event) override
+    {
+        if (event->type() != QEvent::FileOpen)
+            return QObject::eventFilter(object, event);
+
+        auto *openEvent = static_cast<QFileOpenEvent *>(event);
+        QStringList argv;
+        argv << QCoreApplication::applicationFilePath();
+        if (!openEvent->url().isEmpty())
+            argv << openEvent->url().toString();
+        else if (!openEvent->file().isEmpty())
+            argv << openEvent->file();
+        deliverLaunch(argv, QDir::currentPath(), false);
+        return true;
+    }
+};
 
 static QUrl resolveUi(const QString &ui)
 {
@@ -658,6 +809,31 @@ int main(int argc, char **argv)
 
     gWatch = watchMode();
     gBridge = bridge;
+
+    const ManifestInfo manifest = readManifestInfo();
+    const QStringList cliArgs = QCoreApplication::arguments();
+    const QString cwd = QDir::currentPath();
+
+    // Single instance: a second launch hands its arguments to the running one
+    // and exits instead of starting another runtime.
+    if (manifest.singleInstance) {
+        const QByteArray keyOverride = qgetenv("PULSAR_INSTANCE_KEY");
+        const QString key = !keyOverride.isEmpty()
+                                ? QString::fromLocal8Bit(keyOverride)
+                                : (manifest.id.isEmpty() ? QFileInfo(appDir()).fileName() : manifest.id);
+
+        const QString serverName = QStringLiteral("pulsar-") + sanitizeInstanceKey(key);
+        if (forwardToInstance(serverName, cliArgs, cwd)) {
+            qInfo().noquote() << "another instance is already running; forwarded launch arguments";
+            return 0;
+        }
+        startInstanceServer(serverName, &app);
+    }
+
+    app.installEventFilter(new FileOpenFilter(&app));
+
+    // Hand the OS-supplied launch arguments (deep links, files) to the runtime.
+    deliverLaunch(cliArgs, cwd, true);
 
     // Forward QML console messages to the runtime so the app can observe them.
     pulsar::setLogSink([bridge](const QString &level, const QString &message, const QString &file, int line) {

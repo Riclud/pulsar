@@ -210,7 +210,7 @@ void extract(std::ifstream &file, uint64_t offset, const fs::path &root)
 
 } // namespace
 
-int main()
+int main(int argc, char **argv)
 {
     const std::string exe = selfPath();
     std::ifstream file(exe, std::ios::binary);
@@ -254,8 +254,17 @@ int main()
     const std::string hostStr = host.string();
     changeDir(root.string());
 
-    std::vector<char *> argv;
-    argv.push_back(const_cast<char *>(hostStr.c_str()));
-    argv.push_back(nullptr);
-    execHost(hostStr, argv);
+    // Forward our own arguments (deep links, files) to the host so it can hand
+    // them to the runtime. argv[0] becomes the host path.
+    std::vector<std::string> forwarded;
+    for (int i = 1; i < argc; ++i)
+        forwarded.emplace_back(argv[i]);
+
+    std::vector<char *> hostArgv;
+    hostArgv.reserve(forwarded.size() + 2);
+    hostArgv.push_back(const_cast<char *>(hostStr.c_str()));
+    for (std::string &arg : forwarded)
+        hostArgv.push_back(arg.data());
+    hostArgv.push_back(nullptr);
+    execHost(hostStr, hostArgv);
 }

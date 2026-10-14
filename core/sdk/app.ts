@@ -54,6 +54,9 @@ export interface PulsarEventMap {
   "tray-activated": { reason?: number }
   "theme-changed": { scheme: "light" | "dark" }
   "notification-click": { token: string }
+  "open-file": { path: string }
+  "open-url": { url: string }
+  "second-instance": { argv: string[]; cwd: string }
 }
 
 export type KnownEvent = keyof PulsarEventMap
