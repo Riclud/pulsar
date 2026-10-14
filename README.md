@@ -482,6 +482,14 @@ At startup the launcher extracts the payload into the user cache and execs the
 host, which loads Qt from `lib/Qt` via its RPATH — never from the system. Use
 `--slim` to omit Qt and rely on the system installation.
 
+## Protocol
+
+The host and the runtime exchange newline-delimited JSON-RPC over stdio. The
+runtime announces itself with an `__hello` handshake (protocol version, runtime,
+capabilities), talks through a `Transport` abstraction, and keeps a reserved
+binary/streaming data channel separate from the JSON control channel. See
+[`docs/protocol.md`](docs/protocol.md).
+
 ## Repository layout
 
 ```
