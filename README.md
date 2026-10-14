@@ -449,6 +449,36 @@ app.on("log", (params: { level: string; source: "qml" | "js"; message: string; f
 })
 ```
 
+## UI from JS
+
+You don't have to write QML: a window declared **without `ui`** is rendered from
+a JS tree built with the `ui` helpers.
+
+```ts
+import { App, ui } from "pulsar"
+
+const app = new App()
+
+app
+  .window("main")
+  .render(() =>
+    ui.column({ gap: 8, padding: 12 }, [
+      ui.text({ text: "Count: " + (app.store.get("count") ?? 0) }),
+      ui.button("+1", { onClick: () => app.store.set("count", (app.store.get("count") as number) + 1) }),
+      ui.checkbox("Enabled", { onToggle: (v) => app.store.set("enabled", v) }),
+      ui.textInput({ placeholder: "Name", onInput: (v) => app.store.set("name", v) }),
+    ]),
+  )
+
+app.run()
+```
+
+`render` takes a tree or a function; the function is called again whenever
+`Store` changes, so the UI stays in sync. Components: `column`, `row`, `box`,
+`text`, `button`, `textInput`, `checkbox`, `switch`, `slider`, `image`, `spacer`,
+`divider`. QML windows keep working as before — mix freely (some windows in QML,
+some in JS).
+
 ## QML API
 
 ```qml

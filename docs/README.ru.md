@@ -455,6 +455,36 @@ app.on("log", (params: { level: string; source: "qml" | "js"; message: string; f
 })
 ```
 
+## UI из JS
+
+Не обязательно писать QML: окно, объявленное **без `ui`**, рендерится из дерева
+на JS, собранного хелперами `ui`.
+
+```ts
+import { App, ui } from "pulsar"
+
+const app = new App()
+
+app
+  .window("main")
+  .render(() =>
+    ui.column({ gap: 8, padding: 12 }, [
+      ui.text({ text: "Count: " + (app.store.get("count") ?? 0) }),
+      ui.button("+1", { onClick: () => app.store.set("count", (app.store.get("count") as number) + 1) }),
+      ui.checkbox("Enabled", { onToggle: (v) => app.store.set("enabled", v) }),
+      ui.textInput({ placeholder: "Name", onInput: (v) => app.store.set("name", v) }),
+    ]),
+  )
+
+app.run()
+```
+
+`render` принимает дерево или функцию; функция вызывается заново при изменении
+`Store`, поэтому UI остаётся синхронным. Компоненты: `column`, `row`, `box`,
+`text`, `button`, `textInput`, `checkbox`, `switch`, `slider`, `image`, `spacer`,
+`divider`. QML-окна работают как раньше — можно смешивать (часть окон на QML,
+часть на JS).
+
 ## QML API
 
 ```qml
