@@ -230,17 +230,20 @@ import {
 
 ### App
 
-| Member               | Description                                                             |
-| -------------------- | ----------------------------------------------------------------------- |
-| `new App(config?)`   | Create the app. Config comes from `pulsar.json`; `config` overrides it. |
-| `app.store`          | Reactive state shared with all windows (see `Store`).                   |
-| `app.on(event, fn)`  | Subscribe to an event emitted from QML (`Pulsar.emit`) or the host.     |
-| `app.window(label?)` | Get a `WindowHandle` (defaults to the first window).                    |
-| `app.windows`        | All declared windows.                                                   |
-| `app.config`         | The first window's config.                                              |
-| `app.manifest`       | The parsed `pulsar.json` (or `null`).                                   |
-| `app.quit()`         | Quit the application.                                                   |
-| `app.run()`          | No-op marker; the host owns the event loop.                             |
+| Member                               | Description                                                             |
+| ------------------------------------ | ----------------------------------------------------------------------- |
+| `new App(config?)`                   | Create the app. Config comes from `pulsar.json`; `config` overrides it. |
+| `app.store`                          | Reactive state shared with all windows (see `Store`).                   |
+| `app.on(event, fn)`                  | Subscribe to an event from QML (`Pulsar.emit`), the host or `app.send`. |
+| `app.window(label?)`                 | Get a `WindowHandle` (defaults to the first window).                    |
+| `app.createWindow(config)`           | Create a window at runtime; returns a `WindowHandle`.                   |
+| `app.closeWindow(label?)`            | Close a window (defaults to the first).                                 |
+| `app.send(event, payload?, target?)` | Send an event to the UI (`target` label, or `*`).                       |
+| `app.windows`                        | All open windows (start windows plus created ones).                     |
+| `app.config`                         | The first window's config.                                              |
+| `app.manifest`                       | The parsed `pulsar.json` (or `null`).                                   |
+| `app.quit()`                         | Quit the application.                                                   |
+| `app.run()`                          | No-op marker; the host owns the event loop.                             |
 
 ### Store
 
@@ -276,15 +279,50 @@ await panel.setSize(360, 260)
 await panel.setPosition(100, 100)
 await panel.setFullscreen(true)
 await panel.setAlwaysOnTop(true)
+await panel.destroy() // close and drop the window
 ```
 
-Each method returns a `Promise<boolean>`.
+Each method returns a `Promise<boolean>`. Windows declared in `pulsar.json` are
+just start windows — create more at runtime:
+
+```ts
+const settings = app.createWindow({ label: "settings", ui: "ui/settings.qml", width: 420, height: 320 })
+await settings.show()
+```
 
 ### Lifecycle events
 
+The host reports window and tray activity back to the app:
+
 ```ts
-app.on("window-close", (params: { label?: string }) => console.log("closed", params.label))
+app.on("window-close", (params) => console.log("closed", params.label))
+app.on("window-state", (params) => console.log(params.label, params.state)) // normal|minimized|maximized|fullscreen
+app.on("window-resize", (params) => console.log(params.label, params.width, params.height))
+app.on("window-move", (params) => console.log(params.label, params.x, params.y))
+app.on("window-focus", () => {})
+app.on("window-blur", () => {})
 app.on("window-all-closed", () => app.quit())
+```
+
+### Backend → UI events
+
+`app.send(event, payload, target?)` pushes a one-off event to the UI (`target` is
+a window label or `*` for every window). `app.window(label).emit(...)` targets a
+single window. In QML subscribe through the `Pulsar` singleton and filter by the
+`PulsarWindowLabel` context property:
+
+```ts
+app.send("update-ready", { version: "0.2.0" })
+```
+
+```qml
+Connections {
+    target: Pulsar
+    function onAppEvent(event, payload, target) {
+        if (target === "*" || target === PulsarWindowLabel)
+            if (event === "update-ready") banner.text = "Update " + payload.version
+    }
+}
 ```
 
 ### Dialogs
@@ -387,7 +425,9 @@ import Pulsar 1.0   // Pulsar singleton + Store
 | `Pulsar.diagnostics()`                                                                                         | Debug string.                                                                                             |
 | `Pulsar.restart()`                                                                                             | Restart the backend (dev).                                                                                |
 
-Signal `log(level, message, source)` — subscribe with `Connections`.
+Signals: `log(level, message, source)` and `appEvent(event, payload, target)` —
+subscribe with `Connections`. Each window also gets a `PulsarWindowLabel` context
+property with its own label.
 
 ### `Store`
 
