@@ -6,11 +6,16 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install build tools
+      - name: Install build tools (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y g++ cmake ninja-build pkg-config
@@ -27,16 +32,22 @@ jobs:
         run: bun install
 
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
+        shell: bash
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
 
       - name: Build host, bridge and launcher
-        run: cmake --build build
-
-      - name: Smoke test
-        run: bun run test
+        shell: bash
+        run: cmake --build build --config Release
 
       - name: Typecheck
         run: bun run typecheck
 
+      - name: Unit tests
+        run: bun run test:unit
+
       - name: Version check
         run: bun run version:check
+
+      - name: Smoke test (Linux)
+        if: runner.os == 'Linux'
+        run: bun run test
