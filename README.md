@@ -423,7 +423,7 @@ Button {
 
 - **`default`** — one window, a `Store`, one event.
 - **`windows`** — two windows sharing one `Store`, `app.window(label)` control,
-  lifecycle events, a native menu, a tray icon and dialogs.
+  lifecycle events, a tray icon and native dialogs.
 - **`tray`** — a window plus a system-tray menu.
 
 See [`examples/hello`](examples/hello) and [`examples/windows`](examples/windows)
