@@ -17,8 +17,18 @@
 #include <string>
 #include <vector>
 
+#ifdef _WIN32
+#include <windows.h>
+#include <direct.h>
+#include <io.h>
+#include <process.h>
+#else
 #include <unistd.h>
 #include <sys/stat.h>
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
+#endif
 
 namespace fs = std::filesystem;
 
@@ -28,6 +38,12 @@ const char kHeaderMagic[4] = {'P', 'L', 'S', 'R'};
 const char kTrailerMagic[8] = {'P', 'L', 'S', 'R', 'P', 'A', 'Y', 'L'};
 constexpr std::streamoff kTrailerSize = 16;
 constexpr size_t kChunk = 64 * 1024;
+
+#ifdef _WIN32
+constexpr const char *kExe = ".exe";
+#else
+constexpr const char *kExe = "";
+#endif
 
 uint32_t readU32(const unsigned char *p)
 {
@@ -68,11 +84,55 @@ bool isSafeRelative(const std::string &path)
 
 std::string selfPath()
 {
+#ifdef _WIN32
+    char buf[MAX_PATH];
+    const DWORD n = GetModuleFileNameA(nullptr, buf, MAX_PATH);
+    if (n == 0 || n >= MAX_PATH)
+        fail("cannot locate the running executable");
+    return std::string(buf, size_t(n));
+#elif defined(__APPLE__)
+    char buf[4096];
+    uint32_t size = sizeof(buf);
+    if (_NSGetExecutablePath(buf, &size) != 0)
+        fail("cannot locate the running executable");
+    std::error_code ec;
+    const fs::path resolved = fs::canonical(fs::path(buf), ec);
+    return ec ? std::string(buf) : resolved.string();
+#else
     char buf[4096];
     const ssize_t n = ::readlink("/proc/self/exe", buf, sizeof(buf) - 1);
     if (n <= 0)
         fail("cannot locate the running executable");
     return std::string(buf, size_t(n));
+#endif
+}
+
+void setEnv(const char *name, const std::string &value)
+{
+#ifdef _WIN32
+    _putenv_s(name, value.c_str());
+#else
+    ::setenv(name, value.c_str(), 1);
+#endif
+}
+
+void changeDir(const std::string &path)
+{
+#ifdef _WIN32
+    _chdir(path.c_str());
+#else
+    ::chdir(path.c_str());
+#endif
+}
+
+[[noreturn]] void execHost(const std::string &host, std::vector<char *> &argv)
+{
+#ifdef _WIN32
+    _execv(host.c_str(), argv.data());
+#else
+    ::execv(host.c_str(), argv.data());
+#endif
+    fail("failed to start the host");
 }
 
 fs::path cacheRoot(uint64_t buildId)
@@ -139,11 +199,12 @@ void extract(std::ifstream &file, uint64_t offset, const fs::path &root)
         out.close();
     }
 
+#ifndef _WIN32
     for (const char *rel : {"bin/qml-host", "bin/bridge", "runtime"})
         fs::permissions(root / rel,
                         fs::perms::owner_exec | fs::perms::group_exec | fs::perms::others_exec,
                         fs::perm_options::add, ec);
-
+#endif
     std::ofstream(root / ".ok") << "ok";
 }
 
@@ -181,22 +242,20 @@ int main()
     if (!fs::exists(root / ".ok", ec))
         extract(file, offset, root);
 
-    const fs::path host = root / "bin" / "qml-host";
+    const fs::path host = root / "bin" / (std::string("qml-host") + kExe);
     if (!fs::exists(host))
         fail("extracted host is missing");
 
     // Point the host/bridge/runtime at the extracted tree before exec.
-    ::setenv("PULSAR_ROOT", root.c_str(), 1);
-    ::setenv("PULSAR_APP", (root / "app").c_str(), 1);
-    ::setenv("PULSAR_RUNTIME", (root / "runtime").c_str(), 1);
+    setEnv("PULSAR_ROOT", root.string());
+    setEnv("PULSAR_APP", (root / "app").string());
+    setEnv("PULSAR_RUNTIME", (root / (std::string("runtime") + kExe)).string());
 
     const std::string hostStr = host.string();
-    ::chdir(root.c_str());
+    changeDir(root.string());
 
     std::vector<char *> argv;
     argv.push_back(const_cast<char *>(hostStr.c_str()));
     argv.push_back(nullptr);
-    ::execv(hostStr.c_str(), argv.data());
-
-    fail("failed to start the host");
+    execHost(hostStr, argv);
 }
