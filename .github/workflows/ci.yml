@@ -41,7 +41,7 @@ jobs:
           cmake --build build --config Release 2>&1 | tee build.log
           status=${PIPESTATUS[0]}
           if [ "$status" -ne 0 ]; then
-            grep -iE "error:|error C[0-9]+|fatal error|undefined reference|ld: |clang: error|g\+\+:" build.log | head -25 | while IFS= read -r line; do echo "::error::$line"; done
+            tail -40 build.log | while IFS= read -r line; do echo "::error::$line"; done
             exit "$status"
           fi
 
