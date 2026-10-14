@@ -68,6 +68,7 @@ try {
   })
 
   check(log, "NOTIFY __config")
+  check(log, "HELLO runtime= bun")
   check(log, "STORE name = QVariant(QString, tick 0)")
   check(log, "STORE name = QVariant(QString, tick 1)")
   check(log, "SELFTEST resp")
