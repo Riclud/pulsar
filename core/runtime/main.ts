@@ -5,17 +5,23 @@ import { installCapabilities } from "../caps/index.ts"
 import {
   App,
   callCapability,
+  createPermissionGate,
   dispatchUiEvent,
   hasCapability,
   listCapabilities,
   loadManifest,
   parseLaunchArgs,
   registerCapability,
+  setPermissionGate,
 } from "../sdk/index.ts"
 import { createStdioTransport, makeHello } from "./protocol.ts"
 import { MIN_BUN, bunVersionCompatible } from "./version.ts"
 
 installCapabilities()
+
+// The manifest gate restricts OS-facing capabilities. Absent `permissions`
+// leaves everything allowed (backward compatible).
+setPermissionGate(createPermissionGate(loadManifest()?.permissions))
 
 // The runtime is a long-lived service: keep the event loop alive so a compiled
 // build does not exit while the host channel is still starting up.

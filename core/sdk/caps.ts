@@ -39,10 +39,24 @@ export const listCapabilities = (): string[] => {
   return Object.keys(capabilities)
 }
 
-/** Invoke a capability by name. Rejects if it is not registered. */
+let permissionGate: ((name: string) => void) | null = null
+
+/** Install the manifest permission gate; null disables it (everything allowed). */
+export const setPermissionGate = (gate: ((name: string) => void) | null): void => {
+  permissionGate = gate
+}
+
+/** Invoke a capability by name. Rejects if it is not registered or not permitted. */
 export function callCapability(name: string, params?: unknown): Promise<unknown> {
   const handler = capabilities[name]
   if (!handler) return Promise.reject(new Error(`unknown capability: ${name}`))
+  if (permissionGate) {
+    try {
+      permissionGate(name)
+    } catch (e) {
+      return Promise.reject(e)
+    }
+  }
   return handler(params ?? {})
 }
 

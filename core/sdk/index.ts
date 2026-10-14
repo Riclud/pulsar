@@ -6,6 +6,7 @@ export { loadManifest, resolveAppConfig, resolveWindows } from "./manifest.ts"
 export type { AppManifest, ManifestWindow } from "./manifest.ts"
 export { parseLaunchArgs } from "./launch.ts"
 export type { LaunchArgs } from "./launch.ts"
+export { CAPABILITY_PERMISSIONS, capabilityPermission, createPermissionGate } from "./permissions.ts"
 export {
   dialog,
   fs,
@@ -23,6 +24,7 @@ export {
   listCapabilities,
   registerCapability,
   registerCapabilities,
+  setPermissionGate,
 } from "./caps.ts"
 export type {
   AppPaths,

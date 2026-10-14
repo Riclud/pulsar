@@ -39,6 +39,7 @@ const systemLog = join(tmp, "system.log")
 const trayLog = join(tmp, "tray.log")
 const jsUiLog = join(tmp, "js-ui.log")
 const deepLog = join(tmp, "deep.log")
+const deniedLog = join(tmp, "denied.log")
 
 let failed = false
 
@@ -288,6 +289,17 @@ try {
     check(deepLog, "STORE openFile = QVariant(QString, /tmp/pulsar-second.txt)")
     check(deepLog, "STORE secondArgv = QVariant(QString,")
   }
+
+  // Permissions: an app that declares `permissions: []` cannot use fs, and the
+  // denial surfaces as a rejected capability call.
+  runHost({
+    PULSAR_DEBUG: "1",
+    QT_QPA_PLATFORM: "offscreen",
+    PULSAR_APP: join(root, "tests", "apps", "denied"),
+    AUTO_QUIT_MS: "3000",
+    QT_LOG_FILE: deniedLog,
+  })
+  check(deniedLog, "permission denied: fs.readFile")
 
   // Single-file build: `pulsar build` must produce one self-contained
   // executable that extracts itself and runs the QML app.

@@ -6,5 +6,6 @@
   "windows": [
     { "label": "main", "ui": "ui/main.qml", "width": 440, "height": 340, "title": "{{title}}" },
     { "label": "panel", "ui": "ui/panel.qml", "width": 360, "height": 260, "title": "Panel" }
-  ]
+  ],
+  "permissions": ["dialog", "tray"]
 }

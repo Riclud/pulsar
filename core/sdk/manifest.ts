@@ -30,7 +30,7 @@ export interface AppManifest {
   icons?: Record<string, string>
   /** Initial windows. */
   windows?: ManifestWindow[]
-  /** Reserved for a future permission model; not enforced yet. */
+  /** Capabilities the app may use; absent means all are allowed. */
   permissions?: string[]
   /** Custom URL schemes the app handles. */
   protocols?: { scheme: string }[]

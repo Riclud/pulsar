@@ -12,5 +12,5 @@
       "title": "Hello Pulsar"
     }
   ],
-  "permissions": []
+  "permissions": ["fs"]
 }
