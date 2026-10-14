@@ -264,6 +264,7 @@ qint64 Bridge::invoke(const QString &method, const QJSValue &params)
         p = params.toVariant().toMap();
 
     QJsonObject body;
+    body.insert(QStringLiteral("jsonrpc"), QStringLiteral("2.0"));
     body.insert(QStringLiteral("id"), id);
     body.insert(QStringLiteral("method"), method);
     body.insert(QStringLiteral("params"), QJsonObject::fromVariantMap(p));
