@@ -47,6 +47,8 @@ public:
 
     // Send an unsolicited notification to the runtime (no response expected).
     void notify(const QString &method, const QJsonObject &params);
+    // Send a binary data frame on the data channel.
+    void sendBinary(quint32 streamId, const QByteArray &data);
     // Re-emit a runtime log line to QML subscribers.
     void postLog(const QString &level, const QString &message, const QString &source);
 
@@ -54,6 +56,7 @@ signals:
     void ready();
     void response(qint64 id, const QJSValue &result, const QJSValue &error);
     void notification(const QString &method, const QJSValue &params);
+    void data(quint32 streamId, const QByteArray &data);
     void crashed(const QString &kind, int code);
     void log(const QString &level, const QString &message, const QString &source);
 
@@ -71,7 +74,8 @@ private:
     void startBridge();
     void ensurePromiseFactory();
     void failPending(const QString &reason);
-    void handleResponse(const QByteArray &line);
+    void handleResponse(const QByteArray &payload);
+    void handleDataFrame(const QByteArray &payload);
 
     QProcess process_;
     QJSEngine *engine_;

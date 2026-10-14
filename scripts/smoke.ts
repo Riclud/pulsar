@@ -64,11 +64,13 @@ try {
     QT_QPA_PLATFORM: "offscreen",
     AUTO_QUIT_MS: "4000",
     SELFTEST: "1500",
+    PULSAR_TEST_DATA: "pulsar-binary",
     QT_LOG_FILE: log,
   })
 
   check(log, "NOTIFY __config")
   check(log, "HELLO runtime= bun")
+  check(log, "DATA stream= 1 len= 13")
   check(log, "STORE name = QVariant(QString, tick 0)")
   check(log, "STORE name = QVariant(QString, tick 1)")
   check(log, "SELFTEST resp")

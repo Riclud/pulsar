@@ -1,6 +1,16 @@
-import { createInterface } from "readline"
-
 export const PROTOCOL_VERSION = 1
+
+/**
+ * Wire framing shared by the runtime, the host and the bridge:
+ *
+ *   frame = type:u8 | length:u32 (LE) | payload[length]
+ *
+ * `type` is FRAME_CONTROL (JSON) or FRAME_DATA (binary). This keeps a binary
+ * data channel on the same pipe, separate from the JSON control channel.
+ */
+export const FRAME_CONTROL = 0x01
+export const FRAME_DATA = 0x02
+export const MAX_FRAME = 64 << 20
 
 export type Channel = "control" | "data"
 
@@ -9,6 +19,7 @@ export interface HelloParams {
   runtime: string
   version: string
   capabilities: string[]
+  binary: boolean
 }
 
 export interface HelloMessage {
@@ -22,15 +33,15 @@ export interface HelloMessage {
  * stdio implementation talks over stdin/stdout; an in-process transport (an
  * embedded JS engine) can implement the same interface without a child process.
  *
- * Control messages are JSON. A binary/streaming data channel is reserved:
- * transports that can carry raw bytes set `supportsBinary` and implement
- * `sendBinary`; otherwise it throws.
+ * Control messages are JSON. Binary payloads travel as data frames, tagged by a
+ * numeric stream id, so bulk data never has to be base64'd into JSON.
  */
 export interface Transport {
   readonly supportsBinary: boolean
   send(message: unknown): void
-  sendBinary(data: Uint8Array): void
+  sendBinary(streamId: number, data: Uint8Array): void
   onMessage(handler: (message: unknown) => void): void
+  onData(handler: (streamId: number, data: Uint8Array) => void): void
   onClose(handler: () => void): void
   start(): void
   close(): void
@@ -58,51 +69,100 @@ export const makeHello = (capabilities: string[]): HelloMessage => {
       runtime: runtimeName(),
       version: runtimeVersion(),
       capabilities,
+      binary: true,
     },
   }
+}
+
+export const encodeFrame = (type: number, payload: Uint8Array): Uint8Array => {
+  const frame = Buffer.allocUnsafe(5 + payload.byteLength)
+  frame[0] = type
+  frame.writeUInt32LE(payload.byteLength, 1)
+  frame.set(payload, 5)
+
+  return frame
+}
+
+export const encodeDataFrame = (streamId: number, data: Uint8Array): Uint8Array => {
+  const payload = Buffer.allocUnsafe(4 + data.byteLength)
+  payload.writeUInt32LE(streamId >>> 0, 0)
+  payload.set(data, 4)
+
+  return encodeFrame(FRAME_DATA, payload)
 }
 
 /** Newline-delimited JSON over stdin/stdout. The control channel today. */
 export const createStdioTransport = (): Transport => {
   let messageHandler: ((message: unknown) => void) | null = null
+  let dataHandler: ((streamId: number, data: Uint8Array) => void) | null = null
   let closeHandler: (() => void) | null = null
-  let reader: ReturnType<typeof createInterface> | null = null
+  let buffer: Uint8Array = Buffer.alloc(0)
+  let started = false
 
   const send = (message: unknown): void => {
-    process.stdout.write(JSON.stringify(message) + "\n")
+    const payload = Buffer.from(JSON.stringify(message), "utf8")
+    process.stdout.write(encodeFrame(FRAME_CONTROL, payload))
   }
 
-  const sendBinary = (_data: Uint8Array): void => {
-    throw new Error("stdio transport has no binary channel; use send() for control messages")
+  const sendBinary = (streamId: number, data: Uint8Array): void => {
+    process.stdout.write(encodeDataFrame(streamId, data))
+  }
+
+  const drain = (): void => {
+    while (buffer.byteLength >= 5) {
+      const buf = buffer as Buffer
+      const type = buf[0]!
+      const length = buf.readUInt32LE(1)
+
+      if (length > MAX_FRAME) {
+        buffer = Buffer.alloc(0)
+        closeHandler?.()
+        return
+      }
+      if (buf.byteLength < 5 + length) return
+
+      const payload = buf.subarray(5, 5 + length)
+      buffer = buf.subarray(5 + length)
+
+      if (type === FRAME_CONTROL) {
+        try {
+          messageHandler?.(JSON.parse(payload.toString("utf8")))
+        } catch {
+          send({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "parse error" } })
+        }
+      } else if (type === FRAME_DATA && payload.byteLength >= 4) {
+        const streamId = payload.readUInt32LE(0)
+        dataHandler?.(streamId, payload.subarray(4))
+      }
+    }
   }
 
   const start = (): void => {
-    if (reader) return
+    if (started) return
+    started = true
 
-    reader = createInterface({ input: process.stdin, terminal: false })
-    reader.on("close", () => closeHandler?.())
-    reader.on("line", (raw) => {
-      let message: unknown
-      try {
-        message = JSON.parse(raw)
-      } catch {
-        send({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "parse error" } })
-        return
-      }
-      messageHandler?.(message)
+    process.stdin.on("data", (chunk: Buffer) => {
+      buffer = buffer.byteLength === 0 ? chunk : Buffer.concat([buffer, chunk])
+      drain()
     })
+    process.stdin.on("end", () => closeHandler?.())
+    process.stdin.on("close", () => closeHandler?.())
+    process.stdin.resume()
   }
 
   const close = (): void => {
-    reader?.close()
+    process.stdin.pause()
   }
 
   return {
-    supportsBinary: false,
+    supportsBinary: true,
     send,
     sendBinary,
     onMessage: (handler) => {
       messageHandler = handler
+    },
+    onData: (handler) => {
+      dataHandler = handler
     },
     onClose: (handler) => {
       closeHandler = handler
