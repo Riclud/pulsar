@@ -8,6 +8,11 @@ import { MIN_BUN, bunVersionCompatible } from "./version.ts"
 
 installCapabilities()
 
+// The runtime is a long-lived service: keep the event loop alive so a compiled
+// build does not exit while the host channel is still starting up.
+const keepAlive = setInterval(() => {}, 1 << 30)
+void keepAlive
+
 const transport = createStdioTransport()
 
 // Window control is a capability, so both the app (App.window) and QML
@@ -226,6 +231,10 @@ function startHostChannel(): void {
 
   send(makeHello(listCapabilities()))
   transport.start()
+
+  // Test hook: push a binary data frame so the host's data channel is exercised.
+  const testData = process.env.PULSAR_TEST_DATA
+  if (testData) transport.sendBinary(1, Buffer.from(testData, "utf8"))
 }
 
 async function handleRequest(message: unknown): Promise<void> {

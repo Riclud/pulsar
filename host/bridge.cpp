@@ -19,6 +19,38 @@
 #include <QQmlPropertyMap>
 #include <QTimer>
 
+namespace {
+
+constexpr quint8 kFrameControl = 0x01;
+constexpr quint8 kFrameData = 0x02;
+constexpr quint32 kMaxFrame = 64u << 20; // 64 MiB, mirrors core/runtime/protocol.ts
+
+quint32 readU32LE(const char *p)
+{
+    return quint32(quint8(p[0])) | (quint32(quint8(p[1])) << 8) | (quint32(quint8(p[2])) << 16)
+           | (quint32(quint8(p[3])) << 24);
+}
+
+void appendU32LE(QByteArray &out, quint32 value)
+{
+    out.append(char(value & 0xff));
+    out.append(char((value >> 8) & 0xff));
+    out.append(char((value >> 16) & 0xff));
+    out.append(char((value >> 24) & 0xff));
+}
+
+QByteArray encodeFrame(quint8 type, const QByteArray &payload)
+{
+    QByteArray frame;
+    frame.reserve(5 + payload.size());
+    frame.append(char(type));
+    appendU32LE(frame, quint32(payload.size()));
+    frame.append(payload);
+    return frame;
+}
+
+} // namespace
+
 Bridge::Bridge(QJSEngine *engine, QQmlPropertyMap *store, QObject *parent)
     : QObject(parent)
     , engine_(engine)
@@ -268,14 +300,14 @@ qint64 Bridge::invoke(const QString &method, const QJSValue &params)
     body.insert(QStringLiteral("id"), id);
     body.insert(QStringLiteral("method"), method);
     body.insert(QStringLiteral("params"), QJsonObject::fromVariantMap(p));
-    const QByteArray line = QJsonDocument(body).toJson(QJsonDocument::Compact) + '\n';
+    const QByteArray frame = encodeFrame(kFrameControl, QJsonDocument(body).toJson(QJsonDocument::Compact));
 
     if (process_.state() != QProcess::Running) {
-        pendingWrites_.append(line);
+        pendingWrites_.append(frame);
         return id;
     }
 
-    process_.write(line);
+    process_.write(frame);
     return id;
 }
 
@@ -290,13 +322,28 @@ void Bridge::notify(const QString &method, const QJsonObject &params)
     body.insert(QStringLiteral("jsonrpc"), QStringLiteral("2.0"));
     body.insert(QStringLiteral("method"), method);
     body.insert(QStringLiteral("params"), params);
-    const QByteArray line = QJsonDocument(body).toJson(QJsonDocument::Compact) + '\n';
+    const QByteArray frame = encodeFrame(kFrameControl, QJsonDocument(body).toJson(QJsonDocument::Compact));
 
     if (process_.state() != QProcess::Running) {
-        pendingWrites_.append(line);
+        pendingWrites_.append(frame);
         return;
     }
-    process_.write(line);
+    process_.write(frame);
+}
+
+void Bridge::sendBinary(quint32 streamId, const QByteArray &data)
+{
+    QByteArray payload;
+    payload.reserve(4 + data.size());
+    appendU32LE(payload, streamId);
+    payload.append(data);
+    const QByteArray frame = encodeFrame(kFrameData, payload);
+
+    if (process_.state() != QProcess::Running) {
+        pendingWrites_.append(frame);
+        return;
+    }
+    process_.write(frame);
 }
 
 void Bridge::postLog(const QString &level, const QString &message, const QString &source)
@@ -356,12 +403,26 @@ void Bridge::failPending(const QString &reason)
 void Bridge::onReadyReadStandardOutput()
 {
     stdoutBuffer_ += process_.readAllStandardOutput();
-    int idx;
-    while ((idx = stdoutBuffer_.indexOf('\n')) >= 0) {
-        const QByteArray line = stdoutBuffer_.left(idx);
-        stdoutBuffer_.remove(0, idx + 1);
-        if (!line.trimmed().isEmpty())
-            handleResponse(line);
+
+    while (stdoutBuffer_.size() >= 5) {
+        const quint8 type = quint8(stdoutBuffer_.at(0));
+        const quint32 length = readU32LE(stdoutBuffer_.constData() + 1);
+
+        if (length > kMaxFrame) {
+            qWarning().noquote() << "bridge: frame too large (" << length << "); dropping";
+            stdoutBuffer_.clear();
+            return;
+        }
+        if (quint32(stdoutBuffer_.size()) < 5 + length)
+            return;
+
+        const QByteArray payload = stdoutBuffer_.mid(5, int(length));
+        stdoutBuffer_.remove(0, 5 + int(length));
+
+        if (type == kFrameControl)
+            handleResponse(payload);
+        else if (type == kFrameData)
+            handleDataFrame(payload);
     }
 }
 
@@ -403,9 +464,9 @@ void Bridge::onProcessFinished(int exitCode, QProcess::ExitStatus status)
                     engine_->toScriptValue(QStringLiteral("bridge exited unexpectedly")));
 }
 
-void Bridge::handleResponse(const QByteArray &line)
+void Bridge::handleResponse(const QByteArray &payload)
 {
-    const QJsonDocument doc = QJsonDocument::fromJson(line);
+    const QJsonDocument doc = QJsonDocument::fromJson(payload);
     if (!doc.isObject())
         return;
     const QJsonObject obj = doc.object();
@@ -493,4 +554,17 @@ void Bridge::handleResponse(const QByteArray &line)
             pending.reject.call(QJSValueList{ error });
         }
     }
+}
+
+void Bridge::handleDataFrame(const QByteArray &payload)
+{
+    if (payload.size() < 4)
+        return;
+
+    const quint32 streamId = readU32LE(payload.constData());
+    const QByteArray data = payload.mid(4);
+    if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
+        qInfo().noquote() << "DATA stream=" << streamId << "len=" << data.size();
+
+    Q_EMIT this->data(streamId, data);
 }

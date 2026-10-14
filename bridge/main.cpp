@@ -46,6 +46,22 @@ void writeStdout(const QByteArray &data)
     std::fflush(stdout);
 }
 
+// Control frame: type:u8 | length:u32 (LE) | payload. Must match
+// core/runtime/protocol.ts and host/bridge.cpp.
+QByteArray encodeControlFrame(const QByteArray &payload)
+{
+    QByteArray frame;
+    frame.reserve(5 + payload.size());
+    frame.append(char(0x01));
+    const quint32 len = quint32(payload.size());
+    frame.append(char(len & 0xff));
+    frame.append(char((len >> 8) & 0xff));
+    frame.append(char((len >> 16) & 0xff));
+    frame.append(char((len >> 24) & 0xff));
+    frame.append(payload);
+    return frame;
+}
+
 // The host treats a `__crash` notification like a runtime failure.
 void reportCrash(const QByteArray &kind, int value)
 {
@@ -58,8 +74,8 @@ void reportCrash(const QByteArray &kind, int value)
         json += "\":";
         json += QByteArray::number(value);
     }
-    json += "}}\n";
-    writeStdout(json);
+    json += "}}";
+    writeStdout(encodeControlFrame(json));
 }
 
 // Host -> runtime. Runs on its own thread; writes are marshalled to the
