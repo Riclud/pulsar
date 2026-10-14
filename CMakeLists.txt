@@ -57,9 +57,17 @@ if(APPLE)
 else()
     set(PULSAR_BUNDLED_RPATH "$ORIGIN/../lib/Qt/lib")
 endif()
-set_target_properties(qml-host PROPERTIES
-    INSTALL_RPATH "${PULSAR_BUNDLED_RPATH}"
-    BUILD_RPATH "${PULSAR_BUNDLED_RPATH}"
-)
+
+foreach(target IN ITEMS qml-host bridge)
+    set_target_properties(${target} PROPERTIES
+        INSTALL_RPATH "${PULSAR_BUNDLED_RPATH}"
+        BUILD_RPATH "${PULSAR_BUNDLED_RPATH}"
+    )
+    # DT_RPATH (not DT_RUNPATH) is inherited by indirect dependencies, so the
+    # bundled Qt finds its bundled siblings (ICU, QML plugins).
+    if(UNIX AND NOT APPLE)
+        target_link_options(${target} PRIVATE "-Wl,--disable-new-dtags")
+    endif()
+endforeach()
 
 install(TARGETS qml-host bridge launcher RUNTIME DESTINATION bin)
