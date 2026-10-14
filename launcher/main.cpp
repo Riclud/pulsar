@@ -42,6 +42,24 @@ uint64_t readU64(const unsigned char *p)
     return v;
 }
 
+// Reject absolute paths, parent traversal and Windows drive letters. Entries
+// come from our own build, but extraction must never escape the cache root.
+bool isSafeRelative(const std::string &path)
+{
+    if (path.empty())
+        return false;
+    if (path.front() == '/')
+        return false;
+    if (path.find('\\') != std::string::npos)
+        return false;
+    if (path.find("..") != std::string::npos)
+        return false;
+    const char c = path[0];
+    if (path.size() >= 2 && ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) && path[1] == ':')
+        return false;
+    return true;
+}
+
 [[noreturn]] void fail(const char *message)
 {
     std::fprintf(stderr, "launcher: %s\n", message);
@@ -96,6 +114,8 @@ void extract(std::ifstream &file, uint64_t offset, const fs::path &root)
         std::string rel(pathLen, '\0');
         if (pathLen && !file.read(rel.data(), pathLen))
             fail("truncated payload (path)");
+        if (!isSafeRelative(rel))
+            fail("unsafe payload path");
         if (!file.read(reinterpret_cast<char *>(lenBuf8), 8))
             fail("truncated payload (data length)");
         uint64_t remaining = readU64(lenBuf8);

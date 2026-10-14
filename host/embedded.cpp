@@ -60,6 +60,8 @@ bool isSafeRelative(const QString &path)
         return false;
     if (path.contains(QStringLiteral("..")))
         return false;
+    if (path.size() >= 2 && path.at(0).isLetter() && path.at(1) == QLatin1Char(':'))
+        return false;
     return true;
 }
 
