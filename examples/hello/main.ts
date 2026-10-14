@@ -1,12 +1,13 @@
 import { App } from "pulsar"
 import { readdirSync } from "fs"
+import { homedir } from "os"
 import { extname, join } from "path"
 import { pathToFileURL } from "url"
 
-const PHOTOS_DIR = process.env.PULSAR_PHOTOS ?? "/home/user/Screenshots"
+const PHOTOS_DIR = process.env.PULSAR_PHOTOS ?? join(homedir(), "Pictures")
 const IMAGE_EXT = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"])
 
-function listPhotos() {
+const listPhotos = () => {
   try {
     return readdirSync(PHOTOS_DIR, { withFileTypes: true })
       .filter((entry) => entry.isFile() && IMAGE_EXT.has(extname(entry.name).toLowerCase()))
