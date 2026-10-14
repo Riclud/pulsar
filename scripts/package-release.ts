@@ -7,7 +7,7 @@
 import { spawnSync } from "child_process"
 import { createHash } from "crypto"
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "fs"
-import { dirname, join, resolve } from "path"
+import { dirname, join, relative, resolve, sep } from "path"
 import { platformId } from "../cli/core.ts"
 import { qtConfText, qtFiles } from "../cli/qt.ts"
 
@@ -18,7 +18,9 @@ const exe = process.platform === "win32" ? ".exe" : ""
 
 function tar(name: string, cwd: string, paths: string[]): string {
   const dest = join(out, name)
-  const r = spawnSync("tar", ["-czf", dest, ...paths], { cwd, stdio: "inherit" })
+  const relDest = relative(cwd, dest).split(sep).join("/")
+  const r = spawnSync("tar", ["-czf", relDest, ...paths], { cwd, stdio: "inherit" })
+
   if (r.status !== 0) throw new Error(`tar failed for ${name}`)
   return dest
 }
