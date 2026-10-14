@@ -64,20 +64,38 @@ capability negotiation; `binary` advertises the data channel.
   dispatches `data` to the handler registered for `name` (`App.on`). Names:
   `window-show`, `window-hide`, `window-resize` (`width`,`height`), `window-move`
   (`x`,`y`), `window-state` (`state`), `window-focus`, `window-blur`,
-  `window-close`, `window-all-closed`, `tray-menu`, `tray-activated`;
+  `window-close`, `window-all-closed`, `tray-menu`, `tray-activated`,
+  `theme-changed`, `notification-click`;
 - anything else is treated as an app event (`App.on`) or a capability call
-  (`fs.readFile`, `fs.writeFile`, `fs.listDir`, `fs.exists`, `nw.fetch`,
-  `paths.get`, `storage.get|has|set|remove`, `shell.open`, `shell.notify`,
-  `dialog.openFile|saveFile|message`, `tray`, `window`).
+  (`fs.readFile|writeFile|appendFile|listDir|exists|stat|mkdir|remove|rename|copy|moveToTrash`,
+  `nw.fetch`, `paths.get`, `storage.get|has|set|remove`, `shell.open`, `shell.notify`,
+  `dialog.openFile|openFiles|openDirectory|saveFile|message`, `screen.list`,
+  `theme.get`, `system.locale`, `tray`, `window`).
 
 ## Runtime → host (control)
 
 - responses: `{ "jsonrpc": "2.0", "id", "result" | "error", "state"?, "unset"? }`
   where `state`/`unset` are store patches to apply;
-- notifications: `__config`, `__window`, `__emit`, `__dialog`, `__tray`, `__log`,
-  `__event`, `__quit`, `__reload`, `__error`, `__hello`;
+- notifications: `__config`, `__window`, `__emit`, `__query`, `__notify`, `__dialog`,
+  `__tray`, `__log`, `__event`, `__quit`, `__reload`, `__error`, `__hello`;
 - `__crash` is emitted by the bridge when the runtime dies (treated as a
   failure).
+
+## Host queries & notifications
+
+Some capabilities need host data or native UI, so the runtime asks the host with
+a token and resolves the caller's promise on the reply:
+
+- `__query` `{ token, kind }` → `__query-result` `{ token, value }`. Kinds:
+  `screen.list` (monitors with geometry, work area, scale) and `theme.get`
+  (`{ scheme: "light" | "dark" }`);
+- `__notify` `{ token, title, body }` — native notification. A click comes back
+  as the `notification-click` event with the same token;
+- `__dialog` `{ token, kind, … }` → `__dialog-result` `{ token, value }`, where
+  `kind` is `open`, `open-files`, `open-directory`, `save` or `message`.
+
+The host also pushes `theme-changed` (`{ scheme }`) when the system switches
+appearance.
 
 ## Windows
 
