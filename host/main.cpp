@@ -67,6 +67,9 @@ static QSet<QString> g_requested;
 static QString gPrimaryLabel;
 static bool gShownAny = false;
 
+// Must match PROTOCOL_VERSION in core/runtime/protocol.ts.
+static constexpr int kBridgeProtocolVersion = 1;
+
 static QString appDir()
 {
     const QByteArray a = qgetenv("PULSAR_APP");
@@ -531,6 +534,18 @@ int main(int argc, char **argv)
                              handleDialogRequest(params.toVariant().toMap());
                          } else if (method == QLatin1String("__tray")) {
                              handleTrayCommand(params.toVariant().toMap());
+                         } else if (method == QLatin1String("__hello")) {
+                             const QVariantMap m = params.toVariant().toMap();
+                             const int protocol = m.value(QStringLiteral("protocol")).toInt();
+                             if (qEnvironmentVariableIsSet("PULSAR_DEBUG") || protocol != kBridgeProtocolVersion)
+                                 qInfo().noquote()
+                                     << "HELLO runtime=" << m.value(QStringLiteral("runtime")).toString()
+                                     << "protocol=" << protocol
+                                     << "capabilities="
+                                     << m.value(QStringLiteral("capabilities")).toStringList().size();
+                             if (protocol != kBridgeProtocolVersion)
+                                 qWarning().noquote() << "bridge protocol" << protocol
+                                                      << "!= host protocol" << kBridgeProtocolVersion;
                          } else if (method == QLatin1String("__error")) {
                              const QVariantMap m = params.toVariant().toMap();
                              qCritical().noquote()

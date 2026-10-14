@@ -34,6 +34,11 @@ export function hasCapability(name: string): boolean {
   return name in capabilities
 }
 
+/** Names of all registered capabilities. */
+export const listCapabilities = (): string[] => {
+  return Object.keys(capabilities)
+}
+
 /** Invoke a capability by name. Rejects if it is not registered. */
 export function callCapability(name: string, params?: unknown): Promise<unknown> {
   const handler = capabilities[name]

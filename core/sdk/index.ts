@@ -12,6 +12,7 @@ export {
   tray,
   callCapability,
   hasCapability,
+  listCapabilities,
   registerCapability,
   registerCapabilities,
 } from "./caps.ts"

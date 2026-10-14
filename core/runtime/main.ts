@@ -1,12 +1,14 @@
-import { createInterface } from "readline"
 import { existsSync, watch } from "fs"
 import { join, resolve } from "path"
 import { pathToFileURL } from "url"
 import { installCapabilities } from "../caps/index.ts"
-import { App, callCapability, hasCapability, loadManifest, registerCapability } from "../sdk/index.ts"
+import { App, callCapability, hasCapability, listCapabilities, loadManifest, registerCapability } from "../sdk/index.ts"
+import { createStdioTransport, makeHello } from "./protocol.ts"
 import { MIN_BUN, bunVersionCompatible } from "./version.ts"
 
 installCapabilities()
+
+const transport = createStdioTransport()
 
 // Window control is a capability, so both the app (App.window) and QML
 // (Pulsar.call) go through the same path. It reaches the host as a
@@ -76,8 +78,8 @@ console.warn = (...args: unknown[]) => emitLog("warn", args)
 const testCrashMs = Number(process.env.PULSAR_TEST_CRASH_MS ?? 0)
 if (testCrashMs > 0) setTimeout(() => process.exit(3), testCrashMs)
 
-function send(msg: unknown) {
-  process.stdout.write(JSON.stringify(msg) + "\n")
+const send = (message: unknown): void => {
+  transport.send(message)
 }
 
 function reportError(scope: string, e: unknown) {
@@ -216,67 +218,65 @@ function startHostChannel(): void {
 
   setupReloadWatcher()
 
-  const rl = createInterface({ input: process.stdin, terminal: false })
-
   // The bridge owns our stdin; when it closes, the host is gone.
-  rl.on("close", () => process.exit(0))
-
-  rl.on("line", async (raw) => {
-    let req: any
-    try {
-      req = JSON.parse(raw)
-    } catch {
-      send({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "parse error" } })
-      return
-    }
-
-    // Notifications from the host carry no id and expect no response.
-    if (req.id === undefined) {
-      const params = req.params ?? {}
-      if (req.method === "__log") App.current?.dispatchEvent("log", params)
-      else if (req.method === "__event") App.current?.dispatchEvent(params.name, params.data ?? {})
-      else if (req.method === "__dialog-result") {
-        const resolve = pendingDialogs.get(String(params.token))
-        if (resolve) {
-          pendingDialogs.delete(String(params.token))
-          resolve(params.value ?? null)
-        }
-      }
-      return
-    }
-
-    const app = App.current
-
-    if (req.method === "__sync") {
-      await appReady
-      const state = fullState()
-      app?.store.takePatch()
-      send({ jsonrpc: "2.0", id: req.id, result: true, state })
-      return
-    }
-
-    inRequest = true
-    try {
-      let result: unknown = null
-
-      if (app?.hasEvent(req.method)) {
-        try {
-          app.dispatchEvent(req.method, req.params ?? {})
-        } catch (e) {
-          reportError("event " + req.method, e)
-        }
-        result = true
-      } else {
-        if (!hasCapability(req.method)) throw new Error("method not found: " + req.method)
-        result = await callCapability(req.method, req.params ?? {})
-      }
-
-      send({ jsonrpc: "2.0", id: req.id, result, ...patchState() })
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      send({ jsonrpc: "2.0", id: req.id, error: { code: -32000, message: msg }, ...patchState() })
-    } finally {
-      inRequest = false
-    }
+  transport.onClose(() => process.exit(0))
+  transport.onMessage((message) => {
+    void handleRequest(message)
   })
+
+  send(makeHello(listCapabilities()))
+  transport.start()
+}
+
+async function handleRequest(message: unknown): Promise<void> {
+  const req = message as any
+
+  // Notifications from the host carry no id and expect no response.
+  if (req.id === undefined) {
+    const params = req.params ?? {}
+    if (req.method === "__log") App.current?.dispatchEvent("log", params)
+    else if (req.method === "__event") App.current?.dispatchEvent(params.name, params.data ?? {})
+    else if (req.method === "__dialog-result") {
+      const resolve = pendingDialogs.get(String(params.token))
+      if (resolve) {
+        pendingDialogs.delete(String(params.token))
+        resolve(params.value ?? null)
+      }
+    }
+    return
+  }
+
+  const app = App.current
+
+  if (req.method === "__sync") {
+    await appReady
+    const state = fullState()
+    app?.store.takePatch()
+    send({ jsonrpc: "2.0", id: req.id, result: true, state })
+    return
+  }
+
+  inRequest = true
+  try {
+    let result: unknown = null
+
+    if (app?.hasEvent(req.method)) {
+      try {
+        app.dispatchEvent(req.method, req.params ?? {})
+      } catch (e) {
+        reportError("event " + req.method, e)
+      }
+      result = true
+    } else {
+      if (!hasCapability(req.method)) throw new Error("method not found: " + req.method)
+      result = await callCapability(req.method, req.params ?? {})
+    }
+
+    send({ jsonrpc: "2.0", id: req.id, result, ...patchState() })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    send({ jsonrpc: "2.0", id: req.id, error: { code: -32000, message: msg }, ...patchState() })
+  } finally {
+    inRequest = false
+  }
 }
