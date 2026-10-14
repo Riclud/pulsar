@@ -1,9 +1,31 @@
 import { spawnSync } from "child_process"
-import { existsSync, readFileSync, readdirSync } from "fs"
+import { existsSync, readFileSync, readdirSync, realpathSync } from "fs"
 import { join } from "path"
 
 export type PayloadEntry = { path: string; data: Buffer }
 export type QtFile = { rel: string; src: string }
+
+const OS_LIB_PREFIXES = [
+  "ld-linux",
+  "ld.so",
+  "libc.so",
+  "libc_malloc_debug",
+  "libm.so",
+  "libmvec.so",
+  "libpthread.so",
+  "libdl.so",
+  "librt.so",
+  "libutil.so",
+  "libanl.so",
+  "libnsl.so",
+  "libresolv.so",
+  "libgcc_s.so",
+  "libstdc++.so",
+]
+
+const isOsLib = (name: string): boolean => {
+  return OS_LIB_PREFIXES.some((prefix) => name.startsWith(prefix))
+}
 
 function qmakeQuery(key: string): string | undefined {
   for (const qmake of [process.env.PULSAR_QMAKE, "qmake6", "qmake"]) {
@@ -34,8 +56,18 @@ function addTree(files: QtFile[], fromDir: string, prefix: string): void {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const abs = join(dir, entry.name)
       const relPath = rel ? `${rel}/${entry.name}` : entry.name
-      if (entry.isDirectory()) walk(abs, relPath)
-      else if (entry.isFile()) files.push({ rel: `${prefix}/${relPath}`, src: abs })
+
+      if (entry.isDirectory()) {
+        walk(abs, relPath)
+        continue
+      }
+
+      if (entry.isFile()) {
+        files.push({ rel: `${prefix}/${relPath}`, src: abs })
+        continue
+      }
+
+      if (entry.isSymbolicLink() && existsSync(abs)) files.push({ rel: `${prefix}/${relPath}`, src: realpathSync(abs) })
     }
   }
   walk(fromDir, "")
@@ -62,10 +94,11 @@ export function qtFiles(hostPath: string): QtFile[] | null {
   // Copy Qt (and ICU) libraries, deduplicated.
   const addLib = (lib: string) => {
     const name = lib.split("/").pop() ?? ""
+    if (isOsLib(name)) return
     if (!existsSync(lib)) return
     if (!(lib.startsWith(libsDir) || /^libicu/.test(name)) || seen.has(name)) return
     seen.add(name)
-    files.push({ rel: `lib/Qt/lib/${name}`, src: lib })
+    files.push({ rel: `lib/Qt/lib/${name}`, src: realpathSync(lib) })
   }
 
   for (const lib of neededLibs(hostPath)) addLib(lib)
