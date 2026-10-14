@@ -64,6 +64,7 @@ struct WindowConfig {
 // Windows are addressed by label; they all share the Store and QML engine.
 static QHash<QString, WindowConfig> g_configs;
 static QHash<QString, QObject *> g_roots;
+static QHash<QString, QVariantList> g_uiTrees;
 static QSet<QString> g_requested;
 static QString gPrimaryLabel;
 static bool gShownAny = false;
@@ -85,9 +86,13 @@ static QString appDir()
 
 static QUrl resolveUi(const QString &ui)
 {
-    const QString rel = ui.isEmpty() ? QStringLiteral("ui/main.qml") : ui;
-    const QFileInfo fi(rel);
-    const QString path = fi.isAbsolute() ? rel : QDir(appDir()).absoluteFilePath(rel);
+    // A window without a QML file is rendered from the JS tree by the built-in
+    // view (see PulsarView.qml and the __ui notification).
+    if (ui.isEmpty())
+        return QUrl(QStringLiteral("qrc:/pulsar/PulsarView.qml"));
+
+    const QFileInfo fi(ui);
+    const QString path = fi.isAbsolute() ? ui : QDir(appDir()).absoluteFilePath(ui);
     return QUrl::fromLocalFile(path);
 }
 
@@ -281,6 +286,14 @@ static void watchQmlFile(const QUrl &url)
 
 static void wireWindowEvents(QObject *root, const QString &label);
 
+static void applyUiTree(const QString &label)
+{
+    if (!g_uiTrees.contains(label))
+        return;
+    if (QObject *root = g_roots.value(label))
+        root->setProperty("tree", g_uiTrees.value(label));
+}
+
 static void showWindow(QQmlApplicationEngine &engine, const WindowConfig &cfg)
 {
     const QUrl url = resolveUi(cfg.ui);
@@ -314,6 +327,7 @@ static void showWindow(QQmlApplicationEngine &engine, const WindowConfig &cfg)
     applyConfig(root, cfg);
     g_roots.insert(cfg.label, root);
     wireWindowEvents(root, cfg.label);
+    applyUiTree(cfg.label);
 }
 
 static void destroyWindows(QQmlApplicationEngine &engine)
@@ -547,6 +561,7 @@ static void handleWindowCommand(QQmlApplicationEngine &engine, const QVariantMap
             applyConfig(g_roots.value(cfg.label), cfg);
             if (auto *existing = qobject_cast<QQuickWindow *>(g_roots.value(cfg.label)))
                 existing->show();
+            applyUiTree(cfg.label);
         } else {
             showWindow(engine, cfg);
         }
@@ -718,6 +733,16 @@ int main(int argc, char **argv)
                              bridge->postMessage(m.value(QStringLiteral("event")).toString(),
                                                  m.value(QStringLiteral("payload")),
                                                  m.value(QStringLiteral("target")).toString());
+                         } else if (method == QLatin1String("__ui")) {
+                             // JS-built UI tree for a renderer window.
+                             const QVariantMap m = params.toVariant().toMap();
+                             const QString target = m.value(QStringLiteral("target")).toString();
+                             const QVariantList tree = m.value(QStringLiteral("tree")).toList();
+                             g_uiTrees.insert(target, tree);
+                             if (QObject *root = g_roots.value(target))
+                                 root->setProperty("tree", tree);
+                             if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
+                                 qInfo().noquote() << "UI render" << target << "nodes=" << tree.size();
                          } else if (method == QLatin1String("__query")) {
                              handleQuery(bridge, params.toVariant().toMap());
                          } else if (method == QLatin1String("__notify")) {
@@ -802,6 +827,7 @@ int main(int argc, char **argv)
                 return;
             WindowConfig cfg;
             cfg.label = QStringLiteral("main");
+            cfg.ui = QStringLiteral("ui/main.qml");
             g_configs.insert(cfg.label, cfg);
             gPrimaryLabel = cfg.label;
             showWindow(engine, cfg);

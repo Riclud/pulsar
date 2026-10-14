@@ -43,6 +43,13 @@ target_link_libraries(qml-host PRIVATE
     Qt6::OpenGL
 )
 
+# Built-in renderer for JS-driven windows (loaded as qrc:/pulsar/PulsarView.qml).
+qt_add_resources(qml-host "pulsarview"
+    PREFIX "/pulsar"
+    BASE "${CMAKE_CURRENT_SOURCE_DIR}/host/qml"
+    FILES "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/PulsarView.qml"
+)
+
 # --- Bridge: process supervisor for the JS runtime ---
 add_executable(bridge bridge/main.cpp)
 target_link_libraries(bridge PRIVATE Qt6::Core)

@@ -1,5 +1,7 @@
 export { App, Store, WindowHandle } from "./app.ts"
-export type { AppConfig, EventHandler, PulsarEventMap, KnownEvent } from "./app.ts"
+export type { AppConfig, EventHandler, PulsarEventMap, KnownEvent, UiSource } from "./app.ts"
+export { ui, dispatchUiEvent } from "./ui.ts"
+export type { UiNode, UiNodeType } from "./ui.ts"
 export { loadManifest, resolveAppConfig, resolveWindows } from "./manifest.ts"
 export type { AppManifest, ManifestWindow } from "./manifest.ts"
 export {

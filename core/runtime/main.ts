@@ -2,7 +2,15 @@ import { existsSync, watch } from "fs"
 import { join, resolve } from "path"
 import { pathToFileURL } from "url"
 import { installCapabilities } from "../caps/index.ts"
-import { App, callCapability, hasCapability, listCapabilities, loadManifest, registerCapability } from "../sdk/index.ts"
+import {
+  App,
+  callCapability,
+  dispatchUiEvent,
+  hasCapability,
+  listCapabilities,
+  loadManifest,
+  registerCapability,
+} from "../sdk/index.ts"
 import { createStdioTransport, makeHello } from "./protocol.ts"
 import { MIN_BUN, bunVersionCompatible } from "./version.ts"
 
@@ -183,6 +191,7 @@ export function wireApp(): void {
       send({ jsonrpc: "2.0", method: "__emit", params: { event, payload, target } })
     app.onCreateWindow = (config) =>
       send({ jsonrpc: "2.0", method: "__window", params: { ...config, action: "create" } })
+    app.onSendUi = (label, tree) => send({ jsonrpc: "2.0", method: "__ui", params: { target: label, tree } })
 
     // Test hook: push a state value large enough to exceed the old line limit.
     const testBigItems = Number(process.env.PULSAR_TEST_BIG_ITEMS ?? 0)
@@ -194,6 +203,7 @@ export function wireApp(): void {
     }
 
     send({ jsonrpc: "2.0", method: "__config", params: { windows: app.windows } })
+    app.flushAllUi()
   }
   // The host's initial __sync can now be answered with the app's full state.
   markAppReady()
@@ -279,8 +289,16 @@ async function handleRequest(message: unknown): Promise<void> {
   if (req.id === undefined) {
     const params = req.params ?? {}
     if (req.method === "__log") App.current?.dispatchEvent("log", params)
-    else if (req.method === "__event") App.current?.dispatchEvent(params.name, params.data ?? {})
-    else if (req.method === "__dialog-result") {
+    else if (req.method === "__event") {
+      if (params.name === "ui-event") {
+        const data = params.data ?? {}
+        if (data.event === "focus") App.current?.noteUiFocus(true)
+        else if (data.event === "blur") App.current?.noteUiFocus(false)
+        dispatchUiEvent(Number(data.id), String(data.event), data.value)
+      } else {
+        App.current?.dispatchEvent(params.name, params.data ?? {})
+      }
+    } else if (req.method === "__dialog-result") {
       const resolve = pendingDialogs.get(String(params.token))
       if (resolve) {
         pendingDialogs.delete(String(params.token))
@@ -308,6 +326,15 @@ async function handleRequest(message: unknown): Promise<void> {
 
   inRequest = true
   try {
+    if (req.method === "ui-event") {
+      const data = req.params ?? {}
+      if (data.event === "focus") app?.noteUiFocus(true)
+      else if (data.event === "blur") app?.noteUiFocus(false)
+      dispatchUiEvent(Number(data.id), String(data.event), data.value)
+      send({ jsonrpc: "2.0", id: req.id, result: true, ...patchState() })
+      return
+    }
+
     let result: unknown = null
 
     if (app?.hasEvent(req.method)) {

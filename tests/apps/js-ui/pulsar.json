@@ -1,0 +1,7 @@
+{
+  "id": "com.pulsar.jsui",
+  "name": "js-ui",
+  "version": "0.1.0",
+  "main": "main.ts",
+  "windows": [{ "label": "main", "width": 360, "height": 260, "title": "JS UI" }]
+}

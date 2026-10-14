@@ -71,7 +71,6 @@ export function resolveAppConfig(manifest: AppManifest | null, overrides: Partia
   return {
     ...windowToConfig(manifest?.windows?.[0]),
     ...overrides,
-    ui: overrides.ui ?? manifest?.windows?.[0]?.ui ?? "ui/main.qml",
     id: overrides.id ?? manifest?.id,
   }
 }
@@ -91,7 +90,6 @@ export function resolveWindows(manifest: AppManifest | null, overrides: Partial<
   return manifest.windows.map((win, i) => ({
     ...windowToConfig(win),
     label: win.label ?? defaultLabel(i),
-    ui: win.ui ?? "ui/main.qml",
     id: manifest.id,
   }))
 }
