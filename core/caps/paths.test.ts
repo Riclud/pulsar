@@ -24,25 +24,25 @@ describe("computePaths", () => {
       XDG_CONFIG_HOME: "/xdg/config",
       XDG_CACHE_HOME: "/xdg/cache",
     })
-    expect(p.data).toBe("/xdg/data/myapp")
-    expect(p.config).toBe("/xdg/config/myapp")
-    expect(p.cache).toBe("/xdg/cache/myapp")
+    expect(p.data).toBe(join("/xdg/data", "myapp"))
+    expect(p.config).toBe(join("/xdg/config", "myapp"))
+    expect(p.cache).toBe(join("/xdg/cache", "myapp"))
     expect(p.temp).toBe("/tmp")
     expect(p.home).toBe(HOME)
   })
 
   test("linux falls back to home dirs", () => {
     const p = computePaths("myapp", "linux", HOME, {})
-    expect(p.data).toBe("/home/tester/.local/share/myapp")
-    expect(p.config).toBe("/home/tester/.config/myapp")
-    expect(p.cache).toBe("/home/tester/.cache/myapp")
+    expect(p.data).toBe(join(HOME, ".local", "share", "myapp"))
+    expect(p.config).toBe(join(HOME, ".config", "myapp"))
+    expect(p.cache).toBe(join(HOME, ".cache", "myapp"))
   })
 
   test("darwin uses Application Support and Caches", () => {
     const p = computePaths("myapp", "darwin", HOME, {})
-    expect(p.data).toBe("/home/tester/Library/Application Support/myapp")
-    expect(p.config).toBe("/home/tester/Library/Application Support/myapp")
-    expect(p.cache).toBe("/home/tester/Library/Caches/myapp")
+    expect(p.data).toBe(join(HOME, "Library", "Application Support", "myapp"))
+    expect(p.config).toBe(join(HOME, "Library", "Application Support", "myapp"))
+    expect(p.cache).toBe(join(HOME, "Library", "Caches", "myapp"))
   })
 
   test("win32 uses AppData", () => {
