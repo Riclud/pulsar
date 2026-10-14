@@ -11,7 +11,7 @@ A desktop app framework — like Electron, but built on **QML** for the UI and
 - **UI**: QML (native GPU rendering, low memory — no Chromium).
 - **Backend**: TypeScript running on [Bun](https://bun.sh).
 - **Bridge**: a capability layer between QML and the backend, plus a small
-  Qt host and a Zig process supervisor.
+  Qt host and a C++ process supervisor.
 - **Packaging**: `pulsar build` produces one file with the Bun runtime (and,
   by default, the Qt runtime) bundled in.
 
@@ -63,12 +63,12 @@ The bootstrap installs the CLI to `~/.local/share/pulsar` (or
 git clone https://github.com/riclud/pulsar
 cd pulsar
 bun install
-zig build                 # builds qml-host, bridge and launcher into zig-out/
+cmake -S . -B build && cmake --build build   # builds qml-host, bridge and launcher into build/bin/
 bun cli/index.ts doctor   # verify
 ```
 
-Requires a Qt 6 development installation (`qmake`/`pkg-config`). See
-"Building from source" below.
+Requires CMake, a C++20 compiler and a Qt 6 development installation
+(`qmake`/`pkg-config`). See "Building from source" below.
 
 ## Quick start
 
@@ -431,38 +431,40 @@ for complete apps.
 
 ## Building from source
 
-Requirements: Bun, Zig 0.16, and Qt 6.8+ development files.
+Requirements: Bun, CMake (≥ 3.21), a C++20 compiler, and Qt 6.8+ development
+files.
 
 ```sh
 # Debian/Ubuntu
-sudo apt install qt6-base-dev qt6-base-dev-tools qt6-declarative-dev \
+sudo apt install g++ cmake qt6-base-dev qt6-base-dev-tools qt6-declarative-dev \
   qml6-module-qtquick qml6-module-qtquick-controls
 
 # Fedora
-sudo dnf install qt6-qtbase-devel qt6-qtdeclarative-devel
+sudo dnf install gcc-c++ cmake qt6-qtbase-devel qt6-qtdeclarative-devel
 
 # Arch
-sudo pacman -S qt6-base qt6-declarative qt6-quickcontrols2
+sudo pacman -S base-devel cmake qt6-base qt6-declarative qt6-quickcontrols2
 
 # macOS
-brew install qt
+brew install cmake qt
 ```
 
 Then:
 
 ```sh
 bun install
-zig build
+cmake -S . -B build && cmake --build build
 ```
 
-`zig build` produces:
+The build produces:
 
-- `zig-out/bin/qml-host` — the Qt host (renders QML, runs native dialogs/tray);
-- `zig-out/bin/bridge` — the Zig process supervisor for the Bun runtime;
-- `zig-out/bin/launcher` — the Qt-free single-file launcher.
+- `build/bin/qml-host` — the Qt host (renders QML, runs native dialogs/tray);
+- `build/bin/bridge` — the C++ process supervisor for the runtime;
+- `build/bin/launcher` — the Qt-free single-file launcher.
 
-Environment overrides: `PULSAR_QT` (Qt root), `PULSAR_QMAKE` (`qmake` binary),
-`PULSAR_NO_PKGCONFIG`.
+Qt is located with CMake's `find_package(Qt6)`, so pass `-DCMAKE_PREFIX_PATH=<qt>`
+if it is not in a standard location. `PULSAR_QMAKE` still selects the `qmake`
+used when packaging (`pulsar build` bundles Qt).
 
 ### Single-file layout
 
@@ -489,8 +491,8 @@ core/       runtime + SDK
   runtime/  the Bun runtime that talks to the host
   sdk/      the `pulsar` package apps import
 host/       C++/Qt host: QML engine, dialogs, tray, window management
-bridge/     Zig supervisor (runs Bun, reports crashes, proxies stdio)
-launcher/   Zig-free C++ launcher for single-file apps
+bridge/     C++ supervisor (runs Bun, reports crashes, proxies stdio)
+launcher/   Qt-free C++ launcher for single-file apps
 examples/   example apps
 tests/      fixtures used by the smoke test
 scripts/    build/smoke/format/release helpers

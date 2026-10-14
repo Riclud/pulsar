@@ -7,7 +7,8 @@ distributes the following third-party software.
 
 The Pulsar host (`qml-host`) is written in C++ and links against Qt 6
 (`Qt6Core`, `Qt6Gui`, `Qt6Qml`, `Qt6Quick`, `Qt6Network`, `Qt6OpenGL`,
-`Qt6QmlIntegration`) **as shared libraries** (dynamic linking).
+`Qt6QmlIntegration`) **as shared libraries** (dynamic linking). The process
+supervisor (`bridge`) links against `Qt6Core` the same way.
 
 To comply with the GNU Lesser General Public License v3:
 

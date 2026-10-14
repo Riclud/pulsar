@@ -13,7 +13,7 @@
   без Chromium).
 - **Бэкенд**: TypeScript на [Bun](https://bun.sh).
 - **Мост**: слой capabilities между QML и бэкендом плюс небольшой Qt-хост и
-  супервизор процессов на Zig.
+  супервизор процессов на C++.
 - **Упаковка**: `pulsar build` собирает один файл со встроенным рантаймом Bun
   (а по умолчанию — и Qt).
 
@@ -66,12 +66,12 @@ Windows) и шим `pulsar` в `PATH`. Затем `pulsar install` скачив�
 git clone https://github.com/riclud/pulsar
 cd pulsar
 bun install
-zig build                 # собирает qml-host, bridge и launcher в zig-out/
+cmake -S . -B build && cmake --build build   # собирает qml-host, bridge и launcher в build/bin/
 bun cli/index.ts doctor   # проверка
 ```
 
-Требуется установленный Qt 6 dev (`qmake`/`pkg-config`). См. «Сборка из
-исходников» ниже.
+Требуется CMake, компилятор C++20 и установленный Qt 6 dev
+(`qmake`/`pkg-config`). См. «Сборка из исходников» ниже.
 
 ## Быстрый старт
 
@@ -438,38 +438,39 @@ Button {
 
 ## Сборка из исходников
 
-Требования: Bun, Zig 0.16 и dev-файлы Qt 6.8+.
+Требования: Bun, CMake (≥ 3.21), компилятор C++20 и dev-файлы Qt 6.8+.
 
 ```sh
 # Debian/Ubuntu
-sudo apt install qt6-base-dev qt6-base-dev-tools qt6-declarative-dev \
+sudo apt install g++ cmake qt6-base-dev qt6-base-dev-tools qt6-declarative-dev \
   qml6-module-qtquick qml6-module-qtquick-controls
 
 # Fedora
-sudo dnf install qt6-qtbase-devel qt6-qtdeclarative-devel
+sudo dnf install gcc-c++ cmake qt6-qtbase-devel qt6-qtdeclarative-devel
 
 # Arch
-sudo pacman -S qt6-base qt6-declarative qt6-quickcontrols2
+sudo pacman -S base-devel cmake qt6-base qt6-declarative qt6-quickcontrols2
 
 # macOS
-brew install qt
+brew install cmake qt
 ```
 
 Затем:
 
 ```sh
 bun install
-zig build
+cmake -S . -B build && cmake --build build
 ```
 
-`zig build` собирает:
+Сборка создаёт:
 
-- `zig-out/bin/qml-host` — Qt-хост (рендерит QML, нативные диалоги/трей);
-- `zig-out/bin/bridge` — супервизор процессов на Zig для рантайма Bun;
-- `zig-out/bin/launcher` — лончер без Qt для однофайловых приложений.
+- `build/bin/qml-host` — Qt-хост (рендерит QML, нативные диалоги/трей);
+- `build/bin/bridge` — супервизор процессов на C++ для рантайма;
+- `build/bin/launcher` — лончер без Qt для однофайловых приложений.
 
-Переопределения окружения: `PULSAR_QT` (корень Qt), `PULSAR_QMAKE` (бинарь
-`qmake`), `PULSAR_NO_PKGCONFIG`.
+Qt ищется через CMake `find_package(Qt6)`, поэтому при нестандартном пути
+передай `-DCMAKE_PREFIX_PATH=<qt>`. `PULSAR_QMAKE` по-прежнему задаёт `qmake`
+для упаковки (`pulsar build` встраивает Qt).
 
 ### Раскладка одного файла
 
@@ -497,7 +498,7 @@ core/       рантайм + SDK
   runtime/  рантайм Bun, который общается с хостом
   sdk/      пакет `pulsar`, который импортируют приложения
 host/       хост на C++/Qt: QML-движок, диалоги, трей, управление окнами
-bridge/     супервизор на Zig (запускает Bun, сообщает о падениях, проксирует stdio)
+bridge/     супервизор на C++ (запускает Bun, сообщает о падениях, проксирует stdio)
 launcher/   лончер на C++ без Qt для однофайловых приложений
 examples/   примеры приложений
 tests/      фикстуры для smoke-теста
