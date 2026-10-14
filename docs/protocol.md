@@ -59,6 +59,12 @@ capability negotiation; `binary` advertises the data channel.
 
 - `__sync` — request the full store snapshot (answered once the app is wired);
 - `__log`, `__event`, `__dialog-result` — notifications (no `id`);
+- `__event` carries window/tray lifecycle events as
+  `{ "name": "window-resize", "data": { "label": "main", … } }`; the runtime
+  dispatches `data` to the handler registered for `name` (`App.on`). Names:
+  `window-show`, `window-hide`, `window-resize` (`width`,`height`), `window-move`
+  (`x`,`y`), `window-state` (`state`), `window-focus`, `window-blur`,
+  `window-close`, `window-all-closed`, `tray-menu`, `tray-activated`;
 - anything else is treated as an app event (`App.on`) or a capability call
   (`fs.readFile`, `fs.writeFile`, `fs.listDir`, `fs.exists`, `nw.fetch`,
   `paths.get`, `storage.get|has|set|remove`, `shell.open`, `shell.notify`,
@@ -68,10 +74,41 @@ capability negotiation; `binary` advertises the data channel.
 
 - responses: `{ "jsonrpc": "2.0", "id", "result" | "error", "state"?, "unset"? }`
   where `state`/`unset` are store patches to apply;
-- notifications: `__config`, `__window`, `__dialog`, `__tray`, `__log`,
+- notifications: `__config`, `__window`, `__emit`, `__dialog`, `__tray`, `__log`,
   `__event`, `__quit`, `__reload`, `__error`, `__hello`;
 - `__crash` is emitted by the bridge when the runtime dies (treated as a
   failure).
+
+## Windows
+
+Windows come either from the start windows in `pulsar.json` or from code
+(`App.createWindow`). Both reach the host as:
+
+- `__config` `{ "windows": [ … ] }` — the initial windows;
+- `__window` `{ "action": "create", "label", "ui", "width", … }` — create a
+  window on demand. Other actions: `show`, `hide`, `close`, `destroy`, `focus`,
+  `minimize`, `maximize`, `restore`, `setTitle`, `setSize`, `setPosition`,
+  `fullscreen`, `alwaysOnTop`.
+
+The host answers with the lifecycle events above. Every window gets its own QML
+context property `PulsarWindowLabel`, so UI code knows which window it runs in.
+
+## Backend → UI events
+
+`App.send(event, payload, target)` pushes a one-off event to the UI as
+`__emit` `{ "event", "payload", "target" }`, where `target` is a window label or
+`*` (all windows). The host re-emits it as the Qt signal
+`Bridge::appEvent(event, payload, target)`; QML subscribes through the `Pulsar`
+singleton and filters by `PulsarWindowLabel`:
+
+```qml
+Connections {
+    target: Pulsar
+    function onAppEvent(event, payload, target) {
+        if (target === "*" || target === PulsarWindowLabel) { /* … */ }
+    }
+}
+```
 
 ## State sync
 

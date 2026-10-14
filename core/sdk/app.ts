@@ -20,7 +20,25 @@ export interface AppConfig {
   icon?: string
 }
 
-export type EventHandler = (payload: any) => void
+export type EventHandler = (payload: never) => void
+
+/** Payloads of the lifecycle/UI events the host and tray emit. */
+export interface PulsarEventMap {
+  "window-close": { label?: string }
+  "window-all-closed": Record<string, never>
+  "window-resize": { label: string; width: number; height: number }
+  "window-move": { label: string; x: number; y: number }
+  "window-state": { label: string; state: "normal" | "minimized" | "maximized" | "fullscreen" }
+  "window-focus": { label: string }
+  "window-blur": { label: string }
+  "window-show": { label: string }
+  "window-hide": { label: string }
+  log: { level: string; source: "qml" | "js"; message: string; file?: string; line?: number }
+  "tray-menu": { event?: string }
+  "tray-activated": { reason?: number }
+}
+
+export type KnownEvent = keyof PulsarEventMap
 
 interface StoreIssue {
   path: string
@@ -146,10 +164,15 @@ export class Store {
 
 /** Controls a single window declared in pulsar.json, addressed by label. */
 export class WindowHandle {
-  constructor(private readonly label: string) {}
+  constructor(readonly label: string) {}
 
   private command(action: string, extra: Record<string, unknown> = {}): Promise<boolean> {
     return callCapability("window", { label: this.label, action, ...extra }) as Promise<boolean>
+  }
+
+  /** Send an event to just this window's UI (handled by Pulsar.on in QML). */
+  emit(event: string, payload?: unknown): void {
+    App.current?.send(event, payload, this.label)
   }
 
   show(): Promise<boolean> {
@@ -160,6 +183,10 @@ export class WindowHandle {
   }
   close(): Promise<boolean> {
     return this.command("close")
+  }
+  /** Close and drop the window (frees its QML UI); recreate it with createWindow. */
+  destroy(): Promise<boolean> {
+    return this.command("destroy")
   }
   focus(): Promise<boolean> {
     return this.command("focus")
@@ -193,25 +220,33 @@ export class WindowHandle {
 export class App {
   static current: App | null = null
 
-  /** All declared windows, addressed by label. They share store and events. */
-  readonly windows: AppConfig[]
   readonly store: Store
   /** The pulsar.json this app was created from, if any. */
   readonly manifest: AppManifest | null
 
-  /** The first window, for convenience. */
-  get config(): AppConfig {
-    return this.windows[0]!
-  }
-
+  private readonly windowConfigs: AppConfig[]
   private readonly events = new Map<string, EventHandler[]>()
 
   /** Installed by the runtime; terminates the host. */
   onQuit?: () => void
+  /** Installed by the runtime; sends an app event to the UI. */
+  onSend?: (event: string, payload: unknown, target: string) => void
+  /** Installed by the runtime; asks the host to create a window. */
+  onCreateWindow?: (config: AppConfig) => void
+
+  /** The windows currently open (start windows plus those created in code). */
+  get windows(): AppConfig[] {
+    return this.windowConfigs
+  }
+
+  /** The first window, for convenience. */
+  get config(): AppConfig {
+    return this.windowConfigs[0]!
+  }
 
   constructor(config: Partial<AppConfig> = {}) {
     this.manifest = loadManifest()
-    this.windows = resolveWindows(this.manifest, config)
+    this.windowConfigs = resolveWindows(this.manifest, config)
     this.store = new Store()
     App.current = this
   }
@@ -221,12 +256,40 @@ export class App {
     this.onQuit?.()
   }
 
-  /** Handle for a window declared in pulsar.json (defaults to the first). */
+  /** Handle for a window (defaults to the first). */
   window(label = this.config.label ?? "main"): WindowHandle {
     return new WindowHandle(label)
   }
 
-  /** Register a handler for an event emitted from QML via Pulsar.emit(event, payload). */
+  /** Create a window at runtime; returns a handle to control it. */
+  createWindow(config: AppConfig): WindowHandle {
+    const label = config.label ?? this.nextWindowLabel()
+    const resolved: AppConfig = { ...config, label, ui: config.ui ?? "ui/main.qml" }
+    const index = this.windowConfigs.findIndex((w) => w.label === label)
+
+    if (index >= 0) this.windowConfigs[index] = resolved
+    else this.windowConfigs.push(resolved)
+
+    this.onCreateWindow?.(resolved)
+    return new WindowHandle(label)
+  }
+
+  /** Close the window with this label (defaults to the first). */
+  closeWindow(label = this.config.label ?? "main"): Promise<boolean> {
+    return new WindowHandle(label).close()
+  }
+
+  /** Send an event to the UI. `target` is a window label, or "*" for all. */
+  send(event: string, payload?: unknown, target = "*"): void {
+    this.onSend?.(event, payload ?? null, target)
+  }
+
+  /**
+   * Register a handler for an event from QML (`Pulsar.emit`), the host
+   * (window/tray lifecycle) or the backend (`app.send`).
+   */
+  on<E extends KnownEvent>(event: E, fn: (payload: PulsarEventMap[E]) => void): this
+  on<P = unknown>(event: string, fn: (payload: P) => void): this
   on(event: string, fn: EventHandler): this {
     const list = this.events.get(event) ?? []
     list.push(fn)
@@ -237,6 +300,13 @@ export class App {
   /** Show the window and start the app. The host owns the event loop. */
   run(): void {}
 
+  private nextWindowLabel(): string {
+    const used = new Set(this.windowConfigs.map((w) => w.label))
+    let n = this.windowConfigs.length + 1
+    while (used.has(`window-${n}`)) n++
+    return `window-${n}`
+  }
+
   // --- internal API used by the runtime ---
 
   hasEvent(event: string): boolean {
@@ -244,6 +314,6 @@ export class App {
   }
 
   dispatchEvent(event: string, payload: unknown): void {
-    for (const fn of this.events.get(event) ?? []) fn(payload)
+    for (const fn of this.events.get(event) ?? []) fn(payload as never)
   }
 }

@@ -351,6 +351,11 @@ void Bridge::postLog(const QString &level, const QString &message, const QString
     Q_EMIT log(level, message, source);
 }
 
+void Bridge::postMessage(const QString &event, const QVariant &payload, const QString &target)
+{
+    Q_EMIT appEvent(event, payload, target);
+}
+
 void Bridge::ensurePromiseFactory()
 {
     if (promiseFactory_.isCallable())

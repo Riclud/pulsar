@@ -160,8 +160,9 @@ try {
   check(twoLog, "CONFIG window second")
   check(twoLog, "title= Second Window")
 
-  // Window control + lifecycle: app.window(label) commands reach the host and
-  // a closed window emits a window-close event back to the app.
+  // Window control + lifecycle: app.window(label) commands reach the host, a
+  // closed window emits a window-close event back to the app, a window created
+  // in code shows up, resize events fire, and backend->UI events reach QML.
   runHost({
     PULSAR_DEBUG: "1",
     QT_QPA_PLATFORM: "offscreen",
@@ -170,8 +171,12 @@ try {
     QT_LOG_FILE: winLog,
   })
   check(winLog, "WINDOW setTitle second")
+  check(winLog, "CONFIG window third")
   check(winLog, "STORE closedLabel = QVariant(QString, second)")
   check(winLog, "STORE secondClosed = QVariant(bool, true)")
+  check(winLog, "STORE resizedLabel = QVariant(QString, third)")
+  check(winLog, "STORE uiEvent = QVariant(QString, ping)")
+  check(winLog, "STORE uiTarget = QVariant(QString, main)")
 
   // Native dialogs: the runtime/host round-trip resolves the app's promise
   // (PULSAR_DIALOG_STUB skips the modal dialog in headless CI).

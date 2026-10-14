@@ -148,6 +148,10 @@ export function wireApp(): void {
   if (app) {
     app.store.onChange = schedulePush
     app.onQuit = () => send({ jsonrpc: "2.0", method: "__quit" })
+    app.onSend = (event, payload, target) =>
+      send({ jsonrpc: "2.0", method: "__emit", params: { event, payload, target } })
+    app.onCreateWindow = (config) =>
+      send({ jsonrpc: "2.0", method: "__window", params: { ...config, action: "create" } })
 
     // Test hook: push a state value large enough to exceed the old line limit.
     const testBigItems = Number(process.env.PULSAR_TEST_BIG_ITEMS ?? 0)
