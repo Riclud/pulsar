@@ -17,15 +17,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            g++ pkg-config \
+            g++ cmake ninja-build pkg-config \
             qt6-base-dev qt6-base-dev-tools qt6-declarative-dev \
             qml6-module-qtquick qml6-module-qtquick-controls \
             qml6-module-qtquick-templates qml6-module-qtquick-window \
             qml6-module-qtqml
-
-      - uses: mlugg/setup-zig@v2
-        with:
-          version: 0.16.0
 
       - uses: oven-sh/setup-bun@v2
 
@@ -33,7 +29,9 @@ jobs:
         run: bun install
 
       - name: Build host, bridge and launcher
-        run: zig build
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
 
       - name: Package release assets
         run: bun scripts/package-release.ts
