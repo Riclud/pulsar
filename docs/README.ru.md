@@ -234,17 +234,20 @@ import {
 
 ### App
 
-| Член                 | Описание                                                                      |
-| -------------------- | ----------------------------------------------------------------------------- |
-| `new App(config?)`   | Создать приложение. Конфиг берётся из `pulsar.json`; `config` переопределяет. |
-| `app.store`          | Реактивное состояние, общее для всех окон (см. `Store`).                      |
-| `app.on(event, fn)`  | Подписаться на событие из QML (`Pulsar.emit`) или от хоста.                   |
-| `app.window(label?)` | Получить `WindowHandle` (по умолчанию — первое окно).                         |
-| `app.windows`        | Все объявленные окна.                                                         |
-| `app.config`         | Конфиг первого окна.                                                          |
-| `app.manifest`       | Разобранный `pulsar.json` (или `null`).                                       |
-| `app.quit()`         | Завершить приложение.                                                         |
-| `app.run()`          | Заглушка-маркер; цикл событий принадлежит хосту.                              |
+| Член                                 | Описание                                                                      |
+| ------------------------------------ | ----------------------------------------------------------------------------- |
+| `new App(config?)`                   | Создать приложение. Конфиг берётся из `pulsar.json`; `config` переопределяет. |
+| `app.store`                          | Реактивное состояние, общее для всех окон (см. `Store`).                      |
+| `app.on(event, fn)`                  | Подписаться на событие из QML (`Pulsar.emit`), хоста или `app.send`.          |
+| `app.window(label?)`                 | Получить `WindowHandle` (по умолчанию — первое окно).                         |
+| `app.createWindow(config)`           | Создать окно в рантайме; возвращает `WindowHandle`.                           |
+| `app.closeWindow(label?)`            | Закрыть окно (по умолчанию — первое).                                         |
+| `app.send(event, payload?, target?)` | Отправить событие в UI (`target` — метка или `*`).                            |
+| `app.windows`                        | Все открытые окна (стартовые плюс созданные).                                 |
+| `app.config`                         | Конфиг первого окна.                                                          |
+| `app.manifest`                       | Разобранный `pulsar.json` (или `null`).                                       |
+| `app.quit()`                         | Завершить приложение.                                                         |
+| `app.run()`                          | Заглушка-маркер; цикл событий принадлежит хосту.                              |
 
 ### Store
 
@@ -282,15 +285,50 @@ await panel.setSize(360, 260)
 await panel.setPosition(100, 100)
 await panel.setFullscreen(true)
 await panel.setAlwaysOnTop(true)
+await panel.destroy() // закрыть и освободить окно
 ```
 
-Каждый метод возвращает `Promise<boolean>`.
+Каждый метод возвращает `Promise<boolean>`. Окна из `pulsar.json` — лишь
+стартовые; остальные можно создавать в рантайме:
+
+```ts
+const settings = app.createWindow({ label: "settings", ui: "ui/settings.qml", width: 420, height: 320 })
+await settings.show()
+```
 
 ### События жизненного цикла
 
+Хост сообщает приложению об активности окон и трея:
+
 ```ts
-app.on("window-close", (params: { label?: string }) => console.log("closed", params.label))
+app.on("window-close", (params) => console.log("closed", params.label))
+app.on("window-state", (params) => console.log(params.label, params.state)) // normal|minimized|maximized|fullscreen
+app.on("window-resize", (params) => console.log(params.label, params.width, params.height))
+app.on("window-move", (params) => console.log(params.label, params.x, params.y))
+app.on("window-focus", () => {})
+app.on("window-blur", () => {})
 app.on("window-all-closed", () => app.quit())
+```
+
+### События из бэкенда в UI
+
+`app.send(event, payload, target?)` отправляет разовое событие в UI (`target` —
+метка окна или `*` для всех). `app.window(label).emit(...)` — в одно окно.
+В QML подписка идёт через singleton `Pulsar`, а фильтр по окну — через
+контекстное свойство `PulsarWindowLabel`:
+
+```ts
+app.send("update-ready", { version: "0.2.0" })
+```
+
+```qml
+Connections {
+    target: Pulsar
+    function onAppEvent(event, payload, target) {
+        if (target === "*" || target === PulsarWindowLabel)
+            if (event === "update-ready") banner.text = "Update " + payload.version
+    }
+}
 ```
 
 ### Диалоги
@@ -393,7 +431,9 @@ import Pulsar 1.0   // синглтоны Pulsar и Store
 | `Pulsar.diagnostics()`                                                                                         | Отладочная строка.                                                                                          |
 | `Pulsar.restart()`                                                                                             | Перезапустить бэкенд (dev).                                                                                 |
 
-Сигнал `log(level, message, source)` — подписка через `Connections`.
+Сигналы: `log(level, message, source)` и `appEvent(event, payload, target)` —
+подписка через `Connections`. Каждое окно также получает контекстное свойство
+`PulsarWindowLabel` со своей меткой.
 
 ### `Store`
 
