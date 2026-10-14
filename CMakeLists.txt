@@ -19,7 +19,7 @@ foreach(config IN ITEMS DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
 endforeach()
 
 # Pulsar requires Qt 6.8+. The host is a Qt app, so use Qt's CMake package.
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Qml Quick Network OpenGL)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Qml Quick Network)
 
 set(CMAKE_AUTOMOC ON)
 
@@ -40,7 +40,6 @@ target_link_libraries(qml-host PRIVATE
     Qt6::Qml
     Qt6::Quick
     Qt6::Network
-    Qt6::OpenGL
 )
 
 # Built-in renderer for JS-driven windows (loaded as qrc:/pulsar/PulsarView.qml).
