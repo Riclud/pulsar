@@ -20,7 +20,8 @@ A desktop app framework — like Electron, but built on **QML** for the UI and
 - **[Bun](https://bun.sh) ≥ 1.2** — the CLI and every app run on Bun.
 - **Qt 6.8+** — only if you build the host from source or use the `--slim`
   toolchain (`pulsar build --slim` / `pulsar install --slim`). The default
-  toolchain and builds bundle Qt, so end users need nothing extra.
+  toolchain and builds bundle Qt, so end users need nothing extra; its platform
+  dependencies (X11/Wayland, fonts, GPU drivers) still come from the system.
 
 ## Install
 
@@ -481,6 +482,10 @@ used when packaging (`pulsar build` bundles Qt).
 At startup the launcher extracts the payload into the user cache and execs the
 host, which loads Qt from `lib/Qt` via its RPATH — never from the system. Use
 `--slim` to omit Qt and rely on the system installation.
+
+`pulsar build` reuses the Qt that ships with the installed toolchain; when the
+host has no bundled Qt (dev builds) it falls back to `qmake`. Set
+`PULSAR_QT_ROOT` to point at a specific Qt tree.
 
 ## Protocol
 
