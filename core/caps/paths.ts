@@ -69,15 +69,33 @@ export function computePaths(
   }
 }
 
-/** Resolved paths with data/config/cache ensured to exist. */
-export async function appPaths(): Promise<AppPaths> {
-  const paths = computePaths(currentAppId(), process.platform, homedir(), process.env)
+const ensured = new Map<string, Promise<AppPaths>>()
+
+const ensurePaths = async (id: string) => {
+  const paths = computePaths(id, process.platform, homedir(), process.env)
+
   await Promise.all([
     mkdir(paths.data, { recursive: true }),
     mkdir(paths.config, { recursive: true }),
     mkdir(paths.cache, { recursive: true }),
   ])
+
   return paths
+}
+
+/** Resolved paths with data/config/cache ensured to exist. */
+export const appPaths = async (): Promise<AppPaths> => {
+  const id = currentAppId()
+  const cached = ensured.get(id)
+  if (cached) return cached
+
+  const pending = ensurePaths(id).catch((e) => {
+    ensured.delete(id)
+    throw e
+  })
+  ensured.set(id, pending)
+
+  return pending
 }
 
 export const pathsCaps: CapRegistry = {

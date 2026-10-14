@@ -1,6 +1,8 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test, afterAll } from "bun:test"
+import { existsSync, mkdtempSync, rmSync } from "fs"
+import { tmpdir } from "os"
 import { join } from "path"
-import { computePaths, sanitizeAppId } from "./paths.ts"
+import { appPaths, computePaths, sanitizeAppId } from "./paths.ts"
 
 const HOME = "/home/tester"
 
@@ -49,5 +51,34 @@ describe("computePaths", () => {
     expect(p.data).toBe(join(roaming, "myapp"))
     expect(p.config).toBe(join(roaming, "myapp"))
     expect(p.cache).toBe(join(HOME, "AppData", "Local", "myapp", "cache"))
+  })
+})
+
+describe("appPaths", () => {
+  const dir = mkdtempSync(join(tmpdir(), "pulsar-paths-"))
+  const keys = ["PULSAR_APP", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME"] as const
+  const saved = keys.map((key) => [key, process.env[key]] as const)
+
+  afterAll(() => {
+    rmSync(dir, { recursive: true, force: true })
+    for (const [key, value] of saved) {
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+    }
+  })
+
+  test("creates and memoizes the directories for an app id", async () => {
+    process.env.PULSAR_APP = join(dir, "memo-app")
+    process.env.XDG_DATA_HOME = join(dir, "data")
+    process.env.XDG_CONFIG_HOME = join(dir, "config")
+    process.env.XDG_CACHE_HOME = join(dir, "cache")
+
+    const first = await appPaths()
+    const second = await appPaths()
+
+    expect(second).toBe(first)
+    expect(existsSync(first.data)).toBe(true)
+    expect(existsSync(first.config)).toBe(true)
+    expect(existsSync(first.cache)).toBe(true)
   })
 })
