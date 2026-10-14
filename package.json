@@ -7,21 +7,20 @@
   "private": true,
   "scripts": {
     "cli": "bun cli/index.ts",
-    "build": "zig build",
-    "run": "zig build run",
+    "build": "cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build",
+    "run": "cmake --build build && ./build/bin/qml-host",
     "start": "bun --filter hello start",
-    "editor-config": "zig build editor-config",
-    "clean": "rm -rf zig-out .zig-cache host/compile_flags.txt",
-    "setup": "bun install && zig build editor-config",
+    "editor-config": "cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && ln -sf build/compile_commands.json compile_commands.json",
+    "clean": "rm -rf build compile_commands.json",
+    "setup": "bun install && cmake -S . -B build",
     "test": "bun test core && bun scripts/smoke.ts",
     "test:unit": "bun test core",
     "typecheck": "tsc --noEmit",
     "version:check": "bun scripts/version-check.ts",
-    "fmt": "bun run fmt:ts && bun run fmt:zig && bun run fmt:qml",
+    "fmt": "bun run fmt:ts && bun run fmt:qml",
     "fmt:ts": "prettier --write .",
-    "fmt:zig": "zig fmt build.zig bridge",
     "fmt:qml": "bun scripts/qmlformat.ts",
-    "fmt:check": "prettier --check . && zig fmt --check build.zig bridge && bun run version:check"
+    "fmt:check": "prettier --check . && bun run version:check"
   },
   "workspaces": [
     "core/sdk",
