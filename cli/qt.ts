@@ -1,11 +1,13 @@
 import { spawnSync } from "child_process"
 import { existsSync, readFileSync, readdirSync, realpathSync } from "fs"
-import { join } from "path"
+import { dirname, join, resolve } from "path"
 
 export type PayloadEntry = { path: string; data: Buffer }
 export type QtFile = { rel: string; src: string }
 
-const OS_LIB_PREFIXES = [
+// Libraries that must come from the host: the C runtime/loader plus the
+// graphics stack, whose userspace drivers have to match the machine.
+const EXCLUDED_LIB_PREFIXES = [
   "ld-linux",
   "ld.so",
   "libc.so",
@@ -21,10 +23,23 @@ const OS_LIB_PREFIXES = [
   "libresolv.so",
   "libgcc_s.so",
   "libstdc++.so",
+  "libGL.so",
+  "libGLX",
+  "libOpenGL",
+  "libEGL",
+  "libGLESv",
+  "libGLdispatch",
+  "libdrm",
+  "libgbm",
+  "libglapi",
+  "libvulkan",
+  "libxcb-dri",
+  "libgallium",
+  "libLLVM",
 ]
 
-const isOsLib = (name: string): boolean => {
-  return OS_LIB_PREFIXES.some((prefix) => name.startsWith(prefix))
+const isExcludedLib = (name: string): boolean => {
+  return EXCLUDED_LIB_PREFIXES.some((prefix) => name.startsWith(prefix))
 }
 
 function qmakeQuery(key: string): string | undefined {
@@ -78,11 +93,49 @@ export function qtConfText(): string {
 }
 
 /**
+ * A Qt tree that already sits next to the host (`PULSAR_QT_ROOT`, or
+ * `<host>/../lib/Qt` inside an installed toolchain / extracted app). Reusing
+ * it means `pulsar build` works on a machine without a system Qt.
+ */
+const bundledQtRoot = (hostPath: string): string | undefined => {
+  const fromEnv = process.env.PULSAR_QT_ROOT
+  if (fromEnv && existsSync(join(fromEnv, "lib"))) return fromEnv
+
+  const candidate = resolve(dirname(hostPath), "..", "lib", "Qt")
+  if (existsSync(join(candidate, "lib"))) return candidate
+
+  return undefined
+}
+
+const filesFromRoot = (root: string): QtFile[] => {
+  const files: QtFile[] = []
+  const seen = new Set<string>()
+  const libDir = join(root, "lib")
+
+  if (existsSync(libDir)) {
+    for (const entry of readdirSync(libDir, { withFileTypes: true })) {
+      if (!entry.isFile() && !entry.isSymbolicLink()) continue
+      if (isExcludedLib(entry.name) || seen.has(entry.name)) continue
+      seen.add(entry.name)
+      files.push({ rel: `lib/Qt/lib/${entry.name}`, src: realpathSync(join(libDir, entry.name)) })
+    }
+  }
+
+  addTree(files, join(root, "plugins"), "lib/Qt/plugins")
+  addTree(files, join(root, "qml"), "lib/Qt/qml")
+
+  return files
+}
+
+/**
  * The Qt runtime files to ship: only the libraries the host links (via ldd),
  * the platform/image plugins and the QML modules typical apps import.
- * Returns null when Qt is not discoverable (qmake missing).
+ * Returns null when Qt is not discoverable (no bundled tree and no qmake).
  */
 export function qtFiles(hostPath: string): QtFile[] | null {
+  const root = bundledQtRoot(hostPath)
+  if (root) return filesFromRoot(root)
+
   const libsDir = qmakeQuery("QT_INSTALL_LIBS")
   const pluginsDir = qmakeQuery("QT_INSTALL_PLUGINS")
   const qmlDir = qmakeQuery("QT_INSTALL_QML")
@@ -94,7 +147,7 @@ export function qtFiles(hostPath: string): QtFile[] | null {
   // Copy Qt (and ICU) libraries, deduplicated.
   const addLib = (lib: string) => {
     const name = lib.split("/").pop() ?? ""
-    if (isOsLib(name)) return
+    if (isExcludedLib(name)) return
     if (!existsSync(lib)) return
     if (!(lib.startsWith(libsDir) || /^libicu/.test(name)) || seen.has(name)) return
     seen.add(name)
@@ -142,7 +195,7 @@ export function qtFiles(hostPath: string): QtFile[] | null {
 export function collectQt(entries: PayloadEntry[], hostPath: string): boolean {
   const files = qtFiles(hostPath)
   if (!files) {
-    console.warn("pulsar: Qt not found (qmake); building a slim app that needs a system Qt")
+    console.warn("pulsar: Qt not found (no bundled tree and qmake missing); building a slim app that needs a system Qt")
     return false
   }
   for (const file of files) entries.push({ path: file.rel, data: readFileSync(file.src) })
