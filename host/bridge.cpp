@@ -123,7 +123,7 @@ void Bridge::startBridge()
     }
     if (chosen.isEmpty()) {
         Q_EMIT response(-1, QJSValue(QJSValue::NullValue),
-                        engine_->toScriptValue(QStringLiteral("Zig bridge binary not found")));
+                        engine_->toScriptValue(QStringLiteral("bridge binary not found")));
         return;
     }
 
@@ -389,7 +389,7 @@ void Bridge::onProcessFinished(int exitCode, QProcess::ExitStatus status)
         pulsar::forwardLine(QString::fromUtf8(stderrBuffer_.trimmed()));
         stderrBuffer_.clear();
     }
-    failPending(QStringLiteral("zig bridge exited"));
+    failPending(QStringLiteral("bridge exited"));
     if (restartBudget_ > 0) {
         --restartBudget_;
         qWarning().noquote() << "bridge exited; restarting (attempts left:" << restartBudget_ << ")";
@@ -400,7 +400,7 @@ void Bridge::onProcessFinished(int exitCode, QProcess::ExitStatus status)
     if (crashed_)
         return;
     Q_EMIT response(-1, QJSValue(QJSValue::NullValue),
-                    engine_->toScriptValue(QStringLiteral("zig bridge exited unexpectedly")));
+                    engine_->toScriptValue(QStringLiteral("bridge exited unexpectedly")));
 }
 
 void Bridge::handleResponse(const QByteArray &line)
@@ -454,7 +454,7 @@ void Bridge::handleResponse(const QByteArray &line)
     }
 
     if (!hasId) {
-        // Bun supervision: the Zig bridge reports a dead Bun runtime here.
+        // Bun supervision: the bridge reports a dead Bun runtime here.
         if (notifyMethod == QLatin1String("__crash")) {
             crashed_ = true;
             const QString kind = notifyParams.value(QStringLiteral("kind")).toString();
