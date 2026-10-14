@@ -5,9 +5,8 @@
 
 # Pulsar
 
-Фреймворк для десктопных приложений — как Electron, но с интерфейсом на
-**QML** и бэкендом на **Bun**, поставляемый одним самодостаточным
-исполняемым файлом.
+Фреймворк для десктопных приложений: интерфейс на **QML**, бэкенд на **Bun**,
+поставляется одним самодостаточным исполняемым файлом.
 
 - **Интерфейс**: QML (нативный рендеринг на GPU, низкое потребление памяти —
   без Chromium).
@@ -20,7 +19,8 @@
 ## Требования
 
 - **[Bun](https://bun.sh) ≥ 1.2** — на нём работают CLI и каждое приложение.
-- **Qt 6.8+** — только если вы собираете хост из исходников или используете
+- **Qt 6.8+** (на macOS — Qt **6.9.2+**: более старые 6.8.x линкуют удалённый
+  фреймворк AGL) — только если вы собираете хост из исходников или используете
   `--slim`-toolchain (`pulsar build --slim` / `pulsar install --slim`).
   Обычный toolchain и сборки содержат Qt, так что конечному пользователю
   ничего ставить не нужно; его платформенные зависимости (X11/Wayland,
@@ -30,36 +30,37 @@
 
 ### Из релиза (рекомендуется)
 
-> **Релизные ассеты сейчас собираются только под Linux x64.** macOS и Windows
-> в процессе — там используйте [сборку из исходников](#из-исходников).
-> Bootstrap-скрипты уже определяют эти платформы и заработают, как только их
-> ассеты будут опубликованы.
+Готовые ассеты публикуются для **linux-x64**, **macos-arm64** и **windows-x64**.
 
-Linux:
+Linux / macOS:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/riclud/pulsar/main/install.sh | sh
 pulsar install          # скачивает нативный toolchain (host + bridge + Qt)
 ```
 
-macOS / Windows (когда ассеты будут опубликованы):
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/riclud/pulsar/main/install.sh | sh
-pulsar install
-```
+Windows:
 
 ```powershell
 iwr https://raw.githubusercontent.com/riclud/pulsar/main/install.ps1 -UseBasicParsing | iex
 pulsar install
 ```
 
+> Ассеты macOS пока только arm64; на Intel-Mac используйте
+> [сборку из исходников](#из-исходников).
+
 Bootstrap ставит CLI в `~/.local/share/pulsar` (или `%LOCALAPPDATA%\pulsar` в
 Windows) и шим `pulsar` в `PATH`. Затем `pulsar install` скачивает toolchain
 для платформы:
 
-- по умолчанию: **fat** — со встроенным Qt, без настройки;
+- по умолчанию: **fat** — со встроенным Qt, без настройки. Хост грузит Qt из
+  бандла (через RPATH в Linux/macOS, либо из DLL рядом с exe в Windows), поэтому
+  системный Qt не используется;
 - `--slim` — без Qt, использует системный.
+
+Toolchain скачивается с GitHub Releases вместе с CLI; отдельно Qt не
+устанавливается. Системный Qt 6.8+ нужен только при сборке фреймворка из
+исходников или в режиме `--slim`.
 
 ### Из исходников
 
@@ -555,7 +556,7 @@ Button {
 
 ## Сборка из исходников
 
-Требования: Bun, CMake (≥ 3.21), компилятор C++20 и dev-файлы Qt 6.8+.
+Требования: Bun, CMake (≥ 3.21), компилятор C++20 и dev-файлы Qt 6.9+.
 
 ```sh
 # Debian/Ubuntu
@@ -570,6 +571,8 @@ sudo pacman -S base-devel cmake qt6-base qt6-declarative qt6-quickcontrols2
 
 # macOS
 brew install cmake qt
+
+# Windows: поставьте Qt 6.9 через онлайн-установщик и передайте -DCMAKE_PREFIX_PATH=<qt>/lib/cmake
 ```
 
 Затем:
@@ -589,6 +592,10 @@ Qt ищется через CMake `find_package(Qt6)`, поэтому при не
 передай `-DCMAKE_PREFIX_PATH=<qt>`. `PULSAR_QMAKE` по-прежнему задаёт `qmake`
 для упаковки (`pulsar build` встраивает Qt).
 
+Релизы собираются CI-матрицей (`.github/workflows/release.yml`) на Linux, macOS
+и Windows, с платформенной упаковкой Qt (`ldd` в Linux, `otool` + копирование
+фреймворков в macOS, `windeployqt` в Windows).
+
 ### Раскладка одного файла
 
 `pulsar build` дописывает payload к `launcher`:
@@ -598,13 +605,14 @@ Qt ищется через CMake `find_package(Qt6)`, поэтому при не
              ├─ bin/qml-host, bin/bridge, bin/qt.conf
              ├─ runtime                  (Bun standalone: рантайм + приложение + SDK)
              ├─ app/…                     (QML, ассеты, манифест)
-             └─ lib/Qt/…                  (встроенный Qt: либы, плагины, QML-модули)
+             └─ lib/Qt/…                  (встроенный Qt, Linux/macOS)
+                                          или DLL Qt рядом с хостом в Windows
 ```
 
 При запуске лончер распаковывает payload в кэш пользователя и делает `exec`
-хоста, который загружает Qt из `lib/Qt` по своему RPATH — никогда из
-системы. Используйте `--slim`, чтобы не класть Qt и опираться на системную
-установку.
+хоста, который грузит собственный Qt — из `lib/Qt` по RPATH в Linux/macOS либо
+из DLL рядом с exe в Windows — никогда из системы. Используйте `--slim`, чтобы
+не класть Qt и опираться на системную установку.
 
 `pulsar build` переиспользует Qt из установленного toolchain; если у хоста
 нет встроенного Qt (dev-сборки), берётся Qt из `qmake`. Переменная

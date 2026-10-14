@@ -5,8 +5,8 @@
 
 # Pulsar
 
-A desktop app framework — like Electron, but built on **QML** for the UI and
-**Bun** for the backend, shipped as a single self-contained executable.
+A desktop app framework built on **QML** for the UI and **Bun** for the backend,
+shipped as a single self-contained executable.
 
 - **UI**: QML (native GPU rendering, low memory — no Chromium).
 - **Backend**: TypeScript running on [Bun](https://bun.sh).
@@ -18,7 +18,8 @@ A desktop app framework — like Electron, but built on **QML** for the UI and
 ## Requirements
 
 - **[Bun](https://bun.sh) ≥ 1.2** — the CLI and every app run on Bun.
-- **Qt 6.8+** — only if you build the host from source or use the `--slim`
+- **Qt 6.8+** (Qt **6.9.2+** on macOS — older 6.8.x links the removed AGL
+  framework) — only if you build the host from source or use the `--slim`
   toolchain (`pulsar build --slim` / `pulsar install --slim`). The default
   toolchain and builds bundle Qt, so end users need nothing extra; its platform
   dependencies (X11/Wayland, fonts, GPU drivers) still come from the system.
@@ -27,36 +28,38 @@ A desktop app framework — like Electron, but built on **QML** for the UI and
 
 ### From a release (recommended)
 
-> **Release assets are currently built for Linux x64 only.** macOS and Windows
-> are in progress — use the [from-source](#from-source) path there. The
-> bootstrap scripts already detect those platforms and will start working as
-> soon as their assets are published.
+Prebuilt assets are published for **linux-x64**, **macos-arm64** and
+**windows-x64**.
 
-Linux:
+Linux / macOS:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/riclud/pulsar/main/install.sh | sh
 pulsar install          # downloads the native toolchain (host + bridge + Qt)
 ```
 
-macOS / Windows (once assets are published):
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/riclud/pulsar/main/install.sh | sh
-pulsar install
-```
+Windows:
 
 ```powershell
 iwr https://raw.githubusercontent.com/riclud/pulsar/main/install.ps1 -UseBasicParsing | iex
 pulsar install
 ```
 
+> macOS assets are arm64-only for now; on an Intel Mac use the
+> [from-source](#from-source) path.
+
 The bootstrap installs the CLI to `~/.local/share/pulsar` (or
 `%LOCALAPPDATA%\pulsar` on Windows) and a `pulsar` shim on your `PATH`.
 `pulsar install` then fetches the platform toolchain:
 
-- default: **fat** — bundles Qt, zero configuration;
+- default: **fat** — bundles Qt, zero configuration. The host loads it from the
+  bundle (via RPATH on Linux/macOS, from DLLs next to the executable on Windows),
+  so a system Qt is never used;
 - `--slim` — no Qt, uses the system one.
+
+The toolchain is fetched from GitHub Releases together with the CLI; Qt is not
+downloaded separately. Only building the framework from source or using `--slim`
+requires a system Qt 6.8+.
 
 ### From source
 
@@ -548,7 +551,7 @@ for complete apps.
 
 ## Building from source
 
-Requirements: Bun, CMake (≥ 3.21), a C++20 compiler, and Qt 6.8+ development
+Requirements: Bun, CMake (≥ 3.21), a C++20 compiler, and Qt 6.9+ development
 files.
 
 ```sh
@@ -564,6 +567,8 @@ sudo pacman -S base-devel cmake qt6-base qt6-declarative qt6-quickcontrols2
 
 # macOS
 brew install cmake qt
+
+# Windows: install Qt 6.9 via the online installer, then pass -DCMAKE_PREFIX_PATH=<qt>/lib/cmake
 ```
 
 Then:
@@ -583,6 +588,10 @@ Qt is located with CMake's `find_package(Qt6)`, so pass `-DCMAKE_PREFIX_PATH=<qt
 if it is not in a standard location. `PULSAR_QMAKE` still selects the `qmake`
 used when packaging (`pulsar build` bundles Qt).
 
+Releases are produced by a CI matrix (`.github/workflows/release.yml`) that
+builds on Linux, macOS and Windows and packages Qt per platform (`ldd` on Linux,
+`otool` + framework copy on macOS, `windeployqt` on Windows).
+
 ### Single-file layout
 
 `pulsar build` appends a payload to `launcher`:
@@ -592,11 +601,13 @@ used when packaging (`pulsar build` bundles Qt).
              ├─ bin/qml-host, bin/bridge, bin/qt.conf
              ├─ runtime                  (Bun standalone: runtime + app + SDK)
              ├─ app/…                     (QML, assets, manifest)
-             └─ lib/Qt/…                  (bundled Qt libs, plugins, QML modules)
+             └─ lib/Qt/…                  (bundled Qt, Linux/macOS)
+                                          or Qt DLLs beside the host on Windows
 ```
 
 At startup the launcher extracts the payload into the user cache and execs the
-host, which loads Qt from `lib/Qt` via its RPATH — never from the system. Use
+host, which loads its own Qt — from `lib/Qt` via RPATH on Linux/macOS, or from
+the DLLs next to the executable on Windows — never from the system. Use
 `--slim` to omit Qt and rely on the system installation.
 
 `pulsar build` reuses the Qt that ships with the installed toolchain; when the
