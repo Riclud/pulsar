@@ -206,8 +206,8 @@ One file drives the app config and packaging.
 | `icons`          | Per-platform icon paths (used by packaging).                                                                                                    |
 | `windows[]`      | Initial windows: `label`, `ui`, `width`, `height`, `title`, `minWidth`, `minHeight`, `maxWidth`, `maxHeight`, `resizable`, `frameless`, `icon`. |
 | `permissions`    | Reserved (not enforced yet).                                                                                                                    |
-| `protocols`      | Reserved: custom URL schemes.                                                                                                                   |
-| `singleInstance` | Reserved: single-instance behavior.                                                                                                             |
+| `protocols`      | Custom URL schemes (deep links) the app handles.                                                                                                |
+| `singleInstance` | Forward a second launch to the running instance and exit (default `false`).                                                                     |
 
 `App` derives its config from the first manifest window; explicit options
 passed to `new App({...})` override the manifest.
@@ -309,6 +309,27 @@ app.on("window-move", (params) => console.log(params.label, params.x, params.y))
 app.on("window-focus", () => {})
 app.on("window-blur", () => {})
 app.on("window-all-closed", () => app.quit())
+```
+
+### Launch arguments & deep links
+
+Files and URLs the OS hands the app (command-line arguments, or a macOS file
+open) arrive as events:
+
+```ts
+app.on("open-file", (params) => console.log("open", params.path))
+app.on("open-url", (params) => console.log("deep link", params.url))
+```
+
+With `singleInstance: true` in `pulsar.json` only one instance runs: a second
+launch forwards its arguments to the running app and exits. The running app
+gets a `second-instance` event so it can raise its window:
+
+```ts
+app.on("second-instance", (params) => {
+  app.window().focus()
+  console.log("relaunched with", params.argv)
+})
 ```
 
 ### Backend → UI events

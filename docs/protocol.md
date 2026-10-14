@@ -58,6 +58,11 @@ capability negotiation; `binary` advertises the data channel.
 ## Host → runtime (control)
 
 - `__sync` — request the full store snapshot (answered once the app is wired);
+- `__launch` — the command line the OS handed the app:
+  `{ "argv": [...], "cwd", "first" }`. The runtime splits it into
+  `open-url` (`{ "url" }`) and `open-file` (`{ "path" }`) events (dispatched to
+  `App.on`), and raises `second-instance` (`{ "argv", "cwd" }`) when the launch
+  was forwarded by another instance rather than being the first (`first=false`);
 - `__log`, `__event`, `__dialog-result` — notifications (no `id`);
 - `__event` carries window/tray lifecycle events as
   `{ "name": "window-resize", "data": { "label": "main", … } }`; the runtime

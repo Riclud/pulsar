@@ -208,8 +208,8 @@ pulsar <command>
 | `icons`          | Пути к иконкам по платформам (используются упаковкой).                                                                                         |
 | `windows[]`      | Стартовые окна: `label`, `ui`, `width`, `height`, `title`, `minWidth`, `minHeight`, `maxWidth`, `maxHeight`, `resizable`, `frameless`, `icon`. |
 | `permissions`    | Зарезервировано (пока не применяется).                                                                                                         |
-| `protocols`      | Зарезервировано: свои URL-схемы.                                                                                                               |
-| `singleInstance` | Зарезервировано: поведение единственного экземпляра.                                                                                           |
+| `protocols`      | Свои URL-схемы (deep links), которые обрабатывает приложение.                                                                                  |
+| `singleInstance` | Передавать второй запуск работающему экземпляру и выходить (по умолчанию `false`).                                                             |
 
 `App` берёт конфиг из первого окна манифеста; явные параметры, переданные в
 `new App({...})`, переопределяют манифест.
@@ -313,6 +313,27 @@ app.on("window-move", (params) => console.log(params.label, params.x, params.y))
 app.on("window-focus", () => {})
 app.on("window-blur", () => {})
 app.on("window-all-closed", () => app.quit())
+```
+
+### Аргументы запуска и deep links
+
+Файлы и URL, которые ОС передаёт приложению (аргументы командной строки или
+macOS-событие открытия файла), приходят событиями:
+
+```ts
+app.on("open-file", (params) => console.log("open", params.path))
+app.on("open-url", (params) => console.log("deep link", params.url))
+```
+
+С `singleInstance: true` в `pulsar.json` работает только один экземпляр: второй
+запуск передаёт свои аргументы работающему и выходит. Работающее приложение
+получает событие `second-instance`, чтобы поднять окно:
+
+```ts
+app.on("second-instance", (params) => {
+  app.window().focus()
+  console.log("relaunched with", params.argv)
+})
 ```
 
 ### События из бэкенда в UI
