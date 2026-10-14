@@ -74,26 +74,28 @@ const qmakeQuery = (key: string) => {
 }
 
 const neededLibs = (file: string) => {
-  const paths: string[] = []
-
-  if (isMac) {
-    const r = spawnSync("otool", ["-L", file], { encoding: "utf8" })
-
-    for (const line of (r.stdout ?? "").split("\n").slice(1)) {
-      const path = line.trim().split(" ")[0]
-
-      if (path?.startsWith("/")) paths.push(path)
-    }
-
-    return paths
-  }
-
   const r = spawnSync("ldd", [file], { encoding: "utf8" })
+  const paths: string[] = []
 
   for (const line of (r.stdout ?? "").split("\n")) {
     const match = line.match(/=>\s+(\/\S+)/)
 
     if (match?.[1]) paths.push(match[1])
+  }
+
+  return paths
+}
+
+const appleDeps = (file: string, libsDir: string) => {
+  const r = spawnSync("otool", ["-L", file], { encoding: "utf8" })
+  const paths: string[] = []
+
+  for (const line of (r.stdout ?? "").split("\n").slice(1)) {
+    const raw = line.trim().split(" ")[0]
+    if (!raw) continue
+
+    if (raw.startsWith("@rpath/")) paths.push(join(libsDir, raw.slice("@rpath/".length)))
+    else if (raw.startsWith("/")) paths.push(raw)
   }
 
   return paths
@@ -204,7 +206,7 @@ const linuxQtFiles = (hostPath: string, libsDir: string, pluginsDir: string, qml
   return files
 }
 
-const appleQtFiles = (hostPath: string, pluginsDir: string, qmlDir: string): QtFile[] => {
+const appleQtFiles = (hostPath: string, libsDir: string, pluginsDir: string, qmlDir: string): QtFile[] => {
   const files: QtFile[] = []
   const seen = new Set<string>()
 
@@ -225,7 +227,7 @@ const appleQtFiles = (hostPath: string, pluginsDir: string, qmlDir: string): QtF
     seen.add(name)
     files.push({ rel: `lib/Qt/lib/${name}`, src: path })
 
-    for (const dep of neededLibs(path)) addDep(dep)
+    for (const dep of appleDeps(path, libsDir)) addDep(dep)
   }
 
   const addFramework = (fwPath: string) => {
@@ -240,7 +242,7 @@ const appleQtFiles = (hostPath: string, pluginsDir: string, qmlDir: string): QtF
     if (!existsSync(versionsDir)) {
       addTree(files, fwPath, `lib/Qt/lib/${name}`)
 
-      for (const dep of neededLibs(join(fwPath, name))) addDep(dep)
+      for (const dep of appleDeps(join(fwPath, name), libsDir)) addDep(dep)
 
       return
     }
@@ -249,10 +251,10 @@ const appleQtFiles = (hostPath: string, pluginsDir: string, qmlDir: string): QtF
     const base = join(versionsDir, letter)
     addTree(files, base, `lib/Qt/lib/${name}/Versions/${letter}`)
 
-    for (const dep of neededLibs(join(base, name.replace(/\.framework$/, "")))) addDep(dep)
+    for (const dep of appleDeps(join(base, name.replace(/\.framework$/, "")), libsDir)) addDep(dep)
   }
 
-  for (const lib of neededLibs(hostPath)) addDep(lib)
+  for (const lib of appleDeps(hostPath, libsDir)) addDep(lib)
 
   for (const group of PLUGIN_GROUPS) {
     const groupFiles: QtFile[] = []
@@ -260,11 +262,17 @@ const appleQtFiles = (hostPath: string, pluginsDir: string, qmlDir: string): QtF
     files.push(...groupFiles)
 
     for (const file of groupFiles) {
-      if (file.src.endsWith(".dylib")) for (const dep of neededLibs(file.src)) addDep(dep)
+      if (file.src.endsWith(".dylib")) for (const dep of appleDeps(file.src, libsDir)) addDep(dep)
     }
   }
 
-  for (const module of ["QtQuick", "QtQml"]) addTree(files, join(qmlDir, module), `lib/Qt/qml/${module}`)
+  const qmlFiles: QtFile[] = []
+  for (const module of ["QtQuick", "QtQml"]) addTree(qmlFiles, join(qmlDir, module), `lib/Qt/qml/${module}`)
+  files.push(...qmlFiles)
+
+  for (const file of qmlFiles) {
+    if (file.src.endsWith(".dylib")) for (const dep of appleDeps(file.src, libsDir)) addDep(dep)
+  }
 
   return files
 }
@@ -317,7 +325,7 @@ export function qtFiles(hostPath: string): QtFile[] | null {
   const qmlDir = qmakeQuery("QT_INSTALL_QML")
 
   if (!libsDir || !existsSync(libsDir)) return null
-  if (isMac) return appleQtFiles(hostPath, pluginsDir ?? "", qmlDir ?? "")
+  if (isMac) return appleQtFiles(hostPath, libsDir, pluginsDir ?? "", qmlDir ?? "")
 
   return linuxQtFiles(hostPath, libsDir, pluginsDir ?? "", qmlDir ?? "")
 }
