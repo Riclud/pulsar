@@ -36,6 +36,8 @@ export interface PulsarEventMap {
   log: { level: string; source: "qml" | "js"; message: string; file?: string; line?: number }
   "tray-menu": { event?: string }
   "tray-activated": { reason?: number }
+  "theme-changed": { scheme: "light" | "dark" }
+  "notification-click": { token: string }
 }
 
 export type KnownEvent = keyof PulsarEventMap
