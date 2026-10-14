@@ -205,12 +205,40 @@ One file drives the app config and packaging.
 | `main`           | Backend entry point relative to the manifest (default `main.ts`).                                                                               |
 | `icons`          | Per-platform icon paths (used by packaging).                                                                                                    |
 | `windows[]`      | Initial windows: `label`, `ui`, `width`, `height`, `title`, `minWidth`, `minHeight`, `maxWidth`, `maxHeight`, `resizable`, `frameless`, `icon`. |
-| `permissions`    | Reserved (not enforced yet).                                                                                                                    |
+| `permissions`    | Capabilities the app may use (see [Permissions](#permissions)). Absent = all.                                                                   |
 | `protocols`      | Custom URL schemes (deep links) the app handles.                                                                                                |
 | `singleInstance` | Forward a second launch to the running instance and exit (default `false`).                                                                     |
 
 `App` derives its config from the first manifest window; explicit options
 passed to `new App({...})` override the manifest.
+
+### Permissions
+
+`permissions` declares the OS-facing capabilities the app may use. When the
+field is **absent** every capability is allowed; when **present** only the
+listed ones are, and any other capability call fails with a `permission denied`
+error.
+
+```json
+{ "permissions": ["fs", "net", "dialog"] }
+```
+
+| Permission | Grants                                       |
+| ---------- | -------------------------------------------- |
+| `fs`       | filesystem reads/writes, stat, rename, trash |
+| `net`      | `net.fetch`                                  |
+| `paths`    | standard per-app directories                 |
+| `shell`    | open URLs in the default application         |
+| `notify`   | native notifications                         |
+| `dialog`   | native file/message dialogs                  |
+| `screen`   | monitor list                                 |
+| `theme`    | system color scheme                          |
+| `system`   | locale/language/timezone                     |
+| `storage`  | the app's JSON storage file                  |
+| `tray`     | system tray icon and menu                    |
+
+Window management is core and is not gated. Custom capabilities registered by
+the app are never gated either.
 
 ## App API (backend / TypeScript)
 

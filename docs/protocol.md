@@ -77,6 +77,10 @@ capability negotiation; `binary` advertises the data channel.
   `dialog.openFile|openFiles|openDirectory|saveFile|message`, `screen.list`,
   `theme.get`, `system.locale`, `tray`, `window`).
 
+A manifest that lists `permissions` turns capability calls into a checked
+operation: a call whose permission is not granted fails with a
+`permission denied` error response (an absent `permissions` field allows all).
+
 ## Runtime → host (control)
 
 - responses: `{ "jsonrpc": "2.0", "id", "result" | "error", "state"?, "unset"? }`
