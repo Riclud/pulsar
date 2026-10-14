@@ -24,9 +24,9 @@ describe("resolveAppConfig", () => {
     expect(config.title).toBe("From manifest")
   })
 
-  test("falls back without a manifest", () => {
+  test("leaves ui undefined without a manifest (JS-rendered window)", () => {
     const config = resolveAppConfig(null)
-    expect(config.ui).toBe("ui/main.qml")
+    expect(config.ui).toBeUndefined()
     expect(config.id).toBeUndefined()
   })
 })

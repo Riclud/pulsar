@@ -301,6 +301,11 @@ QString Bridge::diagnostics() const
         .arg(process_.workingDirectory());
 }
 
+QString Bridge::env(const QString &name) const
+{
+    return qEnvironmentVariable(name.toUtf8().constData());
+}
+
 bool Bridge::showNotification(const QString &title, const QString &body, const QString &token)
 {
     ensureTray();

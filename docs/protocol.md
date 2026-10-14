@@ -65,7 +65,7 @@ capability negotiation; `binary` advertises the data channel.
   `window-show`, `window-hide`, `window-resize` (`width`,`height`), `window-move`
   (`x`,`y`), `window-state` (`state`), `window-focus`, `window-blur`,
   `window-close`, `window-all-closed`, `tray-menu`, `tray-activated`,
-  `theme-changed`, `notification-click`;
+  `theme-changed`, `notification-click`, `ui-event`;
 - anything else is treated as an app event (`App.on`) or a capability call
   (`fs.readFile|writeFile|appendFile|listDir|exists|stat|mkdir|remove|rename|copy|moveToTrash`,
   `nw.fetch`, `paths.get`, `storage.get|has|set|remove`, `shell.open`, `shell.notify`,
@@ -76,8 +76,9 @@ capability negotiation; `binary` advertises the data channel.
 
 - responses: `{ "jsonrpc": "2.0", "id", "result" | "error", "state"?, "unset"? }`
   where `state`/`unset` are store patches to apply;
-- notifications: `__config`, `__window`, `__emit`, `__query`, `__notify`, `__dialog`,
-  `__tray`, `__log`, `__event`, `__quit`, `__reload`, `__error`, `__hello`;
+- notifications: `__config`, `__window`, `__emit`, `__ui`, `__query`, `__notify`,
+  `__dialog`, `__tray`, `__log`, `__event`, `__quit`, `__reload`, `__error`,
+  `__hello`;
 - `__crash` is emitted by the bridge when the runtime dies (treated as a
   failure).
 
@@ -133,6 +134,31 @@ Connections {
 The app's `Store` is the shared state. `__sync` returns a full snapshot; every
 change afterwards is pushed as a `state`/`unset` patch, either attached to a
 response or as an unsolicited `__state` notification.
+
+## JS-rendered windows
+
+A window declared **without a `ui` file** is rendered from a JS-built tree. The
+app builds the tree with the `ui` helpers and renders it:
+
+```ts
+app
+  .window("main")
+  .render(() =>
+    ui.column({ gap: 8 }, [ui.text("Hello"), ui.button("+1", { onClick: () => app.store.set("n", n + 1) })]),
+  )
+```
+
+Every change to `Store` rebuilds and re-sends the tree (skipped when unchanged,
+or while a text field is focused). The tree reaches the host as a `__ui`
+notification and is turned into Qt Quick items by `PulsarView`:
+
+```
+__ui    { target, tree }                                  runtime -> host (full window render)
+__event { name: "ui-event", data: { id, event, value } }  host -> runtime
+```
+
+Nodes carry a numeric `id`; the app-side callbacks stay in the runtime and are
+dispatched by `id` when the matching `ui-event` arrives.
 
 ## Data channel
 

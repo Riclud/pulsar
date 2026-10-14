@@ -26,6 +26,7 @@ public:
     Q_INVOKABLE qint64 emit(const QString &method, const QJSValue &params);
     Q_INVOKABLE QJSValue call(const QString &method, const QJSValue &params);
     Q_INVOKABLE QString diagnostics() const;
+    Q_INVOKABLE QString env(const QString &name) const;
 
     // Called by the host to restart the whole Bun side (dev hot reload).
     Q_INVOKABLE void restart();

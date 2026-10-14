@@ -37,6 +37,7 @@ const winLog = join(tmp, "window-ctl.log")
 const dialogLog = join(tmp, "dialog.log")
 const systemLog = join(tmp, "system.log")
 const trayLog = join(tmp, "tray.log")
+const jsUiLog = join(tmp, "js-ui.log")
 
 let failed = false
 
@@ -207,6 +208,20 @@ try {
   check(systemLog, "STORE notifyToken = QVariant(QString, 1)")
   check(systemLog, "STORE multiOk = QVariant(bool, true)")
   check(systemLog, "STORE dirOk = QVariant(bool, true)")
+
+  // JS-built UI: a window without `ui` is rendered from the tree; a synthetic
+  // click travels back to the app and updates the store (and the UI).
+  runHost({
+    PULSAR_DEBUG: "1",
+    QT_QPA_PLATFORM: "offscreen",
+    PULSAR_UI_AUTOCLICK_MS: "800",
+    PULSAR_APP: join(root, "tests", "apps", "js-ui"),
+    AUTO_QUIT_MS: "2500",
+    QT_LOG_FILE: jsUiLog,
+  })
+  check(jsUiLog, "UI render main nodes= 1")
+  check(jsUiLog, "PulsarView built 1")
+  check(jsUiLog, "STORE count = QVariant(qlonglong, 1)")
 
   // System tray: the app can configure the menu through the tray capability.
   runHost({

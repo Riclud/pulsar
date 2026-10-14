@@ -1,8 +1,24 @@
 import { callCapability } from "./caps.ts"
 import { loadManifest, resolveWindows, type AppManifest } from "./manifest.ts"
+import { forgetHandlers, serialize, type UiNode } from "./ui.ts"
+
+export type UiSource = UiNode | UiNode[] | (() => UiNode | UiNode[])
+
+const collectUiIds = (nodes: UiNode[]): number[] => {
+  const ids: number[] = []
+  const walk = (list: UiNode[]) => {
+    for (const node of list) {
+      ids.push(node.id)
+      if (node.children) walk(node.children)
+    }
+  }
+  walk(nodes)
+  return ids
+}
 
 export interface AppConfig {
-  ui: string
+  /** QML file for this window; omit it to render the window from a JS tree. */
+  ui?: string
   /** Window label; addresses windows in multi-window apps. */
   label?: string
   width?: number
@@ -110,9 +126,21 @@ export class Store {
   private readonly data = new Map<string, unknown>()
   private readonly dirty = new Set<string>()
   private readonly removed = new Set<string>()
+  private readonly listeners = new Set<() => void>()
 
   /** Called whenever the store changes; the runtime uses it to push updates. */
   onChange?: () => void
+
+  /** Subscribe to any change; returns an unsubscribe function. */
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
+  private notify(): void {
+    this.onChange?.()
+    for (const listener of this.listeners) listener()
+  }
 
   get(key: string): unknown {
     return this.data.has(key) ? this.data.get(key) : null
@@ -124,7 +152,7 @@ export class Store {
     if (!existed || !Object.is(this.data.get(key), value)) {
       this.dirty.add(key)
       this.removed.delete(key)
-      this.onChange?.()
+      this.notify()
     }
     this.data.set(key, value)
     return this
@@ -139,7 +167,7 @@ export class Store {
     if (had) {
       this.removed.add(key)
       this.dirty.delete(key)
-      this.onChange?.()
+      this.notify()
     }
     return had
   }
@@ -175,6 +203,11 @@ export class WindowHandle {
   /** Send an event to just this window's UI (handled by Pulsar.on in QML). */
   emit(event: string, payload?: unknown): void {
     App.current?.send(event, payload, this.label)
+  }
+
+  /** Render a JS-built UI tree into this window (windows declared without `ui`). */
+  render(source: UiSource): void {
+    App.current?.renderWindow(this.label, source)
   }
 
   show(): Promise<boolean> {
@@ -235,6 +268,14 @@ export class App {
   onSend?: (event: string, payload: unknown, target: string) => void
   /** Installed by the runtime; asks the host to create a window. */
   onCreateWindow?: (config: AppConfig) => void
+  /** Installed by the runtime; renders a JS UI tree into a window. */
+  onSendUi?: (label: string, tree: unknown[]) => void
+
+  private readonly renderSources = new Map<string, () => UiNode[]>()
+  private readonly sentTrees = new Map<string, string>()
+  private readonly sentIds = new Map<string, number[]>()
+  private readonly pendingRender = new Set<string>()
+  private uiFocusCount = 0
 
   /** The windows currently open (start windows plus those created in code). */
   get windows(): AppConfig[] {
@@ -250,6 +291,7 @@ export class App {
     this.manifest = loadManifest()
     this.windowConfigs = resolveWindows(this.manifest, config)
     this.store = new Store()
+    this.store.subscribe(() => this.flushAllUi())
     App.current = this
   }
 
@@ -284,6 +326,53 @@ export class App {
   /** Send an event to the UI. `target` is a window label, or "*" for all. */
   send(event: string, payload?: unknown, target = "*"): void {
     this.onSend?.(event, payload ?? null, target)
+  }
+
+  /** Render a JS-built UI tree into the window with this label. */
+  renderWindow(label: string, source: UiSource): void {
+    this.renderSources.set(label, () => {
+      const value = typeof source === "function" ? source() : source
+      return Array.isArray(value) ? value : [value]
+    })
+    this.flushUi(label)
+  }
+
+  /** Track text-input focus so re-renders do not steal it. */
+  noteUiFocus(focused: boolean): void {
+    this.uiFocusCount += focused ? 1 : -1
+    if (this.uiFocusCount < 0) this.uiFocusCount = 0
+
+    if (this.uiFocusCount > 0) return
+
+    for (const label of [...this.pendingRender]) {
+      this.pendingRender.delete(label)
+      this.flushUi(label)
+    }
+  }
+
+  /** Flush every pending UI tree to the host (called once wired). */
+  flushAllUi(): void {
+    for (const label of this.renderSources.keys()) this.flushUi(label)
+  }
+
+  private flushUi(label: string): void {
+    const source = this.renderSources.get(label)
+    if (!source || !this.onSendUi) return
+
+    if (this.uiFocusCount > 0) {
+      this.pendingRender.add(label)
+      return
+    }
+
+    const nodes = source()
+    const tree = serialize(nodes)
+    const json = JSON.stringify(tree)
+    if (this.sentTrees.get(label) === json) return
+
+    forgetHandlers(this.sentIds.get(label) ?? [])
+    this.sentTrees.set(label, json)
+    this.sentIds.set(label, collectUiIds(nodes))
+    this.onSendUi(label, tree)
   }
 
   /**
