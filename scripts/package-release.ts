@@ -30,11 +30,11 @@ mkdirSync(out, { recursive: true })
 tar(`pulsar-cli-${platform}.tar.gz`, root, ["cli", "core"])
 
 // --- Toolchain ---
-const qmlHost = join(root, "zig-out", "bin", `qml-host${exe}`)
-const bridge = join(root, "zig-out", "bin", `bridge${exe}`)
-const launcher = join(root, "zig-out", "bin", `launcher${exe}`)
+const qmlHost = join(root, "build", "bin", `qml-host${exe}`)
+const bridge = join(root, "build", "bin", `bridge${exe}`)
+const launcher = join(root, "build", "bin", `launcher${exe}`)
 for (const bin of [qmlHost, bridge, launcher]) {
-  if (!existsSync(bin)) throw new Error(`missing build artifact: ${bin} (run zig build first)`)
+  if (!existsSync(bin)) throw new Error(`missing build artifact: ${bin} (run the CMake build first)`)
 }
 
 function stageToolchain(withQt: boolean, name: string): string {

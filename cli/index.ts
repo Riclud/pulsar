@@ -141,7 +141,7 @@ function collectPayload(
     { path: "bin/bridge", data: readFileSync(bridge) },
     { path: "runtime", data: readFileSync(runtime) },
   ]
-  const skip = new Set(["node_modules", ".git", "dist", ".zig-cache", ".cache", skipOut])
+  const skip = new Set(["node_modules", ".git", "dist", "build", ".cache", skipOut])
   const walk = (dir: string, rel: string) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       if (entry.isSymbolicLink() || skip.has(entry.name)) continue
