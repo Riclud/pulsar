@@ -142,11 +142,11 @@ ApplicationWindow {
 pulsar <command>
 
   create <name>  scaffold a new app (--template default|windows|tray)
-  install        download the native toolchain for this platform
+  install        download the native toolchain for this platform (--android for APK)
   update         update the CLI to the latest release
   dev            run with hot reload (watch sources)
   run            run the app in the current directory
-  build          build a single-file executable
+  build          build a single-file executable (--target desktop|android|portable)
   doctor         check the toolchain (host, bridge, Qt, Bun)
   version        print the version
   help           show help
@@ -165,6 +165,22 @@ Useful flags and aliases:
 `pulsar build` writes `dist/<name>` — one executable containing the Bun
 runtime, your app and (unless `--slim`) the Qt runtime. Run it directly:
 `./dist/<name>`.
+
+### Android
+
+Android runs the QuickJS engine and the QML host in-process, so the app must be
+portable: add `"targets": ["android"]` and `"compat": "portable"` to
+`pulsar.json`, then:
+
+```sh
+pulsar build --target android
+```
+
+The first build installs what it needs into `PULSAR_HOME` (one time, ~2 GB):
+JDK 17, the Android SDK/NDK and the Qt for Android bundle with matching host
+tools. The result is `dist/<name>.apk` for `arm64-v8a` (minSdk 28, targetSdk
+35). `pulsar install --android` performs the same setup without building, and
+`pulsar check --target android` rejects `node:`/`bun:` imports before packaging.
 
 ## The manifest — `pulsar.json`
 

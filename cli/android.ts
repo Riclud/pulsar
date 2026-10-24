@@ -1,11 +1,21 @@
 import type { BunPlugin } from "bun"
 import { spawnSync } from "child_process"
 import { createHash } from "crypto"
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "fs"
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "fs"
 import { homedir } from "os"
 import { basename, join, resolve } from "path"
 import type { AppManifest } from "../core/sdk/manifest.ts"
-import { pulsarHome, pulsarRoot } from "./core.ts"
+import { cliVersion, platformId, pulsarHome, pulsarRoot, releaseUrl } from "./core.ts"
 
 export const ANDROID_QT_VERSION = "6.9.3"
 export const ANDROID_ABI = "arm64-v8a"
@@ -26,8 +36,44 @@ export interface AndroidTools {
 }
 
 const firstExisting = (candidates: string[]): string | undefined => {
-  for (const candidate of candidates) if (existsSync(candidate)) return candidate
+  for (const candidate of candidates) if (candidate && existsSync(candidate)) return candidate
   return undefined
+}
+
+export const androidBase = (): string => join(pulsarHome(), "android")
+
+export const installedQt = (abi = ANDROID_ABI): string => join(androidBase(), "qt", ANDROID_QT_VERSION, abi)
+
+export const installedJdk = (): string => join(androidBase(), "jdk", "17")
+
+export const installedSdk = (): string => join(androidBase(), "sdk")
+
+const CMDLINE_TOOLS: Record<string, string> = {
+  linux: "commandlinetools-linux-11076708_latest.zip",
+  darwin: "commandlinetools-mac-11076708_latest.zip",
+  win32: "commandlinetools-win-11076708_latest.zip",
+}
+
+const adoptiumOs = (): string =>
+  process.platform === "darwin" ? "mac" : process.platform === "win32" ? "windows" : "linux"
+
+const adoptiumArch = (): string => (process.arch === "arm64" ? "aarch64" : "x64")
+
+async function download(url: string, dest: string): Promise<void> {
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${url}`)
+  writeFileSync(dest, Buffer.from(await res.arrayBuffer()))
+}
+
+function extract(archive: string, dest: string): void {
+  mkdirSync(dest, { recursive: true })
+  const zip = archive.endsWith(".zip")
+  const command =
+    zip && process.platform !== "win32"
+      ? ["unzip", "-q", "-o", archive, "-d", dest]
+      : ["tar", "-xf", archive, "-C", dest]
+  const result = spawnSync(command[0]!, command.slice(1), { stdio: "inherit" })
+  if (result.status !== 0) throw new Error(`failed to extract ${basename(archive)}`)
 }
 
 /** Locate the Android Qt install, SDK, NDK and JDK. */
@@ -36,7 +82,7 @@ export function findAndroidTools(): AndroidTools {
   const qt =
     firstExisting([
       process.env.PULSAR_ANDROID_QT ?? "",
-      join(pulsarHome(), "android", "qt", ANDROID_QT_VERSION, ANDROID_ABI),
+      installedQt(),
       join(home, "Qt", ANDROID_QT_VERSION, "android_arm64_v8a"),
     ]) ?? ""
   const sdk =
@@ -44,6 +90,7 @@ export function findAndroidTools(): AndroidTools {
       process.env.PULSAR_ANDROID_SDK ?? "",
       process.env.ANDROID_SDK_ROOT ?? "",
       process.env.ANDROID_HOME ?? "",
+      installedSdk(),
       join(home, "Android", "Sdk"),
       "/opt/android-sdk",
     ]) ?? ""
@@ -57,6 +104,7 @@ export function findAndroidTools(): AndroidTools {
     firstExisting([
       process.env.PULSAR_JAVA_HOME ?? "",
       process.env.JAVA_HOME ?? "",
+      installedJdk(),
       "/usr/lib/jvm/java-17-openjdk",
       "/usr/lib/jvm/java-17-openjdk-amd64",
     ]) ?? ""
@@ -70,6 +118,84 @@ export function findAndroidTools(): AndroidTools {
   if (missing.length > 0) throw new Error(`missing Android toolchain: ${missing.join(", ")}`)
 
   return { qt, sdk, ndk, javaHome }
+}
+
+/**
+ * Download everything `pulsar build --target android` needs into PULSAR_HOME:
+ * JDK 17, the Android SDK/NDK, and the Qt for Android bundle published with
+ * each Pulsar release. Existing installations are reused.
+ */
+export async function installAndroid(version?: string): Promise<AndroidTools> {
+  const tag = !version || version === "latest" ? "latest" : `v${version}`
+  const base = androidBase()
+  const platform = platformId()
+  mkdirSync(base, { recursive: true })
+
+  const javaHome = installedJdk()
+  if (!existsSync(join(javaHome, "bin", "java"))) {
+    console.log("pulsar: installing JDK 17")
+    const archive = join(base, `jdk-17-${platform}.tar.gz`)
+    await download(
+      `https://api.adoptium.net/v3/binary/latest/17/ga/${adoptiumOs()}/${adoptiumArch()}/jdk/hotspot/normal/eclipse`,
+      archive,
+    )
+    const staging = join(base, ".jdk")
+    rmSync(staging, { recursive: true, force: true })
+    extract(archive, staging)
+    rmSync(archive, { force: true })
+    const unpacked = readdirSync(staging).find((entry) => entry.startsWith("jdk-"))
+    if (!unpacked) throw new Error("JDK archive has no jdk-* directory")
+    rmSync(javaHome, { recursive: true, force: true })
+    mkdirSync(join(base, "jdk"), { recursive: true })
+    renameSync(join(staging, unpacked), javaHome)
+    rmSync(staging, { recursive: true, force: true })
+  }
+
+  const sdk = installedSdk()
+  const sdkmanager = join(sdk, "cmdline-tools", "latest", "bin", "sdkmanager")
+  if (!existsSync(sdkmanager)) {
+    console.log("pulsar: installing Android command-line tools")
+    const archive = join(base, "cmdline-tools.zip")
+    await download(
+      `https://dl.google.com/android/repository/${CMDLINE_TOOLS[process.platform] ?? CMDLINE_TOOLS.linux}`,
+      archive,
+    )
+    const staging = join(base, ".cmdline-tools")
+    rmSync(staging, { recursive: true, force: true })
+    extract(archive, staging)
+    rmSync(archive, { force: true })
+    rmSync(join(sdk, "cmdline-tools", "latest"), { recursive: true, force: true })
+    mkdirSync(join(sdk, "cmdline-tools"), { recursive: true })
+    renameSync(join(staging, "cmdline-tools"), join(sdk, "cmdline-tools", "latest"))
+    rmSync(staging, { recursive: true, force: true })
+  }
+
+  const env = { ...process.env, JAVA_HOME: javaHome }
+  console.log("pulsar: accepting Android SDK licenses")
+  spawnSync(sdkmanager, ["--licenses"], { input: "y\n".repeat(64), stdio: ["pipe", "inherit", "inherit"], env })
+
+  const packages = [
+    "platform-tools",
+    `platforms;${ANDROID_PLATFORM}`,
+    "build-tools;35.0.0",
+    `ndk;${ANDROID_NDK_VERSION}`,
+  ]
+  console.log(`pulsar: installing ${packages.join(", ")}`)
+  const install = spawnSync(sdkmanager, packages, { stdio: "inherit", env })
+  if (install.status !== 0) throw new Error("sdkmanager failed")
+
+  const qt = installedQt()
+  if (!existsSync(join(qt, "bin", "qt-cmake"))) {
+    console.log(`pulsar: installing Qt ${ANDROID_QT_VERSION} for Android`)
+    const asset = `pulsar-android-qt-${ANDROID_QT_VERSION}-${platform}.tar.gz`
+    const archive = join(base, asset)
+    await download(releaseUrl(tag, asset), archive)
+    rmSync(join(base, "qt"), { recursive: true, force: true })
+    extract(archive, join(base, "qt"))
+    rmSync(archive, { force: true })
+  }
+
+  return findAndroidTools()
 }
 
 function versionCode(version: string | undefined): number {
@@ -177,7 +303,15 @@ export interface AndroidBuildOptions {
 export async function buildAndroid(options: AndroidBuildOptions): Promise<string> {
   const { appDir, manifest, entry, outDir } = options
   const abi = options.abi ?? ANDROID_ABI
-  const tools = findAndroidTools()
+  let tools: AndroidTools
+  try {
+    tools = findAndroidTools()
+  } catch (e) {
+    if (process.env.PULSAR_NO_INSTALL === "1") throw e
+    console.log(`pulsar: ${e instanceof Error ? e.message : String(e)}`)
+    console.log("pulsar: installing the Android toolchain (one time, ~2 GB)")
+    tools = await installAndroid(cliVersion())
+  }
   const name = manifest?.name ?? basename(appDir)
   const packageName = manifest?.id ?? "com.pulsar.app"
   const versionName = manifest?.version ?? "0.1.0"

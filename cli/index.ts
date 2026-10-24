@@ -24,7 +24,7 @@ import {
   type Target,
 } from "../core/sdk/manifest.ts"
 import { cliVersion, findBridge, findHost, findLauncher, pulsarRoot } from "./core.ts"
-import { buildAndroid } from "./android.ts"
+import { buildAndroid, installAndroid } from "./android.ts"
 import { create } from "./create.ts"
 import { install } from "./install.ts"
 import { collectQt } from "./qt.ts"
@@ -447,7 +447,7 @@ function usage() {
       "pulsar <command>",
       "",
       "  create <name>  scaffold a new app (--template default|windows|tray)",
-      "  install        download the native toolchain for this platform",
+      "  install        download the native toolchain for this platform (--android for the APK toolchain)",
       "  update         update the CLI to the latest release",
       "  dev            run with hot reload (watch sources)",
       "  run            run the app in the current directory",
@@ -467,7 +467,17 @@ switch (cmd) {
     create(args)
     break
   case "install":
-    await install(args)
+    if (args.includes("--android")) {
+      try {
+        const tools = await installAndroid(flagValue("--version"))
+        console.log(`pulsar: android toolchain ready (qt ${tools.qt})`)
+      } catch (e) {
+        console.error(`pulsar install: ${e instanceof Error ? e.message : String(e)}`)
+        process.exit(1)
+      }
+    } else {
+      await install(args)
+    }
     break
   case "update":
     await update()

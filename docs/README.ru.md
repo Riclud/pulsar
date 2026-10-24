@@ -144,11 +144,11 @@ ApplicationWindow {
 pulsar <command>
 
   create <name>  создать новое приложение (--template default|windows|tray)
-  install        скачать нативный toolchain для этой платформы
+  install        скачать нативный toolchain для этой платформы (--android для APK)
   update         обновить CLI до последнего релиза
   dev            запуск с горячей перезагрузкой (следит за исходниками)
   run            запустить приложение в текущем каталоге
-  build          собрать один исполняемый файл
+  build          собрать один исполняемый файл (--target desktop|android|portable)
   doctor         проверить toolchain (host, bridge, Qt, Bun)
   version        показать версию
   help           показать справку
@@ -159,14 +159,30 @@ pulsar <command>
 | Команда         | Флаги                                                         |
 | --------------- | ------------------------------------------------------------- |
 | `create <name>` | `--template <t>`, `--dir <path>`, `--force`                   |
-| `install`       | `--version <v>\|latest`, `--slim`                             |
-| `build`         | `--out <dir>` / `-o <dir>`, `--slim`                          |
+| `install`       | `--version <v>\|latest`, `--slim`, `--android`                |
+| `build`         | `--out <dir>` / `-o <dir>`, `--slim`, `--target`, `--abi`     |
 | `run`, `dev`    | env `PULSAR_APP` (каталог приложения), `PULSAR_WATCH` (`dev`) |
 | `init`          | устаревший алиас `create` для текущего каталога               |
 
 `pulsar build` пишет `dist/<name>` — один исполняемый файл со встроенным
 рантаймом Bun, вашим приложением и (если не `--slim`) рантаймом Qt. Запуск:
 `./dist/<name>`.
+
+### Android
+
+На Android QuickJS и QML-хост работают в одном процессе, поэтому код должен быть
+портативным: добавьте в `pulsar.json` `"targets": ["android"]` и
+`"compat": "portable"`, затем:
+
+```sh
+pulsar build --target android
+```
+
+Первая сборка сама ставит в `PULSAR_HOME` всё нужное (один раз, ~2 ГБ): JDK 17,
+Android SDK/NDK и бандл Qt for Android с host-инструментами. Результат —
+`dist/<name>.apk` для `arm64-v8a` (minSdk 28, targetSdk 35).
+`pulsar install --android` делает ту же установку без сборки, а
+`pulsar check --target android` отсекает `node:`/`bun:` импорты до упаковки.
 
 ## Манифест — `pulsar.json`
 
