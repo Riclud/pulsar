@@ -235,6 +235,7 @@ error.
 | `theme`    | system color scheme                          |
 | `system`   | locale/language/timezone                     |
 | `storage`  | the app's JSON storage file                  |
+| `secure`   | OS keychain / secret storage                 |
 | `tray`     | system tray icon and menu                    |
 
 Window management is core and is not gated. Custom capabilities registered by
@@ -252,6 +253,7 @@ import {
   paths,
   shell,
   storage,
+  secureStorage,
   dialog,
   notify,
   screen,
@@ -484,6 +486,29 @@ directory. `paths` returns the standard per-OS directories:
 | Linux   | `$XDG_DATA_HOME/<id>`, `$XDG_CONFIG_HOME/<id>` | `$XDG_CACHE_HOME/<id>`      |
 | macOS   | `~/Library/Application Support/<id>`           | `~/Library/Caches/<id>`     |
 | Windows | `%APPDATA%\<id>`                               | `%LOCALAPPDATA%\<id>\cache` |
+
+### Secrets (OS keychain)
+
+`secureStorage` keeps strings in the OS secret store: Keychain on macOS, DPAPI
+on Windows and libsecret (`secret-tool`) on Linux. Entries are scoped to the
+app `id`, so apps never see each other's values.
+
+```ts
+import { secureStorage } from "pulsar"
+
+if (await secureStorage.available()) {
+  await secureStorage.set("api-token", token)
+  const saved = await secureStorage.get("api-token") // string | null
+  await secureStorage.remove("api-token")
+} else {
+  // Linux without libsecret: fall back to the plain JSON store.
+}
+```
+
+`available()` is `false` when the platform backend is missing (typically Linux
+without `secret-tool`). Values are UTF-8 strings; serialize objects to JSON
+first. On Windows the blob is encrypted with DPAPI for the current user; on
+macOS and Linux access control is enforced by the OS keychain.
 
 ### Logging
 

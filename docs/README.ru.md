@@ -236,6 +236,7 @@ pulsar <command>
 | `theme`    | системная цветовая схема                    |
 | `system`   | локаль/язык/часовой пояс                    |
 | `storage`  | JSON-файл хранилища приложения              |
+| `secure`   | системный keychain / хранилище секретов     |
 | `tray`     | иконка и меню трея                          |
 
 Управление окнами — ядро и не ограничивается. Пользовательские возможности,
@@ -253,6 +254,7 @@ import {
   paths,
   shell,
   storage,
+  secureStorage,
   dialog,
   notify,
   screen,
@@ -487,6 +489,29 @@ const { locale, language, timezone } = await system.locale()
 | Linux   | `$XDG_DATA_HOME/<id>`, `$XDG_CONFIG_HOME/<id>` | `$XDG_CACHE_HOME/<id>`      |
 | macOS   | `~/Library/Application Support/<id>`           | `~/Library/Caches/<id>`     |
 | Windows | `%APPDATA%\<id>`                               | `%LOCALAPPDATA%\<id>\cache` |
+
+### Секреты (системный keychain)
+
+`secureStorage` хранит строки в системном хранилище секретов: Keychain в
+macOS, DPAPI в Windows и libsecret (`secret-tool`) в Linux. Записи привязаны к
+`id` приложения, поэтому приложения не видят чужие значения.
+
+```ts
+import { secureStorage } from "pulsar"
+
+if (await secureStorage.available()) {
+  await secureStorage.set("api-token", token)
+  const saved = await secureStorage.get("api-token") // string | null
+  await secureStorage.remove("api-token")
+} else {
+  // Linux без libsecret: используйте обычное JSON-хранилище.
+}
+```
+
+`available()` возвращает `false`, если бэкенда нет (обычно Linux без
+`secret-tool`). Значения — строки UTF-8; объекты сначала сериализуйте в JSON.
+В Windows данные шифруются DPAPI для текущего пользователя; в macOS и Linux
+доступ контролирует системный keychain.
 
 ### Логирование
 

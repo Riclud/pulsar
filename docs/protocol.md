@@ -74,8 +74,8 @@ capability negotiation; `binary` advertises the data channel.
 - anything else is treated as an app event (`App.on`) or a capability call
   (`fs.readFile|writeFile|appendFile|listDir|exists|stat|mkdir|remove|rename|copy|moveToTrash`,
   `nw.fetch`, `paths.get`, `storage.get|has|set|remove`, `shell.open`, `shell.notify`,
-  `dialog.openFile|openFiles|openDirectory|saveFile|message`, `screen.list`,
-  `theme.get`, `system.locale`, `tray`, `window`).
+  `secure.available|get|set|remove`, `dialog.openFile|openFiles|openDirectory|saveFile|message`,
+  `screen.list`, `theme.get`, `system.locale`, `tray`, `window`).
 
 A manifest that lists `permissions` turns capability calls into a checked
 operation: a call whose permission is not granted fails with a
@@ -97,8 +97,10 @@ Some capabilities need host data or native UI, so the runtime asks the host with
 a token and resolves the caller's promise on the reply:
 
 - `__query` `{ token, kind }` → `__query-result` `{ token, value }`. Kinds:
-  `screen.list` (monitors with geometry, work area, scale) and `theme.get`
-  (`{ scheme: "light" | "dark" }`);
+  `screen.list` (monitors with geometry, work area, scale), `theme.get`
+  (`{ scheme: "light" | "dark" }`) and the secret store: `secure.available`
+  (bool), `secure.get` (`{ key }` → string or null), `secure.set`
+  (`{ key, value }` → bool) and `secure.remove` (`{ key }` → bool);
 - `__notify` `{ token, title, body }` — native notification. A click comes back
   as the `notification-click` event with the same token;
 - `__dialog` `{ token, kind, … }` → `__dialog-result` `{ token, value }`, where
