@@ -192,22 +192,24 @@ One file drives the app config and packaging.
     }
   ],
   "permissions": [],
+  "fileAssociations": [{ "ext": "md", "mime": "text/markdown", "name": "Markdown document" }],
   "protocols": [{ "scheme": "myapp" }],
   "singleInstance": true
 }
 ```
 
-| Field            | Meaning                                                                                                                                         |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`             | Reverse-DNS id; used for per-app data/config/cache directories.                                                                                 |
-| `name`           | Display/output name (also the `dist/<name>` file name).                                                                                         |
-| `version`        | App version.                                                                                                                                    |
-| `main`           | Backend entry point relative to the manifest (default `main.ts`).                                                                               |
-| `icons`          | Per-platform icon paths (used by packaging).                                                                                                    |
-| `windows[]`      | Initial windows: `label`, `ui`, `width`, `height`, `title`, `minWidth`, `minHeight`, `maxWidth`, `maxHeight`, `resizable`, `frameless`, `icon`. |
-| `permissions`    | Capabilities the app may use (see [Permissions](#permissions)). Absent = all.                                                                   |
-| `protocols`      | Custom URL schemes (deep links) the app handles.                                                                                                |
-| `singleInstance` | Forward a second launch to the running instance and exit (default `false`).                                                                     |
+| Field              | Meaning                                                                                                                                         |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`               | Reverse-DNS id; used for per-app data/config/cache directories.                                                                                 |
+| `name`             | Display/output name (also the `dist/<name>` file name).                                                                                         |
+| `version`          | App version.                                                                                                                                    |
+| `main`             | Backend entry point relative to the manifest (default `main.ts`).                                                                               |
+| `icons`            | Per-platform icon paths (used by packaging).                                                                                                    |
+| `windows[]`        | Initial windows: `label`, `ui`, `width`, `height`, `title`, `minWidth`, `minHeight`, `maxWidth`, `maxHeight`, `resizable`, `frameless`, `icon`. |
+| `permissions`      | Capabilities the app may use (see [Permissions](#permissions)). Absent = all.                                                                   |
+| `protocols`        | Custom URL schemes (deep links) the app handles.                                                                                                |
+| `fileAssociations` | File types the app opens: `ext` (without the dot), `mime`, `name`.                                                                              |
+| `singleInstance`   | Forward a second launch to the running instance and exit (default `false`).                                                                     |
 
 `App` derives its config from the first manifest window; explicit options
 passed to `new App({...})` override the manifest.
@@ -375,6 +377,23 @@ app.clearRecentDocuments()
 
 Paths are resolved to absolute. Clearing empties the list for this app (on
 Linux the shared `recently-used.xbel` is reset).
+
+### File associations
+
+Declare the file types the app opens in `pulsar.json`:
+
+```json
+"fileAssociations": [
+  { "ext": "md", "mime": "text/markdown", "name": "Markdown document" }
+]
+```
+
+On launch the host registers them idempotently: on Linux it writes a desktop
+entry to `$XDG_DATA_HOME/applications` and a default in
+`$XDG_CONFIG_HOME/mimeapps.list` (so `mime` is required there); on Windows it
+adds the app to `OpenWithProgids` under `HKCU\Software\Classes`. macOS file
+types belong to app bundles, so single-file builds ignore this field — use
+`protocols` for deep links there.
 
 ### Backend → UI events
 
