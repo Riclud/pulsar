@@ -471,13 +471,38 @@ await fs.writeFile("logo.png", bytes, "base64")
 
 const dirs = await paths.get() // { data, config, cache, temp, home }
 
-const res = await net.fetch("https://example.com") // { status, url, text }
+const res = await net.fetch("https://api.example.com/items") // { status, statusText, url, headers, text }
+const created = await net.fetch("https://api.example.com/items", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ name: "demo" }),
+})
+const logo = await net.fetch("https://example.com/logo.png", { responseType: "binary" })
+logo.bytes // Uint8Array
 
 await shell.open("https://github.com/riclud/pulsar")
 
 await storage.set("todos", [{ id: 1, text: "write docs" }])
 const todos = await storage.get("todos")
 await storage.remove("todos")
+```
+
+`net.fetch(url, options)` runs in the native host, not in the JS engine, so it
+works the same under Bun, Node, Hermes or QuickJS. Options: `method`, `headers`,
+`body` (string or `Uint8Array`), `timeoutMs`, `redirect` (`follow` / `manual` /
+`error`), `maxRedirects`, `responseType` (`text` / `binary` / `auto`) and
+`tlsFingerprint`. `tlsFingerprint: true` (or a profile such as `"chrome120"`)
+is reserved for the impersonating backend; builds without it reject with
+`ERR_FINGERPRINT_UNAVAILABLE`.
+
+Use `net.request(url, options)` for streaming: it emits `response`, `data`
+(string or `Uint8Array`), `end` and `error`, and has `abort()`:
+
+```ts
+const request = net.request("https://example.com/big.bin")
+request.on("data", (chunk) => console.log(chunk))
+request.on("end", () => console.log("done"))
+request.on("error", (error) => console.error(error.code, error.message))
 ```
 
 Native dialogs live in `dialog`:

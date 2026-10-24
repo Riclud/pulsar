@@ -73,7 +73,7 @@ capability negotiation; `binary` advertises the data channel.
   `theme-changed`, `notification-click`, `ui-event`;
 - anything else is treated as an app event (`App.on`) or a capability call
   (`fs.readFile|writeFile|appendFile|listDir|exists|stat|mkdir|remove|rename|copy|moveToTrash`,
-  `nw.fetch`, `paths.get`, `storage.get|has|set|remove`, `shell.open`, `shell.notify`,
+  `nw.fetch|request|abort`, `paths.get`, `storage.get|has|set|remove`, `shell.open`, `shell.notify`,
   `secure.available|get|set|remove`, `dialog.openFile|openFiles|openDirectory|saveFile|message`,
   `screen.list`, `theme.get`, `system.locale`, `tray`, `window`).
 
@@ -86,7 +86,7 @@ operation: a call whose permission is not granted fails with a
 - responses: `{ "jsonrpc": "2.0", "id", "result" | "error", "state"?, "unset"? }`
   where `state`/`unset` are store patches to apply;
 - notifications: `__config`, `__window`, `__emit`, `__ui`, `__query`, `__notify`,
-  `__dialog`, `__tray`, `__recent`, `__log`, `__event`, `__quit`, `__reload`,
+  `__dialog`, `__tray`, `__recent`, `__net`, `__log`, `__event`, `__quit`, `__reload`,
   `__error`, `__hello`;
 - `__crash` is emitted by the bridge when the runtime dies (treated as a
   failure).
@@ -110,6 +110,24 @@ a token and resolves the caller's promise on the reply:
 
 The host also pushes `theme-changed` (`{ scheme }`) when the system switches
 appearance.
+
+## Network
+
+HTTP is implemented by the host, so the runtime never depends on an engine's
+`fetch`:
+
+- `__net` `{ id, action: "request", url, method, headers, body?, bodyEncoding?,
+timeoutMs?, redirect?, maxRedirects?, responseType?, tlsFingerprint? }` starts
+  a request; `{ id, action: "abort" }` cancels it;
+- the host replies with `__net-event` `{ id, type: "response", status,
+statusText, url, headers }`, then either `{ id, type: "data", text }` for
+  text responses or data frames with `streamId = id` for binary responses, and
+  finally `{ id, type: "end" }` or `{ id, type: "error", code, message }`;
+- error codes: `ERR_NETWORK`, `ERR_TIMEOUT`, `ERR_ABORTED`, `ERR_TLS`,
+  `ERR_TOO_LARGE`, `ERR_REDIRECT`, `ERR_FINGERPRINT_UNAVAILABLE`;
+- `tlsFingerprint` selects the impersonating backend. Builds without it fail
+  with `ERR_FINGERPRINT_UNAVAILABLE` instead of silently using the native TLS
+  stack.
 
 ## Windows
 

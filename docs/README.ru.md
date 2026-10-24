@@ -474,13 +474,38 @@ await fs.writeFile("logo.png", bytes, "base64")
 
 const dirs = await paths.get() // { data, config, cache, temp, home }
 
-const res = await net.fetch("https://example.com") // { status, url, text }
+const res = await net.fetch("https://api.example.com/items") // { status, statusText, url, headers, text }
+const created = await net.fetch("https://api.example.com/items", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ name: "demo" }),
+})
+const logo = await net.fetch("https://example.com/logo.png", { responseType: "binary" })
+logo.bytes // Uint8Array
 
 await shell.open("https://github.com/riclud/pulsar")
 
 await storage.set("todos", [{ id: 1, text: "write docs" }])
 const todos = await storage.get("todos")
 await storage.remove("todos")
+```
+
+`net.fetch(url, options)` выполняется в нативном хосте, а не в JS-движке,
+поэтому одинаково работает под Bun, Node, Hermes и QuickJS. Опции: `method`,
+`headers`, `body` (строка или `Uint8Array`), `timeoutMs`, `redirect` (`follow` /
+`manual` / `error`), `maxRedirects`, `responseType` (`text` / `binary` / `auto`)
+и `tlsFingerprint`. `tlsFingerprint: true` (или профиль вроде `"chrome120"`)
+зарезервирован под бэкенд с маскировкой; сборки без него отвечают
+`ERR_FINGERPRINT_UNAVAILABLE`.
+
+Для стриминга используйте `net.request(url, options)`: события `response`,
+`data` (строка или `Uint8Array`), `end`, `error` и метод `abort()`:
+
+```ts
+const request = net.request("https://example.com/big.bin")
+request.on("data", (chunk) => console.log(chunk))
+request.on("end", () => console.log("done"))
+request.on("error", (error) => console.error(error.code, error.message))
 ```
 
 Нативные диалоги — в `dialog`:
