@@ -44,5 +44,8 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # IntelliJ based IDEs
 .idea
 
+# Serena (local agent tooling)
+.serena/
+
 # Finder (MacOS) folder config
 .DS_Store
