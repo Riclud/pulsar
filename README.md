@@ -359,6 +359,20 @@ app.on("window-blur", () => {})
 app.on("window-all-closed", () => app.quit())
 ```
 
+On Android the app also receives foreground and back-button events:
+
+```ts
+app.on("app-pause", (params) => saveDraft(params.state)) // "inactive" | "suspended"
+app.on("app-resume", () => refresh())
+app.on("app-stop", () => {}) // went to background; Android may kill the process
+app.on("back-pressed", () => closeDialog()) // no listener: back quits the app
+```
+
+`app-pause` with `state: "inactive"` also fires for dialogs and the notification
+shade, so persist durable state there (or on `app-stop`): Android can kill a
+background process without further callbacks. While the software keyboard is
+open, the first back press only hides it. These events never fire on desktop.
+
 ### Launch arguments & deep links
 
 Files and URLs the OS hands the app (command-line arguments, or a macOS file

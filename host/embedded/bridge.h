@@ -34,6 +34,9 @@ public:
 
     QString colorScheme() const;
 
+    /** Push an unsolicited event to the JS runtime (`__event`). */
+    void notify(const QString &name, const QJsonObject &data);
+
 public slots:
     void handleMessage(const QJsonObject &message);
 

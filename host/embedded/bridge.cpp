@@ -104,6 +104,15 @@ QString EmbeddedBridge::colorScheme() const
 #endif
 }
 
+void EmbeddedBridge::notify(const QString &name, const QJsonObject &data)
+{
+    QJsonObject params;
+    params.insert(QStringLiteral("name"), name);
+    params.insert(QStringLiteral("data"), data);
+
+    reply(QStringLiteral("__event"), params);
+}
+
 void EmbeddedBridge::reply(const QString &method, const QJsonObject &params)
 {
     QJsonObject body;

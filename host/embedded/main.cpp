@@ -9,6 +9,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QKeyEvent>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQmlPropertyMap>
@@ -18,6 +19,37 @@
 #include <QUrl>
 #include <QtQml/qqml.h>
 
+#ifdef Q_OS_ANDROID
+class BackHandler : public QObject {
+public:
+    explicit BackHandler(EmbeddedBridge *bridge)
+        : bridge_(bridge)
+    {
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        Q_UNUSED(watched)
+
+        if (event->type() != QEvent::KeyPress && event->type() != QEvent::KeyRelease)
+            return false;
+
+        const auto *key = static_cast<QKeyEvent *>(event);
+
+        if (key->key() != Qt::Key_Back)
+            return false;
+
+        if (event->type() == QEvent::KeyPress)
+            bridge_->notify(QStringLiteral("back-pressed"), QJsonObject());
+
+        return true;
+    }
+
+private:
+    EmbeddedBridge *bridge_;
+};
+#endif
 
 static QString appDir()
 {
@@ -137,6 +169,33 @@ int main(int argc, char **argv)
     });
 
     qInfo().noquote() << "pulsar: app dir" << dir;
+
+#ifdef Q_OS_ANDROID
+    auto *backHandler = new BackHandler(&bridge);
+    app.installEventFilter(backHandler);
+
+    QObject::connect(&app, &QGuiApplication::applicationStateChanged, &bridge,
+                     [&bridge, last = app.applicationState()](Qt::ApplicationState state) mutable {
+                         if (state == last)
+                             return;
+
+                         last = state;
+
+                         if (state == Qt::ApplicationActive) {
+                             bridge.notify(QStringLiteral("app-resume"), QJsonObject());
+                             return;
+                         }
+
+                         QJsonObject data;
+                         data.insert(QStringLiteral("state"),
+                                     state == Qt::ApplicationSuspended ? QStringLiteral("suspended")
+                                                                      : QStringLiteral("inactive"));
+                         bridge.notify(QStringLiteral("app-pause"), data);
+
+                         if (state == Qt::ApplicationSuspended)
+                             bridge.notify(QStringLiteral("app-stop"), QJsonObject());
+                     });
+#endif
 
     if (!runtime.start(dir + QStringLiteral("/runtime.js"), manifestJson, dir)) {
         qWarning().noquote() << "pulsar: cannot start the embedded runtime";

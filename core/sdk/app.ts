@@ -52,6 +52,10 @@ export interface PulsarEventMap {
   "window-blur": { label: string }
   "window-show": { label: string }
   "window-hide": { label: string }
+  "app-pause": { state: "inactive" | "suspended" }
+  "app-resume": Record<string, never>
+  "app-stop": Record<string, never>
+  "back-pressed": Record<string, never>
   log: { level: string; source: "qml" | "js"; message: string; file?: string; line?: number }
   "tray-menu": { event?: string }
   "tray-activated": { reason?: number }

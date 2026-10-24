@@ -288,6 +288,12 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
         return
       }
 
+      if (params.name === "back-pressed" && !App.current?.hasEvent("back-pressed")) {
+        send({ jsonrpc: "2.0", method: "__quit" })
+
+        return
+      }
+
       App.current?.dispatchEvent(params.name!, params.data ?? {})
 
       return

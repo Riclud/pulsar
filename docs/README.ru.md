@@ -362,6 +362,20 @@ app.on("window-blur", () => {})
 app.on("window-all-closed", () => app.quit())
 ```
 
+На Android приложение также получает события переднего плана и кнопки «назад»:
+
+```ts
+app.on("app-pause", (params) => saveDraft(params.state)) // "inactive" | "suspended"
+app.on("app-resume", () => refresh())
+app.on("app-stop", () => {}) // ушли в фон; Android может убить процесс
+app.on("back-pressed", () => closeDialog()) // без слушателя back закрывает приложение
+```
+
+`app-pause` со `state: "inactive"` приходит и на диалоги и шторку уведомлений,
+поэтому сохраняйте состояние там (или на `app-stop`): Android может убить
+процесс в фоне без дальнейших колбэков. Пока открыта экранная клавиатура,
+первый back только прячет её. На desktop эти события не приходят.
+
 ### Аргументы запуска и deep links
 
 Файлы и URL, которые ОС передаёт приложению (аргументы командной строки или
