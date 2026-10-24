@@ -447,6 +447,7 @@ try {
     check(netLog, "STORE netBinary = QVariant(bool, true)")
     check(netLog, "STORE netRedirect = QVariant(bool, true)")
     check(netLog, "STORE netManual = QVariant(bool, true)")
+    check(netLog, "STORE netRedirectError = QVariant(bool, true)")
     check(netLog, "STORE netStream = QVariant(bool, true)")
     check(netLog, "STORE netTimeout = QVariant(bool, true)")
     check(netLog, "STORE netAbort = QVariant(bool, true)")

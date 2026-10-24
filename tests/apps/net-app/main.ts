@@ -26,6 +26,13 @@ const run = async () => {
   const manual = await net.fetch(`${base}/redirect`, { redirect: "manual" })
   app.store.set("netManual", manual.status === 302)
 
+  try {
+    await net.fetch(`${base}/redirect`, { redirect: "error" })
+    app.store.set("netRedirectError", false)
+  } catch (e) {
+    app.store.set("netRedirectError", errorCode(e) === "ERR_REDIRECT")
+  }
+
   const streamed = await new Promise<string>((resolve, reject) => {
     const request = net.request(`${base}/chunks`)
     let body = ""
