@@ -20,73 +20,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install build tools
-        run: |
-          if [ "$RUNNER_OS" = "Linux" ]; then
-            sudo apt-get update
-            sudo apt-get install -y g++ cmake ninja-build pkg-config
-          else
-            brew install ninja
-          fi
-        shell: bash
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
       - name: Install host Qt
         uses: jurplel/install-qt-action@v4
         with:
           version: "6.9.3"
+          modules: qtshadertools
           cache: true
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: platform-tools
-
-      - name: Install NDK 27.2
-        run: sdkmanager "platforms;android-35" "ndk;27.2.12479018"
-
-      - name: Download Qt sources
+      - name: Install Qt for Android
         shell: bash
         run: |
-          mkdir -p "$HOME/qt-src" && cd "$HOME/qt-src"
-          base=https://download.qt.io/archive/qt/6.9/6.9.3/submodules
-          for m in qtbase qtdeclarative qtshadertools; do
-            curl -fL -o "$m.tar.xz" "$base/$m-everywhere-src-6.9.3.tar.xz"
-            tar xf "$m.tar.xz"
-          done
-
-      - name: Build Qt for Android
-        shell: bash
-        run: |
-          export ANDROID_NDK="$ANDROID_HOME/ndk/27.2.12479018"
-          export QT_ANDROID="$RUNNER_TEMP/Qt-android/6.9.3/android_arm64_v8a"
-          export ANDROID_SDK="$ANDROID_HOME"
-          mkdir -p "$HOME/qt-build/qtbase" && cd "$HOME/qt-build/qtbase"
-          "$HOME/qt-src/qtbase-everywhere-src-6.9.3/configure" \
-            -prefix "$QT_ANDROID" -release \
-            -qt-host-path "$QT_ROOT_DIR" \
-            -android-abis arm64-v8a \
-            -android-sdk "$ANDROID_SDK" -android-ndk "$ANDROID_NDK" \
-            -android-javac-source 17 -android-javac-target 17 \
-            -nomake examples -nomake tests
-          cmake --build . --parallel 4
-          cmake --install .
-
-          for m in qtshadertools qtdeclarative; do
-            mkdir -p "$HOME/qt-build/$m" && cd "$HOME/qt-build/$m"
-            "$QT_ANDROID/bin/qt-configure-module" "$HOME/qt-src/$m-everywhere-src-6.9.3"
-            cmake --build . --parallel 4
-            cmake --install .
-          done
+          if [ "$RUNNER_OS" = "macOS" ]; then host=mac; else host=linux; fi
+          python3 -m venv "$RUNNER_TEMP/aqt"
+          "$RUNNER_TEMP/aqt/bin/pip" install --quiet aqtinstall
+          "$RUNNER_TEMP/aqt/bin/aqt" install-qt "$host" android 6.9.3 android_arm64_v8a \
+            --outputdir "$RUNNER_TEMP/android-qt"
 
       - name: Package the Android Qt bundle
         shell: bash
@@ -94,7 +42,7 @@ jobs:
           curl -fsSL https://bun.sh/install | bash
           export PATH="$HOME/.bun/bin:$PATH"
           PULSAR_QT_HOST="$QT_ROOT_DIR" \
-          PULSAR_QT_ROOT="$RUNNER_TEMP/Qt-android/6.9.3" \
+          PULSAR_ANDROID_QT="$RUNNER_TEMP/android-qt/6.9.3/android_arm64_v8a" \
           bun scripts/package-android-qt.ts
 
       - uses: actions/upload-artifact@v4
