@@ -1,6 +1,7 @@
 import { App } from "../../../core/sdk/index.ts"
 
 const app = new App()
+
 const file = "/tmp/pulsar-recent.txt"
 
 if (process.env.PULSAR_RECENT_MODE === "clear") {

@@ -6,6 +6,7 @@ import { App } from "../../../core/sdk/index.ts"
 declare const __pulsarManifest: string
 
 const manifest = JSON.parse(__pulsarManifest ?? "null")
+
 const runtime = createRuntime({
   transport: createEmbeddedTransport(),
   platform: createQuickJsPlatform(),
@@ -16,6 +17,7 @@ const runtime = createRuntime({
 runtime.start()
 
 const app = new App()
+
 runtime.wireApp()
 
 app.store.set("greeting", "Hello embedded QML")

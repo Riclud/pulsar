@@ -4,6 +4,7 @@ import { createMemoryPlatform } from "./platform.ts"
 import { createFakeTransport } from "./transport.ts"
 
 const transport = createFakeTransport()
+
 const runtime = createRuntime({
   transport,
   platform: createMemoryPlatform(),
@@ -15,4 +16,5 @@ runtime.start()
 runtime.wireApp()
 
 const ok = await run()
+
 console.log("PORTABLE_RESULT", ok)

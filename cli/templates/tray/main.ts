@@ -4,7 +4,7 @@ const app = new App()
 
 app.store.set("count", 0)
 
-function bump() {
+const bump = () => {
   app.store.set("count", (app.store.get("count") as number) + 1)
 }
 

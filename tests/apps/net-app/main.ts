@@ -7,6 +7,7 @@ const errorCode = (e: unknown): string => (e as { code?: string }).code ?? ""
 
 const run = async () => {
   const text = await net.fetch(`${base}/hello`)
+
   app.store.set("netText", text.text === "hello pulsar")
 
   const echo = await net.fetch(`${base}/echo`, {
@@ -14,16 +15,24 @@ const run = async () => {
     headers: { "X-Test": "yes" },
     body: "payload",
   })
-  const echoed = JSON.parse(echo.text) as { method: string; body: string; header: string }
+  const echoed = JSON.parse(echo.text) as {
+    method: string
+    body: string
+    header: string
+  }
+
   app.store.set("netEcho", echoed.method === "POST" && echoed.body === "payload" && echoed.header === "yes")
 
   const binary = await net.fetch(`${base}/binary`, { responseType: "binary" })
+
   app.store.set("netBinary", Array.from(binary.bytes ?? []).join(",") === "0,1,2,255")
 
   const redirect = await net.fetch(`${base}/redirect`)
+
   app.store.set("netRedirect", redirect.text === "hello pulsar")
 
   const manual = await net.fetch(`${base}/redirect`, { redirect: "manual" })
+
   app.store.set("netManual", manual.status === 302)
 
   try {
@@ -35,6 +44,7 @@ const run = async () => {
 
   const streamed = await new Promise<string>((resolve, reject) => {
     const request = net.request(`${base}/chunks`)
+
     let body = ""
 
     request.on("data", (chunk) => {
@@ -43,6 +53,7 @@ const run = async () => {
     request.on("end", () => resolve(body))
     request.on("error", (error) => reject(new Error(error.code)))
   })
+
   app.store.set("netStream", streamed === "abcdef")
 
   try {
@@ -54,10 +65,12 @@ const run = async () => {
 
   const aborted = await new Promise<boolean>((resolve) => {
     const request = net.request(`${base}/slow`)
+
     request.on("error", (error) => resolve(error.code === "ERR_ABORTED"))
     request.on("end", () => resolve(false))
     setTimeout(() => request.abort(), 10)
   })
+
   app.store.set("netAbort", aborted)
 
   try {

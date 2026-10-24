@@ -57,6 +57,7 @@ export const createPermissionGate = (permissions: string[] | undefined): ((name:
 
   return (name: string): void => {
     const permission = CAPABILITY_PERMISSIONS[name]
+
     if (!permission || granted.has(permission)) return
 
     throw new Error(`permission denied: ${name} (add "${permission}" to permissions in pulsar.json)`)

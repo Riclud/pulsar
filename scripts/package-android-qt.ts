@@ -21,12 +21,14 @@ const targetQt = process.env.PULSAR_ANDROID_QT ?? join(qtRoot, `android_${ANDROI
 
 const SKIP = new Set(["doc", "docs", "examples", "tests", "sbom", "translations"])
 
-function copyTree(from: string, to: string): void {
+const copyTree = (from: string, to: string): void => {
   cpSync(from, to, {
     recursive: true,
     filter: (source) => {
       const rel = relative(from, source)
+
       if (!rel) return true
+
       return !SKIP.has(rel.split(sep)[0] ?? "")
     },
   })
@@ -42,9 +44,11 @@ for (const [label, path] of [
 mkdirSync(out, { recursive: true })
 
 const stage = join(out, ".stage-android-qt")
+
 rmSync(stage, { recursive: true, force: true })
 
 const versionDir = join(stage, ANDROID_QT_VERSION)
+
 mkdirSync(versionDir, { recursive: true })
 copyTree(hostQt, join(versionDir, "gcc_64"))
 copyTree(targetQt, join(versionDir, `android_${ANDROID_ABI.replace("-", "_")}`))
@@ -52,19 +56,24 @@ copyTree(targetQt, join(versionDir, `android_${ANDROID_ABI.replace("-", "_")}`))
 const name = `pulsar-android-qt-${ANDROID_QT_VERSION}-${platform}.tar.gz`
 const archive = join(out, name)
 const relDest = relative(stage, archive).split(sep).join("/")
+
 const tar = spawnSync("tar", ["-czf", relDest, "."], { cwd: stage, stdio: "inherit" })
+
 if (tar.status !== 0) throw new Error(`tar failed for ${name}`)
 
 rmSync(stage, { recursive: true, force: true })
 
 const hash = createHash("sha256").update(readFileSync(archive)).digest("hex")
 const sumsPath = join(out, "SHA256SUMS")
+
 const previous = existsSync(sumsPath)
   ? readFileSync(sumsPath, "utf8")
       .split("\n")
       .filter((line) => line.length > 0 && !line.endsWith(`  ${name}`))
   : []
+
 writeFileSync(sumsPath, [...previous, `${hash}  ${name}`].join("\n") + "\n")
 
 const mb = (statSync(archive).size / (1024 * 1024)).toFixed(0)
+
 console.log(`packaged ${name} (${mb} MB)`)

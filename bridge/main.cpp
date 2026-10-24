@@ -42,6 +42,7 @@ void writeStdout(const QByteArray &data)
 {
     if (data.isEmpty())
         return;
+
     std::fwrite(data.constData(), 1, static_cast<size_t>(data.size()), stdout);
     std::fflush(stdout);
 }
@@ -53,12 +54,14 @@ QByteArray encodeControlFrame(const QByteArray &payload)
     QByteArray frame;
     frame.reserve(5 + payload.size());
     frame.append(char(0x01));
+
     const quint32 len = quint32(payload.size());
     frame.append(char(len & 0xff));
     frame.append(char((len >> 8) & 0xff));
     frame.append(char((len >> 16) & 0xff));
     frame.append(char((len >> 24) & 0xff));
     frame.append(payload);
+
     return frame;
 }
 
@@ -68,13 +71,16 @@ void reportCrash(const QByteArray &kind, int value)
     QByteArray json = "{\"jsonrpc\":\"2.0\",\"method\":\"__crash\",\"params\":{\"scope\":\"bun\",\"kind\":\"";
     json += kind;
     json += "\"";
+
     if (value >= 0) {
         json += ",\"";
         json += kind == "exited" ? "code" : "signal";
         json += "\":";
         json += QByteArray::number(value);
     }
+
     json += "}}";
+
     writeStdout(encodeControlFrame(json));
 }
 
@@ -83,8 +89,10 @@ void reportCrash(const QByteArray &kind, int value)
 void pumpStdin(QProcess *process, const std::shared_ptr<std::atomic<bool>> &shuttingDown)
 {
     std::vector<char> buffer(kBufSize);
+
     for (;;) {
         const int n = readStdin(buffer.data(), static_cast<int>(buffer.size()));
+
         if (n <= 0)
             break;
 
@@ -122,6 +130,7 @@ int main(int argc, char **argv)
 
     QString program;
     QStringList arguments;
+
     if (!runtimeBin.isEmpty()) {
         program = runtimeBin;
     } else {
@@ -161,6 +170,7 @@ int main(int argc, char **argv)
     QObject::connect(process, &QProcess::errorOccurred, &app, [shuttingDown](QProcess::ProcessError error) {
         if (shuttingDown->load() || error != QProcess::FailedToStart)
             return;
+
         std::fprintf(stderr, "bridge: failed to start the runtime\n");
         reportCrash("unknown", -1);
         QCoreApplication::exit(1);

@@ -13,6 +13,7 @@ export const createEmbeddedTransport = (): Transport => {
   let dataHandler: ((streamId: number, data: Uint8Array) => void) | null = null
 
   const global = globalThis as PulsarGlobal
+
   global.__pulsarReceive = (json: string) => {
     try {
       messageHandler?.(JSON.parse(json))
@@ -26,6 +27,7 @@ export const createEmbeddedTransport = (): Transport => {
 
     sendBinary: (streamId, data) => {
       const buffer = (data.buffer as ArrayBuffer).slice(data.byteOffset, data.byteOffset + data.byteLength)
+
       __pulsarSendBinary(streamId, buffer)
     },
 

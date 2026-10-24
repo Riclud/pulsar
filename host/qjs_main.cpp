@@ -14,6 +14,7 @@ int main(int argc, char **argv)
     QCoreApplication app(argc, argv);
 
     const QStringList args = QCoreApplication::arguments();
+
     if (args.size() < 2) {
         std::fprintf(stderr, "usage: qjs-runtime <bundle.js> [manifest.json]\n");
         return 2;
@@ -22,10 +23,12 @@ int main(int argc, char **argv)
     QString manifestJson = QStringLiteral("null");
     if (args.size() > 2) {
         QFile manifestFile(args.at(2));
+
         if (!manifestFile.open(QIODevice::ReadOnly)) {
             std::fprintf(stderr, "qjs-runtime: cannot open %s\n", qPrintable(args.at(2)));
             return 1;
         }
+
         manifestJson = QString::fromUtf8(manifestFile.readAll());
     }
 
@@ -44,7 +47,9 @@ int main(int argc, char **argv)
         return 1;
 
     int quitMs = qEnvironmentVariableIntValue("AUTO_QUIT_MS");
+
     if (quitMs <= 0) quitMs = 1000;
+
     QTimer::singleShot(quitMs, &app, &QCoreApplication::quit);
 
     return app.exec();

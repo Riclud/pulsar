@@ -59,6 +59,7 @@ Bridge::Bridge(QJSEngine *engine, QQmlPropertyMap *store, QObject *parent)
 {
     bool hasRestart = false;
     const int restart = qEnvironmentVariableIntValue("PULSAR_RESTART", &hasRestart);
+
     restartBudget_ = (hasRestart && restart > 0) ? restart : 0;
 
     connect(&process_, &QProcess::readyReadStandardOutput,
@@ -75,10 +76,12 @@ Bridge::Bridge(QJSEngine *engine, QQmlPropertyMap *store, QObject *parent)
             for (const QByteArray &w : std::as_const(pendingWrites_))
                 process_.write(w);
             pendingWrites_.clear();
+
             if (!synced_) {
                 synced_ = true;
                 invoke(QStringLiteral("__sync"), QJSValue());
             }
+
             if (!readyEmitted_) {
                 readyEmitted_ = true;
                 Q_EMIT ready();
@@ -97,6 +100,7 @@ Bridge::~Bridge()
     delete trayMenu_;
     pendingCalls_.clear();
     process_.blockSignals(true);
+
     if (process_.state() != QProcess::NotRunning) {
         process_.terminate();
         if (!process_.waitForFinished(1000))
@@ -110,6 +114,7 @@ void Bridge::startBridge()
 
     QString qmlRootDir;
     const QByteArray rootEnv = qgetenv("PULSAR_ROOT");
+
     if (!rootEnv.isEmpty()) {
         qmlRootDir = QString::fromLocal8Bit(rootEnv);
     } else {
@@ -117,16 +122,20 @@ void Bridge::startBridge()
         // installed layout (bin/ + core/ + app/) works just like the dev one
         // (zig-out/bin/ + core/).
         QDir dir(appDir);
+
         for (int i = 0; i < 8; ++i) {
             if (QFileInfo::exists(dir.filePath(QStringLiteral("core/runtime/main.ts")))) {
                 qmlRootDir = dir.absolutePath();
                 break;
             }
+
             if (!dir.cdUp())
                 break;
         }
+
         if (qmlRootDir.isEmpty()) {
             QDir root(appDir);
+
             if (root.cd(QStringLiteral("../..")))
                 qmlRootDir = root.absolutePath();
         }
@@ -136,12 +145,15 @@ void Bridge::startBridge()
     const auto consider = [&candidates](const QString &path) {
         if (path.isEmpty())
             return;
+
         const QString exe = path + QStringLiteral(".exe");
+
         if (QFileInfo::exists(path))
             candidates << path;
         else if (QFileInfo::exists(exe))
             candidates << exe;
     };
+
     consider(QString::fromLocal8Bit(qgetenv("PULSAR_BRIDGE")));
     consider(appDir + QStringLiteral("/bridge"));
     consider(qmlRootDir + QStringLiteral("/bridge"));
@@ -154,6 +166,7 @@ void Bridge::startBridge()
             break;
         }
     }
+
     if (chosen.isEmpty()) {
         Q_EMIT response(-1, QJSValue(QJSValue::NullValue),
                         engine_->toScriptValue(QStringLiteral("bridge binary not found")));
@@ -167,11 +180,14 @@ void Bridge::startBridge()
 void Bridge::restart()
 {
     restarting_ = true;
+
     if (process_.state() != QProcess::NotRunning) {
         process_.terminate();
+
         if (!process_.waitForFinished(1000))
             process_.kill();
     }
+
     restarting_ = false;
     stdoutBuffer_.clear();
     stderrBuffer_.clear();
@@ -179,6 +195,7 @@ void Bridge::restart()
     synced_ = false;
     readyEmitted_ = false;
     crashed_ = false;
+
     startBridge();
 }
 
@@ -217,21 +234,27 @@ void Bridge::ensureTray()
 {
     if (tray_ || !QSystemTrayIcon::isSystemTrayAvailable())
         return;
+
     tray_ = new QSystemTrayIcon(this);
+
     connect(tray_, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason reason) {
         QJsonObject data;
         data.insert(QStringLiteral("reason"), int(reason));
+
         QJsonObject params;
         params.insert(QStringLiteral("name"), QStringLiteral("tray-activated"));
         params.insert(QStringLiteral("data"), data);
+
         notify(QStringLiteral("__event"), params);
     });
     connect(tray_, &QSystemTrayIcon::messageClicked, this, [this]() {
         QJsonObject data;
         data.insert(QStringLiteral("token"), lastNotifyToken_);
+
         QJsonObject params;
         params.insert(QStringLiteral("name"), QStringLiteral("notification-click"));
         params.insert(QStringLiteral("data"), data);
+
         notify(QStringLiteral("__event"), params);
     });
 }
@@ -239,8 +262,10 @@ void Bridge::ensureTray()
 void Bridge::setTrayIcon(const QString &path)
 {
     ensureTray();
+
     if (!tray_)
         return;
+
     tray_->setIcon(path.isEmpty() ? QIcon() : QIcon(path));
     tray_->setVisible(true);
 }
@@ -255,35 +280,49 @@ void Bridge::setTrayMenu(const QVariantList &items)
 {
     if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
         qInfo() << "TRAY menu items=" << items.size();
+
     if (!QSystemTrayIcon::isSystemTrayAvailable())
         return;
+
     if (!tray_)
         setTrayIcon(QString());
+
     if (!trayMenu_)
         trayMenu_ = new QMenu();
+
     trayMenu_->clear();
+
     for (const QVariant &value : items) {
         const QVariantMap m = value.toMap();
+
         if (m.value(QStringLiteral("separator")).toBool()) {
             trayMenu_->addSeparator();
             continue;
         }
+
         QAction *action = trayMenu_->addAction(m.value(QStringLiteral("label")).toString());
+
         action->setEnabled(m.value(QStringLiteral("enabled"), true).toBool());
+
         if (m.contains(QStringLiteral("checked"))) {
             action->setCheckable(true);
             action->setChecked(m.value(QStringLiteral("checked")).toBool());
         }
+
         const QString event = m.value(QStringLiteral("event")).toString();
+
         connect(action, &QAction::triggered, this, [this, event]() {
             QJsonObject data;
             data.insert(QStringLiteral("event"), event);
+
             QJsonObject params;
             params.insert(QStringLiteral("name"), QStringLiteral("tray-menu"));
             params.insert(QStringLiteral("data"), data);
+
             notify(QStringLiteral("__event"), params);
         });
     }
+
     tray_->setContextMenu(trayMenu_);
 }
 
@@ -309,10 +348,14 @@ QString Bridge::env(const QString &name) const
 bool Bridge::showNotification(const QString &title, const QString &body, const QString &token)
 {
     ensureTray();
+
     if (!tray_)
         return false;
+
     lastNotifyToken_ = token;
+
     tray_->showMessage(title, body, QSystemTrayIcon::Information, 8000);
+
     return true;
 }
 
@@ -336,6 +379,7 @@ qint64 Bridge::invoke(const QString &method, const QJSValue &params)
     const qint64 id = nextId_++;
 
     QVariantMap p;
+
     if (params.isObject())
         p = params.toVariant().toMap();
 
@@ -344,6 +388,7 @@ qint64 Bridge::invoke(const QString &method, const QJSValue &params)
     body.insert(QStringLiteral("id"), id);
     body.insert(QStringLiteral("method"), method);
     body.insert(QStringLiteral("params"), QJsonObject::fromVariantMap(p));
+
     const QByteArray frame = encodeFrame(kFrameControl, QJsonDocument(body).toJson(QJsonDocument::Compact));
 
     if (process_.state() != QProcess::Running) {
@@ -352,6 +397,7 @@ qint64 Bridge::invoke(const QString &method, const QJSValue &params)
     }
 
     process_.write(frame);
+
     return id;
 }
 
@@ -366,12 +412,14 @@ void Bridge::notify(const QString &method, const QJsonObject &params)
     body.insert(QStringLiteral("jsonrpc"), QStringLiteral("2.0"));
     body.insert(QStringLiteral("method"), method);
     body.insert(QStringLiteral("params"), params);
+
     const QByteArray frame = encodeFrame(kFrameControl, QJsonDocument(body).toJson(QJsonDocument::Compact));
 
     if (process_.state() != QProcess::Running) {
         pendingWrites_.append(frame);
         return;
     }
+
     process_.write(frame);
 }
 
@@ -381,12 +429,14 @@ void Bridge::sendBinary(quint32 streamId, const QByteArray &data)
     payload.reserve(4 + data.size());
     appendU32LE(payload, streamId);
     payload.append(data);
+
     const QByteArray frame = encodeFrame(kFrameData, payload);
 
     if (process_.state() != QProcess::Running) {
         pendingWrites_.append(frame);
         return;
     }
+
     process_.write(frame);
 }
 
@@ -413,7 +463,9 @@ void Bridge::ensurePromiseFactory()
         "  var promise = new Promise(function (res, rej) { resolve = res; reject = rej; });"
         "  return { promise: promise, resolve: resolve, reject: reject };"
         "})");
+
     promiseFactory_ = engine_->evaluate(src);
+
     if (promiseFactory_.isError())
         qWarning().noquote() << "bridge: promise factory failed:" << promiseFactory_.toString();
 }
@@ -421,18 +473,23 @@ void Bridge::ensurePromiseFactory()
 QJSValue Bridge::call(const QString &method, const QJSValue &params)
 {
     ensurePromiseFactory();
+
     if (!promiseFactory_.isCallable())
         return engine_->evaluate(QStringLiteral("Promise.reject(new Error('pulsar: bridge not ready'))"));
 
     const QJSValue handle = promiseFactory_.call();
+
     if (!handle.isObject())
         return engine_->evaluate(QStringLiteral("Promise.reject(new Error('pulsar: cannot create promise'))"));
 
     const qint64 id = invoke(method, params);
+
     PendingCall pending;
     pending.resolve = handle.property(QStringLiteral("resolve"));
     pending.reject = handle.property(QStringLiteral("reject"));
+
     pendingCalls_.insert(id, pending);
+
     return handle.property(QStringLiteral("promise"));
 }
 
@@ -440,10 +497,13 @@ void Bridge::failPending(const QString &reason)
 {
     if (pendingCalls_.isEmpty())
         return;
+
     const QJSValue reasonValue = engine_->toScriptValue(reason);
     const QList<qint64> ids = pendingCalls_.keys();
+
     for (const qint64 id : ids) {
         const PendingCall pending = pendingCalls_.take(id);
+
         if (pending.reject.isCallable())
             pending.reject.call(QJSValueList{ reasonValue });
     }
@@ -462,10 +522,12 @@ void Bridge::onReadyReadStandardOutput()
             stdoutBuffer_.clear();
             return;
         }
+
         if (quint32(stdoutBuffer_.size()) < 5 + length)
             return;
 
         const QByteArray payload = stdoutBuffer_.mid(5, int(length));
+
         stdoutBuffer_.remove(0, 5 + int(length));
 
         if (type == kFrameControl)
@@ -478,10 +540,13 @@ void Bridge::onReadyReadStandardOutput()
 void Bridge::onReadyReadStandardError()
 {
     stderrBuffer_ += process_.readAllStandardError();
+
     int idx;
     while ((idx = stderrBuffer_.indexOf('\n')) >= 0) {
         const QByteArray line = stderrBuffer_.left(idx).trimmed();
+
         stderrBuffer_.remove(0, idx + 1);
+
         if (!line.isEmpty())
             pulsar::forwardLine(QString::fromUtf8(line));
     }
@@ -491,24 +556,31 @@ void Bridge::onProcessFinished(int exitCode, QProcess::ExitStatus status)
 {
     Q_UNUSED(exitCode);
     Q_UNUSED(status);
+
     if (restarting_) {
         restarting_ = false;
         return;
     }
+
     if (!stderrBuffer_.isEmpty()) {
         pulsar::forwardLine(QString::fromUtf8(stderrBuffer_.trimmed()));
         stderrBuffer_.clear();
     }
+
     failPending(QStringLiteral("bridge exited"));
+
     if (restartBudget_ > 0) {
         --restartBudget_;
         qWarning().noquote() << "bridge exited; restarting (attempts left:" << restartBudget_ << ")";
+
         restart();
         return;
     }
+
     // A Bun crash was already surfaced through the crashed() signal.
     if (crashed_)
         return;
+
     Q_EMIT response(-1, QJSValue(QJSValue::NullValue),
                     engine_->toScriptValue(QStringLiteral("bridge exited unexpectedly")));
 }
@@ -516,8 +588,10 @@ void Bridge::onProcessFinished(int exitCode, QProcess::ExitStatus status)
 void Bridge::handleResponse(const QByteArray &payload)
 {
     const QJsonDocument doc = QJsonDocument::fromJson(payload);
+
     if (!doc.isObject())
         return;
+
     const QJsonObject obj = doc.object();
 
     // Responses carry an "id"; unsolicited notifications (Bun push) do not.
@@ -527,6 +601,7 @@ void Bridge::handleResponse(const QByteArray &payload)
     QJsonObject notifyParams;
     QJsonObject state;
     QJsonArray unset;
+
     if (hasId) {
         state = obj.value(QStringLiteral("state")).toObject();
         unset = obj.value(QStringLiteral("unset")).toArray();
@@ -535,22 +610,27 @@ void Bridge::handleResponse(const QByteArray &payload)
         notifyParams = obj.value(QStringLiteral("params")).toObject();
         state = notifyParams.value(QStringLiteral("state")).toObject();
         unset = notifyParams.value(QStringLiteral("unset")).toArray();
+
         if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
             qInfo().noquote() << "NOTIFY" << notifyMethod;
     }
 
     if (store_ && !state.isEmpty()) {
         QVariantHash values;
+
         for (auto it = state.begin(); it != state.end(); ++it) {
             values.insert(it.key(), it.value().toVariant());
+
             if (qEnvironmentVariableIsSet("PULSAR_DEBUG")) {
                 const QVariant v = it.value().toVariant();
+
                 if (v.metaType().id() == QMetaType::QVariantList)
                     qInfo().noquote() << "STORE" << it.key() << "(list size" << v.toList().size() << ")";
                 else
                     qInfo().noquote() << "STORE" << it.key() << "=" << v;
             }
         }
+
         if (!values.isEmpty())
             store_->insert(values);
     }
@@ -559,6 +639,7 @@ void Bridge::handleResponse(const QByteArray &payload)
         for (const QJsonValue &v : unset) {
             if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
                 qInfo().noquote() << "STORE unset" << v.toString();
+
             store_->clear(v.toString());
         }
     }
@@ -567,15 +648,20 @@ void Bridge::handleResponse(const QByteArray &payload)
         // Bun supervision: the bridge reports a dead Bun runtime here.
         if (notifyMethod == QLatin1String("__crash")) {
             crashed_ = true;
+
             const QString kind = notifyParams.value(QStringLiteral("kind")).toString();
             const int code = notifyParams.contains(QStringLiteral("code"))
                                  ? notifyParams.value(QStringLiteral("code")).toInt()
                                  : notifyParams.value(QStringLiteral("signal")).toInt(-1);
+
             Q_EMIT crashed(kind, code);
+
             if (restartBudget_ <= 0)
                 QCoreApplication::exit(70);
+
             return;
         }
+
         Q_EMIT notification(notifyMethod, engine_->toScriptValue(notifyParams.toVariantMap()));
         return;
     }
@@ -584,11 +670,13 @@ void Bridge::handleResponse(const QByteArray &payload)
 
     QJSValue result(QJSValue::NullValue);
     const QJsonValue rv = obj.value(QStringLiteral("result"));
+
     if (rv.isObject() || rv.isArray() || rv.isDouble() || rv.isBool() || rv.isString())
         result = engine_->toScriptValue(rv.toVariant());
 
     QJSValue error(QJSValue::NullValue);
     const QJsonValue ev = obj.value(QStringLiteral("error"));
+
     if (!ev.isUndefined())
         error = engine_->toScriptValue(ev.toVariant());
 
@@ -596,6 +684,7 @@ void Bridge::handleResponse(const QByteArray &payload)
 
     if (pendingCalls_.contains(id)) {
         const PendingCall pending = pendingCalls_.take(id);
+
         if (error.isNull() || error.isUndefined()) {
             if (pending.resolve.isCallable())
                 pending.resolve.call(QJSValueList{ result });
@@ -612,6 +701,7 @@ void Bridge::handleDataFrame(const QByteArray &payload)
 
     const quint32 streamId = readU32LE(payload.constData());
     const QByteArray data = payload.mid(4);
+
     if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
         qInfo().noquote() << "DATA stream=" << streamId << "len=" << data.size();
 

@@ -93,9 +93,11 @@ const makeNode = <P extends object>(
   callbacks?: Record<string, UiHandler>,
 ): UiNode => {
   const id = nextId++
+
   if (callbacks) handlers.set(id, callbacks)
 
   const node: UiNode = { id, type, props: props as Record<string, unknown> }
+
   if (children.length > 0) node.children = children
   if (events.length > 0) node.events = events
 
@@ -177,8 +179,10 @@ export const slider = (options: SliderOptions = {}): UiNode => {
 export const serialize = (nodes: UiNode[]): unknown[] => {
   return nodes.map((node) => {
     const out: Record<string, unknown> = { id: node.id, type: node.type, props: node.props }
+
     if (node.children) out.children = serialize(node.children)
     if (node.events) out.events = node.events
+
     return out
   })
 }

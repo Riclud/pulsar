@@ -44,6 +44,7 @@ bool isLatin1(const QByteArray &contentType)
 {
     const QByteArray raw = contentType.toLower();
     const int at = raw.indexOf("charset=");
+
     if (at < 0)
         return false;
 
@@ -81,14 +82,17 @@ void NativeHttpEngine::start(const NetRequestSpec &spec)
         return;
 
     Entry *entry = new Entry;
+
     entry->spec = spec;
     entries_.insert(spec.id, entry);
+
     dispatch(spec.id);
 }
 
 void NativeHttpEngine::dispatch(quint32 id)
 {
     Entry *entry = entries_.value(id);
+
     if (!entry)
         return;
 
@@ -98,8 +102,10 @@ void NativeHttpEngine::dispatch(quint32 id)
 
     for (const NetHeader &header : std::as_const(entry->spec.headers)) {
         const QByteArray lower = header.name.toLower();
+
         if (lower == "host" || lower == "content-length")
             continue;
+
         request.setRawHeader(header.name, header.value);
     }
 
@@ -111,6 +117,7 @@ void NativeHttpEngine::dispatch(quint32 id)
     entry->timer->start(entry->spec.timeoutMs > 0 ? entry->spec.timeoutMs : kDefaultTimeoutMs);
 
     QNetworkReply *reply = manager_->sendCustomRequest(request, entry->spec.method, entry->spec.body);
+
     entry->reply = reply;
     entry->received = 0;
     entry->responded = false;
@@ -129,18 +136,21 @@ void NativeHttpEngine::dispatch(quint32 id)
 void NativeHttpEngine::handleMetaData(quint32 id, QNetworkReply *reply)
 {
     Entry *entry = entries_.value(id);
+
     if (!entry || entry->responded || entry->reply != reply)
         return;
 
     const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
     const QByteArray location = reply->rawHeader("Location");
     const bool redirect = isRedirectStatus(status) && !location.isEmpty();
+
     if (redirect && entry->spec.redirect != QLatin1String("manual"))
         return;
 
     entry->responded = true;
 
     const QByteArray contentType = reply->rawHeader("Content-Type");
+
     if (entry->spec.responseType == QLatin1String("text"))
         entry->binary = false;
     else if (entry->spec.responseType == QLatin1String("binary"))
@@ -152,6 +162,7 @@ void NativeHttpEngine::handleMetaData(quint32 id, QNetworkReply *reply)
     entry->decoder = QStringDecoder(QStringDecoder::Utf8);
 
     QMap<QString, QString> headers;
+
     for (const auto &pair : reply->rawHeaderPairs()) {
         const QString name = QString::fromLatin1(pair.first).toLower();
         const QString value = QString::fromUtf8(pair.second);
@@ -173,14 +184,17 @@ void NativeHttpEngine::handleMetaData(quint32 id, QNetworkReply *reply)
 void NativeHttpEngine::handleReadyRead(quint32 id, QNetworkReply *reply)
 {
     Entry *entry = entries_.value(id);
+
     if (!entry || entry->reply != reply || !entry->responded)
         return;
 
     const QByteArray data = reply->readAll();
+
     if (data.isEmpty())
         return;
 
     entry->received += data.size();
+
     if (entry->received > kMaxResponseBytes) {
         fail(id, QStringLiteral("ERR_TOO_LARGE"), QStringLiteral("response exceeds the size limit"));
         return;
@@ -192,6 +206,7 @@ void NativeHttpEngine::handleReadyRead(quint32 id, QNetworkReply *reply)
     }
 
     const QString chunk = entry->latin1 ? QString::fromLatin1(data) : entry->decoder.decode(data);
+
     if (!chunk.isEmpty())
         Q_EMIT text(id, chunk);
 }
@@ -199,6 +214,7 @@ void NativeHttpEngine::handleReadyRead(quint32 id, QNetworkReply *reply)
 void NativeHttpEngine::handleFinished(quint32 id, QNetworkReply *reply)
 {
     Entry *entry = entries_.value(id);
+
     if (!entry || entry->reply != reply) {
         reply->deleteLater();
         return;
@@ -208,8 +224,10 @@ void NativeHttpEngine::handleFinished(quint32 id, QNetworkReply *reply)
     const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
 
     QUrl targetUrl = target.toUrl();
+
     if (targetUrl.isEmpty() && isRedirectStatus(status)) {
         const QByteArray location = reply->rawHeader("Location");
+
         if (!location.isEmpty())
             targetUrl = reply->url().resolved(QUrl::fromEncoded(location));
     }
@@ -223,6 +241,7 @@ void NativeHttpEngine::handleFinished(quint32 id, QNetworkReply *reply)
         }
 
         const int maxRedirects = entry->spec.maxRedirects > 0 ? entry->spec.maxRedirects : kDefaultRedirects;
+
         if (entry->redirects >= maxRedirects) {
             fail(id, QStringLiteral("ERR_REDIRECT"), QStringLiteral("too many redirects"));
             return;
@@ -230,24 +249,31 @@ void NativeHttpEngine::handleFinished(quint32 id, QNetworkReply *reply)
 
         const QUrl previous = entry->spec.url;
         QUrl next = targetUrl;
+
         if (next.scheme() != QLatin1String("http") && next.scheme() != QLatin1String("https")) {
             fail(id, QStringLiteral("ERR_REDIRECT"), QStringLiteral("redirect to an unsupported scheme"));
             return;
         }
+
         if (previous.scheme() == QLatin1String("https") && next.scheme() == QLatin1String("http")) {
             fail(id, QStringLiteral("ERR_REDIRECT"), QStringLiteral("redirect downgrades to http"));
             return;
         }
 
         QList<NetHeader> headers = entry->spec.headers;
+
         if (!sameOrigin(previous, next)) {
             QList<NetHeader> filtered;
+
             for (const NetHeader &header : std::as_const(headers)) {
                 const QByteArray lower = header.name.toLower();
+
                 if (lower == "authorization" || lower == "cookie" || lower == "proxy-authorization")
                     continue;
+
                 filtered.append(header);
             }
+
             headers = filtered;
         }
 
@@ -255,13 +281,18 @@ void NativeHttpEngine::handleFinished(quint32 id, QNetworkReply *reply)
             && entry->spec.method != "GET" && entry->spec.method != "HEAD") {
             entry->spec.method = "GET";
             entry->spec.body.clear();
+
             QList<NetHeader> filtered;
+
             for (const NetHeader &header : std::as_const(headers)) {
                 const QByteArray lower = header.name.toLower();
+
                 if (lower == "content-type" || lower == "content-encoding")
                     continue;
+
                 filtered.append(header);
             }
+
             headers = filtered;
         }
 
@@ -272,6 +303,7 @@ void NativeHttpEngine::handleFinished(quint32 id, QNetworkReply *reply)
         entry->reply->disconnect(this);
         entry->reply->deleteLater();
         entry->reply = nullptr;
+
         dispatch(id);
         return;
     }
@@ -287,22 +319,26 @@ void NativeHttpEngine::handleFinished(quint32 id, QNetworkReply *reply)
     handleReadyRead(id, reply);
 
     release(id);
+
     Q_EMIT finished(id);
 }
 
 void NativeHttpEngine::fail(quint32 id, const QString &code, const QString &message)
 {
     Entry *entry = entries_.value(id);
+
     if (!entry)
         return;
 
     release(id);
+
     Q_EMIT failed(id, code, message);
 }
 
 void NativeHttpEngine::release(quint32 id)
 {
     Entry *entry = entries_.take(id);
+
     if (!entry)
         return;
 
@@ -310,6 +346,7 @@ void NativeHttpEngine::release(quint32 id)
         entry->timer->stop();
         entry->timer->deleteLater();
     }
+
     if (entry->reply) {
         entry->reply->disconnect(this);
         entry->reply->abort();
@@ -351,10 +388,12 @@ void NetworkService::abort(quint32 id)
 void NetworkService::handle(const QVariantMap &params)
 {
     const quint32 id = params.value(QStringLiteral("id")).toUInt();
+
     if (id == 0)
         return;
 
     const QString action = params.value(QStringLiteral("action")).toString();
+
     if (action == QLatin1String("abort")) {
         abort(id);
         return;
@@ -369,6 +408,7 @@ void NetworkService::handle(const QVariantMap &params)
     spec.method = params.value(QStringLiteral("method"), QStringLiteral("GET")).toString().toUpper().toLatin1();
 
     const QString scheme = spec.url.scheme().toLower();
+
     if (!spec.url.isValid() || spec.url.host().isEmpty()
         || (scheme != QLatin1String("http") && scheme != QLatin1String("https"))) {
         Q_EMIT failed(id, QStringLiteral("ERR_NETWORK"), QStringLiteral("only http and https URLs are supported"));
@@ -376,24 +416,30 @@ void NetworkService::handle(const QVariantMap &params)
     }
 
     const QVariantMap headerMap = params.value(QStringLiteral("headers")).toMap();
+
     for (auto it = headerMap.constBegin(); it != headerMap.constEnd(); ++it)
         spec.headers.append({it.key().toLatin1(), it.value().toString().toUtf8()});
 
     const QString encoding = params.value(QStringLiteral("bodyEncoding")).toString();
     const QString body = params.value(QStringLiteral("body")).toString();
+
     spec.body = encoding == QLatin1String("base64") ? QByteArray::fromBase64(body.toLatin1()) : body.toUtf8();
 
     const int timeout = params.value(QStringLiteral("timeoutMs")).toInt();
+
     spec.timeoutMs = timeout > 0 ? timeout : kDefaultTimeoutMs;
 
     const QString redirect = params.value(QStringLiteral("redirect")).toString();
+
     spec.redirect = (redirect == QLatin1String("manual") || redirect == QLatin1String("error")) ? redirect
                                                                                                : QStringLiteral("follow");
 
     const int maxRedirects = params.value(QStringLiteral("maxRedirects")).toInt();
+
     spec.maxRedirects = maxRedirects > 0 ? maxRedirects : kDefaultRedirects;
 
     const QString responseType = params.value(QStringLiteral("responseType")).toString();
+
     spec.responseType = (responseType == QLatin1String("text") || responseType == QLatin1String("binary"))
                             ? responseType
                             : QStringLiteral("auto");
@@ -401,6 +447,7 @@ void NetworkService::handle(const QVariantMap &params)
     spec.tlsFingerprint = params.value(QStringLiteral("tlsFingerprint")).toString();
 
     HttpEngine *engine = engineFor(spec);
+
     if (!engine) {
         Q_EMIT failed(id,
                       QStringLiteral("ERR_FINGERPRINT_UNAVAILABLE"),

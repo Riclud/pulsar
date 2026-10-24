@@ -34,24 +34,31 @@ QString escapeXml(const QString &text)
     out.replace(QLatin1Char('<'), QStringLiteral("&lt;"));
     out.replace(QLatin1Char('>'), QStringLiteral("&gt;"));
     out.replace(QLatin1Char('"'), QStringLiteral("&quot;"));
+
     return out;
 }
 
 QString xbelPath()
 {
     QString base = qEnvironmentVariable("XDG_DATA_HOME");
+
     if (base.isEmpty())
         base = QDir::homePath() + QStringLiteral("/.local/share");
+
     QDir().mkpath(base);
+
     return base + QStringLiteral("/recently-used.xbel");
 }
 
 bool writeXbel(const QString &content)
 {
     QSaveFile file(xbelPath());
+
     if (!file.open(QIODevice::WriteOnly))
         return false;
+
     file.write(content.toUtf8());
+
     return file.commit();
 }
 
@@ -68,6 +75,7 @@ void addRecentDocument(const QString &path)
 
     QString content;
     QFile file(xbelPath());
+
     if (file.open(QIODevice::ReadOnly))
         content = QString::fromUtf8(file.readAll());
 
@@ -75,6 +83,7 @@ void addRecentDocument(const QString &path)
         content = QString::fromUtf8(kEmptyXbel);
 
     const QString attribute = QStringLiteral("href=\"") + escapeXml(href) + QLatin1Char('"');
+
     if (!content.contains(attribute)) {
         const QString now = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
         const QString entry =
@@ -90,10 +99,12 @@ void addRecentDocument(const QString &path)
                 .arg(escapeXml(href), now);
 
         int at = content.lastIndexOf(QStringLiteral("</xbel>"));
+
         if (at < 0) {
             content = QString::fromUtf8(kEmptyXbel);
             at = content.lastIndexOf(QStringLiteral("</xbel>"));
         }
+
         content.insert(at, entry);
     }
 

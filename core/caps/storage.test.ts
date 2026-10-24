@@ -21,8 +21,12 @@ const caps = createStorageCaps(createBunPlatform())
 
 const call = (name: keyof typeof caps, params: unknown) => {
   const handler = caps[name]
+
   if (!handler) throw new Error(`no handler: ${name}`)
-  return handler(params)
+
+  const invoke = handler as (p: unknown) => Promise<unknown>
+
+  return invoke(params)
 }
 
 describe("storage", () => {

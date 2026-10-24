@@ -25,6 +25,7 @@ app.store.set("error", "")
 app.store.set("photos", listPhotos())
 
 let tick = 0
+
 app.store.set("name", `tick ${tick}`)
 
 setInterval(() => {

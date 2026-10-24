@@ -9,6 +9,7 @@ const root = resolve(import.meta.dir, "..")
 const qjs = process.env.QJS ?? "qjs"
 
 const which = Bun.spawnSync({ cmd: ["sh", "-c", `command -v ${qjs}`], stdio: ["ignore", "pipe", "ignore"] })
+
 if (which.exitCode !== 0) {
   console.log(`portable: ${qjs} not found; skipping`)
   process.exit(0)
@@ -32,6 +33,7 @@ if (!result.success) {
 const tmp = mkdtempSync(join(tmpdir(), "pulsar-portable-"))
 try {
   const bundle = join(tmp, "app.mjs")
+
   writeFileSync(bundle, await result.outputs[0]!.text())
 
   const run = Bun.spawnSync({ cmd: [qjs, "--module", bundle], stdout: "pipe", stderr: "pipe" })

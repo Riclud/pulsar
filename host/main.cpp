@@ -87,12 +87,16 @@ static constexpr int kBridgeProtocolVersion = 1;
 static QString appDir()
 {
     const QByteArray a = qgetenv("PULSAR_APP");
+
     if (!a.isEmpty())
         return QFileInfo(QString::fromLocal8Bit(a)).absoluteFilePath();
+
     // Dev convenience: running the host from the repo root loads the example.
     const QString dev = QDir::current().filePath(QStringLiteral("examples/hello"));
+
     if (QFileInfo::exists(dev))
         return dev;
+
     return QDir::currentPath();
 }
 
@@ -108,22 +112,28 @@ struct ManifestInfo {
 static ManifestInfo readManifestInfo()
 {
     ManifestInfo info;
+
     QFile file(QDir(appDir()).filePath(QStringLiteral("pulsar.json")));
+
     if (!file.open(QIODevice::ReadOnly))
         return info;
 
     const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+
     if (!doc.isObject())
         return info;
 
     const QJsonObject obj = doc.object();
+
     info.id = obj.value(QStringLiteral("id")).toString();
     info.name = obj.value(QStringLiteral("name")).toString();
     info.singleInstance = obj.value(QStringLiteral("singleInstance")).toBool();
 
     const QJsonArray assocs = obj.value(QStringLiteral("fileAssociations")).toArray();
+
     for (const QJsonValue &value : assocs) {
         const QJsonObject item = value.toObject();
+
         pulsar::FileAssociation assoc;
         assoc.ext = item.value(QStringLiteral("ext")).toString();
         assoc.mime = item.value(QStringLiteral("mime")).toString();
@@ -145,6 +155,7 @@ static void deliverLaunch(const QStringList &argv, const QString &cwd, bool firs
         return;
 
     QJsonArray array;
+
     for (const QString &arg : argv)
         array.append(arg);
 
@@ -152,20 +163,24 @@ static void deliverLaunch(const QStringList &argv, const QString &cwd, bool firs
     params.insert(QStringLiteral("argv"), array);
     params.insert(QStringLiteral("cwd"), cwd);
     params.insert(QStringLiteral("first"), first);
+
     gBridge->notify(QStringLiteral("__launch"), params);
 }
 
 static QString sanitizeInstanceKey(const QString &raw)
 {
     QString out;
+
     for (const QChar c : raw) {
         if (c.isLetterOrNumber() || c == QLatin1Char('.') || c == QLatin1Char('-') || c == QLatin1Char('_'))
             out.append(c);
         else
             out.append(QLatin1Char('-'));
     }
+
     if (out.isEmpty())
         out = QStringLiteral("pulsar-app");
+
     return out;
 }
 
@@ -173,11 +188,14 @@ static QString sanitizeInstanceKey(const QString &raw)
 static bool forwardToInstance(const QString &serverName, const QStringList &argv, const QString &cwd)
 {
     QLocalSocket socket;
+
     socket.connectToServer(serverName);
+
     if (!socket.waitForConnected(300))
         return false;
 
     QJsonArray array;
+
     for (const QString &arg : argv)
         array.append(arg);
 
@@ -186,13 +204,16 @@ static bool forwardToInstance(const QString &serverName, const QStringList &argv
     payload.insert(QStringLiteral("cwd"), cwd);
 
     QByteArray data = QJsonDocument(payload).toJson(QJsonDocument::Compact);
+
     data.append('\n');
     socket.write(data);
     socket.flush();
     socket.waitForBytesWritten(1000);
     socket.disconnectFromServer();
+
     if (socket.state() != QLocalSocket::UnconnectedState)
         socket.waitForDisconnected(1000);
+
     return true;
 }
 
@@ -201,7 +222,9 @@ static QLocalServer *gInstanceServer = nullptr;
 static void startInstanceServer(const QString &serverName, QObject *parent)
 {
     QLocalServer::removeServer(serverName);
+
     gInstanceServer = new QLocalServer(parent);
+
     if (!gInstanceServer->listen(serverName)) {
         qWarning().noquote() << "single-instance: listen failed:" << gInstanceServer->errorString();
         delete gInstanceServer;
@@ -212,19 +235,26 @@ static void startInstanceServer(const QString &serverName, QObject *parent)
     QObject::connect(gInstanceServer, &QLocalServer::newConnection, []() {
         while (QLocalSocket *client = gInstanceServer->nextPendingConnection()) {
             auto *buffer = new QByteArray();
+
             QObject::connect(client, &QLocalSocket::readyRead, client, [client, buffer]() {
                 buffer->append(client->readAll());
+
                 int idx;
                 while ((idx = buffer->indexOf('\n')) >= 0) {
                     const QByteArray line = buffer->left(idx);
                     buffer->remove(0, idx + 1);
+
                     const QJsonDocument doc = QJsonDocument::fromJson(line);
+
                     if (!doc.isObject())
                         continue;
+
                     const QJsonObject obj = doc.object();
+
                     QStringList argv;
                     for (const QJsonValue &value : obj.value(QStringLiteral("argv")).toArray())
                         argv << value.toString();
+
                     deliverLaunch(argv, obj.value(QStringLiteral("cwd")).toString(), false);
                 }
             });
@@ -248,13 +278,17 @@ protected:
             return QObject::eventFilter(object, event);
 
         auto *openEvent = static_cast<QFileOpenEvent *>(event);
+
         QStringList argv;
         argv << QCoreApplication::applicationFilePath();
+
         if (!openEvent->url().isEmpty())
             argv << openEvent->url().toString();
         else if (!openEvent->file().isEmpty())
             argv << openEvent->file();
+
         deliverLaunch(argv, QDir::currentPath(), false);
+
         return true;
     }
 };
@@ -268,6 +302,7 @@ static QUrl resolveUi(const QString &ui)
 
     const QFileInfo fi(ui);
     const QString path = fi.isAbsolute() ? ui : QDir(appDir()).absoluteFilePath(ui);
+
     return QUrl::fromLocalFile(path);
 }
 
@@ -275,7 +310,9 @@ static void applyConfig(QObject *root, const WindowConfig &cfg)
 {
     if (!root)
         return;
+
     auto *window = qobject_cast<QQuickWindow *>(root);
+
     if (!window) {
         // Non-window root (plain QML); fall back to generic properties.
         if (cfg.hasWidth)
@@ -284,8 +321,10 @@ static void applyConfig(QObject *root, const WindowConfig &cfg)
             root->setProperty("height", cfg.height);
         if (cfg.hasTitle)
             root->setProperty("title", cfg.title);
+
         return;
     }
+
     if (cfg.hasWidth)
         window->setWidth(cfg.width);
     if (cfg.hasHeight)
@@ -302,14 +341,17 @@ static void applyConfig(QObject *root, const WindowConfig &cfg)
         window->setMaximumHeight(cfg.maxHeight);
     if (cfg.hasResizable)
         window->setProperty("resizable", cfg.resizable);
+
     if (cfg.hasFrameless) {
         Qt::WindowFlags flags = window->flags();
+
         if (cfg.frameless)
             flags |= Qt::FramelessWindowHint;
         else
             flags &= ~Qt::FramelessWindowHint;
         window->setFlags(flags);
     }
+
     if (cfg.hasIcon && !cfg.icon.isEmpty())
         window->setIcon(QIcon(cfg.icon));
 }
@@ -319,39 +361,50 @@ static bool setIfPresent(const QVariantMap &map, const QString &key, T &out)
 {
     if (!map.contains(key))
         return false;
+
     out = static_cast<T>(map.value(key).template value<T>());
+
     return true;
 }
 
 static WindowConfig parseWindowConfig(const QVariantMap &m, const QString &fallbackLabel)
 {
     WindowConfig c;
+
     c.label = m.value(QStringLiteral("label")).toString();
+
     if (c.label.isEmpty())
         c.label = fallbackLabel;
+
     c.ui = m.value(QStringLiteral("ui")).toString();
+
     if (m.contains(QStringLiteral("width"))) {
         c.width = m.value(QStringLiteral("width")).toInt();
         c.hasWidth = true;
     }
+
     if (m.contains(QStringLiteral("height"))) {
         c.height = m.value(QStringLiteral("height")).toInt();
         c.hasHeight = true;
     }
+
     if (m.contains(QStringLiteral("title"))) {
         c.title = m.value(QStringLiteral("title")).toString();
         c.hasTitle = true;
     }
+
     c.hasMinWidth = setIfPresent(m, QStringLiteral("minWidth"), c.minWidth);
     c.hasMinHeight = setIfPresent(m, QStringLiteral("minHeight"), c.minHeight);
     c.hasMaxWidth = setIfPresent(m, QStringLiteral("maxWidth"), c.maxWidth);
     c.hasMaxHeight = setIfPresent(m, QStringLiteral("maxHeight"), c.maxHeight);
     c.hasResizable = setIfPresent(m, QStringLiteral("resizable"), c.resizable);
     c.hasFrameless = setIfPresent(m, QStringLiteral("frameless"), c.frameless);
+
     if (m.contains(QStringLiteral("icon"))) {
         c.icon = m.value(QStringLiteral("icon")).toString();
         c.hasIcon = true;
     }
+
     return c;
 }
 
@@ -359,6 +412,7 @@ static void logWindowConfig(const WindowConfig &c)
 {
     if (!qEnvironmentVariableIsSet("PULSAR_DEBUG"))
         return;
+
     qInfo().noquote() << "CONFIG window" << c.label << "ui=" << c.ui
                       << "size=" << c.width << "x" << c.height << "title=" << c.title
                       << "min=" << c.minWidth << "x" << c.minHeight
@@ -372,6 +426,7 @@ static void showErrorView(QQmlApplicationEngine &engine, const QString &detail)
 {
     if (gErrorShown)
         return;
+
     gErrorShown = true;
 
     qCritical().noquote() << "pulsar: app failed to load";
@@ -428,7 +483,9 @@ static void showErrorView(QQmlApplicationEngine &engine, const QString &detail)
 
     QQmlComponent component(&engine);
     component.setData(qml, QUrl(QStringLiteral("qrc:/pulsar/ErrorView.qml")));
+
     QObject *view = component.create();
+
     if (!view) {
         qCritical().noquote() << "pulsar: could not create the error view:";
         for (const QQmlError &e : component.errors())
@@ -439,6 +496,7 @@ static void showErrorView(QQmlApplicationEngine &engine, const QString &detail)
 static bool watchMode()
 {
     static const bool w = qEnvironmentVariableIsSet("PULSAR_WATCH");
+
     return w;
 }
 
@@ -452,9 +510,12 @@ static void watchQmlFile(const QUrl &url)
 {
     if (!gWatch || !gWatcher)
         return;
+
     const QString path = url.toLocalFile();
+
     if (path.isEmpty())
         return;
+
     if (!gWatcher->files().contains(path))
         gWatcher->addPath(path);
 }
@@ -465,6 +526,7 @@ static void applyUiTree(const QString &label)
 {
     if (!g_uiTrees.contains(label))
         return;
+
     if (QObject *root = g_roots.value(label))
         root->setProperty("tree", g_uiTrees.value(label));
 }
@@ -472,15 +534,18 @@ static void applyUiTree(const QString &label)
 static void showWindow(QQmlApplicationEngine &engine, const WindowConfig &cfg)
 {
     const QUrl url = resolveUi(cfg.ui);
+
     g_requested.insert(cfg.label);
     gShownAny = true;
     watchQmlFile(url);
 
     QQmlComponent component(&engine, url, QQmlComponent::PreferSynchronous);
+
     if (component.isError()) {
         QStringList errors;
         for (const QQmlError &e : component.errors())
             errors << e.toString();
+
         showErrorView(engine, errors.join(QLatin1Char('\n')));
         return;
     }
@@ -491,10 +556,12 @@ static void showWindow(QQmlApplicationEngine &engine, const WindowConfig &cfg)
     context->setContextProperty(QStringLiteral("PulsarWindowLabel"), cfg.label);
 
     QObject *root = component.create(context);
+
     if (!root) {
         QStringList errors;
         for (const QQmlError &e : component.errors())
             errors << e.toString();
+
         showErrorView(engine, errors.join(QLatin1Char('\n')));
         return;
     }
@@ -509,9 +576,11 @@ static void destroyWindows(QQmlApplicationEngine &engine)
 {
     for (QObject *root : std::as_const(g_roots))
         delete root;
+
     g_roots.clear();
     g_requested.clear();
     engine.clearComponentCache();
+
     if (gWatcher)
         gWatcher->removePaths(gWatcher->files());
 }
@@ -521,12 +590,16 @@ static void emitWindowEvent(const QString &name, const QString &label, const QJs
 {
     if (!gBridge)
         return;
+
     QJsonObject data = extra;
+
     if (!label.isEmpty())
         data.insert(QStringLiteral("label"), label);
+
     QJsonObject params;
     params.insert(QStringLiteral("name"), name);
     params.insert(QStringLiteral("data"), data);
+
     gBridge->notify(QStringLiteral("__event"), params);
 }
 
@@ -548,28 +621,33 @@ static QString windowStateName(Qt::WindowState state)
 static void wireWindowEvents(QObject *root, const QString &label)
 {
     auto *window = qobject_cast<QQuickWindow *>(root);
+
     if (!window)
         return;
 
     auto *sizeTimer = new QTimer(window);
+
     sizeTimer->setSingleShot(true);
     sizeTimer->setInterval(50);
     QObject::connect(sizeTimer, &QTimer::timeout, window, [window, label]() {
         QJsonObject extra;
         extra.insert(QStringLiteral("width"), window->width());
         extra.insert(QStringLiteral("height"), window->height());
+
         emitWindowEvent(QStringLiteral("window-resize"), label, extra);
     });
     QObject::connect(window, &QQuickWindow::widthChanged, sizeTimer, qOverload<>(&QTimer::start));
     QObject::connect(window, &QQuickWindow::heightChanged, sizeTimer, qOverload<>(&QTimer::start));
 
     auto *moveTimer = new QTimer(window);
+
     moveTimer->setSingleShot(true);
     moveTimer->setInterval(50);
     QObject::connect(moveTimer, &QTimer::timeout, window, [window, label]() {
         QJsonObject extra;
         extra.insert(QStringLiteral("x"), window->x());
         extra.insert(QStringLiteral("y"), window->y());
+
         emitWindowEvent(QStringLiteral("window-move"), label, extra);
     });
     QObject::connect(window, &QQuickWindow::xChanged, moveTimer, qOverload<>(&QTimer::start));
@@ -578,6 +656,7 @@ static void wireWindowEvents(QObject *root, const QString &label)
     QObject::connect(window, &QQuickWindow::windowStateChanged, window, [label](Qt::WindowState state) {
         QJsonObject extra;
         extra.insert(QStringLiteral("state"), windowStateName(state));
+
         emitWindowEvent(QStringLiteral("window-state"), label, extra);
     });
     QObject::connect(window, &QQuickWindow::activeChanged, window, [window, label]() {
@@ -594,6 +673,7 @@ static void wireWindowEvents(QObject *root, const QString &label)
 static void handleDialogRequest(const QVariantMap &m)
 {
     Bridge *bridge = gBridge;
+
     if (!bridge)
         return;
 
@@ -606,9 +686,11 @@ static void handleDialogRequest(const QVariantMap &m)
 
     // Headless/test hook: skip the modal dialog and return a stub result.
     const QByteArray stub = qgetenv("PULSAR_DIALOG_STUB");
+
     if (!stub.isEmpty()) {
         QJsonObject params;
         params.insert(QStringLiteral("token"), token);
+
         if (kind == QLatin1String("message"))
             params.insert(QStringLiteral("value"), true);
         else if (kind == QLatin1String("open-files")) {
@@ -618,6 +700,7 @@ static void handleDialogRequest(const QVariantMap &m)
         } else {
             params.insert(QStringLiteral("value"), QString::fromLocal8Bit(stub));
         }
+
         bridge->notify(QStringLiteral("__dialog-result"), params);
         return;
     }
@@ -626,12 +709,15 @@ static void handleDialogRequest(const QVariantMap &m)
     QTimer::singleShot(0, QCoreApplication::instance(), [bridge, token, kind, title, filter, dir, text]() {
         if (kind == QLatin1String("open-files")) {
             const QStringList files = QFileDialog::getOpenFileNames(nullptr, title, dir, filter);
+
             QJsonArray array;
             for (const QString &file : files)
                 array.append(file);
+
             QJsonObject params;
             params.insert(QStringLiteral("token"), token);
             params.insert(QStringLiteral("value"), array);
+
             bridge->notify(QStringLiteral("__dialog-result"), params);
             return;
         }
@@ -648,12 +734,14 @@ static void handleDialogRequest(const QVariantMap &m)
 
         QJsonObject params;
         params.insert(QStringLiteral("token"), token);
+
         if (kind == QLatin1String("message"))
             params.insert(QStringLiteral("value"), true);
         else if (result.isEmpty())
             params.insert(QStringLiteral("value"), QJsonValue::Null);
         else
             params.insert(QStringLiteral("value"), result);
+
         bridge->notify(QStringLiteral("__dialog-result"), params);
     });
 }
@@ -669,6 +757,7 @@ static void handleQuery(Bridge *bridge, const QVariantMap &m)
     if (kind == QLatin1String("screen.list")) {
         QJsonArray screens;
         QScreen *primary = QGuiApplication::primaryScreen();
+
         for (QScreen *s : QGuiApplication::screens()) {
             const QRect geo = s->geometry();
             const QRect area = s->availableGeometry();
@@ -688,8 +777,10 @@ static void handleQuery(Bridge *bridge, const QVariantMap &m)
             screen.insert(QStringLiteral("workArea"), work);
             screen.insert(QStringLiteral("scale"), s->devicePixelRatio());
             screen.insert(QStringLiteral("primary"), s == primary);
+
             screens.append(screen);
         }
+
         params.insert(QStringLiteral("value"), screens);
     } else if (kind == QLatin1String("theme.get")) {
         QJsonObject value;
@@ -720,7 +811,9 @@ static void handleTrayCommand(const QVariantMap &m)
 {
     if (!gBridge)
         return;
+
     const QString action = m.value(QStringLiteral("action")).toString();
+
     if (action == QLatin1String("setIcon"))
         gBridge->setTrayIcon(m.value(QStringLiteral("path")).toString());
     else if (action == QLatin1String("setTooltip"))
@@ -754,22 +847,30 @@ static void handleWindowCommand(QQmlApplicationEngine &engine, const QVariantMap
     // longer limited to those declared in pulsar.json).
     if (action == QLatin1String("create")) {
         WindowConfig cfg = parseWindowConfig(m, label);
+
         if (cfg.label.isEmpty())
             return;
+
         if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
             qInfo().noquote() << "WINDOW" << action << cfg.label;
+
         if (gPrimaryLabel.isEmpty())
             gPrimaryLabel = cfg.label;
+
         g_configs.insert(cfg.label, cfg);
         logWindowConfig(cfg);
+
         if (g_roots.contains(cfg.label)) {
             applyConfig(g_roots.value(cfg.label), cfg);
+
             if (auto *existing = qobject_cast<QQuickWindow *>(g_roots.value(cfg.label)))
                 existing->show();
+
             applyUiTree(cfg.label);
         } else {
             showWindow(engine, cfg);
         }
+
         return;
     }
 
@@ -779,18 +880,24 @@ static void handleWindowCommand(QQmlApplicationEngine &engine, const QVariantMap
     if (action == QLatin1String("destroy")) {
         if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
             qInfo().noquote() << "WINDOW" << action << label;
+
         g_configs.remove(label);
         g_requested.remove(label);
+
         if (QObject *root = g_roots.take(label))
             root->deleteLater();
+
         return;
     }
 
     if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
         qInfo().noquote() << "WINDOW" << action << label;
+
     auto *window = qobject_cast<QQuickWindow *>(g_roots.value(label));
+
     if (!window)
         return;
+
     if (action == QLatin1String("show"))
         window->show();
     else if (action == QLatin1String("hide"))
@@ -836,10 +943,13 @@ int main(int argc, char **argv)
     // Single-file distribution: if this executable carries an appended payload,
     // extract it and point the runtime/bridge at the extracted tree.
     QString embeddedRoot;
+
     if (pulsarExtractEmbedded(QCoreApplication::applicationFilePath(), &embeddedRoot)) {
         QString runtime = embeddedRoot + QStringLiteral("/runtime");
+
         if (!QFileInfo::exists(runtime) && QFileInfo::exists(runtime + QStringLiteral(".exe")))
             runtime += QStringLiteral(".exe");
+
         qputenv("PULSAR_ROOT", embeddedRoot.toLocal8Bit());
         qputenv("PULSAR_APP", (embeddedRoot + QStringLiteral("/app")).toLocal8Bit());
         qputenv("PULSAR_RUNTIME", runtime.toLocal8Bit());
@@ -872,6 +982,7 @@ int main(int argc, char **argv)
                               const QUrl &url,
                               const QMap<QString, QString> &headers) {
                          QJsonObject headerObject;
+
                          for (auto it = headers.constBegin(); it != headers.constEnd(); ++it)
                              headerObject.insert(it.key(), it.value());
 
@@ -913,8 +1024,10 @@ int main(int argc, char **argv)
                      });
 
     const ManifestInfo manifest = readManifestInfo();
+
     gSecureService =
         manifest.id.isEmpty() ? QFileInfo(appDir()).fileName() : manifest.id;
+
     const QStringList cliArgs = QCoreApplication::arguments();
     const QString cwd = QDir::currentPath();
 
@@ -927,10 +1040,12 @@ int main(int argc, char **argv)
                                 : (manifest.id.isEmpty() ? QFileInfo(appDir()).fileName() : manifest.id);
 
         const QString serverName = QStringLiteral("pulsar-") + sanitizeInstanceKey(key);
+
         if (forwardToInstance(serverName, cliArgs, cwd)) {
             qInfo().noquote() << "another instance is already running; forwarded launch arguments";
             return 0;
         }
+
         startInstanceServer(serverName, &app);
     }
 
@@ -941,6 +1056,7 @@ int main(int argc, char **argv)
                                          manifest.name,
                                          QCoreApplication::applicationFilePath(),
                                          manifest.fileAssociations);
+
         if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
             qInfo().noquote() << "ASSOC register" << manifest.fileAssociations.size() << gSecureService;
     }
@@ -962,11 +1078,14 @@ int main(int argc, char **argv)
     });
 
     gWatcher = new QFileSystemWatcher(&app);
+
     QObject::connect(gWatcher, &QFileSystemWatcher::fileChanged, &app, [&engine]() {
         qInfo().noquote() << "qml changed; reloading";
         destroyWindows(engine);
+
         for (const WindowConfig &cfg : std::as_const(g_configs))
             showWindow(engine, cfg);
+
         requestFullSync();
     });
 
@@ -980,6 +1099,7 @@ int main(int argc, char **argv)
                              const QVariantList wins = m.value(QStringLiteral("windows")).toList();
 
                              QList<WindowConfig> configs;
+
                              if (wins.isEmpty()) {
                                  configs.append(parseWindowConfig(m, QStringLiteral("main")));
                              } else {
@@ -997,8 +1117,10 @@ int main(int argc, char **argv)
                              for (const WindowConfig &cfg : std::as_const(configs)) {
                                  if (gPrimaryLabel.isEmpty())
                                      gPrimaryLabel = cfg.label;
+
                                  g_configs.insert(cfg.label, cfg);
                                  logWindowConfig(cfg);
+
                                  if (g_requested.contains(cfg.label))
                                      applyConfig(g_roots.value(cfg.label), cfg);
                                  else
@@ -1029,9 +1151,12 @@ int main(int argc, char **argv)
                              const QVariantMap m = params.toVariant().toMap();
                              const QString target = m.value(QStringLiteral("target")).toString();
                              const QVariantList tree = m.value(QStringLiteral("tree")).toList();
+
                              g_uiTrees.insert(target, tree);
+
                              if (QObject *root = g_roots.value(target))
                                  root->setProperty("tree", tree);
+
                              if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
                                  qInfo().noquote() << "UI render" << target << "nodes=" << tree.size();
                          } else if (method == QLatin1String("__query")) {
@@ -1053,12 +1178,14 @@ int main(int argc, char **argv)
                          } else if (method == QLatin1String("__hello")) {
                              const QVariantMap m = params.toVariant().toMap();
                              const int protocol = m.value(QStringLiteral("protocol")).toInt();
+
                              if (qEnvironmentVariableIsSet("PULSAR_DEBUG") || protocol != kBridgeProtocolVersion)
                                  qInfo().noquote()
                                      << "HELLO runtime=" << m.value(QStringLiteral("runtime")).toString()
                                      << "protocol=" << protocol
                                      << "capabilities="
                                      << m.value(QStringLiteral("capabilities")).toStringList().size();
+
                              if (protocol != kBridgeProtocolVersion)
                                  qWarning().noquote() << "bridge protocol" << protocol
                                                       << "!= host protocol" << kBridgeProtocolVersion;
@@ -1102,28 +1229,35 @@ int main(int argc, char **argv)
     // QML_MAIN forces a specific file (used by tests); otherwise wait for the
     // app config, with a fallback to <app>/ui/main.qml.
     const QByteArray qmlOverride = qgetenv("QML_MAIN");
+
     if (!qmlOverride.isEmpty()) {
         WindowConfig cfg;
         cfg.label = QStringLiteral("main");
         cfg.ui = QString::fromLocal8Bit(qmlOverride);
+
         g_configs.insert(cfg.label, cfg);
         gPrimaryLabel = cfg.label;
         showWindow(engine, cfg);
     } else {
         bool cfgOk = false;
         int timeout = qEnvironmentVariableIntValue("PULSAR_CONFIG_TIMEOUT_MS", &cfgOk);
+
         if (!cfgOk || timeout <= 0)
             timeout = 700;
+
         QTimer *fallback = new QTimer(&app);
+
         fallback->setSingleShot(true);
         QObject::connect(fallback, &QTimer::timeout, &app, [&engine]() {
             // The app may already have configured the UI via __config; only
             // fall back when nothing has been shown yet.
             if (gShownAny)
                 return;
+
             WindowConfig cfg;
             cfg.label = QStringLiteral("main");
             cfg.ui = QStringLiteral("ui/main.qml");
+
             g_configs.insert(cfg.label, cfg);
             gPrimaryLabel = cfg.label;
             showWindow(engine, cfg);
@@ -1133,14 +1267,17 @@ int main(int argc, char **argv)
 
     bool ok = false;
     const int autoQuit = qEnvironmentVariableIntValue("AUTO_QUIT_MS", &ok);
+
     if (ok && autoQuit > 0) {
         QTimer *quitTimer = new QTimer(&app);
+
         quitTimer->setSingleShot(true);
         QObject::connect(quitTimer, &QTimer::timeout, &app, &QCoreApplication::quit);
         quitTimer->start(autoQuit);
     }
 
     const int selfTest = qEnvironmentVariableIntValue("SELFTEST", &ok);
+
     if (ok && selfTest > 0) {
         QObject::connect(bridge, &Bridge::response,
                          [](qint64 id, const QJSValue &result, const QJSValue &error) {
@@ -1148,12 +1285,16 @@ int main(int argc, char **argv)
                                                          << " result=" << result.toString()
                                                          << " error=" << error.toString();
                          });
+
         QTimer *selfTestTimer = new QTimer(&app);
+
         selfTestTimer->setSingleShot(true);
         QObject::connect(selfTestTimer, &QTimer::timeout, &app, [&engine, bridge]() {
             qInfo() << "SELFTEST emit greet";
+
             QJSValue params = engine.newObject();
             params.setProperty(QStringLiteral("name"), QJSValue(QStringLiteral("SelfTest")));
+
             bridge->invoke(QStringLiteral("greet"), params);
         });
         selfTestTimer->start(selfTest);

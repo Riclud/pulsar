@@ -27,6 +27,7 @@ describe("Store", () => {
   test("rejects circular references", () => {
     const store = new Store()
     const obj: Record<string, unknown> = {}
+
     obj.self = obj
     expect(() => store.set("loop", obj)).toThrow(/circular/)
   })
@@ -49,6 +50,7 @@ describe("WindowHandle", () => {
     const seen: unknown[] = []
     registerCapability("window", (params) => {
       seen.push(params)
+
       return Promise.resolve(true)
     })
 
@@ -80,6 +82,7 @@ describe("App windows", () => {
   test("createWindow registers the window and notifies the runtime", () => {
     const app = new App()
     const created: unknown[] = []
+
     app.onCreateWindow = (config) => created.push(config)
 
     const handle = app.createWindow({ ui: "ui/panel.qml", title: "Panel" })
@@ -92,6 +95,7 @@ describe("App windows", () => {
   test("send forwards the event and target to the runtime", () => {
     const app = new App()
     const sent: Array<[string, unknown, string]> = []
+
     app.onSend = (event, payload, target) => sent.push([event, payload, target])
 
     app.send("ping", "pong")

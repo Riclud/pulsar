@@ -7,14 +7,16 @@ app.store.set("panelOpen", true)
 app.store.set("lastClosed", "")
 app.store.set("picked", "")
 
-function increment() {
+const increment = () => {
   app.store.set("counter", (app.store.get("counter") as number) + 1)
 }
 
-async function togglePanel() {
+const togglePanel = async () => {
   const open = app.store.get("panelOpen") as boolean
   const panel = app.window("panel")
+
   await (open ? panel.hide() : panel.show())
+
   app.store.set("panelOpen", !open)
 }
 

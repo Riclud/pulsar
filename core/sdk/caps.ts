@@ -2,7 +2,7 @@ import type { AppPaths, FileStat, FsEncoding } from "../platform.ts"
 
 export type { AppPaths, FileStat, FsEncoding } from "../platform.ts"
 
-export type CapHandler = (params: any) => Promise<unknown>
+export type CapHandler = (params: never) => Promise<unknown>
 export type CapRegistry = Record<string, CapHandler>
 
 // Handlers are installed by the runtime so that calls made from the app and
@@ -10,17 +10,17 @@ export type CapRegistry = Record<string, CapHandler>
 const capabilities: CapRegistry = {}
 
 /** Register a single capability handler. */
-export function registerCapability(name: string, handler: CapHandler): void {
+export const registerCapability = (name: string, handler: CapHandler): void => {
   capabilities[name] = handler
 }
 
 /** Register a batch of capability handlers. */
-export function registerCapabilities(caps: CapRegistry): void {
+export const registerCapabilities = (caps: CapRegistry): void => {
   Object.assign(capabilities, caps)
 }
 
 /** Whether a capability with this name is registered. */
-export function hasCapability(name: string): boolean {
+export const hasCapability = (name: string): boolean => {
   return name in capabilities
 }
 
@@ -42,9 +42,11 @@ export const assertCapability = (name: string): void => {
 }
 
 /** Invoke a capability by name. Rejects if it is not registered or not permitted. */
-export function callCapability(name: string, params?: unknown): Promise<unknown> {
+export const callCapability = (name: string, params?: unknown): Promise<unknown> => {
   const handler = capabilities[name]
+
   if (!handler) return Promise.reject(new Error(`unknown capability: ${name}`))
+
   if (permissionGate) {
     try {
       permissionGate(name)
@@ -52,7 +54,10 @@ export function callCapability(name: string, params?: unknown): Promise<unknown>
       return Promise.reject(e)
     }
   }
-  return handler(params ?? {})
+
+  const invoke = handler as (params: unknown) => Promise<unknown>
+
+  return invoke(params ?? {})
 }
 
 /** Built-in filesystem capabilities. */
@@ -184,6 +189,7 @@ export const screen = {
   list: (): Promise<ScreenInfo[]> => callCapability("screen.list") as Promise<ScreenInfo[]>,
   primary: async (): Promise<ScreenInfo | null> => {
     const screens = (await callCapability("screen.list")) as ScreenInfo[]
+
     return screens.find((s) => s.primary) ?? screens[0] ?? null
   },
 }

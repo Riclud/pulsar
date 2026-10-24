@@ -22,6 +22,7 @@ const moveToTrash = async (path: string): Promise<boolean> => {
 
   if (process.platform === "win32") {
     const escaped = path.replace(/'/g, "''")
+
     return run("powershell", [
       "-NoProfile",
       "-Command",
@@ -30,12 +31,14 @@ const moveToTrash = async (path: string): Promise<boolean> => {
   }
 
   if (await run("gio", ["trash", path])) return true
+
   return run("trash-put", [path])
 }
 
 const opener = (url: string): { cmd: string; args: string[] } => {
   if (process.platform === "win32") return { cmd: "cmd", args: ["/c", "start", "", url] }
   if (process.platform === "darwin") return { cmd: "open", args: [url] }
+
   return { cmd: "xdg-open", args: [url] }
 }
 
@@ -56,22 +59,26 @@ export const createBunPlatform = (): Platform => {
     writeFile: async (path, content, encoding) => {
       await fs.mkdir(dirname(path), { recursive: true })
       await fs.writeFile(path, content, readEncoding(encoding))
+
       return true
     },
 
     appendFile: async (path, content, encoding) => {
       await fs.appendFile(path, content, readEncoding(encoding))
+
       return true
     },
 
     listDir: async (path) => {
       const entries = await fs.readdir(path ?? ".", { withFileTypes: true })
+
       return entries.map((entry) => (entry.isDirectory() ? entry.name + "/" : entry.name))
     },
 
     exists: async (path) => {
       try {
         await fs.access(path)
+
         return true
       } catch {
         return false
@@ -80,6 +87,7 @@ export const createBunPlatform = (): Platform => {
 
     stat: async (path): Promise<FileStat> => {
       const value = await fs.stat(path)
+
       return {
         size: value.size,
         isFile: value.isFile(),
@@ -91,22 +99,26 @@ export const createBunPlatform = (): Platform => {
 
     mkdir: async (path, recursive = true) => {
       await fs.mkdir(path, { recursive })
+
       return true
     },
 
     remove: async (path, recursive = false) => {
       await fs.rm(path, { recursive, force: true })
+
       return true
     },
 
     rename: async (from, to) => {
       await fs.mkdir(dirname(to), { recursive: true })
       await fs.rename(from, to)
+
       return true
     },
 
     copy: async (from, to, recursive = true) => {
       await fs.cp(from, to, { recursive })
+
       return true
     },
 
@@ -114,6 +126,7 @@ export const createBunPlatform = (): Platform => {
 
     openUrl: (url) => {
       const { cmd, args } = opener(url)
+
       return new Promise((resolve) => {
         const child = spawn(cmd, args, { stdio: "ignore", detached: true })
         child.on("error", () => resolve(false))

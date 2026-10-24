@@ -37,29 +37,34 @@ type BuildTarget = Target | "portable"
 const NODE_BUILTIN =
   /^(node:|bun:|fs(\/promises)?$|path$|os$|child_process$|worker_threads$|net$|tls$|http$|https$|crypto$|stream$|buffer$|util$|assert$|url$|zlib$|events$|dns$|dgram$|cluster$|vm$|module$|readline$|repl$|tty$|v8$|perf_hooks$|async_hooks$|inspector$|trace_events$|.*\.node$)/
 
-function readManifest(appDir: string): AppManifest | null {
+const readManifest = (appDir: string): AppManifest | null => {
   try {
     const parsed = JSON.parse(readFileSync(join(appDir, "pulsar.json"), "utf8")) as unknown
+
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as AppManifest
   } catch {}
+
   return null
 }
 
-function buildTarget(): BuildTarget {
+const buildTarget = (): BuildTarget => {
   const target = flagValue("--target") ?? "desktop"
+
   if (target !== "desktop" && target !== "android" && target !== "portable") {
     console.error(`pulsar: unknown target "${target}" (expected desktop, android or portable)`)
     process.exit(1)
   }
+
   return target
 }
 
-function runtimeFor(target: BuildTarget, manifest: AppManifest | null): RuntimeKind {
+const runtimeFor = (target: BuildTarget, manifest: AppManifest | null): RuntimeKind => {
   if (target === "portable") return "quickjs"
+
   return manifestRuntime(manifest, target)
 }
 
-function resolveEntry(appDir: string, manifest: AppManifest | null, target: BuildTarget): string {
+const resolveEntry = (appDir: string, manifest: AppManifest | null, target: BuildTarget): string => {
   const base = manifest?.main ?? "main.ts"
   const dir = dirname(base)
   const file = basename(base)
@@ -78,11 +83,12 @@ function resolveEntry(appDir: string, manifest: AppManifest | null, target: Buil
   ]
 
   for (const candidate of candidates) if (existsSync(candidate)) return candidate
+
   console.error(`pulsar: no entry point for ${target} (looked for ${candidates.join(", ")})`)
   process.exit(1)
 }
 
-async function auditPortable(entry: string): Promise<string[]> {
+const auditPortable = async (entry: string): Promise<string[]> => {
   const violations: string[] = []
 
   try {
@@ -119,7 +125,7 @@ async function auditPortable(entry: string): Promise<string[]> {
   return [...new Set(violations)]
 }
 
-async function checkTarget(appDir: string, target: BuildTarget): Promise<void> {
+const checkTarget = async (appDir: string, target: BuildTarget): Promise<void> => {
   const manifest = readManifest(appDir)
   const targets = manifestTargets(manifest)
   const compat: Compat = manifestCompat(manifest)
@@ -148,6 +154,7 @@ async function checkTarget(appDir: string, target: BuildTarget): Promise<void> {
   }
 
   const violations = await auditPortable(entry)
+
   if (violations.length > 0) {
     for (const violation of violations) console.error(`FAIL  non-portable import: ${violation}`)
     process.exit(1)
@@ -162,59 +169,68 @@ if (!(process.versions as { bun?: string }).bun) {
   process.exit(1)
 }
 
-function flagValue(name: string): string | undefined {
+const flagValue = (name: string): string | undefined => {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]
+
     if (arg === name) return args[i + 1]
     if (arg?.startsWith(name + "=")) return arg.slice(name.length + 1)
   }
+
   return undefined
 }
 
 /** Output name from the manifest, falling back to package.json. */
-function launcherName(dir: string): string {
+const launcherName = (dir: string): string => {
   for (const file of ["pulsar.json", "package.json"]) {
     try {
       const name = JSON.parse(readFileSync(join(dir, file), "utf8")).name
+
       if (typeof name === "string" && name.length > 0)
         return name.replace(/^@[^/]+\//, "").replace(/[^a-zA-Z0-9._-]+/g, "-")
     } catch {}
   }
+
   return "app"
 }
 
-function run() {
+const run = () => {
   const appDir = process.cwd()
   const host = findHost()
   const r = spawnSync(host, [], {
     stdio: "inherit",
     env: { ...process.env, PULSAR_APP: appDir, PULSAR_ROOT: pulsarRoot() },
   })
+
   process.exit(r.status ?? 0)
 }
 
 /** Run with hot reload: watch app sources and restart the runtime on change. */
-function dev() {
+const dev = () => {
   const appDir = process.cwd()
   const host = findHost()
+
   console.log("pulsar: dev mode (watching for changes)")
+
   const r = spawnSync(host, [], {
     stdio: "inherit",
     env: { ...process.env, PULSAR_APP: appDir, PULSAR_ROOT: pulsarRoot(), PULSAR_WATCH: "1" },
   })
+
   process.exit(r.status ?? 0)
 }
 
-function version() {
+const version = () => {
   console.log(`pulsar ${cliVersion()}`)
 }
 
 /** Check the toolchain and report what is missing. */
-function doctor() {
+const doctor = () => {
   const lines: string[] = []
   let critical = true
 
   let host = ""
+
   try {
     host = findHost()
     lines.push(`ok    host binary: ${host}`)
@@ -235,10 +251,15 @@ function doctor() {
   lines.push(`ok    bun: ${Bun.version ?? "unknown"}`)
 
   const qt = spawnSync("pkg-config", ["--modversion", "Qt6Core"], { encoding: "utf8" })
-  if (qt.status === 0 && qt.stdout) lines.push(`ok    Qt6: ${qt.stdout.trim()}`)
-  else lines.push(`warn  Qt6: not found via pkg-config (the host may still be built)`)
+
+  lines.push(
+    qt.status === 0 && qt.stdout
+      ? `ok    Qt6: ${qt.stdout.trim()}`
+      : `warn  Qt6: not found via pkg-config (the host may still be built)`,
+  )
 
   const manifest = join(process.cwd(), "pulsar.json")
+
   lines.push(
     existsSync(manifest) ? `ok    pulsar.json: ${manifest}` : `warn  pulsar.json: not found in ${process.cwd()}`,
   )
@@ -247,70 +268,89 @@ function doctor() {
   process.exit(critical ? 0 : 1)
 }
 
-type PayloadEntry = { path: string; data: Buffer }
+type PayloadEntry = {
+  path: string
+  data: Buffer
+}
 
 /** 64-bit FNV-1a over the payload shape; used as the extraction cache id. */
-function fnv1a64(parts: string[]): bigint {
+const fnv1a64 = (parts: string[]): bigint => {
   const prime = 0x100000001b3n
   const mask = (1n << 64n) - 1n
+
   let h = 0xcbf29ce484222325n
+
   for (const part of parts) {
     for (const byte of new TextEncoder().encode(part)) {
       h = (h ^ BigInt(byte)) & mask
       h = (h * prime) & mask
     }
   }
+
   return h
 }
 
 /** The native host/bridge, runtime and every app file (except build noise). */
-function collectPayload(
+const collectPayload = (
   appDir: string,
   runtime: string,
   bridge: string,
   host: string,
   skipOut: string,
-): PayloadEntry[] {
+): PayloadEntry[] => {
   const entries: PayloadEntry[] = [
     { path: "bin/qml-host", data: readFileSync(host) },
     { path: "bin/bridge", data: readFileSync(bridge) },
     { path: "runtime", data: readFileSync(runtime) },
   ]
   const skip = new Set(["node_modules", ".git", "dist", "build", ".cache", skipOut])
-  const walk = (dir: string, rel: string) => {
+
+  const walk = (dir: string, rel: string): void => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       if (entry.isSymbolicLink() || skip.has(entry.name)) continue
+
       const abs = join(dir, entry.name)
       const relPath = rel ? `${rel}/${entry.name}` : entry.name
-      if (entry.isDirectory()) walk(abs, relPath)
-      else if (entry.isFile()) entries.push({ path: `app/${relPath}`, data: readFileSync(abs) })
+
+      if (entry.isDirectory()) {
+        walk(abs, relPath)
+        continue
+      }
+
+      if (entry.isFile()) entries.push({ path: `app/${relPath}`, data: readFileSync(abs) })
     }
   }
+
   walk(appDir, "")
+
   return entries
 }
 
 /** Serialize entries into the container format read by `host/embedded.cpp`. */
-function encodeContainer(entries: PayloadEntry[], buildId: bigint): Buffer {
+const encodeContainer = (entries: PayloadEntry[], buildId: bigint): Buffer => {
   const header = Buffer.alloc(20)
+
   header.write("PLSR", 0, "latin1")
   header.writeUInt32LE(1, 4)
   header.writeBigUInt64LE(buildId, 8)
   header.writeUInt32LE(entries.length, 16)
 
   const chunks: Buffer[] = [header]
+
   for (const entry of entries) {
     const pathBuf = Buffer.from(entry.path, "utf8")
     const pathLen = Buffer.alloc(4)
-    pathLen.writeUInt32LE(pathBuf.length, 0)
     const dataLen = Buffer.alloc(8)
+
+    pathLen.writeUInt32LE(pathBuf.length, 0)
     dataLen.writeBigUInt64LE(BigInt(entry.data.length), 0)
     chunks.push(pathLen, pathBuf, dataLen, entry.data)
   }
+
   return Buffer.concat(chunks)
 }
 
-async function build() {
+const build = async () => {
   const appDir = process.cwd()
   const target = buildTarget()
   const manifest = readManifest(appDir)
@@ -335,6 +375,7 @@ async function build() {
 
   if (compat === "portable") {
     const violations = await auditPortable(entry)
+
     if (violations.length > 0) {
       for (const violation of violations) console.error(`pulsar build: non-portable import: ${violation}`)
       process.exit(1)
@@ -343,17 +384,20 @@ async function build() {
 
   if (target === "android") {
     const outDir = resolve(flagValue("--out") ?? flagValue("-o") ?? "dist")
+
     try {
       await buildAndroid({ appDir, manifest, entry, outDir, abi: flagValue("--abi") })
     } catch (e) {
       console.error(`pulsar build: ${e instanceof Error ? e.message : String(e)}`)
       process.exit(1)
     }
+
     return
   }
 
   const root = pulsarRoot()
   const runtimeTs = join(root, "core", "runtime", "main.ts")
+
   if (!existsSync(runtimeTs)) {
     console.error(`pulsar build: runtime not found at ${runtimeTs}`)
     process.exit(1)
@@ -365,14 +409,17 @@ async function build() {
   const slim = args.includes("--slim")
   const outDir = resolve(flagValue("--out") ?? flagValue("-o") ?? "dist")
   const name = launcherName(appDir)
+
   console.log(`pulsar: building ${basename(appDir)} -> ${join(outDir, name)}`)
 
   const assembly = mkdtempSync(join(tmpdir(), "pulsar-build-"))
+
   try {
     // One entry pulls the runtime and the app into a single module graph, so
     // App.current and the capability registry are shared, then wires the host.
     const spec = (p: string) => JSON.stringify(p.replace(/\\/g, "/"))
     const entryPath = join(assembly, "entry.ts")
+
     writeFileSync(
       entryPath,
       [
@@ -389,13 +436,16 @@ async function build() {
       cwd: appDir,
       stdio: "inherit",
     })
+
     if (compile.status !== 0 || !existsSync(runtimeOut)) {
       console.error("pulsar build: runtime compilation failed")
       process.exit(1)
     }
 
     const entries = collectPayload(appDir, runtimeOut, bridge, host, basename(outDir))
+
     if (!slim) collectQt(entries, host)
+
     const buildId = fnv1a64(entries.map((e) => `${e.path}:${e.data.length}`))
     const container = encodeContainer(entries, buildId)
 
@@ -403,16 +453,20 @@ async function build() {
     // exec()s the bundled host (which loads the bundled Qt via its RPATH).
     const outerBytes = readFileSync(launcher)
     const trailer = Buffer.alloc(16)
+
     trailer.writeBigUInt64LE(BigInt(outerBytes.length), 0)
     trailer.write("PLSRPAYL", 8, "latin1")
 
     mkdirSync(outDir, { recursive: true })
+
     const fileName = process.platform === "win32" ? `${name}.exe` : name
     const finalPath = join(outDir, fileName)
+
     writeFileSync(finalPath, Buffer.concat([outerBytes, container, trailer]))
     chmodSync(finalPath, 0o755)
 
     const mb = (statSync(finalPath).size / (1024 * 1024)).toFixed(1)
+
     console.log(`pulsar: built ${finalPath} (${mb} MB)`)
     console.log(`  run it with ./${fileName}`)
   } finally {
@@ -421,8 +475,9 @@ async function build() {
 }
 
 /** Legacy alias: scaffold the default template into the current directory. */
-function init() {
+const init = () => {
   const name = basename(process.cwd())
+
   create([name, "--dir", dirname(process.cwd()), "--force"])
 }
 
@@ -440,7 +495,7 @@ const LOGO = String.raw`
 |__/ 
 `
 
-function usage() {
+const usage = () => {
   console.log(LOGO)
   console.log(
     [

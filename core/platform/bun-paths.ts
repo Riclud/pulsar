@@ -6,12 +6,12 @@ import type { AppPaths } from "../platform.ts"
 import { App } from "../sdk/index.ts"
 
 /** Pure path resolution per platform, easy to unit test. */
-export function computePaths(
+export const computePaths = (
   appId: string,
   platform: string,
   home: string,
   env: Record<string, string | undefined>,
-): AppPaths {
+): AppPaths => {
   const id = sanitizeAppId(appId)
   const temp = env.TMPDIR ?? env.TEMP ?? (platform === "win32" ? join(home, "AppData", "Local", "Temp") : "/tmp")
 
@@ -28,6 +28,7 @@ export function computePaths(
   if (platform === "win32") {
     const roaming = env.APPDATA ?? join(home, "AppData", "Roaming")
     const local = env.LOCALAPPDATA ?? join(home, "AppData", "Local")
+
     return {
       data: join(roaming, id),
       config: join(roaming, id),
@@ -47,12 +48,15 @@ export function computePaths(
 }
 
 /** The name under which this app stores its data (config id > app dir > cwd). */
-export function currentAppId(): string {
+export const currentAppId = (): string => {
   const appId = App.current?.config.id
+
   if (appId) return sanitizeAppId(appId)
 
   const appDir = process.env.PULSAR_APP
+
   if (appDir) return sanitizeAppId(basename(appDir))
+
   return sanitizeAppId(basename(process.cwd()))
 }
 
@@ -74,12 +78,15 @@ const ensurePaths = async (id: string) => {
 export const appPaths = async (): Promise<AppPaths> => {
   const id = currentAppId()
   const cached = ensured.get(id)
+
   if (cached) return cached
 
   const pending = ensurePaths(id).catch((e) => {
     ensured.delete(id)
+
     throw e
   })
+
   ensured.set(id, pending)
 
   return pending

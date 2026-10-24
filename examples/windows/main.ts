@@ -7,14 +7,17 @@ app.store.set("panelOpen", true)
 app.store.set("lastClosed", "")
 app.store.set("picked", "")
 
-function increment() {
+const increment = () => {
   app.store.set("counter", (app.store.get("counter") as number) + 1)
 }
 
-async function togglePanel() {
+const togglePanel = async () => {
   const open = app.store.get("panelOpen") as boolean
+
   const panel = app.window("panel")
+
   await (open ? panel.hide() : panel.show())
+
   app.store.set("panelOpen", !open)
 }
 
@@ -24,6 +27,7 @@ app.on("quit", () => app.quit())
 
 app.on("openFile", async () => {
   const picked = await dialog.openFile({ title: "Open a file", filter: "All files (*)" })
+
   if (picked) app.store.set("picked", picked)
 })
 
@@ -43,9 +47,19 @@ app.on("window-close", (params: { label?: string }) => {
 
 // System tray (the menu events come back as the "tray-menu" event).
 app.on("tray-menu", (data: { event?: string }) => {
-  if (data?.event === "increment") increment()
-  else if (data?.event === "togglePanel") void togglePanel()
-  else if (data?.event === "quit") app.quit()
+  if (data?.event === "increment") {
+    increment()
+
+    return
+  }
+
+  if (data?.event === "togglePanel") {
+    void togglePanel()
+
+    return
+  }
+
+  if (data?.event === "quit") app.quit()
 })
 
 const icon = (process.env.PULSAR_APP ?? ".") + "/icon.png"

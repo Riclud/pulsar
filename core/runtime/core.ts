@@ -31,9 +31,40 @@ export interface RuntimeOptions {
   onClose?: () => void
 }
 
+interface RequestParams {
+  name?: string
+  data?: Record<string, unknown>
+  token?: string | number
+  value?: unknown
+  argv?: string[]
+  cwd?: string
+  first?: boolean
+  [key: string]: unknown
+}
+
+interface RequestMessage {
+  id?: number
+  method: string
+  params?: RequestParams
+}
+
+interface RuntimeApi {
+  send: (message: unknown) => void
+  start: () => void
+  wireApp: () => void
+  handleRequest: (message: unknown) => Promise<void>
+  reportError: (scope: string, error: unknown) => void
+  dispatchLaunch: (params: LaunchParams) => void
+}
+
 const microtask = (fn: () => void): void => {
-  if (typeof queueMicrotask === "function") queueMicrotask(fn)
-  else void Promise.resolve().then(fn)
+  if (typeof queueMicrotask === "function") {
+    queueMicrotask(fn)
+
+    return
+  }
+
+  void Promise.resolve().then(fn)
 }
 
 /**
@@ -41,8 +72,9 @@ const microtask = (fn: () => void): void => {
  * wiring. The entry point (`bun.ts`, an embedded engine) owns loading the app
  * and the process-specific hooks.
  */
-export const createRuntime = (options: RuntimeOptions) => {
+export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
   const { transport, platform } = options
+
   const send = (message: unknown): void => transport.send(message)
 
   setManifest(options.manifest)
@@ -77,12 +109,14 @@ export const createRuntime = (options: RuntimeOptions) => {
     if (params.first === false) app.dispatchEvent("second-instance", { argv, cwd })
 
     const { urls, files } = parseLaunchArgs(argv, cwd)
+
     for (const url of urls) app.dispatchEvent("open-url", { url })
     for (const path of files) app.dispatchEvent("open-file", { path })
   }
 
   registerCapability("window", (params: unknown) => {
     send({ jsonrpc: "2.0", method: "__window", params: params ?? {} })
+
     return Promise.resolve(true)
   })
 
@@ -91,6 +125,7 @@ export const createRuntime = (options: RuntimeOptions) => {
 
   const requestDialog = (kind: string, params: unknown): Promise<unknown> => {
     const token = String(++dialogToken)
+
     return new Promise((resolve) => {
       pendingDialogs.set(token, resolve)
       send({ jsonrpc: "2.0", method: "__dialog", params: { token, kind, ...(params as object) } })
@@ -105,6 +140,7 @@ export const createRuntime = (options: RuntimeOptions) => {
 
   registerCapability("tray", (params: unknown) => {
     send({ jsonrpc: "2.0", method: "__tray", params: params ?? {} })
+
     return Promise.resolve(true)
   })
 
@@ -113,6 +149,7 @@ export const createRuntime = (options: RuntimeOptions) => {
 
   const hostQuery = (kind: string, params: unknown = {}): Promise<unknown> => {
     const token = String(++queryToken)
+
     return new Promise((resolve) => {
       pendingQueries.set(token, resolve)
       send({ jsonrpc: "2.0", method: "__query", params: { token, kind, ...(params as object) } })
@@ -131,6 +168,7 @@ export const createRuntime = (options: RuntimeOptions) => {
   registerCapability("shell.notify", (params: unknown) => {
     const token = String(++notifyToken)
     send({ jsonrpc: "2.0", method: "__notify", params: { token, ...(params as object) } })
+
     return Promise.resolve(token)
   })
 
@@ -138,26 +176,31 @@ export const createRuntime = (options: RuntimeOptions) => {
     try {
       const resolved = Intl.DateTimeFormat().resolvedOptions()
       const language = resolved.locale.split("-")[0] ?? resolved.locale
+
       return Promise.resolve({ locale: resolved.locale, language, timezone: resolved.timeZone })
     } catch {
       const timezone = platform.env("TZ") ?? "UTC"
+
       return Promise.resolve({ locale: "en-US", language: "en", timezone })
     }
   })
 
   registerCapability("nw.fetch", (params: unknown) => {
     const { url, ...rest } = params as { url: string }
+
     return net.fetch(url, rest)
   })
 
   registerCapability("nw.abort", (params: unknown) => {
     net.abort(Number((params as { id?: number }).id ?? 0))
+
     return Promise.resolve(true)
   })
 
   const reportError = (scope: string, error: unknown): void => {
     const message = error instanceof Error ? error.message : String(error)
     const stack = error instanceof Error ? error.stack : undefined
+
     console.error(`[pulsar] ${scope}:`, error)
     send({ jsonrpc: "2.0", method: "__error", params: { scope, message, stack } })
   }
@@ -168,12 +211,15 @@ export const createRuntime = (options: RuntimeOptions) => {
 
   const patchState = (): { state?: Record<string, unknown>; unset?: string[] } => {
     const app = App.current
+
     if (!app) return {}
 
     const { changed, removed } = app.store.takePatch()
     const out: { state?: Record<string, unknown>; unset?: string[] } = {}
+
     if (Object.keys(changed).length > 0) out.state = changed
     if (removed.length > 0) out.unset = removed
+
     return out
   }
 
@@ -182,17 +228,22 @@ export const createRuntime = (options: RuntimeOptions) => {
 
   const schedulePush = (): void => {
     if (inRequest || pushScheduled) return
+
     pushScheduled = true
+
     microtask(() => {
       pushScheduled = false
       if (inRequest) return
+
       const patch = patchState()
+
       if (patch.state || patch.unset) send({ jsonrpc: "2.0", method: "__state", params: patch })
     })
   }
 
   const wireApp = (): void => {
     const app = App.current
+
     if (app) {
       app.store.onChange = schedulePush
       app.onQuit = () => send({ jsonrpc: "2.0", method: "__quit" })
@@ -210,43 +261,78 @@ export const createRuntime = (options: RuntimeOptions) => {
     }
 
     appWired = true
+
     for (const launch of pendingLaunch.splice(0)) dispatchLaunch(launch)
+
     markAppReady()
   }
 
+  const handleUiEvent = (data: Record<string, unknown>): void => {
+    if (data.event === "focus") App.current?.noteUiFocus(true)
+    else if (data.event === "blur") App.current?.noteUiFocus(false)
+
+    dispatchUiEvent(Number(data.id), String(data.event), data.value)
+  }
+
+  const handleNotification = (req: RequestMessage, params: RequestParams): void => {
+    if (req.method === "__log") {
+      App.current?.dispatchEvent("log", params)
+
+      return
+    }
+
+    if (req.method === "__event") {
+      if (params.name === "ui-event") {
+        handleUiEvent(params.data ?? {})
+
+        return
+      }
+
+      App.current?.dispatchEvent(params.name!, params.data ?? {})
+
+      return
+    }
+
+    if (req.method === "__dialog-result") {
+      const resolve = pendingDialogs.get(String(params.token))
+
+      if (resolve) {
+        pendingDialogs.delete(String(params.token))
+        resolve(params.value ?? null)
+      }
+
+      return
+    }
+
+    if (req.method === "__query-result") {
+      const resolve = pendingQueries.get(String(params.token))
+
+      if (resolve) {
+        pendingQueries.delete(String(params.token))
+        resolve(params.value ?? null)
+      }
+
+      return
+    }
+
+    if (req.method === "__net-event") {
+      netInternals.handleMessage(params)
+
+      return
+    }
+
+    if (req.method === "__launch") {
+      if (appWired) dispatchLaunch(params as LaunchParams)
+      else pendingLaunch.push(params as LaunchParams)
+    }
+  }
+
   const handleRequest = async (message: unknown): Promise<void> => {
-    const req = message as any
+    const req = message as RequestMessage
 
     if (req.id === undefined) {
-      const params = req.params ?? {}
-      if (req.method === "__log") App.current?.dispatchEvent("log", params)
-      else if (req.method === "__event") {
-        if (params.name === "ui-event") {
-          const data = params.data ?? {}
-          if (data.event === "focus") App.current?.noteUiFocus(true)
-          else if (data.event === "blur") App.current?.noteUiFocus(false)
-          dispatchUiEvent(Number(data.id), String(data.event), data.value)
-        } else {
-          App.current?.dispatchEvent(params.name, params.data ?? {})
-        }
-      } else if (req.method === "__dialog-result") {
-        const resolve = pendingDialogs.get(String(params.token))
-        if (resolve) {
-          pendingDialogs.delete(String(params.token))
-          resolve(params.value ?? null)
-        }
-      } else if (req.method === "__query-result") {
-        const resolve = pendingQueries.get(String(params.token))
-        if (resolve) {
-          pendingQueries.delete(String(params.token))
-          resolve(params.value ?? null)
-        }
-      } else if (req.method === "__net-event") {
-        netInternals.handleMessage(params)
-      } else if (req.method === "__launch") {
-        if (appWired) dispatchLaunch(params as LaunchParams)
-        else pendingLaunch.push(params as LaunchParams)
-      }
+      handleNotification(req, req.params ?? {})
+
       return
     }
 
@@ -254,20 +340,22 @@ export const createRuntime = (options: RuntimeOptions) => {
 
     if (req.method === "__sync") {
       await appReady
+
       const state = fullState()
       app?.store.takePatch()
+
       send({ jsonrpc: "2.0", id: req.id, result: true, state })
+
       return
     }
 
     inRequest = true
     try {
       if (req.method === "ui-event") {
-        const data = req.params ?? {}
-        if (data.event === "focus") app?.noteUiFocus(true)
-        else if (data.event === "blur") app?.noteUiFocus(false)
-        dispatchUiEvent(Number(data.id), String(data.event), data.value)
+        handleUiEvent(req.params ?? {})
+
         send({ jsonrpc: "2.0", id: req.id, result: true, ...patchState() })
+
         return
       }
 
@@ -279,15 +367,18 @@ export const createRuntime = (options: RuntimeOptions) => {
         } catch (e) {
           reportError("event " + req.method, e)
         }
+
         result = true
       } else {
         if (!hasCapability(req.method)) throw new Error("method not found: " + req.method)
+
         result = await callCapability(req.method, req.params ?? {})
       }
 
       send({ jsonrpc: "2.0", id: req.id, result, ...patchState() })
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
+
       send({ jsonrpc: "2.0", id: req.id, error: { code: -32000, message }, ...patchState() })
     } finally {
       inRequest = false
@@ -296,9 +387,11 @@ export const createRuntime = (options: RuntimeOptions) => {
 
   const start = (): void => {
     transport.onClose(() => options.onClose?.())
+
     transport.onMessage((message) => {
       void handleRequest(message)
     })
+
     send(buildHello(options.info, listCapabilities(), transport.supportsBinary))
     transport.start()
   }

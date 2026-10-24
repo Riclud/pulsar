@@ -33,12 +33,14 @@ qint64 EmbeddedBridge::send(const QString &method, const QJsonObject &params)
     body.insert(QStringLiteral("params"), params);
 
     runtime_->receive(body);
+
     return id;
 }
 
 qint64 EmbeddedBridge::invoke(const QString &method, const QJSValue &params)
 {
     const QVariantMap map = params.isObject() ? params.toVariant().toMap() : QVariantMap();
+
     return send(method, QJsonObject::fromVariantMap(map));
 }
 
@@ -67,11 +69,13 @@ QJSValue EmbeddedBridge::call(const QString &method, const QJSValue &params)
         return engine_->evaluate(QStringLiteral("Promise.reject(new Error('pulsar: bridge not ready'))"));
 
     const QJSValue handle = promiseFactory_.call();
+
     if (!handle.isObject())
         return engine_->evaluate(QStringLiteral("Promise.reject(new Error('pulsar: cannot create promise'))"));
 
     const qint64 id = invoke(method, params);
     pending_.insert(id, {handle.property(QStringLiteral("resolve")), handle.property(QStringLiteral("reject"))});
+
     return handle.property(QStringLiteral("promise"));
 }
 
@@ -106,6 +110,7 @@ void EmbeddedBridge::reply(const QString &method, const QJsonObject &params)
     body.insert(QStringLiteral("jsonrpc"), QStringLiteral("2.0"));
     body.insert(QStringLiteral("method"), method);
     body.insert(QStringLiteral("params"), params);
+
     runtime_->receive(body);
 }
 
@@ -130,20 +135,26 @@ void EmbeddedBridge::handleMessage(const QJsonObject &message)
 
         const qint64 id = message.value(QStringLiteral("id")).toVariant().toLongLong();
         const PendingCall pending = pending_.take(id);
+
         if (!pending.resolve.isCallable() && !pending.reject.isCallable())
             return;
 
         const QJsonValue error = message.value(QStringLiteral("error"));
+
         if (error.isObject()) {
             const QJSValue reason = engine_->toScriptValue(error.toObject().value(QStringLiteral("message")).toString());
+
             if (pending.reject.isCallable())
                 pending.reject.call(QJSValueList{reason});
+
             return;
         }
 
         const QJSValue value = engine_->toScriptValue(message.value(QStringLiteral("result")).toVariant());
+
         if (pending.resolve.isCallable())
             pending.resolve.call(QJSValueList{value});
+
         return;
     }
 

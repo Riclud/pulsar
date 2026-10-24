@@ -4,9 +4,11 @@ const app = new App()
 
 void (async () => {
   const available = await secureStorage.available()
+
   app.store.set("secureAvailable", available)
 
   const key = "smoke-secret"
+
   const set = await secureStorage.set(key, "s3cret")
   const value = await secureStorage.get(key)
   const removed = await secureStorage.remove(key)

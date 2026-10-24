@@ -19,11 +19,13 @@ try {
   runtime.start()
 
   const app = new App()
+
   runtime.wireApp()
 
   void (async () => {
     try {
       const dirs = await paths.get()
+
       await storage.set("k", { n: 7 })
       await fs.writeFile(dirs.data + "/note.txt", "hello native")
 

@@ -11,18 +11,23 @@ const isAbsolute = (path: string): boolean => {
 
 const resolvePath = (cwd: string, path: string): string => {
   if (isAbsolute(path)) return path
+
   const separator = cwd.endsWith("/") || cwd.endsWith("\\") ? "" : "/"
+
   return cwd + separator + path
 }
 
 const fileUrlPath = (url: string): string => {
   const rest = url.slice("file://".length)
+
   let path = rest
+
   try {
     path = decodeURIComponent(rest)
   } catch {}
 
   if (/^\/[a-zA-Z]:\//.test(path)) path = path.slice(1)
+
   return path
 }
 

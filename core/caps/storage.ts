@@ -13,15 +13,18 @@ export const createStorageCaps = (platform: Platform): CapRegistry => {
 
   const serial = <T>(fn: () => Promise<T>): Promise<T> => {
     const run = queue.then(fn, fn)
+
     queue = run.then(
       () => undefined,
       () => undefined,
     )
+
     return run
   }
 
   const storePath = async (): Promise<string> => {
     const paths = await platform.paths()
+
     return paths.data + "/" + FILE
   }
 
@@ -45,18 +48,24 @@ export const createStorageCaps = (platform: Platform): CapRegistry => {
     "storage.set": (p: { key: string; value: unknown }) =>
       serial(async () => {
         assertSerializable(p.value, p.key)
+
         const data = await readStore()
+
         data[p.key] = p.value
         await writeStore(data)
+
         return true
       }),
 
     "storage.remove": (p: { key: string }) =>
       serial(async () => {
         const data = await readStore()
+
         if (!(p.key in data)) return false
+
         delete data[p.key]
         await writeStore(data)
+
         return true
       }),
   }

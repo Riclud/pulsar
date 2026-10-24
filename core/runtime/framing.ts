@@ -52,6 +52,7 @@ export const buildHello = (runtime: RuntimeInfo, capabilities: string[], binary 
 
 export const encodeFrame = (type: number, payload: Uint8Array): Uint8Array => {
   const frame = new Uint8Array(5 + payload.byteLength)
+
   frame[0] = type
   new DataView(frame.buffer).setUint32(1, payload.byteLength, true)
   frame.set(payload, 5)

@@ -8,7 +8,7 @@ import { createStorageCaps } from "./storage.ts"
 export type { CapHandler, CapRegistry } from "../sdk/caps.ts"
 
 /** Wire the built-in capabilities for a platform into the shared registry. */
-export function installCapabilities(platform: Platform): void {
+export const installCapabilities = (platform: Platform): void => {
   registerCapabilities({
     ...createFsCaps(platform),
     ...createPathsCaps(platform),

@@ -12,6 +12,7 @@ const build = Bun.spawnSync({
   cwd: root,
   stdio: ["ignore", "ignore", "inherit"],
 })
+
 if (build.exitCode !== 0 || !existsSync(binary)) {
   console.error("embedded: qjs-runtime is not built")
   process.exit(1)
@@ -25,6 +26,7 @@ const config = {
 } as unknown as Parameters<typeof Bun.build>[0]
 
 const result = await Bun.build(config)
+
 if (!result.success) {
   for (const log of result.logs) console.error(log.message)
   process.exit(1)
@@ -34,6 +36,7 @@ const tmp = mkdtempSync(join(tmpdir(), "pulsar-embedded-"))
 try {
   const bundle = join(tmp, "app.js")
   const manifest = join(tmp, "pulsar.json")
+
   writeFileSync(bundle, await result.outputs[0]!.text())
   writeFileSync(manifest, JSON.stringify({ id: "com.pulsar.embedded", windows: [] }))
 

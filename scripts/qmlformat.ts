@@ -7,28 +7,40 @@ import { join } from "path"
 
 const exe = process.platform === "win32" ? ".exe" : ""
 
-function fromQmake(): string | null {
+const fromQmake = (): string | null => {
   for (const qmake of ["qmake6", "qmake"]) {
     const probe = Bun.spawnSync({ cmd: [qmake, "-query", "QT_INSTALL_BINS"], stdout: "pipe", stderr: "ignore" })
+
     if (probe.exitCode !== 0) continue
+
     const dir = probe.stdout.toString().trim()
+
     if (!dir) continue
+
     const candidate = join(dir, "qmlformat" + exe)
+
     if (existsSync(candidate)) return candidate
   }
+
   return null
 }
 
-function findQmlformat(): string {
+const findQmlformat = (): string => {
   const fromQmakeResult = fromQmake()
+
   if (fromQmakeResult) return fromQmakeResult
+
   if (existsSync("/usr/lib/qt6/bin/qmlformat")) return "/usr/lib/qt6/bin/qmlformat"
+
   const fromPath = Bun.which("qmlformat")
+
   if (fromPath) return fromPath
+
   throw new Error("qmlformat not found (Qt 6 tools). Add it to PATH or set PULSAR_QMAKE.")
 }
 
 let files = process.argv.slice(2)
+
 if (files.length === 0) {
   const ls = Bun.spawnSync({ cmd: ["git", "ls-files", "*.qml"], stdout: "pipe", stderr: "ignore" })
   files = ls.stdout

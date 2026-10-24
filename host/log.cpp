@@ -52,6 +52,7 @@ void messageHandler(QtMsgType type, const QMessageLogContext &ctx, const QString
     const QString file = ctx.file ? QString::fromUtf8(ctx.file) : QString();
     const bool qml = (ctx.category && qstrcmp(ctx.category, "qml") == 0)
                      || file.endsWith(QLatin1String(".qml"));
+
     if (qml && gSink)
         gSink(levelName(type), message, file, ctx.line);
 
@@ -69,6 +70,7 @@ void messageHandler(QtMsgType type, const QMessageLogContext &ctx, const QString
 
     const char *tag;
     const char *color;
+
     switch (type) {
     case QtDebugMsg:
         tag = "[D]";
@@ -101,8 +103,10 @@ void messageHandler(QtMsgType type, const QMessageLogContext &ctx, const QString
 void initLogs()
 {
     const QByteArray logPath = qgetenv("QT_LOG_FILE");
+
     if (!logPath.isEmpty()) {
         gLogFile = new QFile(QString::fromLocal8Bit(logPath));
+
         if (!gLogFile->open(QIODevice::WriteOnly | QIODevice::Append)) {
             delete gLogFile;
             gLogFile = nullptr;
@@ -134,10 +138,12 @@ void forwardLine(const QString &line)
         gLogFile->flush();
         return;
     }
+
     if (!gColor) {
         writeErr(line.toUtf8() + "\n");
         return;
     }
+
     writeErr("\x1b[1;36mpulsar\x1b[0m \x1b[2m" + line.toUtf8() + "\x1b[0m\n");
 }
 

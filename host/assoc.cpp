@@ -19,29 +19,37 @@ namespace {
 QString dataHome()
 {
     QString base = qEnvironmentVariable("XDG_DATA_HOME");
+
     if (base.isEmpty())
         base = QDir::homePath() + QStringLiteral("/.local/share");
+
     return base;
 }
 
 QString configHome()
 {
     QString base = qEnvironmentVariable("XDG_CONFIG_HOME");
+
     if (base.isEmpty())
         base = QDir::homePath() + QStringLiteral("/.config");
+
     return base;
 }
 
 bool writeIfChanged(const QString &path, const QString &content)
 {
     QFile existing(path);
+
     if (existing.open(QIODevice::ReadOnly) && QString::fromUtf8(existing.readAll()) == content)
         return true;
 
     QSaveFile file(path);
+
     if (!file.open(QIODevice::WriteOnly))
         return false;
+
     file.write(content.toUtf8());
+
     return file.commit();
 }
 
@@ -51,6 +59,7 @@ QString mergeMimeDefaults(const QString &content, const QMap<QString, QString> &
     QStringList lines = content.isEmpty() ? QStringList() : content.split(QLatin1Char('\n'));
 
     int header = -1;
+
     for (int i = 0; i < lines.size(); ++i) {
         if (lines.at(i).trimmed() == section) {
             header = i;
@@ -61,11 +70,13 @@ QString mergeMimeDefaults(const QString &content, const QMap<QString, QString> &
     if (header < 0) {
         if (!lines.isEmpty() && !lines.last().isEmpty())
             lines.append(QString());
+
         lines.append(section);
         header = lines.size() - 1;
     }
 
     int end = lines.size();
+
     for (int i = header + 1; i < lines.size(); ++i) {
         if (lines.at(i).trimmed().startsWith(QLatin1Char('['))) {
             end = i;
@@ -74,6 +85,7 @@ QString mergeMimeDefaults(const QString &content, const QMap<QString, QString> &
     }
 
     int cursor = header + 1;
+
     for (auto it = defaults.constBegin(); it != defaults.constEnd(); ++it) {
         const QString line = it.key() + QLatin1Char('=') + it.value();
         bool replaced = false;
@@ -122,9 +134,11 @@ void registerFileAssociations(const QString &appId,
         return;
 
     const QString applications = dataHome() + QStringLiteral("/applications");
+
     QDir().mkpath(applications);
 
     QString exec = execPath;
+
     exec.replace(QLatin1Char('"'), QStringLiteral("\\\""));
     exec = QLatin1Char('"') + exec + QStringLiteral("\" %f");
 
@@ -140,15 +154,19 @@ void registerFileAssociations(const QString &appId,
     writeIfChanged(applications + QLatin1Char('/') + desktopId, desktop);
 
     QMap<QString, QString> defaults;
+
     for (const QString &mime : mimes)
         defaults.insert(mime, desktopId);
 
     const QString config = configHome();
+
     QDir().mkpath(config);
+
     const QString mimeapps = config + QStringLiteral("/mimeapps.list");
 
     QString existing;
     QFile file(mimeapps);
+
     if (file.open(QIODevice::ReadOnly))
         existing = QString::fromUtf8(file.readAll());
 
@@ -159,8 +177,10 @@ void registerFileAssociations(const QString &appId,
 
     for (const FileAssociation &assoc : associations) {
         QString ext = assoc.ext;
+
         while (ext.startsWith(QLatin1Char('.')))
             ext.remove(0, 1);
+
         if (ext.isEmpty())
             continue;
 

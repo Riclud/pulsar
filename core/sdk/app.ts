@@ -6,13 +6,16 @@ export type UiSource = UiNode | UiNode[] | (() => UiNode | UiNode[])
 
 const collectUiIds = (nodes: UiNode[]): number[] => {
   const ids: number[] = []
+
   const walk = (list: UiNode[]) => {
     for (const node of list) {
       ids.push(node.id)
       if (node.children) walk(node.children)
     }
   }
+
   walk(nodes)
+
   return ids
 }
 
@@ -73,8 +76,9 @@ interface StoreIssue {
  *
  * Returns a description of the first problem found, or null when valid.
  */
-function findStoreIssue(value: unknown, path: string, seen: Set<object>): StoreIssue | null {
+const findStoreIssue = (value: unknown, path: string, seen: Set<object>): StoreIssue | null => {
   if (value === null) return null
+
   switch (typeof value) {
     case "string":
     case "boolean":
@@ -88,40 +92,62 @@ function findStoreIssue(value: unknown, path: string, seen: Set<object>): StoreI
     case "function":
     case "symbol":
       return { path, reason: `is a ${typeof value}, which cannot be serialized` }
-    case "object": {
-      const obj = value as object
-      if (seen.has(obj)) return { path, reason: "contains a circular reference" }
-      if (Array.isArray(obj)) {
-        seen.add(obj)
-        for (let i = 0; i < obj.length; i++) {
-          const issue = findStoreIssue(obj[i], `${path}[${i}]`, seen)
-          if (issue) return issue
-        }
-        seen.delete(obj)
-        return null
-      }
-      const proto = Object.getPrototypeOf(obj)
-      if (proto !== Object.prototype && proto !== null) {
-        const name = obj.constructor?.name ?? "object"
-        return {
-          path,
-          reason: `is a ${name}; only plain objects and arrays are supported (pass file URLs, not binary data)`,
-        }
-      }
-      seen.add(obj)
-      for (const [key, child] of Object.entries(obj)) {
-        const issue = findStoreIssue(child, `${path}.${key}`, seen)
-        if (issue) return issue
-      }
-      seen.delete(obj)
-      return null
-    }
+    case "object":
+      return findObjectIssue(value as object, path, seen)
   }
+
   return null
 }
 
-export function assertSerializable(value: unknown, key: string) {
+const findArrayIssue = (obj: unknown[], path: string, seen: Set<object>): StoreIssue | null => {
+  seen.add(obj)
+
+  for (let i = 0; i < obj.length; i++) {
+    const issue = findStoreIssue(obj[i], `${path}[${i}]`, seen)
+
+    if (issue) return issue
+  }
+
+  seen.delete(obj)
+
+  return null
+}
+
+const findEntryIssue = (obj: object, path: string, seen: Set<object>): StoreIssue | null => {
+  seen.add(obj)
+
+  for (const [key, child] of Object.entries(obj)) {
+    const issue = findStoreIssue(child, `${path}.${key}`, seen)
+
+    if (issue) return issue
+  }
+
+  seen.delete(obj)
+
+  return null
+}
+
+const findObjectIssue = (obj: object, path: string, seen: Set<object>): StoreIssue | null => {
+  if (seen.has(obj)) return { path, reason: "contains a circular reference" }
+  if (Array.isArray(obj)) return findArrayIssue(obj, path, seen)
+
+  const proto = Object.getPrototypeOf(obj)
+
+  if (proto !== Object.prototype && proto !== null) {
+    const name = obj.constructor?.name ?? "object"
+
+    return {
+      path,
+      reason: `is a ${name}; only plain objects and arrays are supported (pass file URLs, not binary data)`,
+    }
+  }
+
+  return findEntryIssue(obj, path, seen)
+}
+
+export const assertSerializable = (value: unknown, key: string): void => {
   const issue = findStoreIssue(value, key, new Set())
+
   if (issue) throw new Error(`store.set("${key}"): value at "${issue.path}" ${issue.reason}`)
 }
 
@@ -151,13 +177,17 @@ export class Store {
 
   set(key: string, value: unknown): this {
     assertSerializable(value, key)
+
     const existed = this.data.has(key)
+
     if (!existed || !Object.is(this.data.get(key), value)) {
       this.dirty.add(key)
       this.removed.delete(key)
       this.notify()
     }
+
     this.data.set(key, value)
+
     return this
   }
 
@@ -167,11 +197,13 @@ export class Store {
 
   delete(key: string): boolean {
     const had = this.data.delete(key)
+
     if (had) {
       this.removed.add(key)
       this.dirty.delete(key)
       this.notify()
     }
+
     return had
   }
 
@@ -187,10 +219,14 @@ export class Store {
   /** Keys changed/removed since the last call; clears the tracking. */
   takePatch(): { changed: Record<string, unknown>; removed: string[] } {
     const changed: Record<string, unknown> = {}
+
     for (const key of this.dirty) changed[key] = this.data.get(key)
+
     const removed = [...this.removed]
+
     this.dirty.clear()
     this.removed.clear()
+
     return { changed, removed }
   }
 }
@@ -317,12 +353,14 @@ export class App {
   createWindow(config: AppConfig): WindowHandle {
     const label = config.label ?? this.nextWindowLabel()
     const resolved: AppConfig = { ...config, label, ui: config.ui ?? "ui/main.qml" }
+
     const index = this.windowConfigs.findIndex((w) => w.label === label)
 
     if (index >= 0) this.windowConfigs[index] = resolved
     else this.windowConfigs.push(resolved)
 
     this.onCreateWindow?.(resolved)
+
     return new WindowHandle(label)
   }
 
@@ -342,6 +380,7 @@ export class App {
       this.pendingRecent.push({ action: "add", path })
       return
     }
+
     this.onAddRecentDocument(path)
   }
 
@@ -351,6 +390,7 @@ export class App {
       this.pendingRecent.push({ action: "clear" })
       return
     }
+
     this.onClearRecentDocuments()
   }
 
@@ -366,14 +406,17 @@ export class App {
   renderWindow(label: string, source: UiSource): void {
     this.renderSources.set(label, () => {
       const value = typeof source === "function" ? source() : source
+
       return Array.isArray(value) ? value : [value]
     })
+
     this.flushUi(label)
   }
 
   /** Track text-input focus so re-renders do not steal it. */
   noteUiFocus(focused: boolean): void {
     this.uiFocusCount += focused ? 1 : -1
+
     if (this.uiFocusCount < 0) this.uiFocusCount = 0
 
     if (this.uiFocusCount > 0) return
@@ -391,6 +434,7 @@ export class App {
 
   private flushUi(label: string): void {
     const source = this.renderSources.get(label)
+
     if (!source || !this.onSendUi) return
 
     if (this.uiFocusCount > 0) {
@@ -401,9 +445,11 @@ export class App {
     const nodes = source()
     const tree = serialize(nodes)
     const json = JSON.stringify(tree)
+
     if (this.sentTrees.get(label) === json) return
 
     forgetHandlers(this.sentIds.get(label) ?? [])
+
     this.sentTrees.set(label, json)
     this.sentIds.set(label, collectUiIds(nodes))
     this.onSendUi(label, tree)
@@ -428,7 +474,9 @@ export class App {
   private nextWindowLabel(): string {
     const used = new Set(this.windowConfigs.map((w) => w.label))
     let n = this.windowConfigs.length + 1
+
     while (used.has(`window-${n}`)) n++
+
     return `window-${n}`
   }
 

@@ -79,13 +79,17 @@ const WINDOW_KEYS = [
 ] as const
 
 /** Turn a manifest window into the overlapping AppConfig fields. */
-function windowToConfig(win: ManifestWindow | undefined): Partial<AppConfig> {
+const windowToConfig = (win: ManifestWindow | undefined): Partial<AppConfig> => {
   const out: Partial<AppConfig> = {}
+
   if (!win) return out
+
   for (const key of WINDOW_KEYS) {
     const value = win[key]
+
     if (value !== undefined) (out as Record<string, unknown>)[key] = value
   }
+
   return out
 }
 
@@ -93,7 +97,7 @@ function windowToConfig(win: ManifestWindow | undefined): Partial<AppConfig> {
  * Merge explicit AppConfig over manifest defaults. Explicit values always win;
  * a missing UI falls back to the bundled convention.
  */
-export function resolveAppConfig(manifest: AppManifest | null, overrides: Partial<AppConfig> = {}): AppConfig {
+export const resolveAppConfig = (manifest: AppManifest | null, overrides: Partial<AppConfig> = {}): AppConfig => {
   return {
     ...windowToConfig(manifest?.windows?.[0]),
     ...overrides,
@@ -117,7 +121,7 @@ export const manifestCompat = (manifest: AppManifest | null): Compat => {
 }
 
 /** Default label for the window at `index`. */
-function defaultLabel(index: number): string {
+const defaultLabel = (index: number): string => {
   return index === 0 ? "main" : `window-${index + 1}`
 }
 
@@ -125,9 +129,11 @@ function defaultLabel(index: number): string {
  * Resolve the windows to open. Manifest windows are used unless explicit
  * options are given, which collapse to a single window (overrides win).
  */
-export function resolveWindows(manifest: AppManifest | null, overrides: Partial<AppConfig> = {}): AppConfig[] {
+export const resolveWindows = (manifest: AppManifest | null, overrides: Partial<AppConfig> = {}): AppConfig[] => {
   const hasOverrides = Object.keys(overrides).length > 0
+
   if (hasOverrides || !manifest?.windows?.length) return [resolveAppConfig(manifest, overrides)]
+
   return manifest.windows.map((win, i) => ({
     ...windowToConfig(win),
     label: win.label ?? defaultLabel(i),
@@ -138,11 +144,11 @@ export function resolveWindows(manifest: AppManifest | null, overrides: Partial<
 let manifestOverride: AppManifest | null | undefined
 
 /** Inject the manifest (embedded engines have no filesystem to read it from). */
-export function setManifest(manifest: AppManifest | null | undefined): void {
+export const setManifest = (manifest: AppManifest | null | undefined): void => {
   manifestOverride = manifest
 }
 
 /** The manifest injected by the runtime (embedded engines have no filesystem). */
-export function loadManifest(): AppManifest | null {
+export const loadManifest = (): AppManifest | null => {
   return manifestOverride ?? null
 }

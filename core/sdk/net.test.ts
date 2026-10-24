@@ -15,6 +15,7 @@ class FakeTransport {
 const setup = (guard: (name: string) => void = () => {}): FakeTransport => {
   const transport = new FakeTransport()
   netInternals.install(transport, guard)
+
   return transport
 }
 

@@ -13,12 +13,14 @@ const configure = Bun.spawnSync({
   cwd: root,
   stdio: ["inherit", "inherit", "inherit"],
 })
+
 if (configure.exitCode !== 0) {
   console.error("smoke: cmake configure failed")
   process.exit(configure.exitCode ?? 1)
 }
 
 const build = Bun.spawnSync({ cmd: ["cmake", "--build", "build"], cwd: root, stdio: ["inherit", "inherit", "inherit"] })
+
 if (build.exitCode !== 0) {
   console.error("smoke: build failed")
   process.exit(build.exitCode ?? 1)
@@ -48,33 +50,37 @@ const deniedLog = join(tmp, "denied.log")
 
 let failed = false
 
-function runHostBinary(bin: string, env: Record<string, string>) {
+const runHostBinary = (bin: string, env: Record<string, string>) => {
   Bun.spawnSync({ cmd: [bin], cwd: root, env: { ...process.env, ...env }, stdio: ["ignore", "ignore", "ignore"] })
 }
 
-function runHost(env: Record<string, string>) {
+const runHost = (env: Record<string, string>) => {
   runHostBinary(host, env)
 }
 
-function check(file: string, needle: string) {
+const check = (file: string, needle: string) => {
   let text = ""
   try {
     text = readFileSync(file, "utf8")
   } catch {}
+
   if (!text.includes(needle)) {
     console.error(`smoke: missing: ${needle}`)
     failed = true
   }
 }
 
-async function waitFor(file: string, needle: string, timeoutMs = 4000): Promise<boolean> {
+const waitFor = async (file: string, needle: string, timeoutMs = 4000): Promise<boolean> => {
   const start = Date.now()
+
   while (Date.now() - start < timeoutMs) {
     try {
       if (readFileSync(file, "utf8").includes(needle)) return true
     } catch {}
+
     await Bun.sleep(50)
   }
+
   return false
 }
 
@@ -276,6 +282,7 @@ try {
       AUTO_QUIT_MS: "6000",
       QT_LOG_FILE: deepLog,
     }
+
     const first = Bun.spawn({
       cmd: [host, "file:///tmp/pulsar-first.txt", "pulsar-test://hello"],
       cwd: root,
@@ -313,6 +320,7 @@ try {
   {
     const dataDir = join(tmp, "recent-data")
     const xbel = join(dataDir, "recently-used.xbel")
+
     const env = {
       PULSAR_DEBUG: "1",
       QT_QPA_PLATFORM: "offscreen",
@@ -334,6 +342,7 @@ try {
     try {
       afterClear = readFileSync(xbel, "utf8")
     } catch {}
+
     if (afterClear.includes("pulsar-recent.txt")) {
       console.error("smoke: recent documents were not cleared")
       failed = true
@@ -345,6 +354,7 @@ try {
   {
     const dataDir = join(tmp, "assoc-data")
     const configDir = join(tmp, "assoc-config")
+
     const env = {
       PULSAR_DEBUG: "1",
       QT_QPA_PLATFORM: "offscreen",
@@ -366,11 +376,14 @@ try {
     check(desktop, "MimeType=application/x-pulsar-foo;")
 
     const line = "application/x-pulsar-foo=com.pulsar.assocapp.desktop"
+
     let content = ""
     try {
       content = readFileSync(mimeapps, "utf8")
     } catch {}
+
     const occurrences = content.split(line).length - 1
+
     if (occurrences !== 1) {
       console.error(`smoke: mimeapps default written ${occurrences} times`)
       failed = true
@@ -383,13 +396,14 @@ try {
     const server = Bun.serve({
       hostname: "127.0.0.1",
       port: 0,
-      async fetch(request) {
+      fetch: async (request) => {
         const path = new URL(request.url).pathname
 
         if (path === "/hello") return new Response("hello pulsar", { headers: { "Content-Type": "text/plain" } })
 
         if (path === "/echo") {
           const body = await request.text()
+
           return Response.json({ method: request.method, body, header: request.headers.get("x-test") })
         }
 
@@ -402,17 +416,19 @@ try {
 
         if (path === "/slow") {
           await Bun.sleep(500)
+
           return new Response("slow")
         }
 
         if (path === "/chunks") {
           const stream = new ReadableStream({
-            start(controller) {
+            start: (controller) => {
               controller.enqueue(new TextEncoder().encode("abc"))
               controller.enqueue(new TextEncoder().encode("def"))
               controller.close()
             },
           })
+
           return new Response(stream, { headers: { "Content-Type": "text/plain" } })
         }
 
@@ -435,7 +451,9 @@ try {
         },
         stdio: ["ignore", "ignore", "ignore"],
       })
+
       const timer = setTimeout(() => proc.kill(), 15000)
+
       await proc.exited
       clearTimeout(timer)
     } finally {
@@ -475,11 +493,13 @@ try {
     cwd: join(root, "examples", "hello"),
     stdio: ["ignore", "ignore", "inherit"],
   })
+
   if (built.exitCode !== 0) {
     console.error("smoke: pulsar build failed")
     failed = true
   } else {
     const app = join(singleDir, process.platform === "win32" ? "hello.exe" : "hello")
+
     runHostBinary(app, {
       PULSAR_DEBUG: "1",
       QT_QPA_PLATFORM: "offscreen",

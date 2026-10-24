@@ -23,8 +23,10 @@
 static QString appDir()
 {
     const QByteArray env = qgetenv("PULSAR_APP");
+
     if (!env.isEmpty())
         return QFileInfo(QString::fromLocal8Bit(env)).absoluteFilePath();
+
     return QDir::currentPath();
 }
 
@@ -38,22 +40,28 @@ static QString androidAppDir()
     const QString markerPath = root + QStringLiteral("/.build-id");
     const QString wanted = QStringLiteral(PULSAR_ANDROID_BUILD_ID);
     QFile marker(markerPath);
+
     if (marker.open(QIODevice::ReadOnly) && QString::fromUtf8(marker.readAll()).trimmed() == wanted)
         return root;
 
     QDirIterator it(QStringLiteral(":/app"), QDirIterator::Subdirectories);
+
     while (it.hasNext()) {
         const QString source = it.next();
+
         if (QFileInfo(source).isDir())
             continue;
+
         const QString relative = source.mid(QStringLiteral(":/app/").size());
         const QString target = root + QLatin1Char('/') + relative;
+
         QDir().mkpath(QFileInfo(target).absolutePath());
         QFile::remove(target);
         QFile::copy(source, target);
     }
 
     QFile out(markerPath);
+
     if (out.open(QIODevice::WriteOnly | QIODevice::Truncate))
         out.write(wanted.toUtf8());
 
@@ -72,19 +80,23 @@ int main(int argc, char **argv)
 #else
         appDir();
 #endif
+
     QFile manifestFile(dir + QStringLiteral("/pulsar.json"));
     QString manifestJson = QStringLiteral("null");
     QString ui = QStringLiteral("ui/main.qml");
 
     if (manifestFile.open(QIODevice::ReadOnly)) {
         manifestJson = QString::fromUtf8(manifestFile.readAll());
+
         const QJsonObject manifest = QJsonDocument::fromJson(manifestJson.toUtf8()).object();
         const QJsonArray windows = manifest.value(QStringLiteral("windows")).toArray();
-        if (!windows.isEmpty()) {
-            const QString value = windows.first().toObject().value(QStringLiteral("ui")).toString();
-            if (!value.isEmpty())
-                ui = value;
-        }
+
+        const QString value = windows.isEmpty()
+            ? QString()
+            : windows.first().toObject().value(QStringLiteral("ui")).toString();
+
+        if (!value.isEmpty())
+            ui = value;
     }
 
     qputenv("PULSAR_APP", dir.toLocal8Bit());
@@ -116,12 +128,14 @@ int main(int argc, char **argv)
     }
 
     engine.load(QUrl::fromLocalFile(dir + QLatin1Char('/') + ui));
+
     if (engine.rootObjects().isEmpty())
         return 1;
 
     bridge.invoke(QStringLiteral("__sync"), QJSValue());
 
     int quitMs = qEnvironmentVariableIntValue("AUTO_QUIT_MS");
+
     if (quitMs > 0)
         QTimer::singleShot(quitMs, &app, &QGuiApplication::quit);
 

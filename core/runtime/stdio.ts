@@ -26,11 +26,14 @@ export const createStdioTransport = (): Transport => {
       if (length > MAX_FRAME) {
         buffer = Buffer.alloc(0)
         closeHandler?.()
+
         return
       }
+
       if (buf.byteLength < 5 + length) return
 
       const payload = buf.subarray(5, 5 + length)
+
       buffer = buf.subarray(5 + length)
 
       if (type === FRAME_CONTROL) {
@@ -48,6 +51,7 @@ export const createStdioTransport = (): Transport => {
 
   const start = (): void => {
     if (started) return
+
     started = true
 
     process.stdin.on("data", (chunk: Buffer) => {

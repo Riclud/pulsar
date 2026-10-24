@@ -64,6 +64,7 @@ const BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/
 
 const bytesToBase64 = (bytes: Uint8Array): string => {
   let out = ""
+
   for (let i = 0; i < bytes.length; i += 3) {
     const a = bytes[i]!
     const b = i + 1 < bytes.length ? bytes[i + 1]! : 0
@@ -74,12 +75,15 @@ const bytesToBase64 = (bytes: Uint8Array): string => {
     out += i + 1 < bytes.length ? BASE64[((b & 15) << 2) | (c >> 6)] : "="
     out += i + 2 < bytes.length ? BASE64[c & 63] : "="
   }
+
   return out
 }
 
 const base64ToBytes = (value: string): Uint8Array => {
   const text = value.replace(/[^A-Za-z0-9+/]/g, "")
+
   const bytes = new Uint8Array(Math.floor((text.length * 3) / 4))
+
   let offset = 0
 
   for (let i = 0; i < text.length; i += 4) {
@@ -93,6 +97,7 @@ const base64ToBytes = (value: string): Uint8Array => {
     if (offset < bytes.length && i + 2 < text.length) bytes[offset++] = (n >> 8) & 255
     if (offset < bytes.length && i + 3 < text.length) bytes[offset++] = n & 255
   }
+
   return bytes
 }
 
@@ -116,7 +121,10 @@ class RequestHandle implements NetRequest {
   on(event: "end", fn: () => void): this
   on(event: "error", fn: (error: NetErrorData) => void): this
   on(event: string, fn: (value: never) => void): this {
-    ;(this.listeners as Record<string, unknown>)[event] = fn
+    const listeners = this.listeners as Record<string, unknown>
+
+    listeners[event] = fn
+
     return this
   }
 
@@ -156,15 +164,18 @@ class NetClient {
 
   request(url: string, options: NetOptions = {}): NetRequest {
     const transport = this.transport
+
     if (!transport) throw new Error("net: the runtime transport is not ready")
 
     this.guard("nw.request")
     if (!/^https?:\/\//i.test(url)) throw new Error(`net: unsupported URL: ${url}`)
 
     const id = this.nextId
+
     this.nextId = this.nextId >= 0xffffffff ? 1 : this.nextId + 1
 
     const handle = new RequestHandle(id, this)
+
     this.requests.set(id, handle)
 
     const body = encodeBody(options.body)
@@ -188,14 +199,18 @@ class NetClient {
         tlsFingerprint: fingerprint || undefined,
       },
     })
+
     return handle
   }
 
   fetch(url: string, options: NetOptions = {}): Promise<NetResponse> {
     return new Promise((resolve, reject) => {
       const request = this.request(url, options)
+
       let info: NetResponseInfo = { status: 0, statusText: "", url, headers: {} }
+
       let text = ""
+
       let binary: Uint8Array[] | null = null
       let total = 0
 
@@ -205,8 +220,10 @@ class NetClient {
       request.on("data", (chunk) => {
         if (typeof chunk === "string") {
           text += chunk
+
           return
         }
+
         binary ??= []
         binary.push(chunk)
         total += chunk.byteLength
@@ -214,14 +231,19 @@ class NetClient {
       request.on("end", () => {
         if (!binary) {
           resolve({ ...info, text })
+
           return
         }
+
         const bytes = new Uint8Array(total)
+
         let offset = 0
+
         for (const chunk of binary) {
           bytes.set(chunk, offset)
           offset += chunk.byteLength
         }
+
         resolve({ ...info, text: "", bytes })
       })
       request.on("error", (error) => reject(new NetError(error.code, error.message)))
@@ -249,6 +271,7 @@ class NetClient {
 
     const id = Number(params.id)
     const request = this.requests.get(id)
+
     if (!request) return false
 
     if (params.type === "response") {
@@ -258,18 +281,22 @@ class NetClient {
         url: String(params.url ?? ""),
         headers: params.headers ?? {},
       })
+
       return true
     }
 
     if (params.type === "data") {
       const chunk = typeof params.text === "string" ? params.text : base64ToBytes(params.base64 ?? "")
+
       request.emitData(chunk)
+
       return true
     }
 
     if (params.type === "end") {
       this.requests.delete(id)
       request.emitEnd()
+
       return true
     }
 
@@ -279,6 +306,7 @@ class NetClient {
         code: String(params.code ?? "ERR_NETWORK"),
         message: String(params.message ?? "network error"),
       })
+
       return true
     }
 

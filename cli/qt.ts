@@ -3,8 +3,14 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realp
 import { tmpdir } from "os"
 import { dirname, join, resolve } from "path"
 
-export type PayloadEntry = { path: string; data: Buffer }
-export type QtFile = { rel: string; src: string }
+export type PayloadEntry = {
+  path: string
+  data: Buffer
+}
+export type QtFile = {
+  rel: string
+  src: string
+}
 
 const isWindows = process.platform === "win32"
 const isMac = process.platform === "darwin"
@@ -92,6 +98,7 @@ const appleDeps = (file: string, libsDir: string) => {
 
   for (const line of (r.stdout ?? "").split("\n").slice(1)) {
     const raw = line.trim().split(" ")[0]
+
     if (!raw) continue
 
     if (raw.startsWith("@rpath/")) paths.push(join(libsDir, raw.slice("@rpath/".length)))
@@ -122,7 +129,7 @@ const addTree = (files: QtFile[], fromDir: string, prefix: string) => {
   walk(fromDir, "")
 }
 
-export function qtConfText(): string {
+export const qtConfText = (): string => {
   if (isWindows) return ["[Paths]", "Plugins=plugins", "QmlImports=qml", ""].join("\n")
 
   return ["[Paths]", "Prefix=..", "Plugins=lib/Qt/plugins", "QmlImports=lib/Qt/qml", ""].join("\n")
@@ -193,6 +200,7 @@ const linuxQtFiles = (hostPath: string, libsDir: string, pluginsDir: string, qml
 
   for (const group of PLUGIN_GROUPS) {
     const groupFiles: QtFile[] = []
+
     addTree(groupFiles, join(pluginsDir, group), `lib/Qt/plugins/${group}`)
     files.push(...groupFiles)
 
@@ -249,6 +257,7 @@ const appleQtFiles = (hostPath: string, libsDir: string, pluginsDir: string, qml
 
     const letter = readlinkSync(join(versionsDir, "Current"))
     const base = join(versionsDir, letter)
+
     addTree(files, base, `lib/Qt/lib/${name}/Versions/${letter}`)
 
     for (const dep of appleDeps(join(base, name.replace(/\.framework$/, "")), libsDir)) addDep(dep)
@@ -258,6 +267,7 @@ const appleQtFiles = (hostPath: string, libsDir: string, pluginsDir: string, qml
 
   for (const group of PLUGIN_GROUPS) {
     const groupFiles: QtFile[] = []
+
     addTree(groupFiles, join(pluginsDir, group), `lib/Qt/plugins/${group}`)
     files.push(...groupFiles)
 
@@ -267,6 +277,7 @@ const appleQtFiles = (hostPath: string, libsDir: string, pluginsDir: string, qml
   }
 
   const qmlFiles: QtFile[] = []
+
   for (const module of ["QtQuick", "QtQml"]) addTree(qmlFiles, join(qmlDir, module), `lib/Qt/qml/${module}`)
   files.push(...qmlFiles)
 
@@ -306,6 +317,7 @@ const windowsQtFiles = (hostPath: string): QtFile[] | null => {
   }
 
   const tree: QtFile[] = []
+
   addTree(tree, join(stage, "plugins"), "bin/plugins")
   addTree(tree, join(stage, "qml"), "bin/qml")
 
@@ -314,7 +326,7 @@ const windowsQtFiles = (hostPath: string): QtFile[] | null => {
   return files
 }
 
-export function qtFiles(hostPath: string): QtFile[] | null {
+export const qtFiles = (hostPath: string): QtFile[] | null => {
   const root = bundledQtRoot(hostPath)
 
   if (root) return filesFromRoot(root)
@@ -330,7 +342,7 @@ export function qtFiles(hostPath: string): QtFile[] | null {
   return linuxQtFiles(hostPath, libsDir, pluginsDir ?? "", qmlDir ?? "")
 }
 
-export function collectQt(entries: PayloadEntry[], hostPath: string): boolean {
+export const collectQt = (entries: PayloadEntry[], hostPath: string): boolean => {
   const files = qtFiles(hostPath)
 
   if (!files) {
@@ -342,6 +354,8 @@ export function collectQt(entries: PayloadEntry[], hostPath: string): boolean {
   entries.push({ path: "bin/qt.conf", data: Buffer.from(qtConfText(), "utf8") })
 
   const mb = files.reduce((sum, file) => sum + readFileSync(file.src).length, 0) / (1024 * 1024)
+
   console.log(`pulsar: bundled Qt (~${mb.toFixed(0)} MB)`)
+
   return true
 }
