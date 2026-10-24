@@ -285,8 +285,32 @@ void QuickJsRuntime::receive(const QJsonObject &message)
 
 void QuickJsRuntime::receiveBinary(quint32 id, const QByteArray &data)
 {
-    Q_UNUSED(id)
-    Q_UNUSED(data)
+    if (!context_)
+        return;
+
+    JSValue global = JS_GetGlobalObject(context_);
+    JSValue callback = JS_GetPropertyStr(context_, global, "__pulsarReceiveData");
+
+    if (JS_IsFunction(context_, callback)) {
+        JSValue args[2];
+        args[0] = JS_NewInt32(context_, static_cast<int32_t>(id));
+        args[1] = JS_NewArrayBufferCopy(context_, reinterpret_cast<const uint8_t *>(data.constData()), data.size());
+
+        JSValue result = JS_Call(context_, callback, global, 2, args);
+
+        JS_FreeValue(context_, args[0]);
+        JS_FreeValue(context_, args[1]);
+
+        if (JS_IsException(result))
+            reportException(QStringLiteral("receiveBinary"));
+
+        JS_FreeValue(context_, result);
+    }
+
+    JS_FreeValue(context_, callback);
+    JS_FreeValue(context_, global);
+
+    runJobs();
 }
 
 void QuickJsRuntime::runJobs()

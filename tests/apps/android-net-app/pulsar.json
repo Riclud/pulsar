@@ -1,0 +1,10 @@
+{
+  "id": "com.pulsar.androidnet",
+  "name": "android-net",
+  "version": "0.1.0",
+  "main": "main.ts",
+  "targets": ["android"],
+  "compat": "portable",
+  "permissions": ["net"],
+  "windows": [{ "label": "main", "ui": "ui/main.qml", "width": 320, "height": 200, "title": "Net" }]
+}

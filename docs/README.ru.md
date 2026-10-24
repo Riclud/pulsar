@@ -184,6 +184,10 @@ Android SDK/NDK и бандл Qt for Android с host-инструментами.
 `pulsar install --android` делает ту же установку без сборки, а
 `pulsar check --target android` отсекает `node:`/`bun:` импорты до упаковки.
 
+`net.fetch` и потоковый `net.request` работают на Android: HTTP выполняется в
+нативном хосте через QtNetwork, поэтому текст и бинарные чанки приходят без
+сетевого кода на JS.
+
 ## Манифест — `pulsar.json`
 
 Один файл управляет конфигурацией приложения и упаковкой.

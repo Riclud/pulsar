@@ -1,4 +1,5 @@
 #include "bridge.h"
+#include "net.h"
 #include "quickjs_runtime.h"
 
 #include <QDir>
@@ -151,6 +152,53 @@ int main(int argc, char **argv)
     QQmlPropertyMap store;
     pulsar::QuickJsRuntime runtime;
     EmbeddedBridge bridge(&runtime, &engine, &store);
+
+    pulsar::NetworkService network(&app);
+
+    bridge.setNetwork(&network);
+
+    QObject::connect(&network, &pulsar::NetworkService::response, &bridge,
+                     [&bridge](quint32 id, int status, const QString &statusText, const QUrl &url,
+                               const QMap<QString, QString> &headers) {
+                         QJsonObject values;
+
+                         for (auto it = headers.constBegin(); it != headers.constEnd(); ++it)
+                             values.insert(it.key(), it.value());
+
+                         QJsonObject data;
+                         data.insert(QStringLiteral("id"), int(id));
+                         data.insert(QStringLiteral("type"), QStringLiteral("response"));
+                         data.insert(QStringLiteral("status"), status);
+                         data.insert(QStringLiteral("statusText"), statusText);
+                         data.insert(QStringLiteral("url"), url.toString());
+                         data.insert(QStringLiteral("headers"), values);
+                         bridge.notifyMethod(QStringLiteral("__net-event"), data);
+                     });
+    QObject::connect(&network, &pulsar::NetworkService::text, &bridge, [&bridge](quint32 id, const QString &chunk) {
+        QJsonObject data;
+        data.insert(QStringLiteral("id"), int(id));
+        data.insert(QStringLiteral("type"), QStringLiteral("data"));
+        data.insert(QStringLiteral("text"), chunk);
+        bridge.notifyMethod(QStringLiteral("__net-event"), data);
+    });
+    QObject::connect(&network, &pulsar::NetworkService::binary, &bridge, [&bridge](quint32 id, const QByteArray &chunk) {
+        bridge.notifyBinary(id, chunk);
+    });
+    QObject::connect(&network, &pulsar::NetworkService::finished, &bridge, [&bridge](quint32 id) {
+        QJsonObject data;
+        data.insert(QStringLiteral("id"), int(id));
+        data.insert(QStringLiteral("type"), QStringLiteral("end"));
+        bridge.notifyMethod(QStringLiteral("__net-event"), data);
+    });
+    QObject::connect(&network, &pulsar::NetworkService::failed, &bridge,
+                     [&bridge](quint32 id, const QString &code, const QString &message) {
+                         QJsonObject data;
+                         data.insert(QStringLiteral("id"), int(id));
+                         data.insert(QStringLiteral("type"), QStringLiteral("error"));
+                         data.insert(QStringLiteral("code"), code);
+                         data.insert(QStringLiteral("message"), message);
+                         bridge.notifyMethod(QStringLiteral("__net-event"), data);
+                     });
 
     qmlRegisterSingletonInstance("Pulsar", 1, 0, "Pulsar", &bridge);
     qmlRegisterSingletonInstance("Pulsar", 1, 0, "Store", &store);

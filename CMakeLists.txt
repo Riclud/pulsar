@@ -89,8 +89,10 @@ add_executable(qml-host-qjs
     host/embedded/main.cpp
     host/embedded/bridge.cpp
     host/quickjs_runtime.cpp
+    host/net.cpp
     host/embedded/bridge.h
     host/quickjs_runtime.h
+    host/net.h
 )
 target_include_directories(qml-host-qjs PRIVATE host host/embedded)
 target_compile_definitions(qml-host-qjs PRIVATE QT_NO_EMIT)
@@ -99,6 +101,7 @@ target_link_libraries(qml-host-qjs PRIVATE
     Qt6::Gui
     Qt6::Qml
     Qt6::Quick
+    Qt6::Network
     qjs
 )
 
@@ -125,8 +128,10 @@ if(ANDROID)
         host/embedded/main.cpp
         host/embedded/bridge.cpp
         host/quickjs_runtime.cpp
+        host/net.cpp
         host/embedded/bridge.h
         host/quickjs_runtime.h
+        host/net.h
     )
     target_include_directories(pulsar-android PRIVATE host host/embedded)
     target_compile_definitions(pulsar-android PRIVATE QT_NO_EMIT)
@@ -135,6 +140,7 @@ if(ANDROID)
         Qt6::Gui
         Qt6::Qml
         Qt6::Quick
+        Qt6::Network
         qjs
     )
 

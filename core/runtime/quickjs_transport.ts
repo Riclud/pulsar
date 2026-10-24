@@ -5,6 +5,7 @@ declare const __pulsarSendBinary: (streamId: number, data: ArrayBuffer) => void
 
 interface PulsarGlobal {
   __pulsarReceive?: (json: string) => void
+  __pulsarReceiveData?: (streamId: number, data: ArrayBuffer) => void
 }
 
 /** Transport between the in-process host and the TS runtime inside QuickJS. */
@@ -17,6 +18,12 @@ export const createEmbeddedTransport = (): Transport => {
   global.__pulsarReceive = (json: string) => {
     try {
       messageHandler?.(JSON.parse(json))
+    } catch {}
+  }
+
+  global.__pulsarReceiveData = (streamId: number, data: ArrayBuffer) => {
+    try {
+      dataHandler?.(streamId, new Uint8Array(data))
     } catch {}
   }
 
@@ -45,6 +52,7 @@ export const createEmbeddedTransport = (): Transport => {
 
     close: () => {
       global.__pulsarReceive = undefined
+      global.__pulsarReceiveData = undefined
       dataHandler = null
     },
   }

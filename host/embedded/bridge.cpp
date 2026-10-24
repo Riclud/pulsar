@@ -1,5 +1,6 @@
 #include "bridge.h"
 
+#include "net.h"
 #include "quickjs_runtime.h"
 
 #include <QClipboard>
@@ -102,6 +103,21 @@ QString EmbeddedBridge::colorScheme() const
 #else
     return QStringLiteral("light");
 #endif
+}
+
+void EmbeddedBridge::setNetwork(pulsar::NetworkService *network)
+{
+    network_ = network;
+}
+
+void EmbeddedBridge::notifyBinary(quint32 id, const QByteArray &data)
+{
+    runtime_->receiveBinary(id, data);
+}
+
+void EmbeddedBridge::notifyMethod(const QString &method, const QJsonObject &params)
+{
+    reply(method, params);
 }
 
 void EmbeddedBridge::notify(const QString &name, const QJsonObject &data)
@@ -231,12 +247,20 @@ void EmbeddedBridge::handleMessage(const QJsonObject &message)
     }
 
     if (method == QLatin1String("__net")) {
-        QJsonObject replyParams;
-        replyParams.insert(QStringLiteral("id"), params.value(QStringLiteral("id")));
-        replyParams.insert(QStringLiteral("type"), QStringLiteral("error"));
-        replyParams.insert(QStringLiteral("code"), QStringLiteral("ERR_NETWORK"));
-        replyParams.insert(QStringLiteral("message"), QStringLiteral("network is not available"));
-        reply(QStringLiteral("__net-event"), replyParams);
+        qDebug().noquote() << "pulsar: net" << params.value(QStringLiteral("action")).toString()
+                           << params.value(QStringLiteral("url")).toString();
+
+        if (!network_) {
+            QJsonObject replyParams;
+            replyParams.insert(QStringLiteral("id"), params.value(QStringLiteral("id")));
+            replyParams.insert(QStringLiteral("type"), QStringLiteral("error"));
+            replyParams.insert(QStringLiteral("code"), QStringLiteral("ERR_NETWORK"));
+            replyParams.insert(QStringLiteral("message"), QStringLiteral("network is not available"));
+            reply(QStringLiteral("__net-event"), replyParams);
+            return;
+        }
+
+        network_->handle(params.toVariantMap());
         return;
     }
 

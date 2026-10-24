@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QByteArray>
 #include <QHash>
 #include <QJSEngine>
 #include <QJSValue>
@@ -13,6 +14,7 @@
 class QQmlPropertyMap;
 
 namespace pulsar {
+class NetworkService;
 class QuickJsRuntime;
 }
 
@@ -37,6 +39,15 @@ public:
     /** Push an unsolicited event to the JS runtime (`__event`). */
     void notify(const QString &name, const QJsonObject &data);
 
+    /** Send a raw JSON-RPC notification to the JS runtime. */
+    void notifyMethod(const QString &method, const QJsonObject &params);
+
+    /** Forward a binary chunk to the JS transport (for streaming responses). */
+    void notifyBinary(quint32 id, const QByteArray &data);
+
+    /** HTTP engine used for `__net` requests. */
+    void setNetwork(pulsar::NetworkService *network);
+
 public slots:
     void handleMessage(const QJsonObject &message);
 
@@ -60,6 +71,7 @@ private:
     void reply(const QString &method, const QJsonObject &params);
 
     pulsar::QuickJsRuntime *runtime_;
+    pulsar::NetworkService *network_ = nullptr;
     QJSEngine *engine_;
     QQmlPropertyMap *store_;
     qint64 nextId_ = 1;

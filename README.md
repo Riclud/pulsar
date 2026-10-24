@@ -182,6 +182,10 @@ tools. The result is `dist/<name>.apk` for `arm64-v8a` (minSdk 28, targetSdk
 35). `pulsar install --android` performs the same setup without building, and
 `pulsar check --target android` rejects `node:`/`bun:` imports before packaging.
 
+`net.fetch` and streaming `net.request` work on Android: HTTP runs in the native
+host through QtNetwork, so text and binary chunks arrive without any JS-side
+networking code.
+
 ## The manifest — `pulsar.json`
 
 One file drives the app config and packaging.
