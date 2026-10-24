@@ -21,6 +21,7 @@ const SKIP = new Set(["node_modules", ".git", "dist", "build", ".cache"])
 
 export interface AndroidTools {
   qt: string
+  hostQt: string
   sdk: string
   ndk: string
   javaHome: string
@@ -32,9 +33,28 @@ const firstExisting = (candidates: string[]): string | undefined => {
   return undefined
 }
 
+const hostQtFor = (qt: string): string => {
+  const conf = readFileSync(join(qt, "bin", "target_qt.conf"), "utf8")
+  const line = conf.split("\n").find((entry) => entry.startsWith("HostPrefix="))
+
+  if (line) {
+    const host = resolve(join(qt, "bin"), line.slice("HostPrefix=".length).trim())
+
+    if (existsSync(host)) return host
+  }
+
+  const sibling = process.platform === "darwin" ? "macos" : process.platform === "win32" ? "msvc2022_64" : "gcc_64"
+  const fallback = join(dirname(qt), sibling)
+
+  if (existsSync(fallback)) return fallback
+
+  throw new Error(`host Qt for Android not found next to ${qt}`)
+}
+
 export const androidBase = (): string => join(pulsarHome(), "android")
 
-export const installedQt = (abi = ANDROID_ABI): string => join(androidBase(), "qt", ANDROID_QT_VERSION, abi)
+export const installedQt = (abi = ANDROID_ABI): string =>
+  join(androidBase(), "qt", ANDROID_QT_VERSION, `android_${abi.replace(/-/g, "_")}`)
 
 export const installedJdk = (): string => join(androidBase(), "jdk", "17")
 
@@ -115,7 +135,7 @@ export const findAndroidTools = (): AndroidTools => {
 
   if (missing.length > 0) throw new Error(`missing Android toolchain: ${missing.join(", ")}`)
 
-  return { qt, sdk, ndk, javaHome }
+  return { qt, hostQt: hostQtFor(qt), sdk, ndk, javaHome }
 }
 
 /**
@@ -338,6 +358,21 @@ const bundleRuntime = (entry: string, assembly: string) => {
   return { entry: runtimeEntry, result }
 }
 
+const hostTool = (hostQt: string, dir: string, name: string): string =>
+  join(hostQt, dir, process.platform === "win32" ? `${name}.exe` : name)
+
+const patchDeploymentTools = (settingsPath: string, hostQt: string): void => {
+  if (!existsSync(settingsPath)) return
+
+  const settings = JSON.parse(readFileSync(settingsPath, "utf8")) as Record<string, unknown>
+
+  settings["qml-importscanner-binary"] = hostTool(hostQt, "libexec", "qmlimportscanner")
+  settings["rcc-binary"] = hostTool(hostQt, "libexec", "rcc")
+  settings["qml-dom-binary"] = hostTool(hostQt, "bin", "qmldom")
+
+  writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`)
+}
+
 const signApk = (apk: string, target: string, tools: AndroidTools): void => {
   const keystore = process.env.PULSAR_ANDROID_KEYSTORE ?? join(homedir(), ".android", "debug.keystore")
   const storePass = process.env.PULSAR_ANDROID_KEYSTORE_PASS ?? "android"
@@ -440,6 +475,7 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
 
   console.log(`pulsar: android ${abi} -> ${name}.apk`)
   console.log(`  qt:  ${tools.qt}`)
+  console.log(`  host: ${tools.hostQt}`)
   console.log(`  sdk: ${tools.sdk}`)
   console.log(`  ndk: ${tools.ndk}`)
 
@@ -471,6 +507,7 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
     ANDROID_SDK_ROOT: tools.sdk,
     ANDROID_HOME: tools.sdk,
     ANDROID_NDK_ROOT: tools.ndk,
+    QT_HOST_PATH: tools.hostQt,
     PATH: `${join(tools.sdk, "platform-tools")}:${join(tools.javaHome, "bin")}:${process.env.PATH ?? ""}`,
   }
 
@@ -489,15 +526,19 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
       "-DCMAKE_BUILD_TYPE=Release",
       `-DPULSAR_ANDROID_APP_QRC=${qrc}`,
       `-DPULSAR_ANDROID_BUILD_ID=${buildId}`,
+      `-DPULSAR_ANDROID_APP_DIR=${appDir}`,
       `-DPULSAR_ANDROID_PACKAGE_NAME=${packageName}`,
       `-DPULSAR_ANDROID_APP_NAME=${name}`,
       `-DPULSAR_ANDROID_VERSION_NAME=${versionName}`,
       `-DPULSAR_ANDROID_VERSION_CODE=${versionCode(versionName)}`,
+      `-DQT_HOST_PATH=${tools.hostQt}`,
     ],
     { stdio: "inherit", env },
   )
 
   if (configure.status !== 0) throw new Error("android configure failed")
+
+  patchDeploymentTools(join(buildDir, "android-pulsar-android-deployment-settings.json"), tools.hostQt)
 
   const compile = spawnSync("cmake", ["--build", buildDir, "--target", "pulsar-android_make_apk", "--parallel", "6"], {
     stdio: "inherit",

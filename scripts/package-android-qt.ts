@@ -7,8 +7,20 @@
 //   6.9.3/android_arm64_v8a/  target Qt (libraries, plugins, QML, templates)
 import { spawnSync } from "child_process"
 import { createHash } from "crypto"
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "fs"
-import { join, relative, resolve, sep } from "path"
+import {
+  cpSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  readlinkSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "fs"
+import { dirname, join, relative, resolve, sep } from "path"
 import { platformId } from "../cli/core.ts"
 import { ANDROID_ABI, ANDROID_QT_VERSION } from "../cli/android.ts"
 
@@ -22,16 +34,40 @@ const targetQt = process.env.PULSAR_ANDROID_QT ?? join(qtRoot, `android_${ANDROI
 const SKIP = new Set(["doc", "docs", "examples", "tests", "sbom", "translations"])
 
 const copyTree = (from: string, to: string): void => {
-  cpSync(from, to, {
-    recursive: true,
-    filter: (source) => {
-      const rel = relative(from, source)
+  const walk = (source: string, dest: string): void => {
+    const rel = relative(from, source)
+    const top = rel.split(sep)[0] ?? ""
 
-      if (!rel) return true
+    if (rel && SKIP.has(top)) return
 
-      return !SKIP.has(rel.split(sep)[0] ?? "")
-    },
-  })
+    const info = lstatSync(source)
+
+    if (info.isSymbolicLink()) {
+      const target = resolve(dirname(source), readlinkSync(source))
+
+      if (target.startsWith(from + sep) && existsSync(target)) {
+        symlinkSync(relative(dirname(dest), join(to, relative(from, target))), dest)
+
+        return
+      }
+
+      cpSync(target, dest)
+
+      return
+    }
+
+    if (info.isDirectory()) {
+      mkdirSync(dest, { recursive: true })
+
+      for (const entry of readdirSync(source)) walk(join(source, entry), join(dest, entry))
+
+      return
+    }
+
+    cpSync(source, dest)
+  }
+
+  walk(from, to)
 }
 
 for (const [label, path] of [

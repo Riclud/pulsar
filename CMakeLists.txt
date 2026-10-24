@@ -149,6 +149,10 @@ if(ANDROID)
         target_sources(pulsar-android PRIVATE "${PULSAR_ANDROID_APP_QRC}")
     endif()
 
+    if(PULSAR_ANDROID_APP_DIR)
+        set_target_properties(pulsar-android PROPERTIES QT_QML_ROOT_PATH "${PULSAR_ANDROID_APP_DIR}")
+    endif()
+
     if(PULSAR_ANDROID_BUILD_ID)
         target_compile_definitions(pulsar-android PRIVATE
             PULSAR_ANDROID_BUILD_ID="${PULSAR_ANDROID_BUILD_ID}"

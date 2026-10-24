@@ -125,6 +125,10 @@ export const fileSha256 = (path: string): string => {
 
 /** GitHub API/release URL for an asset of a given tag ("latest" or "v0.1.0"). */
 export const releaseUrl = (tag: string, asset: string): string => {
+  const mirror = process.env.PULSAR_RELEASE_BASE
+
+  if (mirror) return `${mirror.replace(/\/+$/, "")}/${asset}`
+
   const base =
     tag === "latest"
       ? `https://github.com/${REPO}/releases/latest/download`

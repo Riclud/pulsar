@@ -101,6 +101,12 @@ jobs:
           path: dist/pulsar-android-qt-*.tar.gz
           if-no-files-found: error
 
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/pulsar-android-qt-*.tar.gz
+
   apk:
     name: Build an APK
     needs: qt
