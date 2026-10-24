@@ -1,7 +1,7 @@
 import { spawn } from "child_process"
 import { promises as fs } from "fs"
 import { dirname } from "path"
-import { appPaths, currentAppId } from "../caps/paths.ts"
+import { appPaths, currentAppId } from "./bun-paths.ts"
 import type { AppPaths, FsEncoding, FileStat, Platform } from "../platform.ts"
 
 const readEncoding = (encoding?: FsEncoding): BufferEncoding => {

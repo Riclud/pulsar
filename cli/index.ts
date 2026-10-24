@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import type { BunPlugin } from "bun"
 import { spawnSync } from "child_process"
 import {
   chmodSync,
@@ -13,6 +14,15 @@ import {
 } from "fs"
 import { tmpdir } from "os"
 import { basename, dirname, join, resolve } from "path"
+import {
+  manifestCompat,
+  manifestRuntime,
+  manifestTargets,
+  type AppManifest,
+  type Compat,
+  type RuntimeKind,
+  type Target,
+} from "../core/sdk/manifest.ts"
 import { cliVersion, findBridge, findHost, findLauncher, pulsarRoot } from "./core.ts"
 import { create } from "./create.ts"
 import { install } from "./install.ts"
@@ -20,6 +30,127 @@ import { collectQt } from "./qt.ts"
 import { update } from "./update.ts"
 
 const [cmd, ...args] = process.argv.slice(2)
+
+type BuildTarget = Target | "portable"
+
+const NODE_BUILTIN =
+  /^(node:|bun:|fs(\/promises)?$|path$|os$|child_process$|worker_threads$|net$|tls$|http$|https$|crypto$|stream$|buffer$|util$|assert$|url$|zlib$|events$|dns$|dgram$|cluster$|vm$|module$|readline$|repl$|tty$|v8$|perf_hooks$|async_hooks$|inspector$|trace_events$|.*\.node$)/
+
+function readManifest(appDir: string): AppManifest | null {
+  try {
+    const parsed = JSON.parse(readFileSync(join(appDir, "pulsar.json"), "utf8")) as unknown
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as AppManifest
+  } catch {}
+  return null
+}
+
+function buildTarget(): BuildTarget {
+  const target = flagValue("--target") ?? "desktop"
+  if (target !== "desktop" && target !== "android" && target !== "portable") {
+    console.error(`pulsar: unknown target "${target}" (expected desktop, android or portable)`)
+    process.exit(1)
+  }
+  return target
+}
+
+function runtimeFor(target: BuildTarget, manifest: AppManifest | null): RuntimeKind {
+  if (target === "portable") return "quickjs"
+  return manifestRuntime(manifest, target)
+}
+
+function resolveEntry(appDir: string, manifest: AppManifest | null, target: BuildTarget): string {
+  const base = manifest?.main ?? "main.ts"
+  const dir = dirname(base)
+  const file = basename(base)
+  const ext = file.endsWith(".ts") ? ".ts" : file.endsWith(".js") ? ".js" : ""
+  const stem = ext ? file.slice(0, -ext.length) : file
+  const suffixes =
+    target === "desktop"
+      ? [".desktop", ".bun"]
+      : target === "android"
+        ? [".android", ".quickjs"]
+        : [".portable", ".quickjs"]
+
+  const candidates = [
+    ...suffixes.map((suffix) => join(appDir, dir, `${stem}${suffix}${ext || ".ts"}`)),
+    join(appDir, base),
+  ]
+
+  for (const candidate of candidates) if (existsSync(candidate)) return candidate
+  console.error(`pulsar: no entry point for ${target} (looked for ${candidates.join(", ")})`)
+  process.exit(1)
+}
+
+async function auditPortable(entry: string): Promise<string[]> {
+  const violations: string[] = []
+
+  try {
+    const plugin: BunPlugin = {
+      name: "pulsar-portable-audit",
+      setup(builder) {
+        builder.onResolve({ filter: NODE_BUILTIN }, (args) => {
+          violations.push(`${args.path} (from ${args.importer})`)
+          return { path: args.path, external: true }
+        })
+      },
+    }
+
+    const config = {
+      entrypoints: [entry],
+      target: "browser",
+      format: "esm",
+      write: false,
+      plugins: [plugin],
+    } as unknown as Parameters<typeof Bun.build>[0]
+
+    const result = await Bun.build(config)
+
+    if (!result.success) {
+      for (const log of result.logs) violations.push(log.message)
+    }
+  } catch (e) {
+    violations.push(e instanceof Error ? e.message : String(e))
+  }
+
+  return [...new Set(violations)]
+}
+
+async function checkTarget(appDir: string, target: BuildTarget): Promise<void> {
+  const manifest = readManifest(appDir)
+  const targets = manifestTargets(manifest)
+  const compat: Compat = manifestCompat(manifest)
+  const runtime = runtimeFor(target, manifest)
+  const entry = resolveEntry(appDir, manifest, target)
+
+  console.log(`pulsar check --target ${target}`)
+  console.log(`  entry: ${entry}`)
+  console.log(`  runtime: ${runtime}`)
+  console.log(`  compat: ${compat}`)
+  console.log(`  targets: ${targets.join(", ")}`)
+
+  if (target === "android" && !targets.includes("android")) {
+    console.error(`FAIL  android is not listed in targets (${targets.join(", ")})`)
+    process.exit(1)
+  }
+
+  if (target === "android" && compat !== "portable") {
+    console.error('FAIL  android requires compat: "portable"')
+    process.exit(1)
+  }
+
+  if (compat !== "portable" && target !== "android" && target !== "portable") {
+    console.log("ok    desktop compat, node/bun imports allowed")
+    return
+  }
+
+  const violations = await auditPortable(entry)
+  if (violations.length > 0) {
+    for (const violation of violations) console.error(`FAIL  non-portable import: ${violation}`)
+    process.exit(1)
+  }
+
+  console.log("ok    portable")
+}
 
 // Model B: the CLI needs Bun. Fail clearly instead of crashing under Node.
 if (!(process.versions as { bun?: string }).bun) {
@@ -177,10 +308,33 @@ function encodeContainer(entries: PayloadEntry[], buildId: bigint): Buffer {
 
 async function build() {
   const appDir = process.cwd()
-  const mainTs = join(appDir, "main.ts")
-  if (!existsSync(mainTs)) {
-    console.error("pulsar build: no main.ts in the current directory")
+  const target = buildTarget()
+  const manifest = readManifest(appDir)
+  const compat = manifestCompat(manifest)
+  const runtime = runtimeFor(target, manifest)
+  const entry = resolveEntry(appDir, manifest, target)
+
+  if (target === "android" && !manifestTargets(manifest).includes("android")) {
+    console.error(`pulsar build: android is not listed in targets (${manifestTargets(manifest).join(", ")})`)
     process.exit(1)
+  }
+
+  if (target === "android" && compat !== "portable") {
+    console.error('pulsar build: android requires compat: "portable"')
+    process.exit(1)
+  }
+
+  if (target !== "desktop") {
+    console.error(`pulsar build: --target ${target} is not implemented yet (runtime: ${runtime})`)
+    process.exit(1)
+  }
+
+  if (compat === "portable") {
+    const violations = await auditPortable(entry)
+    if (violations.length > 0) {
+      for (const violation of violations) console.error(`pulsar build: non-portable import: ${violation}`)
+      process.exit(1)
+    }
   }
 
   const root = pulsarRoot()
@@ -209,7 +363,7 @@ async function build() {
       [
         `process.env.PULSAR_BUNDLED = "1";`,
         `const { wireApp } = await import(${spec(runtimeTs)});`,
-        `await import(${spec(mainTs)});`,
+        `await import(${spec(entry)});`,
         `wireApp();`,
         ``,
       ].join("\n"),
@@ -282,7 +436,8 @@ function usage() {
       "  update         update the CLI to the latest release",
       "  dev            run with hot reload (watch sources)",
       "  run            run the app in the current directory",
-      "  build          build a single-file executable",
+      "  build          build a single-file executable (--target desktop|android|portable)",
+      "  check          audit a target for portable imports (--target android)",
       "  doctor         check the toolchain (host, bridge, Qt, Bun)",
       "  version        print the version",
       "",
@@ -313,6 +468,9 @@ switch (cmd) {
     break
   case "build":
     await build()
+    break
+  case "check":
+    await checkTarget(process.cwd(), buildTarget())
     break
   case "doctor":
     doctor()

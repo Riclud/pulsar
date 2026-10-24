@@ -2,7 +2,8 @@ import { describe, expect, test, afterAll } from "bun:test"
 import { existsSync, mkdtempSync, rmSync } from "fs"
 import { tmpdir } from "os"
 import { join } from "path"
-import { appPaths, computePaths, sanitizeAppId } from "./paths.ts"
+import { appPaths, computePaths } from "../platform/bun-paths.ts"
+import { sanitizeAppId } from "./paths.ts"
 
 const HOME = "/home/tester"
 

@@ -26,6 +26,16 @@ export interface FileAssociation {
   name?: string
 }
 
+export type Target = "desktop" | "android"
+export type RuntimeKind = "bun" | "quickjs"
+export type Compat = "portable" | "desktop"
+
+export interface RuntimeConfig {
+  default?: RuntimeKind
+  desktop?: RuntimeKind
+  android?: RuntimeKind
+}
+
 /** The application manifest. One pulsar.json drives config and packaging. */
 export interface AppManifest {
   /** Reverse-DNS id, used for data directories and packaging. */
@@ -45,6 +55,12 @@ export interface AppManifest {
   /** File types the app registers as a handler for. */
   fileAssociations?: FileAssociation[]
   singleInstance?: boolean
+  /** Build targets; desktop only unless android is added explicitly. */
+  targets?: Target[]
+  /** Runtime per target. Desktop defaults to bun, android to quickjs. */
+  runtime?: RuntimeConfig
+  /** Portable code is required when android is a target. */
+  compat?: Compat
 }
 
 const WINDOW_KEYS = [
@@ -83,6 +99,21 @@ export function resolveAppConfig(manifest: AppManifest | null, overrides: Partia
     ...overrides,
     id: overrides.id ?? manifest?.id,
   }
+}
+
+/** Build targets, defaulting to desktop only. */
+export const manifestTargets = (manifest: AppManifest | null): Target[] => {
+  return manifest?.targets?.length ? manifest.targets : ["desktop"]
+}
+
+/** Runtime for a target, defaulting to bun on desktop and quickjs on android. */
+export const manifestRuntime = (manifest: AppManifest | null, target: Target): RuntimeKind => {
+  return manifest?.runtime?.[target] ?? manifest?.runtime?.default ?? (target === "android" ? "quickjs" : "bun")
+}
+
+/** Portability mode, defaulting to portable when android is a target. */
+export const manifestCompat = (manifest: AppManifest | null): Compat => {
+  return manifest?.compat ?? (manifestTargets(manifest).includes("android") ? "portable" : "desktop")
 }
 
 /** Default label for the window at `index`. */
