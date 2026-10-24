@@ -5,3 +5,7 @@ bun.lock
 examples/hello/bun.lock
 host/compile_flags.txt
 .qmlls.ini
+build-*
+**/build
+**/dist
+aqtinstall.log

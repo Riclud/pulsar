@@ -1,0 +1,9 @@
+{
+  "id": "com.pulsar.androidapp",
+  "name": "android-app",
+  "version": "0.1.0",
+  "main": "main.ts",
+  "targets": ["android"],
+  "compat": "portable",
+  "windows": [{ "label": "main", "ui": "ui/main.qml", "width": 320, "height": 200, "title": "Android" }]
+}

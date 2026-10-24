@@ -102,6 +102,69 @@ target_link_libraries(qml-host-qjs PRIVATE
     qjs
 )
 
+# --- Android host: the same embedded QuickJS/QML engine packaged as an APK ---
+if(ANDROID)
+    set(PULSAR_ANDROID_PACKAGE_NAME "${PULSAR_ANDROID_PACKAGE_NAME}" CACHE STRING "Android package id")
+    set(PULSAR_ANDROID_APP_NAME "${PULSAR_ANDROID_APP_NAME}" CACHE STRING "Android app label")
+    set(PULSAR_ANDROID_VERSION_NAME "${PULSAR_ANDROID_VERSION_NAME}" CACHE STRING "Android version name")
+    set(PULSAR_ANDROID_VERSION_CODE "${PULSAR_ANDROID_VERSION_CODE}" CACHE STRING "Android version code")
+    if(NOT PULSAR_ANDROID_PACKAGE_NAME)
+        set(PULSAR_ANDROID_PACKAGE_NAME "com.pulsar.app")
+    endif()
+    if(NOT PULSAR_ANDROID_APP_NAME)
+        set(PULSAR_ANDROID_APP_NAME "Pulsar")
+    endif()
+    if(NOT PULSAR_ANDROID_VERSION_NAME)
+        set(PULSAR_ANDROID_VERSION_NAME "0.1.0")
+    endif()
+    if(NOT PULSAR_ANDROID_VERSION_CODE)
+        set(PULSAR_ANDROID_VERSION_CODE "1")
+    endif()
+
+    qt_add_executable(pulsar-android
+        host/embedded/main.cpp
+        host/embedded/bridge.cpp
+        host/quickjs_runtime.cpp
+        host/embedded/bridge.h
+        host/quickjs_runtime.h
+    )
+    target_include_directories(pulsar-android PRIVATE host host/embedded)
+    target_compile_definitions(pulsar-android PRIVATE QT_NO_EMIT)
+    target_link_libraries(pulsar-android PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Qml
+        Qt6::Quick
+        qjs
+    )
+
+    if(PULSAR_ANDROID_APP_QRC)
+        set(CMAKE_AUTORCC ON)
+        target_sources(pulsar-android PRIVATE "${PULSAR_ANDROID_APP_QRC}")
+    endif()
+
+    if(PULSAR_ANDROID_BUILD_ID)
+        target_compile_definitions(pulsar-android PRIVATE
+            PULSAR_ANDROID_BUILD_ID="${PULSAR_ANDROID_BUILD_ID}"
+        )
+    endif()
+
+    set_target_properties(pulsar-android PROPERTIES
+        QT_ANDROID_PACKAGE_NAME "${PULSAR_ANDROID_PACKAGE_NAME}"
+        QT_ANDROID_APP_NAME "${PULSAR_ANDROID_APP_NAME}"
+        QT_ANDROID_VERSION_NAME "${PULSAR_ANDROID_VERSION_NAME}"
+        QT_ANDROID_VERSION_CODE "${PULSAR_ANDROID_VERSION_CODE}"
+        QT_ANDROID_MIN_SDK_VERSION 28
+        QT_ANDROID_TARGET_SDK_VERSION 35
+    )
+
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/android/AndroidManifest.xml")
+        set_target_properties(pulsar-android PROPERTIES
+            QT_ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android"
+        )
+    endif()
+endif()
+
 # --- Embedded QuickJS runtime (desktop test harness, Android host) ---
 add_executable(qjs-runtime
     host/qjs_main.cpp

@@ -24,6 +24,7 @@ import {
   type Target,
 } from "../core/sdk/manifest.ts"
 import { cliVersion, findBridge, findHost, findLauncher, pulsarRoot } from "./core.ts"
+import { buildAndroid } from "./android.ts"
 import { create } from "./create.ts"
 import { install } from "./install.ts"
 import { collectQt } from "./qt.ts"
@@ -88,6 +89,9 @@ async function auditPortable(entry: string): Promise<string[]> {
     const plugin: BunPlugin = {
       name: "pulsar-portable-audit",
       setup(builder) {
+        builder.onResolve({ filter: /^pulsar$/ }, () => ({
+          path: join(pulsarRoot(), "core", "sdk", "index.ts"),
+        }))
         builder.onResolve({ filter: NODE_BUILTIN }, (args) => {
           violations.push(`${args.path} (from ${args.importer})`)
           return { path: args.path, external: true }
@@ -324,7 +328,7 @@ async function build() {
     process.exit(1)
   }
 
-  if (target !== "desktop") {
+  if (target !== "desktop" && target !== "android") {
     console.error(`pulsar build: --target ${target} is not implemented yet (runtime: ${runtime})`)
     process.exit(1)
   }
@@ -335,6 +339,17 @@ async function build() {
       for (const violation of violations) console.error(`pulsar build: non-portable import: ${violation}`)
       process.exit(1)
     }
+  }
+
+  if (target === "android") {
+    const outDir = resolve(flagValue("--out") ?? flagValue("-o") ?? "dist")
+    try {
+      await buildAndroid({ appDir, manifest, entry, outDir, abi: flagValue("--abi") })
+    } catch (e) {
+      console.error(`pulsar build: ${e instanceof Error ? e.message : String(e)}`)
+      process.exit(1)
+    }
+    return
   }
 
   const root = pulsarRoot()

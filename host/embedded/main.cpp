@@ -2,6 +2,7 @@
 #include "quickjs_runtime.h"
 
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
@@ -12,6 +13,7 @@
 #include <QQmlContext>
 #include <QQmlPropertyMap>
 #include <QQuickWindow>
+#include <QStandardPaths>
 #include <QTimer>
 #include <QUrl>
 #include <QtQml/qqml.h>
@@ -26,12 +28,50 @@ static QString appDir()
     return QDir::currentPath();
 }
 
+#ifdef Q_OS_ANDROID
+static QString androidAppDir()
+{
+    const QString root = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+        + QStringLiteral("/app");
+    QDir().mkpath(root);
+
+    const QString markerPath = root + QStringLiteral("/.build-id");
+    const QString wanted = QStringLiteral(PULSAR_ANDROID_BUILD_ID);
+    QFile marker(markerPath);
+    if (marker.open(QIODevice::ReadOnly) && QString::fromUtf8(marker.readAll()).trimmed() == wanted)
+        return root;
+
+    QDirIterator it(QStringLiteral(":/app"), QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        const QString source = it.next();
+        if (QFileInfo(source).isDir())
+            continue;
+        const QString relative = source.mid(QStringLiteral(":/app/").size());
+        const QString target = root + QLatin1Char('/') + relative;
+        QDir().mkpath(QFileInfo(target).absolutePath());
+        QFile::remove(target);
+        QFile::copy(source, target);
+    }
+
+    QFile out(markerPath);
+    if (out.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        out.write(wanted.toUtf8());
+
+    return root;
+}
+#endif
+
 int main(int argc, char **argv)
 {
     QGuiApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("pulsar-app"));
 
-    const QString dir = appDir();
+    const QString dir =
+#ifdef Q_OS_ANDROID
+        androidAppDir();
+#else
+        appDir();
+#endif
     QFile manifestFile(dir + QStringLiteral("/pulsar.json"));
     QString manifestJson = QStringLiteral("null");
     QString ui = QStringLiteral("ui/main.qml");

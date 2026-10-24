@@ -26,5 +26,15 @@
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
   },
-  "exclude": ["node_modules", "cli/templates", "build", "dist", ".cache", "examples/*/dist"]
+  "exclude": [
+    "node_modules",
+    "cli/templates",
+    "build",
+    "build-*",
+    "dist",
+    ".cache",
+    "examples/*/dist",
+    "examples/*/build",
+    "tests/apps/*/build"
+  ]
 }
