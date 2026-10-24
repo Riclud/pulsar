@@ -1,5 +1,3 @@
-import { readFileSync } from "fs"
-import { join } from "path"
 import type { AppConfig } from "./app.ts"
 
 /** One initial window declared in pulsar.json. */
@@ -106,12 +104,14 @@ export function resolveWindows(manifest: AppManifest | null, overrides: Partial<
   }))
 }
 
-/** Read pulsar.json from the app directory. Returns null when absent/invalid. */
-export function loadManifest(appDir = process.env.PULSAR_APP ?? process.cwd()): AppManifest | null {
-  try {
-    const raw = readFileSync(join(appDir, "pulsar.json"), "utf8")
-    const parsed = JSON.parse(raw) as unknown
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as AppManifest
-  } catch {}
-  return null
+let manifestOverride: AppManifest | null | undefined
+
+/** Inject the manifest (embedded engines have no filesystem to read it from). */
+export function setManifest(manifest: AppManifest | null | undefined): void {
+  manifestOverride = manifest
+}
+
+/** The manifest injected by the runtime (embedded engines have no filesystem). */
+export function loadManifest(): AppManifest | null {
+  return manifestOverride ?? null
 }

@@ -1,6 +1,3 @@
-import { resolve } from "path"
-import { fileURLToPath } from "url"
-
 export interface LaunchArgs {
   urls: string[]
   files: string[]
@@ -8,12 +5,25 @@ export interface LaunchArgs {
 
 const SCHEME = /^([a-zA-Z][a-zA-Z0-9+.-]*):/
 
-const toFilePath = (url: string): string => {
+const isAbsolute = (path: string): boolean => {
+  return path.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(path)
+}
+
+const resolvePath = (cwd: string, path: string): string => {
+  if (isAbsolute(path)) return path
+  const separator = cwd.endsWith("/") || cwd.endsWith("\\") ? "" : "/"
+  return cwd + separator + path
+}
+
+const fileUrlPath = (url: string): string => {
+  const rest = url.slice("file://".length)
+  let path = rest
   try {
-    return fileURLToPath(url)
-  } catch {
-    return url
-  }
+    path = decodeURIComponent(rest)
+  } catch {}
+
+  if (/^\/[a-zA-Z]:\//.test(path)) path = path.slice(1)
+  return path
 }
 
 /**
@@ -31,7 +41,7 @@ export const parseLaunchArgs = (argv: string[], cwd: string): LaunchArgs => {
     const scheme = SCHEME.exec(arg)?.[1]?.toLowerCase()
 
     if (scheme === "file") {
-      files.push(toFilePath(arg))
+      files.push(fileUrlPath(arg))
       continue
     }
 
@@ -40,7 +50,7 @@ export const parseLaunchArgs = (argv: string[], cwd: string): LaunchArgs => {
       continue
     }
 
-    files.push(resolve(cwd, arg))
+    files.push(resolvePath(cwd, arg))
   }
 
   return { urls, files }
