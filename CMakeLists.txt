@@ -2,6 +2,12 @@ cmake_minimum_required(VERSION 3.21)
 
 project(pulsar LANGUAGES CXX)
 
+if(APPLE)
+    enable_language(OBJCXX)
+    set(CMAKE_OBJCXX_STANDARD 20)
+    set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -30,8 +36,10 @@ add_executable(qml-host
     host/log.cpp
     host/embedded.cpp
     host/secure.cpp
+    host/recent.cpp
     host/bridge.h
     host/secure.h
+    host/recent.h
 )
 target_include_directories(qml-host PRIVATE host)
 target_compile_definitions(qml-host PRIVATE QT_NO_EMIT)
@@ -45,10 +53,12 @@ target_link_libraries(qml-host PRIVATE
 )
 
 # OS secret storage: Keychain on macOS, DPAPI on Windows, libsecret on Linux.
+# Recent documents use Security/AppKit on macOS and the shell API on Windows.
 if(APPLE)
-    target_link_libraries(qml-host PRIVATE "-framework Security")
+    set_source_files_properties(host/recent.cpp PROPERTIES LANGUAGE OBJCXX)
+    target_link_libraries(qml-host PRIVATE "-framework Security" "-framework AppKit")
 elseif(WIN32)
-    target_link_libraries(qml-host PRIVATE crypt32)
+    target_link_libraries(qml-host PRIVATE crypt32 shell32)
 endif()
 
 # Built-in renderer for JS-driven windows (loaded as qrc:/pulsar/PulsarView.qml).

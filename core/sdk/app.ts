@@ -273,10 +273,15 @@ export class App {
   onCreateWindow?: (config: AppConfig) => void
   /** Installed by the runtime; renders a JS UI tree into a window. */
   onSendUi?: (label: string, tree: unknown[]) => void
+  /** Installed by the runtime; adds a file to the OS recent list. */
+  onAddRecentDocument?: (path: string) => void
+  /** Installed by the runtime; clears the OS recent list. */
+  onClearRecentDocuments?: () => void
 
   private readonly renderSources = new Map<string, () => UiNode[]>()
   private readonly sentTrees = new Map<string, string>()
   private readonly sentIds = new Map<string, number[]>()
+  private readonly pendingRecent: Array<{ action: "add" | "clear"; path?: string }> = []
   private readonly pendingRender = new Set<string>()
   private uiFocusCount = 0
 
@@ -329,6 +334,32 @@ export class App {
   /** Send an event to the UI. `target` is a window label, or "*" for all. */
   send(event: string, payload?: unknown, target = "*"): void {
     this.onSend?.(event, payload ?? null, target)
+  }
+
+  /** Add a file to the OS recent-documents list. */
+  addRecentDocument(path: string): void {
+    if (!this.onAddRecentDocument) {
+      this.pendingRecent.push({ action: "add", path })
+      return
+    }
+    this.onAddRecentDocument(path)
+  }
+
+  /** Clear the OS recent-documents list. */
+  clearRecentDocuments(): void {
+    if (!this.onClearRecentDocuments) {
+      this.pendingRecent.push({ action: "clear" })
+      return
+    }
+    this.onClearRecentDocuments()
+  }
+
+  /** Flush recent-document calls made before the runtime wired its handlers. */
+  flushRecentDocuments(): void {
+    for (const op of this.pendingRecent.splice(0)) {
+      if (op.action === "add") this.onAddRecentDocument?.(op.path ?? "")
+      else this.onClearRecentDocuments?.()
+    }
   }
 
   /** Render a JS-built UI tree into the window with this label. */

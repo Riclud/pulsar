@@ -40,6 +40,8 @@ const secureLog = join(tmp, "secure.log")
 const trayLog = join(tmp, "tray.log")
 const jsUiLog = join(tmp, "js-ui.log")
 const deepLog = join(tmp, "deep.log")
+const recentLog = join(tmp, "recent.log")
+const recentClearLog = join(tmp, "recent-clear.log")
 const deniedLog = join(tmp, "denied.log")
 
 let failed = false
@@ -302,6 +304,38 @@ try {
     check(deepLog, "STORE openUrl = QVariant(QString, pulsar-test://hello)")
     check(deepLog, "STORE openFile = QVariant(QString, /tmp/pulsar-second.txt)")
     check(deepLog, "STORE secondArgv = QVariant(QString,")
+  }
+
+  // Recent documents: adding a file updates the freedesktop recent list, and
+  // clearing wipes it (XDG_DATA_HOME points at temp so the real list is safe).
+  {
+    const dataDir = join(tmp, "recent-data")
+    const xbel = join(dataDir, "recently-used.xbel")
+    const env = {
+      PULSAR_DEBUG: "1",
+      QT_QPA_PLATFORM: "offscreen",
+      PULSAR_APP: join(root, "tests", "apps", "recent-app"),
+      XDG_DATA_HOME: dataDir,
+      AUTO_QUIT_MS: "3000",
+    }
+
+    runHost({ ...env, PULSAR_RECENT_MODE: "add", QT_LOG_FILE: recentLog })
+    check(recentLog, "RECENT add /tmp/pulsar-recent.txt")
+    check(recentLog, "STORE recentAdded = QVariant(bool, true)")
+    check(xbel, "pulsar-recent.txt")
+
+    runHost({ ...env, PULSAR_RECENT_MODE: "clear", QT_LOG_FILE: recentClearLog })
+    check(recentClearLog, "RECENT clear")
+    check(recentClearLog, "STORE recentCleared = QVariant(bool, true)")
+
+    let afterClear = ""
+    try {
+      afterClear = readFileSync(xbel, "utf8")
+    } catch {}
+    if (afterClear.includes("pulsar-recent.txt")) {
+      console.error("smoke: recent documents were not cleared")
+      failed = true
+    }
   }
 
   // Permissions: an app that declares `permissions: []` cannot use fs, and the

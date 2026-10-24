@@ -60,6 +60,22 @@ describe("WindowHandle", () => {
   })
 })
 
+describe("App recent documents", () => {
+  test("queues calls made before the runtime wires its handlers", () => {
+    const app = new App()
+    const ops: string[] = []
+
+    app.addRecentDocument("/tmp/a.txt")
+    app.clearRecentDocuments()
+
+    app.onAddRecentDocument = (path) => ops.push(`add:${path}`)
+    app.onClearRecentDocuments = () => ops.push("clear")
+    app.flushRecentDocuments()
+
+    expect(ops).toEqual(["add:/tmp/a.txt", "clear"])
+  })
+})
+
 describe("App windows", () => {
   test("createWindow registers the window and notifies the runtime", () => {
     const app = new App()

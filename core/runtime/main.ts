@@ -231,6 +231,9 @@ export function wireApp(): void {
     app.onCreateWindow = (config) =>
       send({ jsonrpc: "2.0", method: "__window", params: { ...config, action: "create" } })
     app.onSendUi = (label, tree) => send({ jsonrpc: "2.0", method: "__ui", params: { target: label, tree } })
+    app.onAddRecentDocument = (path) => send({ jsonrpc: "2.0", method: "__recent", params: { action: "add", path } })
+    app.onClearRecentDocuments = () => send({ jsonrpc: "2.0", method: "__recent", params: { action: "clear" } })
+    app.flushRecentDocuments()
 
     // Test hook: push a state value large enough to exceed the old line limit.
     const testBigItems = Number(process.env.PULSAR_TEST_BIG_ITEMS ?? 0)

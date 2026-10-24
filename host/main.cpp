@@ -34,6 +34,7 @@
 #include "bridge.h"
 #include "embedded.h"
 #include "log.h"
+#include "recent.h"
 #include "secure.h"
 
 static bool gErrorShown = false;
@@ -710,6 +711,20 @@ static void handleTrayCommand(const QVariantMap &m)
         gBridge->hideTray();
 }
 
+static void handleRecentCommand(const QVariantMap &m)
+{
+    const QString action = m.value(QStringLiteral("action")).toString();
+    const QString path = m.value(QStringLiteral("path")).toString();
+
+    if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
+        qInfo().noquote() << "RECENT" << action << path;
+
+    if (action == QLatin1String("add"))
+        pulsar::addRecentDocument(path);
+    else if (action == QLatin1String("clear"))
+        pulsar::clearRecentDocuments();
+}
+
 static void handleWindowCommand(QQmlApplicationEngine &engine, const QVariantMap &m)
 {
     QString label = m.value(QStringLiteral("label")).toString();
@@ -951,6 +966,8 @@ int main(int argc, char **argv)
                              handleDialogRequest(params.toVariant().toMap());
                          } else if (method == QLatin1String("__tray")) {
                              handleTrayCommand(params.toVariant().toMap());
+                         } else if (method == QLatin1String("__recent")) {
+                             handleRecentCommand(params.toVariant().toMap());
                          } else if (method == QLatin1String("__hello")) {
                              const QVariantMap m = params.toVariant().toMap();
                              const int protocol = m.value(QStringLiteral("protocol")).toInt();
