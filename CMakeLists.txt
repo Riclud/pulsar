@@ -37,9 +37,11 @@ add_executable(qml-host
     host/embedded.cpp
     host/secure.cpp
     host/recent.cpp
+    host/assoc.cpp
     host/bridge.h
     host/secure.h
     host/recent.h
+    host/assoc.h
 )
 target_include_directories(qml-host PRIVATE host)
 target_compile_definitions(qml-host PRIVATE QT_NO_EMIT)

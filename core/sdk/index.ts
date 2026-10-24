@@ -3,7 +3,7 @@ export type { AppConfig, EventHandler, PulsarEventMap, KnownEvent, UiSource } fr
 export { ui, dispatchUiEvent } from "./ui.ts"
 export type { UiNode, UiNodeType } from "./ui.ts"
 export { loadManifest, resolveAppConfig, resolveWindows } from "./manifest.ts"
-export type { AppManifest, ManifestWindow } from "./manifest.ts"
+export type { AppManifest, FileAssociation, ManifestWindow } from "./manifest.ts"
 export { parseLaunchArgs } from "./launch.ts"
 export type { LaunchArgs } from "./launch.ts"
 export { CAPABILITY_PERMISSIONS, capabilityPermission, createPermissionGate } from "./permissions.ts"

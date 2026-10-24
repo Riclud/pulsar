@@ -18,6 +18,16 @@ export interface ManifestWindow {
   icon?: string
 }
 
+/** One file type the app can open. */
+export interface FileAssociation {
+  /** Extension without the dot, e.g. "md". */
+  ext: string
+  /** MIME type used by Linux desktop entries, e.g. "text/markdown". */
+  mime?: string
+  /** Human-readable type name shown by the OS. */
+  name?: string
+}
+
 /** The application manifest. One pulsar.json drives config and packaging. */
 export interface AppManifest {
   /** Reverse-DNS id, used for data directories and packaging. */
@@ -34,6 +44,8 @@ export interface AppManifest {
   permissions?: string[]
   /** Custom URL schemes the app handles. */
   protocols?: { scheme: string }[]
+  /** File types the app registers as a handler for. */
+  fileAssociations?: FileAssociation[]
   singleInstance?: boolean
 }
 

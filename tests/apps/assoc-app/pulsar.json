@@ -1,0 +1,8 @@
+{
+  "id": "com.pulsar.assocapp",
+  "name": "Assoc App",
+  "version": "0.1.0",
+  "main": "main.ts",
+  "fileAssociations": [{ "ext": "pulsarfoo", "mime": "application/x-pulsar-foo", "name": "Pulsar Foo" }],
+  "windows": [{ "label": "main", "ui": "ui/main.qml", "width": 320, "height": 200, "title": "Assoc" }]
+}

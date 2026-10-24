@@ -31,6 +31,7 @@
 
 #include <utility>
 
+#include "assoc.h"
 #include "bridge.h"
 #include "embedded.h"
 #include "log.h"
@@ -94,7 +95,9 @@ static QString appDir()
 
 struct ManifestInfo {
     QString id;
+    QString name;
     bool singleInstance = false;
+    QList<pulsar::FileAssociation> fileAssociations;
 };
 
 // The host reads a few manifest fields directly: single-instance has to be
@@ -112,7 +115,21 @@ static ManifestInfo readManifestInfo()
 
     const QJsonObject obj = doc.object();
     info.id = obj.value(QStringLiteral("id")).toString();
+    info.name = obj.value(QStringLiteral("name")).toString();
     info.singleInstance = obj.value(QStringLiteral("singleInstance")).toBool();
+
+    const QJsonArray assocs = obj.value(QStringLiteral("fileAssociations")).toArray();
+    for (const QJsonValue &value : assocs) {
+        const QJsonObject item = value.toObject();
+        pulsar::FileAssociation assoc;
+        assoc.ext = item.value(QStringLiteral("ext")).toString();
+        assoc.mime = item.value(QStringLiteral("mime")).toString();
+        assoc.name = item.value(QStringLiteral("name")).toString();
+
+        if (!assoc.ext.isEmpty())
+            info.fileAssociations.append(assoc);
+    }
+
     return info;
 }
 
@@ -864,6 +881,17 @@ int main(int argc, char **argv)
             return 0;
         }
         startInstanceServer(serverName, &app);
+    }
+
+    // Declared file types become available in the OS "Open with" list. This is
+    // idempotent, so it is safe to run on every launch.
+    if (!manifest.fileAssociations.isEmpty()) {
+        pulsar::registerFileAssociations(gSecureService,
+                                         manifest.name,
+                                         QCoreApplication::applicationFilePath(),
+                                         manifest.fileAssociations);
+        if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
+            qInfo().noquote() << "ASSOC register" << manifest.fileAssociations.size() << gSecureService;
     }
 
     app.installEventFilter(new FileOpenFilter(&app));

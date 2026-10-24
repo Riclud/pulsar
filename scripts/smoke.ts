@@ -42,6 +42,7 @@ const jsUiLog = join(tmp, "js-ui.log")
 const deepLog = join(tmp, "deep.log")
 const recentLog = join(tmp, "recent.log")
 const recentClearLog = join(tmp, "recent-clear.log")
+const assocLog = join(tmp, "assoc.log")
 const deniedLog = join(tmp, "denied.log")
 
 let failed = false
@@ -334,6 +335,43 @@ try {
     } catch {}
     if (afterClear.includes("pulsar-recent.txt")) {
       console.error("smoke: recent documents were not cleared")
+      failed = true
+    }
+  }
+
+  // File associations: the manifest entry produces a desktop file and a
+  // mimeapps default, and a second launch does not duplicate either.
+  {
+    const dataDir = join(tmp, "assoc-data")
+    const configDir = join(tmp, "assoc-config")
+    const env = {
+      PULSAR_DEBUG: "1",
+      QT_QPA_PLATFORM: "offscreen",
+      PULSAR_APP: join(root, "tests", "apps", "assoc-app"),
+      XDG_DATA_HOME: dataDir,
+      XDG_CONFIG_HOME: configDir,
+      HOME: join(tmp, "assoc-home"),
+      AUTO_QUIT_MS: "2500",
+      QT_LOG_FILE: assocLog,
+    }
+
+    runHost(env)
+    runHost(env)
+
+    const desktop = join(dataDir, "applications", "com.pulsar.assocapp.desktop")
+    const mimeapps = join(configDir, "mimeapps.list")
+
+    check(assocLog, "ASSOC register 1 com.pulsar.assocapp")
+    check(desktop, "MimeType=application/x-pulsar-foo;")
+
+    const line = "application/x-pulsar-foo=com.pulsar.assocapp.desktop"
+    let content = ""
+    try {
+      content = readFileSync(mimeapps, "utf8")
+    } catch {}
+    const occurrences = content.split(line).length - 1
+    if (occurrences !== 1) {
+      console.error(`smoke: mimeapps default written ${occurrences} times`)
       failed = true
     }
   }
