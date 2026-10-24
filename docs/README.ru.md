@@ -365,6 +365,20 @@ app.on("second-instance", (params) => {
 })
 ```
 
+### Недавние документы
+
+Сообщите ОС, какие файлы открыл пользователь: они появятся в системных
+списках недавних (Jump List в Windows, список приложения в macOS,
+`recently-used.xbel` в Linux):
+
+```ts
+app.addRecentDocument("/home/me/notes.md")
+app.clearRecentDocuments()
+```
+
+Пути приводятся к абсолютным. Очистка опустошает список приложения (в Linux
+сбрасывается общий `recently-used.xbel`).
+
 ### События из бэкенда в UI
 
 `app.send(event, payload, target?)` отправляет разовое событие в UI (`target` —

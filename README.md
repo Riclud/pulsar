@@ -362,6 +362,20 @@ app.on("second-instance", (params) => {
 })
 ```
 
+### Recent documents
+
+Tell the OS which files the user opened; they show up in the system recent
+lists (Jump List on Windows, the app's recents on macOS, `recently-used.xbel`
+on Linux):
+
+```ts
+app.addRecentDocument("/home/me/notes.md")
+app.clearRecentDocuments()
+```
+
+Paths are resolved to absolute. Clearing empties the list for this app (on
+Linux the shared `recently-used.xbel` is reset).
+
 ### Backend → UI events
 
 `app.send(event, payload, target?)` pushes a one-off event to the UI (`target` is

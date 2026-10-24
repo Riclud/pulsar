@@ -86,8 +86,8 @@ operation: a call whose permission is not granted fails with a
 - responses: `{ "jsonrpc": "2.0", "id", "result" | "error", "state"?, "unset"? }`
   where `state`/`unset` are store patches to apply;
 - notifications: `__config`, `__window`, `__emit`, `__ui`, `__query`, `__notify`,
-  `__dialog`, `__tray`, `__log`, `__event`, `__quit`, `__reload`, `__error`,
-  `__hello`;
+  `__dialog`, `__tray`, `__recent`, `__log`, `__event`, `__quit`, `__reload`,
+  `__error`, `__hello`;
 - `__crash` is emitted by the bridge when the runtime dies (treated as a
   failure).
 
@@ -104,7 +104,9 @@ a token and resolves the caller's promise on the reply:
 - `__notify` `{ token, title, body }` — native notification. A click comes back
   as the `notification-click` event with the same token;
 - `__dialog` `{ token, kind, … }` → `__dialog-result` `{ token, value }`, where
-  `kind` is `open`, `open-files`, `open-directory`, `save` or `message`.
+  `kind` is `open`, `open-files`, `open-directory`, `save` or `message`;
+- `__recent` `{ action: "add", path }` or `{ action: "clear" }` — updates the OS
+  recent-documents list.
 
 The host also pushes `theme-changed` (`{ scheme }`) when the system switches
 appearance.
