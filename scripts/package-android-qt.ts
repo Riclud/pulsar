@@ -84,10 +84,19 @@ const stage = join(out, ".stage-android-qt")
 rmSync(stage, { recursive: true, force: true })
 
 const versionDir = join(stage, ANDROID_QT_VERSION)
+const targetDir = join(versionDir, `android_${ANDROID_ABI.replace("-", "_")}`)
 
 mkdirSync(versionDir, { recursive: true })
 copyTree(hostQt, join(versionDir, "gcc_64"))
-copyTree(targetQt, join(versionDir, `android_${ANDROID_ABI.replace("-", "_")}`))
+copyTree(targetQt, targetDir)
+
+const targetQtConf = join(targetDir, "bin", "target_qt.conf")
+
+if (existsSync(targetQtConf)) {
+  const conf = readFileSync(targetQtConf, "utf8")
+
+  writeFileSync(targetQtConf, conf.replace(/^HostPrefix=.*$/m, "HostPrefix=../../gcc_64"))
+}
 
 const name = `pulsar-android-qt-${ANDROID_QT_VERSION}-${platform}.tar.gz`
 const archive = join(out, name)
