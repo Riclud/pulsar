@@ -2,6 +2,7 @@ import { existsSync, watch } from "fs"
 import { join, resolve } from "path"
 import { pathToFileURL } from "url"
 import { installCapabilities } from "../caps/index.ts"
+import { createBunPlatform } from "../platform/bun.ts"
 import {
   App,
   assertCapability,
@@ -20,7 +21,7 @@ import type { NetOptions } from "../sdk/net.ts"
 import { createStdioTransport, makeHello } from "./protocol.ts"
 import { MIN_BUN, bunVersionCompatible } from "./version.ts"
 
-installCapabilities()
+installCapabilities(createBunPlatform())
 
 // The manifest gate restricts OS-facing capabilities. Absent `permissions`
 // leaves everything allowed (backward compatible).

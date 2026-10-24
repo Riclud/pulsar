@@ -3,9 +3,10 @@ import { mkdtempSync, rmSync } from "fs"
 import { tmpdir } from "os"
 import { join } from "path"
 import { installCapabilities } from "./index.ts"
+import { createBunPlatform } from "../platform/bun.ts"
 import { fs } from "../sdk/caps.ts"
 
-installCapabilities()
+installCapabilities(createBunPlatform())
 
 describe("fs capabilities", () => {
   test("write/read/append/stat/list/rename/copy/remove round trip", async () => {

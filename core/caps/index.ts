@@ -1,12 +1,18 @@
 import { registerCapabilities } from "../sdk/caps.ts"
-import { fsCaps } from "./fs.ts"
-import { pathsCaps } from "./paths.ts"
-import { shellCaps } from "./shell.ts"
-import { storageCaps } from "./storage.ts"
+import type { Platform } from "../platform.ts"
+import { createFsCaps } from "./fs.ts"
+import { createPathsCaps } from "./paths.ts"
+import { createShellCaps } from "./shell.ts"
+import { createStorageCaps } from "./storage.ts"
 
 export type { CapHandler, CapRegistry } from "../sdk/caps.ts"
 
-/** Wire the built-in capabilities into the shared registry. */
-export function installCapabilities(): void {
-  registerCapabilities({ ...fsCaps, ...pathsCaps, ...storageCaps, ...shellCaps })
+/** Wire the built-in capabilities for a platform into the shared registry. */
+export function installCapabilities(platform: Platform): void {
+  registerCapabilities({
+    ...createFsCaps(platform),
+    ...createPathsCaps(platform),
+    ...createStorageCaps(platform),
+    ...createShellCaps(platform),
+  })
 }

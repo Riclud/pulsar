@@ -1,99 +1,29 @@
-import { spawn } from "child_process"
-import { promises as fs } from "fs"
-import { dirname } from "path"
+import type { Platform } from "../platform.ts"
 import type { CapRegistry } from "./types.ts"
 
-type Encoding = "utf8" | "base64"
+/** Filesystem capabilities backed by a Platform implementation. */
+export const createFsCaps = (platform: Platform): CapRegistry => ({
+  "fs.readFile": (p: { path: string; encoding?: "utf8" | "base64" }) => platform.readFile(p.path, p.encoding),
 
-const readEncoding = (encoding?: string): BufferEncoding => {
-  return encoding === "base64" ? "base64" : "utf8"
-}
+  "fs.writeFile": (p: { path: string; content: string; encoding?: "utf8" | "base64" }) =>
+    platform.writeFile(p.path, p.content, p.encoding),
 
-const run = (cmd: string, args: string[]): Promise<boolean> => {
-  return new Promise((resolve) => {
-    const child = spawn(cmd, args, { stdio: "ignore" })
-    child.on("error", () => resolve(false))
-    child.on("exit", (code) => resolve(code === 0))
-  })
-}
+  "fs.appendFile": (p: { path: string; content: string; encoding?: "utf8" | "base64" }) =>
+    platform.appendFile(p.path, p.content, p.encoding),
 
-/** Best-effort move to the OS trash/recycle bin. */
-const moveToTrash = async (path: string): Promise<boolean> => {
-  if (process.platform === "darwin")
-    return run("osascript", ["-e", `tell application "Finder" to delete POSIX file ${JSON.stringify(path)}`])
+  "fs.listDir": (p: { path?: string }) => platform.listDir(p.path),
 
-  if (process.platform === "win32") {
-    const escaped = path.replace(/'/g, "''")
-    return run("powershell", [
-      "-NoProfile",
-      "-Command",
-      `Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('${escaped}','OnlyErrorDialogs','SendToRecycleBin')`,
-    ])
-  }
+  "fs.exists": (p: { path: string }) => platform.exists(p.path),
 
-  if (await run("gio", ["trash", path])) return true
-  return run("trash-put", [path])
-}
+  "fs.stat": (p: { path: string }) => platform.stat(p.path),
 
-export const fsCaps: CapRegistry = {
-  "fs.readFile": async (p: { path: string; encoding?: Encoding }) => fs.readFile(p.path, readEncoding(p.encoding)),
+  "fs.mkdir": (p: { path: string; recursive?: boolean }) => platform.mkdir(p.path, p.recursive),
 
-  "fs.writeFile": async (p: { path: string; content: string; encoding?: Encoding }) => {
-    await fs.mkdir(dirname(p.path), { recursive: true })
-    await fs.writeFile(p.path, p.content, readEncoding(p.encoding))
-    return true
-  },
+  "fs.remove": (p: { path: string; recursive?: boolean }) => platform.remove(p.path, p.recursive),
 
-  "fs.appendFile": async (p: { path: string; content: string; encoding?: Encoding }) => {
-    await fs.appendFile(p.path, p.content, readEncoding(p.encoding))
-    return true
-  },
+  "fs.rename": (p: { from: string; to: string }) => platform.rename(p.from, p.to),
 
-  "fs.listDir": async (p: { path?: string }) => {
-    const entries = await fs.readdir(p.path ?? ".", { withFileTypes: true })
-    return entries.map((e) => (e.isDirectory() ? e.name + "/" : e.name))
-  },
+  "fs.copy": (p: { from: string; to: string; recursive?: boolean }) => platform.copy(p.from, p.to, p.recursive),
 
-  "fs.exists": async (p: { path: string }) => {
-    try {
-      await fs.access(p.path)
-      return true
-    } catch {
-      return false
-    }
-  },
-
-  "fs.stat": async (p: { path: string }) => {
-    const s = await fs.stat(p.path)
-    return {
-      size: s.size,
-      isFile: s.isFile(),
-      isDirectory: s.isDirectory(),
-      mtimeMs: s.mtimeMs,
-      createdAtMs: s.birthtimeMs,
-    }
-  },
-
-  "fs.mkdir": async (p: { path: string; recursive?: boolean }) => {
-    await fs.mkdir(p.path, { recursive: p.recursive ?? true })
-    return true
-  },
-
-  "fs.remove": async (p: { path: string; recursive?: boolean }) => {
-    await fs.rm(p.path, { recursive: p.recursive ?? false, force: true })
-    return true
-  },
-
-  "fs.rename": async (p: { from: string; to: string }) => {
-    await fs.mkdir(dirname(p.to), { recursive: true })
-    await fs.rename(p.from, p.to)
-    return true
-  },
-
-  "fs.copy": async (p: { from: string; to: string; recursive?: boolean }) => {
-    await fs.cp(p.from, p.to, { recursive: p.recursive ?? true })
-    return true
-  },
-
-  "fs.moveToTrash": async (p: { path: string }) => moveToTrash(p.path),
-}
+  "fs.moveToTrash": (p: { path: string }) => platform.moveToTrash(p.path),
+})

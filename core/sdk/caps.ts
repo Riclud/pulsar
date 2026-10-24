@@ -1,13 +1,9 @@
+import type { AppPaths, FileStat, FsEncoding } from "../platform.ts"
+
+export type { AppPaths, FileStat, FsEncoding } from "../platform.ts"
+
 export type CapHandler = (params: any) => Promise<unknown>
 export type CapRegistry = Record<string, CapHandler>
-
-export interface AppPaths {
-  data: string
-  config: string
-  cache: string
-  temp: string
-  home: string
-}
 
 // Handlers are installed by the runtime so that calls made from the app and
 // from QML go through the same registry.
@@ -57,17 +53,6 @@ export function callCapability(name: string, params?: unknown): Promise<unknown>
     }
   }
   return handler(params ?? {})
-}
-
-/** File/binary content encoding passed over the control channel. */
-export type FsEncoding = "utf8" | "base64"
-
-export interface FileStat {
-  size: number
-  isFile: boolean
-  isDirectory: boolean
-  mtimeMs: number
-  createdAtMs: number
 }
 
 /** Built-in filesystem capabilities. */

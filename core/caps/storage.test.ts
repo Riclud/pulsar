@@ -2,7 +2,8 @@ import { describe, expect, test, beforeAll, afterAll } from "bun:test"
 import { mkdtempSync, rmSync } from "fs"
 import { tmpdir } from "os"
 import { join } from "path"
-import { storageCaps } from "./storage.ts"
+import { createStorageCaps } from "./storage.ts"
+import { createBunPlatform } from "../platform/bun.ts"
 
 let dir: string
 
@@ -16,8 +17,10 @@ afterAll(() => {
   rmSync(dir, { recursive: true, force: true })
 })
 
-const call = (name: keyof typeof storageCaps, params: unknown) => {
-  const handler = storageCaps[name]
+const caps = createStorageCaps(createBunPlatform())
+
+const call = (name: keyof typeof caps, params: unknown) => {
+  const handler = caps[name]
   if (!handler) throw new Error(`no handler: ${name}`)
   return handler(params)
 }

@@ -2,7 +2,8 @@ import { homedir } from "os"
 import { basename, join } from "path"
 import { mkdir } from "fs/promises"
 import { App } from "../sdk/index.ts"
-import type { AppPaths } from "../sdk/index.ts"
+import type { AppPaths } from "../platform.ts"
+import type { Platform } from "../platform.ts"
 import type { CapRegistry } from "../sdk/index.ts"
 
 /** Keep an app id safe for use as a directory name. */
@@ -98,6 +99,7 @@ export const appPaths = async (): Promise<AppPaths> => {
   return pending
 }
 
-export const pathsCaps: CapRegistry = {
-  "paths.get": async () => appPaths(),
-}
+/** Paths capability backed by a Platform implementation. */
+export const createPathsCaps = (platform: Platform): CapRegistry => ({
+  "paths.get": () => platform.paths(),
+})
