@@ -18,7 +18,6 @@
 #include <QUrl>
 #include <QtQml/qqml.h>
 
-#include <cstdio>
 
 static QString appDir()
 {
@@ -44,6 +43,10 @@ static QString androidAppDir()
     if (marker.open(QIODevice::ReadOnly) && QString::fromUtf8(marker.readAll()).trimmed() == wanted)
         return root;
 
+    bool complete = QFile::exists(QStringLiteral(":/app/runtime.js"));
+
+    int copied = 0;
+
     QDirIterator it(QStringLiteral(":/app"), QDirIterator::Subdirectories);
 
     while (it.hasNext()) {
@@ -57,8 +60,19 @@ static QString androidAppDir()
 
         QDir().mkpath(QFileInfo(target).absolutePath());
         QFile::remove(target);
-        QFile::copy(source, target);
+
+        if (!QFile::copy(source, target)) {
+            complete = false;
+            continue;
+        }
+
+        copied += 1;
     }
+
+    qDebug() << "pulsar: extracted" << copied << "files to" << root;
+
+    if (!complete)
+        return root;
 
     QFile out(markerPath);
 
@@ -112,7 +126,7 @@ int main(int argc, char **argv)
 
     QObject::connect(&runtime, &pulsar::QuickJsRuntime::message, &bridge, &EmbeddedBridge::handleMessage);
     QObject::connect(&runtime, &pulsar::QuickJsRuntime::failed, [](const QString &message) {
-        std::fprintf(stderr, "qml-host-qjs: %s\n", qPrintable(message));
+        qWarning().noquote() << "pulsar: runtime failed:" << message;
     });
     QObject::connect(&bridge, &EmbeddedBridge::log, [](const QString &level, const QString &message, const QString &source) {
         qInfo().noquote() << QStringLiteral("LOG[%1/%2]").arg(source, level) << message;
@@ -122,15 +136,19 @@ int main(int argc, char **argv)
             qWarning().noquote() << "QML:" << warning.toString();
     });
 
+    qInfo().noquote() << "pulsar: app dir" << dir;
+
     if (!runtime.start(dir + QStringLiteral("/runtime.js"), manifestJson, dir)) {
-        std::fprintf(stderr, "qml-host-qjs: cannot start the embedded runtime\n");
+        qWarning().noquote() << "pulsar: cannot start the embedded runtime";
         return 1;
     }
 
     engine.load(QUrl::fromLocalFile(dir + QLatin1Char('/') + ui));
 
-    if (engine.rootObjects().isEmpty())
+    if (engine.rootObjects().isEmpty()) {
+        qWarning().noquote() << "pulsar: QML root is empty";
         return 1;
+    }
 
     bridge.invoke(QStringLiteral("__sync"), QJSValue());
 

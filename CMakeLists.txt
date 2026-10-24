@@ -139,7 +139,7 @@ if(ANDROID)
     )
 
     if(PULSAR_ANDROID_APP_QRC)
-        set(CMAKE_AUTORCC ON)
+        set_target_properties(pulsar-android PROPERTIES AUTORCC ON)
         target_sources(pulsar-android PRIVATE "${PULSAR_ANDROID_APP_QRC}")
     endif()
 

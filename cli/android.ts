@@ -1,19 +1,9 @@
 import type { BunPlugin } from "bun"
 import { spawnSync } from "child_process"
 import { createHash } from "crypto"
-import {
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  renameSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from "fs"
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "fs"
 import { homedir } from "os"
-import { basename, join, resolve } from "path"
+import { basename, dirname, join, resolve } from "path"
 import type { AppManifest } from "../core/sdk/manifest.ts"
 import { cliVersion, platformId, pulsarHome, pulsarRoot, releaseUrl } from "./core.ts"
 
@@ -21,6 +11,7 @@ export const ANDROID_QT_VERSION = "6.9.3"
 export const ANDROID_ABI = "arm64-v8a"
 export const ANDROID_NDK_VERSION = "27.2.12479018"
 export const ANDROID_PLATFORM = "android-35"
+export const ANDROID_BUILD_TOOLS = "35.0.0"
 export const ANDROID_MIN_SDK = 28
 
 const NODE_BUILTIN =
@@ -199,7 +190,7 @@ export const installAndroid = async (version?: string): Promise<AndroidTools> =>
   const packages = [
     "platform-tools",
     `platforms;${ANDROID_PLATFORM}`,
-    "build-tools;35.0.0",
+    `build-tools;${ANDROID_BUILD_TOOLS}`,
     `ndk;${ANDROID_NDK_VERSION}`,
   ]
 
@@ -261,11 +252,20 @@ const escapeXml = (value: string): string => {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;")
 }
 
-const writeQrc = (path: string, files: string[], appDir: string): string => {
+const writeQrc = (
+  path: string,
+  files: string[],
+  appDir: string,
+  extra: { alias: string; path: string }[] = [],
+): string => {
   const lines = ["<RCC>", '  <qresource prefix="/app">']
 
   for (const file of files) {
     lines.push(`    <file alias="${escapeXml(file)}">${escapeXml(join(appDir, file))}</file>`)
+  }
+
+  for (const item of extra) {
+    lines.push(`    <file alias="${escapeXml(item.alias)}">${escapeXml(item.path)}</file>`)
   }
 
   lines.push("  </qresource>", "</RCC>", "")
@@ -338,6 +338,76 @@ const bundleRuntime = (entry: string, assembly: string) => {
   return { entry: runtimeEntry, result }
 }
 
+const signApk = (apk: string, target: string, tools: AndroidTools): void => {
+  const keystore = process.env.PULSAR_ANDROID_KEYSTORE ?? join(homedir(), ".android", "debug.keystore")
+  const storePass = process.env.PULSAR_ANDROID_KEYSTORE_PASS ?? "android"
+  const keyPass = process.env.PULSAR_ANDROID_KEY_PASS ?? storePass
+  const alias = process.env.PULSAR_ANDROID_KEY_ALIAS ?? "androiddebugkey"
+
+  if (!existsSync(keystore)) {
+    if (process.env.PULSAR_ANDROID_KEYSTORE) throw new Error(`keystore not found: ${keystore}`)
+
+    mkdirSync(dirname(keystore), { recursive: true })
+
+    const keytool = join(tools.javaHome, "bin", process.platform === "win32" ? "keytool.exe" : "keytool")
+    const generate = spawnSync(
+      keytool,
+      [
+        "-genkeypair",
+        "-keystore",
+        keystore,
+        "-storepass",
+        storePass,
+        "-keypass",
+        keyPass,
+        "-alias",
+        alias,
+        "-dname",
+        "CN=Android Debug,O=Android,C=US",
+        "-keyalg",
+        "RSA",
+        "-keysize",
+        "2048",
+        "-validity",
+        "10000",
+      ],
+      { stdio: "inherit" },
+    )
+
+    if (generate.status !== 0) throw new Error("failed to create the debug keystore")
+  }
+
+  const signer = join(
+    tools.sdk,
+    "build-tools",
+    ANDROID_BUILD_TOOLS,
+    process.platform === "win32" ? "apksigner.bat" : "apksigner",
+  )
+
+  rmSync(target, { force: true })
+
+  const sign = spawnSync(
+    signer,
+    [
+      "sign",
+      "--ks",
+      keystore,
+      "--ks-key-alias",
+      alias,
+      "--ks-pass",
+      `pass:${storePass}`,
+      "--key-pass",
+      `pass:${keyPass}`,
+      "--out",
+      target,
+      apk,
+    ],
+    { stdio: "inherit" },
+  )
+
+  if (sign.status !== 0) throw new Error("failed to sign the apk")
+}
+
 export interface AndroidBuildOptions {
   appDir: string
   manifest: AppManifest | null
@@ -390,7 +460,9 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
   writeFileSync(join(assembly, "runtime.js"), await bundle.outputs[0]!.text())
 
   const files = appFiles(appDir)
-  const qrc = writeQrc(join(assembly, "app.qrc"), files, appDir)
+  const qrc = writeQrc(join(assembly, "app.qrc"), files, appDir, [
+    { alias: "runtime.js", path: join(assembly, "runtime.js") },
+  ])
   const buildId = hashFiles(files, appDir, await bundle.outputs[0]!.text())
 
   const env = {
@@ -442,7 +514,7 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
 
   const finalPath = join(outDir, `${name}.apk`)
 
-  copyFileSync(apk, finalPath)
+  signApk(apk, finalPath, tools)
 
   const mb = (statSync(finalPath).size / (1024 * 1024)).toFixed(1)
 
