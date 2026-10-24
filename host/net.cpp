@@ -32,6 +32,9 @@ bool isTextualContentType(const QByteArray &contentType)
     const int semicolon = raw.indexOf(';');
     const QByteArray mime = (semicolon >= 0 ? raw.left(semicolon) : raw).trimmed();
 
+    if (mime.isEmpty())
+        return true;
+
     return mime.startsWith("text/") || mime == "application/json" || mime.endsWith("+json")
            || mime == "application/xml" || mime.endsWith("+xml") || mime == "application/javascript"
            || mime == "application/x-www-form-urlencoded" || mime == "application/graphql";
