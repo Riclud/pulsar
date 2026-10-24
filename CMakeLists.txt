@@ -84,6 +84,24 @@ qt_add_resources(qml-host "pulsarview"
     FILES "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/PulsarView.qml"
 )
 
+# --- Embedded QML host (desktop test harness, Android host) ---
+add_executable(qml-host-qjs
+    host/embedded/main.cpp
+    host/embedded/bridge.cpp
+    host/quickjs_runtime.cpp
+    host/embedded/bridge.h
+    host/quickjs_runtime.h
+)
+target_include_directories(qml-host-qjs PRIVATE host host/embedded)
+target_compile_definitions(qml-host-qjs PRIVATE QT_NO_EMIT)
+target_link_libraries(qml-host-qjs PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Qml
+    Qt6::Quick
+    qjs
+)
+
 # --- Embedded QuickJS runtime (desktop test harness, Android host) ---
 add_executable(qjs-runtime
     host/qjs_main.cpp
