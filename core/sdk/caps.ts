@@ -163,6 +163,19 @@ export const storage = {
   remove: (key: string): Promise<boolean> => callCapability("storage.remove", { key }) as Promise<boolean>,
 }
 
+/**
+ * OS secret storage (Keychain on macOS, DPAPI on Windows, libsecret on Linux).
+ * Entries are scoped to the app id and hold strings only. `available()` is
+ * false when the platform backend is missing; fall back to `storage` then.
+ */
+export const secureStorage = {
+  available: (): Promise<boolean> => callCapability("secure.available") as Promise<boolean>,
+  get: (key: string): Promise<string | null> => callCapability("secure.get", { key }) as Promise<string | null>,
+  set: (key: string, value: string): Promise<boolean> =>
+    callCapability("secure.set", { key, value }) as Promise<boolean>,
+  remove: (key: string): Promise<boolean> => callCapability("secure.remove", { key }) as Promise<boolean>,
+}
+
 export interface NotifyOptions {
   title: string
   body?: string

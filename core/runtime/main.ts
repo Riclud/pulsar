@@ -104,6 +104,12 @@ function hostQuery(kind: string, params: unknown = {}): Promise<unknown> {
 registerCapability("screen.list", () => hostQuery("screen.list"))
 registerCapability("theme.get", () => hostQuery("theme.get"))
 
+// Secrets live in the OS keychain, which only the host can reach.
+registerCapability("secure.available", () => hostQuery("secure.available"))
+registerCapability("secure.get", (params: unknown) => hostQuery("secure.get", params))
+registerCapability("secure.set", (params: unknown) => hostQuery("secure.set", params))
+registerCapability("secure.remove", (params: unknown) => hostQuery("secure.remove", params))
+
 // Native notifications with click support (host tray); returns a token.
 let notifyToken = 0
 registerCapability("shell.notify", (params: unknown) => {

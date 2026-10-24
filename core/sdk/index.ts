@@ -14,6 +14,7 @@ export {
   notify,
   paths,
   screen,
+  secureStorage,
   shell,
   storage,
   system,

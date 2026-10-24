@@ -29,7 +29,9 @@ add_executable(qml-host
     host/bridge.cpp
     host/log.cpp
     host/embedded.cpp
+    host/secure.cpp
     host/bridge.h
+    host/secure.h
 )
 target_include_directories(qml-host PRIVATE host)
 target_compile_definitions(qml-host PRIVATE QT_NO_EMIT)
@@ -41,6 +43,13 @@ target_link_libraries(qml-host PRIVATE
     Qt6::Quick
     Qt6::Network
 )
+
+# OS secret storage: Keychain on macOS, DPAPI on Windows, libsecret on Linux.
+if(APPLE)
+    target_link_libraries(qml-host PRIVATE "-framework Security")
+elseif(WIN32)
+    target_link_libraries(qml-host PRIVATE crypt32)
+endif()
 
 # Built-in renderer for JS-driven windows (loaded as qrc:/pulsar/PulsarView.qml).
 qt_add_resources(qml-host "pulsarview"

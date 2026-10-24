@@ -34,11 +34,14 @@
 #include "bridge.h"
 #include "embedded.h"
 #include "log.h"
+#include "secure.h"
 
 static bool gErrorShown = false;
 static bool gWatch = false;
 static QFileSystemWatcher *gWatcher = nullptr;
 static Bridge *gBridge = nullptr;
+// Keychain entries are scoped to the app id; set once from pulsar.json.
+static QString gSecureService;
 
 struct WindowConfig {
     QString label;
@@ -671,6 +674,22 @@ static void handleQuery(Bridge *bridge, const QVariantMap &m)
         QJsonObject value;
         value.insert(QStringLiteral("scheme"), bridge->colorScheme());
         params.insert(QStringLiteral("value"), value);
+    } else if (kind == QLatin1String("secure.available")) {
+        params.insert(QStringLiteral("value"), pulsar::secureAvailable());
+    } else if (kind == QLatin1String("secure.get")) {
+        QString value;
+        if (pulsar::secureGet(gSecureService, m.value(QStringLiteral("key")).toString(), &value))
+            params.insert(QStringLiteral("value"), value);
+        else
+            params.insert(QStringLiteral("value"), QJsonValue::Null);
+    } else if (kind == QLatin1String("secure.set")) {
+        const bool ok = pulsar::secureSet(gSecureService,
+                                          m.value(QStringLiteral("key")).toString(),
+                                          m.value(QStringLiteral("value")).toString());
+        params.insert(QStringLiteral("value"), ok);
+    } else if (kind == QLatin1String("secure.remove")) {
+        const bool ok = pulsar::secureRemove(gSecureService, m.value(QStringLiteral("key")).toString());
+        params.insert(QStringLiteral("value"), ok);
     }
 
     bridge->notify(QStringLiteral("__query-result"), params);
@@ -811,6 +830,8 @@ int main(int argc, char **argv)
     gBridge = bridge;
 
     const ManifestInfo manifest = readManifestInfo();
+    gSecureService =
+        manifest.id.isEmpty() ? QFileInfo(appDir()).fileName() : manifest.id;
     const QStringList cliArgs = QCoreApplication::arguments();
     const QString cwd = QDir::currentPath();
 

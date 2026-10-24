@@ -36,6 +36,7 @@ const twoLog = join(tmp, "two.log")
 const winLog = join(tmp, "window-ctl.log")
 const dialogLog = join(tmp, "dialog.log")
 const systemLog = join(tmp, "system.log")
+const secureLog = join(tmp, "secure.log")
 const trayLog = join(tmp, "tray.log")
 const jsUiLog = join(tmp, "js-ui.log")
 const deepLog = join(tmp, "deep.log")
@@ -221,6 +222,19 @@ try {
   check(systemLog, "STORE notifyToken = QVariant(QString, 1)")
   check(systemLog, "STORE multiOk = QVariant(bool, true)")
   check(systemLog, "STORE dirOk = QVariant(bool, true)")
+
+  // Secure storage: set/get/remove round trip through the host secret backend
+  // (PULSAR_SECURE_STUB swaps the OS keychain for an in-memory store in CI).
+  runHost({
+    PULSAR_DEBUG: "1",
+    QT_QPA_PLATFORM: "offscreen",
+    PULSAR_SECURE_STUB: "1",
+    PULSAR_APP: join(root, "tests", "apps", "secure-app"),
+    AUTO_QUIT_MS: "3000",
+    QT_LOG_FILE: secureLog,
+  })
+  check(secureLog, "STORE secureAvailable = QVariant(bool, true)")
+  check(secureLog, "STORE secureOk = QVariant(bool, true)")
 
   // JS-built UI: a window without `ui` is rendered from the tree; a synthetic
   // click travels back to the app and updates the store (and the UI).
