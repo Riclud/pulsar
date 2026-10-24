@@ -10,7 +10,6 @@ export { CAPABILITY_PERMISSIONS, capabilityPermission, createPermissionGate } fr
 export {
   dialog,
   fs,
-  net,
   notify,
   paths,
   screen,
@@ -20,6 +19,7 @@ export {
   system,
   theme,
   tray,
+  assertCapability,
   callCapability,
   hasCapability,
   listCapabilities,
@@ -27,12 +27,13 @@ export {
   registerCapabilities,
   setPermissionGate,
 } from "./caps.ts"
+export { net, NetError } from "./net.ts"
+export type { NetErrorData, NetOptions, NetRequest, NetResponse, NetResponseInfo } from "./net.ts"
 export type {
   AppPaths,
   CapHandler,
   CapRegistry,
   ColorScheme,
-  FetchResult,
   FileDialogOptions,
   FileStat,
   FsEncoding,

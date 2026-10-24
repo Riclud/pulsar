@@ -5,6 +5,7 @@ describe("capabilityPermission", () => {
   test("maps known capabilities", () => {
     expect(capabilityPermission("fs.readFile")).toBe("fs")
     expect(capabilityPermission("nw.fetch")).toBe("net")
+    expect(capabilityPermission("nw.request")).toBe("net")
     expect(capabilityPermission("shell.notify")).toBe("notify")
     expect(capabilityPermission("secure.set")).toBe("secure")
   })

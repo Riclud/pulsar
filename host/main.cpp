@@ -11,6 +11,7 @@
 #include <QFile>
 #include <QFileOpenEvent>
 #include <QHash>
+#include <QMap>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -35,6 +36,7 @@
 #include "bridge.h"
 #include "embedded.h"
 #include "log.h"
+#include "net.h"
 #include "recent.h"
 #include "secure.h"
 
@@ -42,6 +44,7 @@ static bool gErrorShown = false;
 static bool gWatch = false;
 static QFileSystemWatcher *gWatcher = nullptr;
 static Bridge *gBridge = nullptr;
+static pulsar::NetworkService *gNet = nullptr;
 // Keychain entries are scoped to the app id; set once from pulsar.json.
 static QString gSecureService;
 
@@ -860,6 +863,54 @@ int main(int argc, char **argv)
 
     gWatch = watchMode();
     gBridge = bridge;
+    gNet = new pulsar::NetworkService(&app);
+
+    QObject::connect(gNet, &pulsar::NetworkService::response, &app,
+                     [bridge](quint32 id,
+                              int status,
+                              const QString &statusText,
+                              const QUrl &url,
+                              const QMap<QString, QString> &headers) {
+                         QJsonObject headerObject;
+                         for (auto it = headers.constBegin(); it != headers.constEnd(); ++it)
+                             headerObject.insert(it.key(), it.value());
+
+                         QJsonObject params;
+                         params.insert(QStringLiteral("id"), int(id));
+                         params.insert(QStringLiteral("type"), QStringLiteral("response"));
+                         params.insert(QStringLiteral("status"), status);
+                         params.insert(QStringLiteral("statusText"), statusText);
+                         params.insert(QStringLiteral("url"), url.toString());
+                         params.insert(QStringLiteral("headers"), headerObject);
+                         bridge->notify(QStringLiteral("__net-event"), params);
+                     });
+    QObject::connect(gNet, &pulsar::NetworkService::text, &app, [bridge](quint32 id, const QString &chunk) {
+        QJsonObject params;
+        params.insert(QStringLiteral("id"), int(id));
+        params.insert(QStringLiteral("type"), QStringLiteral("data"));
+        params.insert(QStringLiteral("text"), chunk);
+        bridge->notify(QStringLiteral("__net-event"), params);
+    });
+    QObject::connect(gNet, &pulsar::NetworkService::binary, &app, [bridge](quint32 id, const QByteArray &chunk) {
+        bridge->sendBinary(id, chunk);
+    });
+    QObject::connect(gNet, &pulsar::NetworkService::finished, &app, [bridge](quint32 id) {
+        QJsonObject params;
+        params.insert(QStringLiteral("id"), int(id));
+        params.insert(QStringLiteral("type"), QStringLiteral("end"));
+        bridge->notify(QStringLiteral("__net-event"), params);
+    });
+    QObject::connect(gNet,
+                     &pulsar::NetworkService::failed,
+                     &app,
+                     [bridge](quint32 id, const QString &code, const QString &message) {
+                         QJsonObject params;
+                         params.insert(QStringLiteral("id"), int(id));
+                         params.insert(QStringLiteral("type"), QStringLiteral("error"));
+                         params.insert(QStringLiteral("code"), code);
+                         params.insert(QStringLiteral("message"), message);
+                         bridge->notify(QStringLiteral("__net-event"), params);
+                     });
 
     const ManifestInfo manifest = readManifestInfo();
     gSecureService =
@@ -996,6 +1047,9 @@ int main(int argc, char **argv)
                              handleTrayCommand(params.toVariant().toMap());
                          } else if (method == QLatin1String("__recent")) {
                              handleRecentCommand(params.toVariant().toMap());
+                         } else if (method == QLatin1String("__net")) {
+                             if (gNet)
+                                 gNet->handle(params.toVariant().toMap());
                          } else if (method == QLatin1String("__hello")) {
                              const QVariantMap m = params.toVariant().toMap();
                              const int protocol = m.value(QStringLiteral("protocol")).toInt();

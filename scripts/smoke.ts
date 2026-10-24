@@ -43,6 +43,7 @@ const deepLog = join(tmp, "deep.log")
 const recentLog = join(tmp, "recent.log")
 const recentClearLog = join(tmp, "recent-clear.log")
 const assocLog = join(tmp, "assoc.log")
+const netLog = join(tmp, "net.log")
 const deniedLog = join(tmp, "denied.log")
 
 let failed = false
@@ -374,6 +375,83 @@ try {
       console.error(`smoke: mimeapps default written ${occurrences} times`)
       failed = true
     }
+  }
+
+  // Network: the host performs real HTTP requests against a local server,
+  // covering methods, headers, bodies, redirects, streaming, timeout and abort.
+  {
+    const server = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      async fetch(request) {
+        const path = new URL(request.url).pathname
+
+        if (path === "/hello") return new Response("hello pulsar", { headers: { "Content-Type": "text/plain" } })
+
+        if (path === "/echo") {
+          const body = await request.text()
+          return Response.json({ method: request.method, body, header: request.headers.get("x-test") })
+        }
+
+        if (path === "/binary")
+          return new Response(new Uint8Array([0, 1, 2, 255]), {
+            headers: { "Content-Type": "application/octet-stream" },
+          })
+
+        if (path === "/redirect") return Response.redirect(new URL("/hello", request.url).toString(), 302)
+
+        if (path === "/slow") {
+          await Bun.sleep(500)
+          return new Response("slow")
+        }
+
+        if (path === "/chunks") {
+          const stream = new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode("abc"))
+              controller.enqueue(new TextEncoder().encode("def"))
+              controller.close()
+            },
+          })
+          return new Response(stream, { headers: { "Content-Type": "text/plain" } })
+        }
+
+        return new Response("not found", { status: 404 })
+      },
+    })
+
+    try {
+      const proc = Bun.spawn({
+        cmd: [host],
+        cwd: root,
+        env: {
+          ...process.env,
+          PULSAR_DEBUG: "1",
+          QT_QPA_PLATFORM: "offscreen",
+          PULSAR_APP: join(root, "tests", "apps", "net-app"),
+          PULSAR_NET_BASE: `http://127.0.0.1:${server.port}`,
+          AUTO_QUIT_MS: "6000",
+          QT_LOG_FILE: netLog,
+        },
+        stdio: ["ignore", "ignore", "ignore"],
+      })
+      const timer = setTimeout(() => proc.kill(), 15000)
+      await proc.exited
+      clearTimeout(timer)
+    } finally {
+      server.stop(true)
+    }
+
+    check(netLog, "STORE netText = QVariant(bool, true)")
+    check(netLog, "STORE netEcho = QVariant(bool, true)")
+    check(netLog, "STORE netBinary = QVariant(bool, true)")
+    check(netLog, "STORE netRedirect = QVariant(bool, true)")
+    check(netLog, "STORE netManual = QVariant(bool, true)")
+    check(netLog, "STORE netStream = QVariant(bool, true)")
+    check(netLog, "STORE netTimeout = QVariant(bool, true)")
+    check(netLog, "STORE netAbort = QVariant(bool, true)")
+    check(netLog, "STORE netFingerprint = QVariant(bool, true)")
+    check(netLog, "STORE netOk = QVariant(bool, true)")
   }
 
   // Permissions: an app that declares `permissions: []` cannot use fs, and the

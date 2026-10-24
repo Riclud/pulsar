@@ -1,0 +1,8 @@
+{
+  "id": "com.pulsar.netapp",
+  "name": "net-app",
+  "version": "0.1.0",
+  "main": "main.ts",
+  "permissions": ["net"],
+  "windows": [{ "label": "main", "ui": "ui/main.qml", "width": 320, "height": 200, "title": "Net" }]
+}

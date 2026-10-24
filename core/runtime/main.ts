@@ -4,6 +4,7 @@ import { pathToFileURL } from "url"
 import { installCapabilities } from "../caps/index.ts"
 import {
   App,
+  assertCapability,
   callCapability,
   createPermissionGate,
   dispatchUiEvent,
@@ -14,6 +15,8 @@ import {
   registerCapability,
   setPermissionGate,
 } from "../sdk/index.ts"
+import { net, netInternals } from "../sdk/net.ts"
+import type { NetOptions } from "../sdk/net.ts"
 import { createStdioTransport, makeHello } from "./protocol.ts"
 import { MIN_BUN, bunVersionCompatible } from "./version.ts"
 
@@ -164,6 +167,28 @@ if (testCrashMs > 0) setTimeout(() => process.exit(3), testCrashMs)
 const send = (message: unknown): void => {
   transport.send(message)
 }
+
+// HTTP lives in the native host; this client only speaks the transport, so it
+// works the same under Bun, Hermes or QuickJS.
+netInternals.install(
+  {
+    supportsBinary: transport.supportsBinary,
+    send,
+    sendBinary: (streamId, data) => transport.sendBinary(streamId, data),
+  },
+  assertCapability,
+)
+transport.onData((streamId, data) => netInternals.handleData(streamId, data))
+
+registerCapability("nw.fetch", (params: unknown) => {
+  const { url, ...options } = params as { url: string } & NetOptions
+  return net.fetch(url, options)
+})
+
+registerCapability("nw.abort", (params: unknown) => {
+  net.abort(Number((params as { id?: number }).id ?? 0))
+  return Promise.resolve(true)
+})
 
 function reportError(scope: string, e: unknown) {
   const message = e instanceof Error ? e.message : String(e)
@@ -358,6 +383,8 @@ async function handleRequest(message: unknown): Promise<void> {
         pendingQueries.delete(String(params.token))
         resolve(params.value ?? null)
       }
+    } else if (req.method === "__net-event") {
+      netInternals.handleMessage(params)
     } else if (req.method === "__launch") {
       if (appWired) dispatchLaunch(params as LaunchParams)
       else pendingLaunch.push(params as LaunchParams)

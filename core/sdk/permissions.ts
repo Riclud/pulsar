@@ -16,6 +16,8 @@ export const CAPABILITY_PERMISSIONS: Record<string, string> = {
   "fs.copy": "fs",
   "fs.moveToTrash": "fs",
   "nw.fetch": "net",
+  "nw.request": "net",
+  "nw.abort": "net",
   "paths.get": "paths",
   "shell.open": "shell",
   "shell.notify": "notify",

@@ -1,12 +1,6 @@
 export type CapHandler = (params: any) => Promise<unknown>
 export type CapRegistry = Record<string, CapHandler>
 
-export interface FetchResult {
-  status: number
-  url: string
-  text: string
-}
-
 export interface AppPaths {
   data: string
   config: string
@@ -44,6 +38,11 @@ let permissionGate: ((name: string) => void) | null = null
 /** Install the manifest permission gate; null disables it (everything allowed). */
 export const setPermissionGate = (gate: ((name: string) => void) | null): void => {
   permissionGate = gate
+}
+
+/** Throw when a capability is not permitted (for APIs that bypass callCapability). */
+export const assertCapability = (name: string): void => {
+  permissionGate?.(name)
 }
 
 /** Invoke a capability by name. Rejects if it is not registered or not permitted. */
@@ -90,11 +89,6 @@ export const fs = {
   copy: (from: string, to: string, recursive = true): Promise<boolean> =>
     callCapability("fs.copy", { from, to, recursive }) as Promise<boolean>,
   moveToTrash: (path: string): Promise<boolean> => callCapability("fs.moveToTrash", { path }) as Promise<boolean>,
-}
-
-/** Built-in network capabilities. */
-export const net = {
-  fetch: (url: string): Promise<FetchResult> => callCapability("nw.fetch", { url }) as Promise<FetchResult>,
 }
 
 /** Standard per-OS directories the app is allowed to write to. */
