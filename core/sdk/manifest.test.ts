@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { resolveAppConfig, resolveWindows } from "./manifest.ts"
+import { manifestCompat, manifestRuntime, manifestTargets, resolveAppConfig, resolveWindows } from "./manifest.ts"
 import type { AppManifest } from "./manifest.ts"
 
 const manifest: AppManifest = {
@@ -45,5 +45,29 @@ describe("resolveWindows", () => {
     const wins = resolveWindows({ windows: [{ ui: "ui/a.qml" }, { ui: "ui/b.qml" }] }, { ui: "ui/c.qml" })
     expect(wins.length).toBe(1)
     expect(wins[0]!.ui).toBe("ui/c.qml")
+  })
+})
+
+describe("target policy", () => {
+  test("defaults to desktop with bun and desktop compat", () => {
+    expect(manifestTargets(null)).toEqual(["desktop"])
+    expect(manifestRuntime(null, "desktop")).toBe("bun")
+    expect(manifestCompat(null)).toBe("desktop")
+  })
+
+  test("android defaults to quickjs and portable compat", () => {
+    const value: AppManifest = { targets: ["desktop", "android"] }
+    expect(manifestRuntime(value, "android")).toBe("quickjs")
+    expect(manifestCompat(value)).toBe("portable")
+  })
+
+  test("explicit runtime and compat win", () => {
+    const value: AppManifest = {
+      targets: ["android"],
+      runtime: { android: "quickjs", default: "bun" },
+      compat: "portable",
+    }
+    expect(manifestRuntime(value, "android")).toBe("quickjs")
+    expect(manifestCompat(value)).toBe("portable")
   })
 })
