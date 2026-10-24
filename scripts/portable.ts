@@ -14,13 +14,15 @@ if (which.exitCode !== 0) {
   process.exit(0)
 }
 
-const result = await Bun.build({
+const config = {
   entrypoints: [join(root, "tests", "portable", "run.ts")],
   target: "browser",
   format: "esm",
   splitting: false,
   write: false,
-})
+} as unknown as Parameters<typeof Bun.build>[0]
+
+const result = await Bun.build(config)
 
 if (!result.success) {
   for (const log of result.logs) console.error(log.message)

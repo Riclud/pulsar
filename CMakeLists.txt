@@ -29,6 +29,18 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Qml Quick Network)
 
 set(CMAKE_AUTOMOC ON)
 
+# --- QuickJS-ng: embedded JS engine for mobile and the portable target ---
+include(FetchContent)
+set(QJS_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+set(QJS_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(QJS_BUILD_CLI_STATIC OFF CACHE BOOL "" FORCE)
+set(QJS_BUILD_WERROR OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(quickjs
+    GIT_REPOSITORY https://github.com/quickjs-ng/quickjs.git
+    GIT_TAG e68078618935dbd28c41c98931f99d9091daba50
+)
+FetchContent_MakeAvailable(quickjs)
+
 # --- Qt host: renders QML, native dialogs/tray, window management ---
 add_executable(qml-host
     host/main.cpp
@@ -71,6 +83,15 @@ qt_add_resources(qml-host "pulsarview"
     BASE "${CMAKE_CURRENT_SOURCE_DIR}/host/qml"
     FILES "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/PulsarView.qml"
 )
+
+# --- Embedded QuickJS runtime (desktop test harness, Android host) ---
+add_executable(qjs-runtime
+    host/qjs_main.cpp
+    host/quickjs_runtime.cpp
+    host/quickjs_runtime.h
+)
+target_include_directories(qjs-runtime PRIVATE host)
+target_link_libraries(qjs-runtime PRIVATE Qt6::Core Qt6::Gui qjs)
 
 # --- Bridge: process supervisor for the JS runtime ---
 add_executable(bridge bridge/main.cpp)
