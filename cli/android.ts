@@ -485,7 +485,18 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
   mkdirSync(assembly, { recursive: true })
 
   const { result } = bundleRuntime(entry, assembly)
-  const bundle = await result
+
+  let bundle: Awaited<typeof result>
+
+  try {
+    bundle = await result
+  } catch (e) {
+    const errors = e instanceof AggregateError ? e.errors : [e]
+
+    for (const error of errors) console.error(error instanceof Error ? error.message : String(error))
+
+    throw new Error("failed to bundle the portable runtime")
+  }
 
   if (!bundle.success) {
     for (const log of bundle.logs) console.error(log.message)
