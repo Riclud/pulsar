@@ -32,6 +32,8 @@ builds an APK that runs QuickJS and QML in one process.
 iOS is not supported yet. "Built in CI" means the toolchain and release assets
 are produced and packaged, but nobody has run them on real hardware.
 
+See [CHANGELOG.md](CHANGELOG.md) for the release history.
+
 ## Requirements
 
 - **[Bun](https://bun.sh) ≥ 1.2** — the CLI and every app run on Bun.
