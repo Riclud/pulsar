@@ -13,7 +13,7 @@ if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
     Write-Error "pulsar: Bun is required but was not found. Install it from https://bun.sh, then re-run this installer."
 }
 
-$asset = "pulsar-cli-$platform.zip"
+$asset = "pulsar-cli-$platform.tar.gz"
 $url = "https://github.com/$Repo/releases/latest/download/$asset"
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("pulsar-" + [System.Guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tmp | Out-Null
@@ -24,7 +24,9 @@ try {
     Invoke-WebRequest -Uri $url -OutFile $archive
 
     $stage = Join-Path $tmp "stage"
-    Expand-Archive -Path $archive -DestinationPath $stage
+    New-Item -ItemType Directory -Path $stage | Out-Null
+    tar -xzf $archive -C $stage
+    if ($LASTEXITCODE -ne 0) { throw "could not extract $asset" }
 
     $pkg = Get-Content (Join-Path $stage "cli\package.json") -Raw | ConvertFrom-Json
     $version = $pkg.version
