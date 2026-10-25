@@ -5,8 +5,9 @@
 
 # Pulsar
 
-Фреймворк для десктопных приложений: интерфейс на **QML**, бэкенд на **Bun**,
-поставляется одним самодостаточным исполняемым файлом.
+Фреймворк для приложений: интерфейс на **QML**, бэкенд на **Bun**. На десктопе
+поставляется одним самодостаточным исполняемым файлом, на Android собирается
+APK, где QuickJS и QML работают в одном процессе.
 
 - **Интерфейс**: QML (нативный рендеринг на GPU, низкое потребление памяти —
   без Chromium).
@@ -14,7 +15,23 @@
 - **Мост**: слой capabilities между QML и бэкендом плюс небольшой Qt-хост и
   супервизор процессов на C++.
 - **Упаковка**: `pulsar build` собирает один файл со встроенным рантаймом Bun
-  (а по умолчанию — и Qt).
+  (а по умолчанию — и Qt); `pulsar build --target android` собирает подписанный
+  APK.
+
+## Платформы
+
+| Платформа           | Ассеты релиза | Статус                  |
+| ------------------- | ------------- | ----------------------- |
+| Linux x64           | да            | проверено               |
+| Linux ARM64         | да            | собрано в CI            |
+| macOS Apple Silicon | да            | проверено               |
+| macOS Intel         | да            | собрано в CI            |
+| Windows x64         | да            | проверено               |
+| Windows ARM64       | да            | собрано в CI            |
+| Android ARM64       | только APK    | проверено на устройстве |
+
+iOS пока не поддерживается. «Собрано в CI» значит, что toolchain и ассеты
+собираются и упаковываются, но на реальном железе их никто не запускал.
 
 ## Требования
 
@@ -30,7 +47,7 @@
 
 ### Из релиза (рекомендуется)
 
-Готовые ассеты публикуются для **linux-x64**, **macos-arm64** и **windows-x64**.
+Готовые ассеты публикуются для всех десктопных целей из таблицы выше.
 
 Linux / macOS:
 
@@ -45,9 +62,6 @@ Windows:
 iwr https://raw.githubusercontent.com/riclud/pulsar/main/install.ps1 -UseBasicParsing | iex
 pulsar install
 ```
-
-> Ассеты macOS пока только arm64; на Intel-Mac используйте
-> [сборку из исходников](#из-исходников).
 
 Bootstrap ставит CLI в `~/.local/share/pulsar` (или `%LOCALAPPDATA%\pulsar` в
 Windows) и шим `pulsar` в `PATH`. Затем `pulsar install` скачивает toolchain
@@ -196,7 +210,7 @@ Android SDK/NDK и бандл Qt for Android с host-инструментами.
 {
   "id": "com.example.myapp",
   "name": "my-app",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "main": "main.ts",
   "icons": { "linux": "assets/icon.png", "macos": "assets/icon.icns", "windows": "assets/icon.ico" },
   "windows": [
@@ -793,17 +807,18 @@ handshake-сообщением `__hello` (версия протокола, ра�
 ## Структура репозитория
 
 ```
-cli/        CLI (create/install/update/doctor), шаблоны проектов
+cli/        CLI (create/install/update/doctor), шаблоны проектов, сборка Android
 core/       рантайм + SDK
   caps/     встроенные capabilities (fs, net, paths, shell, storage)
   runtime/  рантайм Bun, который общается с хостом
   sdk/      пакет `pulsar`, который импортируют приложения
 host/       хост на C++/Qt: QML-движок, диалоги, трей, управление окнами
+  qml/      QML-модуль Pulsar и view для UI, собранного из JS
 bridge/     супервизор на C++ (запускает Bun, сообщает о падениях, проксирует stdio)
 launcher/   лончер на C++ без Qt для однофайловых приложений
 examples/   примеры приложений
 tests/      фикстуры для smoke-теста
-scripts/    хелперы сборки/smoke/форматирования/релиза
+scripts/    хелперы сборки, smoke, форматирования, релиза и упаковки Qt для Android
 install.sh, install.ps1   bootstrap-установщики
 ```
 

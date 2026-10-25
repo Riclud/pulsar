@@ -5,15 +5,32 @@
 
 # Pulsar
 
-A desktop app framework built on **QML** for the UI and **Bun** for the backend,
-shipped as a single self-contained executable.
+An app framework built on **QML** for the UI and **Bun** for the backend.
+On the desktop it ships as a single self-contained executable; on Android it
+builds an APK that runs QuickJS and QML in one process.
 
 - **UI**: QML (native GPU rendering, low memory — no Chromium).
 - **Backend**: TypeScript running on [Bun](https://bun.sh).
 - **Bridge**: a capability layer between QML and the backend, plus a small
   Qt host and a C++ process supervisor.
 - **Packaging**: `pulsar build` produces one file with the Bun runtime (and,
-  by default, the Qt runtime) bundled in.
+  by default, the Qt runtime) bundled in; `pulsar build --target android`
+  produces a signed APK.
+
+## Platforms
+
+| Platform            | Release assets | Status           |
+| ------------------- | -------------- | ---------------- |
+| Linux x64           | yes            | tested           |
+| Linux ARM64         | yes            | built in CI      |
+| macOS Apple Silicon | yes            | tested           |
+| macOS Intel         | yes            | built in CI      |
+| Windows x64         | yes            | tested           |
+| Windows ARM64       | yes            | built in CI      |
+| Android ARM64       | APK only       | tested on device |
+
+iOS is not supported yet. "Built in CI" means the toolchain and release assets
+are produced and packaged, but nobody has run them on real hardware.
 
 ## Requirements
 
@@ -28,8 +45,7 @@ shipped as a single self-contained executable.
 
 ### From a release (recommended)
 
-Prebuilt assets are published for **linux-x64**, **macos-arm64** and
-**windows-x64**.
+Prebuilt assets are published for every desktop target listed above.
 
 Linux / macOS:
 
@@ -44,9 +60,6 @@ Windows:
 iwr https://raw.githubusercontent.com/riclud/pulsar/main/install.ps1 -UseBasicParsing | iex
 pulsar install
 ```
-
-> macOS assets are arm64-only for now; on an Intel Mac use the
-> [from-source](#from-source) path.
 
 The bootstrap installs the CLI to `~/.local/share/pulsar` (or
 `%LOCALAPPDATA%\pulsar` on Windows) and a `pulsar` shim on your `PATH`.
@@ -157,8 +170,8 @@ Useful flags and aliases:
 | Command         | Flags                                                      |
 | --------------- | ---------------------------------------------------------- |
 | `create <name>` | `--template <t>`, `--dir <path>`, `--force`                |
-| `install`       | `--version <v>\|latest`, `--slim`                          |
-| `build`         | `--out <dir>` / `-o <dir>`, `--slim`                       |
+| `install`       | `--version <v>\|latest`, `--slim`, `--android`             |
+| `build`         | `--out <dir>` / `-o <dir>`, `--slim`, `--target`, `--abi`  |
 | `run`, `dev`    | env `PULSAR_APP` (app dir), `PULSAR_WATCH` (`dev` sets it) |
 | `init`          | legacy alias for `create` in the current directory         |
 
@@ -194,7 +207,7 @@ One file drives the app config and packaging.
 {
   "id": "com.example.myapp",
   "name": "my-app",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "main": "main.ts",
   "icons": { "linux": "assets/icon.png", "macos": "assets/icon.icns", "windows": "assets/icon.ico" },
   "windows": [
@@ -791,17 +804,18 @@ capabilities) and talks through a `Transport` abstraction. See
 ## Repository layout
 
 ```
-cli/        CLI (create/install/update/doctor), project templates
+cli/        CLI (create/install/update/doctor), project templates, Android build
 core/       runtime + SDK
   caps/     built-in capabilities (fs, net, paths, shell, storage)
   runtime/  the Bun runtime that talks to the host
   sdk/      the `pulsar` package apps import
 host/       C++/Qt host: QML engine, dialogs, tray, window management
+  qml/      Pulsar QML module and the JS-built UI view
 bridge/     C++ supervisor (runs Bun, reports crashes, proxies stdio)
 launcher/   Qt-free C++ launcher for single-file apps
 examples/   example apps
 tests/      fixtures used by the smoke test
-scripts/    build/smoke/format/release helpers
+scripts/    build, smoke, formatting, release and Android Qt packaging helpers
 install.sh, install.ps1   bootstrap installers
 ```
 
