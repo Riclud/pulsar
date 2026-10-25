@@ -15,10 +15,17 @@ jobs:
         include:
           - os: ubuntu-latest
             artifact: dist-linux-x64
+          - os: ubuntu-24.04-arm
+            artifact: dist-linux-arm64
           - os: macos-latest
             artifact: dist-macos-arm64
+          - os: macos-15-intel
+            artifact: dist-macos-x64
           - os: windows-latest
             artifact: dist-windows-x64
+          - os: windows-11-arm
+            artifact: dist-windows-arm64
+            cmake_arch: "-A ARM64"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -44,7 +51,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
+          cmake -S . -B build ${{ matrix.cmake_arch }} -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
           cmake --build build --config Release 2>&1 | tee build.log
           status=$?
           if [ "$status" -ne 0 ]; then
