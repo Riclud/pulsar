@@ -40,6 +40,7 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: "6.9.3"
+          modules: qtwebsockets
           cache: true
 
       - uses: oven-sh/setup-bun@v2
