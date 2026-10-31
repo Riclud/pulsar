@@ -82,7 +82,22 @@ bool copyRecursive(const QString &from, const QString &to)
 
     QDir().mkpath(QFileInfo(to).absolutePath());
 
-    return QFile::copy(from, to);
+    if (!QFile::copy(from, to))
+        return false;
+
+    QFile target(to);
+
+    if (target.open(QIODevice::ReadWrite)) {
+        if (info.lastModified().isValid())
+            target.setFileTime(info.lastModified(), QFileDevice::FileModificationTime);
+
+        if (info.birthTime().isValid())
+            target.setFileTime(info.birthTime(), QFileDevice::FileBirthTime);
+
+        target.close();
+    }
+
+    return true;
 }
 
 } // namespace
