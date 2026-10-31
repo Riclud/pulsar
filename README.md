@@ -42,6 +42,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the release history.
   toolchain (`pulsar build --slim` / `pulsar install --slim`). The default
   toolchain and builds bundle Qt, so end users need nothing extra; its platform
   dependencies (X11/Wayland, fonts, GPU drivers) still come from the system.
+  Building from source also needs the Qt WebSockets module.
 
 ## Install
 
@@ -197,9 +198,9 @@ tools. The result is `dist/<name>.apk` for `arm64-v8a` (minSdk 28, targetSdk
 35). `pulsar install --android` performs the same setup without building, and
 `pulsar check --target android` rejects `node:`/`bun:` imports before packaging.
 
-`net.fetch` and streaming `net.request` work on Android: HTTP runs in the native
-host through QtNetwork, so text and binary chunks arrive without any JS-side
-networking code.
+`net.fetch`, streaming `net.request` and `net.websocket` work on Android:
+transport runs in the native host through QtNetwork/Qt WebSockets, so text and
+binary chunks arrive without any JS-side networking code.
 
 ## The manifest — `pulsar.json`
 
@@ -263,7 +264,7 @@ error.
 | Permission | Grants                                       |
 | ---------- | -------------------------------------------- |
 | `fs`       | filesystem reads/writes, stat, rename, trash |
-| `net`      | `net.fetch`                                  |
+| `net`      | `net.fetch`, `net.request`, `net.websocket`  |
 | `paths`    | standard per-app directories                 |
 | `shell`    | open URLs in the default application         |
 | `notify`   | native notifications                         |
@@ -557,6 +558,23 @@ request.on("end", () => console.log("done"))
 request.on("error", (error) => console.error(error.code, error.message))
 ```
 
+`net.websocket(url, options)` opens a `ws://` or `wss://` connection in the
+native host. Options: `headers`, `protocols` (subprotocols) and `timeoutMs`
+(connect timeout, default 30s). Messages are strings or `Uint8Array`s:
+
+```ts
+const socket = net.websocket("wss://example.com/ws", { protocols: ["chat"] })
+
+socket.on("open", (info) => console.log("connected", info.protocol))
+socket.on("message", (data) => console.log(typeof data === "string" ? data : data.byteLength))
+socket.on("close", (info) => console.log(info.code, info.reason, info.wasClean))
+socket.on("error", (error) => console.error(error.code, error.message))
+
+socket.send("hello")
+socket.send(new Uint8Array([1, 2, 3]))
+socket.close(1000, "bye")
+```
+
 `fs.open(path)` hands a file to the OS: the default application on desktop
 (`QDesktopServices`) or `ACTION_VIEW` on Android, where videos play in a
 full-screen built-in player. `fs.exportTo(path, name?)` copies a file out of
@@ -745,18 +763,18 @@ for complete apps.
 ## Building from source
 
 Requirements: Bun, CMake (≥ 3.21), a C++20 compiler, and Qt 6.9+ development
-files.
+files including the WebSockets module.
 
 ```sh
 # Debian/Ubuntu
 sudo apt install g++ cmake qt6-base-dev qt6-base-dev-tools qt6-declarative-dev \
-  qml6-module-qtquick qml6-module-qtquick-controls
+  qt6-websockets-dev qml6-module-qtquick qml6-module-qtquick-controls
 
 # Fedora
-sudo dnf install gcc-c++ cmake qt6-qtbase-devel qt6-qtdeclarative-devel
+sudo dnf install gcc-c++ cmake qt6-qtbase-devel qt6-declarative-devel qt6-qtwebsockets-devel
 
 # Arch
-sudo pacman -S base-devel cmake qt6-base qt6-declarative qt6-quickcontrols2
+sudo pacman -S base-devel cmake qt6-base qt6-declarative qt6-websockets qt6-quickcontrols2
 
 # macOS
 brew install cmake qt

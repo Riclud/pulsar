@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `net.websocket(url, options?)` for `ws://` and `wss://` connections: `open`,
+  `message`, `close` and `error` events, text and binary messages, subprotocols,
+  custom headers and a connect timeout. It runs in the native host on Qt
+  WebSockets and needs the `net` permission.
+- Qt WebSockets is now a build dependency; release toolchains and Android Qt
+  bundles ship it.
+
 ## [1.0.1] - 2026-10-31
 
 ### Added

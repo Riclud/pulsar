@@ -43,7 +43,8 @@ iOS пока не поддерживается. «Собрано в CI» зна�
   `--slim`-toolchain (`pulsar build --slim` / `pulsar install --slim`).
   Обычный toolchain и сборки содержат Qt, так что конечному пользователю
   ничего ставить не нужно; его платформенные зависимости (X11/Wayland,
-  шрифты, драйверы GPU) по-прежнему берутся из системы.
+  шрифты, драйверы GPU) по-прежнему берутся из системы. Для сборки из
+  исходников нужен ещё модуль Qt WebSockets.
 
 ## Установка
 
@@ -200,9 +201,9 @@ Android SDK/NDK и бандл Qt for Android с host-инструментами.
 `pulsar install --android` делает ту же установку без сборки, а
 `pulsar check --target android` отсекает `node:`/`bun:` импорты до упаковки.
 
-`net.fetch` и потоковый `net.request` работают на Android: HTTP выполняется в
-нативном хосте через QtNetwork, поэтому текст и бинарные чанки приходят без
-сетевого кода на JS.
+`net.fetch`, потоковый `net.request` и `net.websocket` работают на Android:
+HTTP и WebSocket выполняются в нативном хосте через QtNetwork/Qt WebSockets,
+поэтому текст и бинарные чанки приходят без сетевого кода на JS.
 
 ## Манифест — `pulsar.json`
 
@@ -265,7 +266,7 @@ Android SDK/NDK и бандл Qt for Android с host-инструментами.
 | Разрешение | Что даёт                                    |
 | ---------- | ------------------------------------------- |
 | `fs`       | чтение/запись файлов, stat, rename, корзина |
-| `net`      | `net.fetch`                                 |
+| `net`      | `net.fetch`, `net.request`, `net.websocket` |
 | `paths`    | стандартные каталоги приложения             |
 | `shell`    | открытие URL в приложении по умолчанию      |
 | `notify`   | системные уведомления                       |
@@ -561,6 +562,23 @@ request.on("end", () => console.log("done"))
 request.on("error", (error) => console.error(error.code, error.message))
 ```
 
+`net.websocket(url, options)` открывает соединение `ws://` или `wss://` в
+нативном хосте. Опции: `headers`, `protocols` (сабпротоколы) и `timeoutMs`
+(таймаут подключения, по умолчанию 30 с). Сообщения — строки или `Uint8Array`:
+
+```ts
+const socket = net.websocket("wss://example.com/ws", { protocols: ["chat"] })
+
+socket.on("open", (info) => console.log("connected", info.protocol))
+socket.on("message", (data) => console.log(typeof data === "string" ? data : data.byteLength))
+socket.on("close", (info) => console.log(info.code, info.reason, info.wasClean))
+socket.on("error", (error) => console.error(error.code, error.message))
+
+socket.send("hello")
+socket.send(new Uint8Array([1, 2, 3]))
+socket.close(1000, "bye")
+```
+
 `fs.open(path)` отдаёт файл ОС: приложению по умолчанию на десктопе
 (`QDesktopServices`) или `ACTION_VIEW` на Android, где видео открывается во
 встроенном полноэкранном плеере. `fs.exportTo(path, name?)` копирует файл из
@@ -749,18 +767,19 @@ Button {
 
 ## Сборка из исходников
 
-Требования: Bun, CMake (≥ 3.21), компилятор C++20 и dev-файлы Qt 6.9+.
+Требования: Bun, CMake (≥ 3.21), компилятор C++20 и dev-файлы Qt 6.9+,
+включая модуль WebSockets.
 
 ```sh
 # Debian/Ubuntu
 sudo apt install g++ cmake qt6-base-dev qt6-base-dev-tools qt6-declarative-dev \
-  qml6-module-qtquick qml6-module-qtquick-controls
+  qt6-websockets-dev qml6-module-qtquick qml6-module-qtquick-controls
 
 # Fedora
-sudo dnf install gcc-c++ cmake qt6-qtbase-devel qt6-qtdeclarative-devel
+sudo dnf install gcc-c++ cmake qt6-qtbase-devel qt6-declarative-devel qt6-qtwebsockets-devel
 
 # Arch
-sudo pacman -S base-devel cmake qt6-base qt6-declarative qt6-quickcontrols2
+sudo pacman -S base-devel cmake qt6-base qt6-declarative qt6-websockets qt6-quickcontrols2
 
 # macOS
 brew install cmake qt

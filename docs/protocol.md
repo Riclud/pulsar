@@ -129,6 +129,19 @@ statusText, url, headers }`, then either `{ id, type: "data", text }` for
   with `ERR_FINGERPRINT_UNAVAILABLE` instead of silently using the native TLS
   stack.
 
+WebSockets share the same channel:
+
+- `__net` `{ id, action: "websocket", url, headers?, protocols?, timeoutMs? }`
+  opens a `ws://` or `wss://` connection;
+- `{ id, action: "websocket-send", text }` sends a text message, or
+  `{ id, action: "websocket-send", base64, encoding: "base64" }` sends binary;
+- `{ id, action: "websocket-close", code?, reason? }` starts the close
+  handshake; `{ id, action: "abort" }` drops the socket;
+- the host replies with `__net-event` `{ id, type: "open", protocol }`, then
+  `{ id, type: "message", text }` for text or a data frame with `streamId = id`
+  for binary, then `{ id, type: "close", code, reason, wasClean }`; failures
+  arrive as `{ id, type: "error", code, message }` (same error codes as HTTP).
+
 ## Windows
 
 Windows come either from the start windows in `pulsar.json` or from code
