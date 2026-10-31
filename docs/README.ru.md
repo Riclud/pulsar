@@ -519,6 +519,9 @@ await fs.copy("b.txt", "copy.txt")
 await fs.remove("copy.txt") // рекурсивно: fs.remove(path, true)
 await fs.moveToTrash("b.txt")
 
+await fs.open("report.pdf") // открыть приложением по умолчанию
+await fs.exportTo("report.pdf", "report.pdf") // скопировать в Downloads
+
 const bytes = await fs.readFile("logo.png", "base64") // бинарные данные как base64
 await fs.writeFile("logo.png", bytes, "base64")
 
@@ -558,6 +561,14 @@ request.on("end", () => console.log("done"))
 request.on("error", (error) => console.error(error.code, error.message))
 ```
 
+`fs.open(path)` отдаёт файл ОС: приложению по умолчанию на десктопе
+(`QDesktopServices`) или `ACTION_VIEW` на Android, где видео открывается во
+встроенном полноэкранном плеере. `fs.exportTo(path, name?)` копирует файл из
+песочницы приложения в папку Downloads; на Android открывается диалог
+сохранения SAF и возвращается `true` после успешного копирования. Оба метода
+возвращают `Promise<boolean>`. `dialog.toast(text)` показывает короткий тост
+на Android; на десктопе это no-op, который резолвится в `true`.
+
 Нативные диалоги — в `dialog`:
 
 ```ts
@@ -568,6 +579,7 @@ const many = await dialog.openFiles({ title: "Выбрать несколько"
 const dir = await dialog.openDirectory({ title: "Выбрать папку" })
 const saveTo = await dialog.saveFile({ title: "Сохранить как" })
 await dialog.message({ title: "Pulsar", text: "Готово!" })
+await dialog.toast("Сохранено")
 ```
 
 ### Уведомления, экраны, тема, локаль

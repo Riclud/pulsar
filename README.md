@@ -515,6 +515,9 @@ await fs.copy("b.txt", "copy.txt")
 await fs.remove("copy.txt") // recursive: fs.remove(path, true)
 await fs.moveToTrash("b.txt")
 
+await fs.open("report.pdf") // open with the OS default app
+await fs.exportTo("report.pdf", "report.pdf") // copy out to Downloads
+
 const bytes = await fs.readFile("logo.png", "base64") // binary as base64
 await fs.writeFile("logo.png", bytes, "base64")
 
@@ -554,6 +557,14 @@ request.on("end", () => console.log("done"))
 request.on("error", (error) => console.error(error.code, error.message))
 ```
 
+`fs.open(path)` hands a file to the OS: the default application on desktop
+(`QDesktopServices`) or `ACTION_VIEW` on Android, where videos play in a
+full-screen built-in player. `fs.exportTo(path, name?)` copies a file out of
+the app sandbox into the user's Downloads folder; on Android it opens the SAF
+save dialog and returns `true` once the copy succeeded. Both return
+`Promise<boolean>`. `dialog.toast(text)` shows a short Android toast; on
+desktop it is a no-op that resolves `true`.
+
 Native dialogs live in `dialog`:
 
 ```ts
@@ -564,6 +575,7 @@ const many = await dialog.openFiles({ title: "Open several" })
 const dir = await dialog.openDirectory({ title: "Choose a folder" })
 const saveTo = await dialog.saveFile({ title: "Save as" })
 await dialog.message({ title: "Pulsar", text: "Done!" })
+await dialog.toast("Saved")
 ```
 
 ### Notifications, screens, theme, locale
