@@ -1049,6 +1049,35 @@ int main(int argc, char **argv)
                          params.insert(QStringLiteral("message"), message);
                          bridge->notify(QStringLiteral("__net-event"), params);
                      });
+    QObject::connect(gNet, &pulsar::NetworkService::wsOpened, &app, [bridge](quint32 id, const QString &protocol) {
+        QJsonObject params;
+        params.insert(QStringLiteral("id"), int(id));
+        params.insert(QStringLiteral("type"), QStringLiteral("open"));
+        params.insert(QStringLiteral("protocol"), protocol);
+        bridge->notify(QStringLiteral("__net-event"), params);
+    });
+    QObject::connect(gNet, &pulsar::NetworkService::wsText, &app, [bridge](quint32 id, const QString &message) {
+        QJsonObject params;
+        params.insert(QStringLiteral("id"), int(id));
+        params.insert(QStringLiteral("type"), QStringLiteral("message"));
+        params.insert(QStringLiteral("text"), message);
+        bridge->notify(QStringLiteral("__net-event"), params);
+    });
+    QObject::connect(gNet, &pulsar::NetworkService::wsBinary, &app, [bridge](quint32 id, const QByteArray &message) {
+        bridge->sendBinary(id, message);
+    });
+    QObject::connect(gNet,
+                     &pulsar::NetworkService::wsClosed,
+                     &app,
+                     [bridge](quint32 id, int code, const QString &reason, bool wasClean) {
+                         QJsonObject params;
+                         params.insert(QStringLiteral("id"), int(id));
+                         params.insert(QStringLiteral("type"), QStringLiteral("close"));
+                         params.insert(QStringLiteral("code"), code);
+                         params.insert(QStringLiteral("reason"), reason);
+                         params.insert(QStringLiteral("wasClean"), wasClean);
+                         bridge->notify(QStringLiteral("__net-event"), params);
+                     });
 
     const ManifestInfo manifest = readManifestInfo();
 

@@ -13,6 +13,7 @@
 class QNetworkAccessManager;
 class QNetworkReply;
 class QTimer;
+class QWebSocket;
 
 namespace pulsar {
 
@@ -111,11 +112,21 @@ signals:
     void finished(quint32 id);
     void failed(quint32 id, const QString &code, const QString &message);
 
+    void wsOpened(quint32 id, const QString &protocol);
+    void wsText(quint32 id, const QString &message);
+    void wsBinary(quint32 id, const QByteArray &message);
+    void wsClosed(quint32 id, int code, const QString &reason, bool wasClean);
+
 private:
     HttpEngine *engineFor(const NetRequestSpec &spec);
     void abort(quint32 id);
 
+    void openSocket(const QVariantMap &params);
+    void sendSocket(const QVariantMap &params);
+    void closeSocket(const QVariantMap &params);
+
     NativeHttpEngine *native_;
+    QHash<quint32, QWebSocket *> sockets_;
 };
 
 } // namespace pulsar

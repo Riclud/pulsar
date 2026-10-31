@@ -290,6 +290,34 @@ int main(int argc, char **argv)
                          data.insert(QStringLiteral("message"), message);
                          bridge.notifyMethod(QStringLiteral("__net-event"), data);
                      });
+    QObject::connect(&network, &pulsar::NetworkService::wsOpened, &bridge,
+                     [&bridge](quint32 id, const QString &protocol) {
+                         QJsonObject data;
+                         data.insert(QStringLiteral("id"), int(id));
+                         data.insert(QStringLiteral("type"), QStringLiteral("open"));
+                         data.insert(QStringLiteral("protocol"), protocol);
+                         bridge.notifyMethod(QStringLiteral("__net-event"), data);
+                     });
+    QObject::connect(&network, &pulsar::NetworkService::wsText, &bridge,
+                     [&bridge](quint32 id, const QString &message) {
+                         QJsonObject data;
+                         data.insert(QStringLiteral("id"), int(id));
+                         data.insert(QStringLiteral("type"), QStringLiteral("message"));
+                         data.insert(QStringLiteral("text"), message);
+                         bridge.notifyMethod(QStringLiteral("__net-event"), data);
+                     });
+    QObject::connect(&network, &pulsar::NetworkService::wsBinary, &bridge,
+                     [&bridge](quint32 id, const QByteArray &message) { bridge.notifyBinary(id, message); });
+    QObject::connect(&network, &pulsar::NetworkService::wsClosed, &bridge,
+                     [&bridge](quint32 id, int code, const QString &reason, bool wasClean) {
+                         QJsonObject data;
+                         data.insert(QStringLiteral("id"), int(id));
+                         data.insert(QStringLiteral("type"), QStringLiteral("close"));
+                         data.insert(QStringLiteral("code"), code);
+                         data.insert(QStringLiteral("reason"), reason);
+                         data.insert(QStringLiteral("wasClean"), wasClean);
+                         bridge.notifyMethod(QStringLiteral("__net-event"), data);
+                     });
 
     qmlRegisterSingletonInstance("Pulsar", 1, 0, "Pulsar", &bridge);
     qmlRegisterSingletonInstance("Pulsar", 1, 0, "Store", &store);

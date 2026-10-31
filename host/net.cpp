@@ -1,9 +1,12 @@
 #include "net.h"
 
+#include <QAbstractSocket>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QTimer>
+#include <QWebSocket>
+#include <QWebSocketHandshakeOptions>
 
 #include <utility>
 
@@ -63,6 +66,18 @@ QString networkErrorCode(QNetworkReply::NetworkError error)
         return QStringLiteral("ERR_TLS");
     case QNetworkReply::TooManyRedirectsError:
         return QStringLiteral("ERR_REDIRECT");
+    default:
+        return QStringLiteral("ERR_NETWORK");
+    }
+}
+
+QString socketErrorCode(QAbstractSocket::SocketError error)
+{
+    switch (error) {
+    case QAbstractSocket::SslHandshakeFailedError:
+        return QStringLiteral("ERR_TLS");
+    case QAbstractSocket::SocketTimeoutError:
+        return QStringLiteral("ERR_TIMEOUT");
     default:
         return QStringLiteral("ERR_NETWORK");
     }
@@ -382,7 +397,146 @@ HttpEngine *NetworkService::engineFor(const NetRequestSpec &spec)
 
 void NetworkService::abort(quint32 id)
 {
+    QWebSocket *socket = sockets_.take(id);
+
+    if (socket) {
+        socket->disconnect(this);
+        socket->abort();
+        socket->deleteLater();
+
+        return;
+    }
+
     native_->abort(id);
+}
+
+void NetworkService::openSocket(const QVariantMap &params)
+{
+    const quint32 id = params.value(QStringLiteral("id")).toUInt();
+
+    if (id == 0 || sockets_.contains(id))
+        return;
+
+    const QUrl url(params.value(QStringLiteral("url")).toString());
+    const QString scheme = url.scheme().toLower();
+
+    if (!url.isValid() || url.host().isEmpty()
+        || (scheme != QLatin1String("ws") && scheme != QLatin1String("wss"))) {
+        Q_EMIT failed(id, QStringLiteral("ERR_NETWORK"), QStringLiteral("only ws and wss URLs are supported"));
+        return;
+    }
+
+    auto *socket = new QWebSocket(QString(), QWebSocketProtocol::VersionLatest, this);
+
+    sockets_.insert(id, socket);
+
+    QNetworkRequest request(url);
+    const QVariantMap headerMap = params.value(QStringLiteral("headers")).toMap();
+
+    for (auto it = headerMap.constBegin(); it != headerMap.constEnd(); ++it)
+        request.setRawHeader(it.key().toLatin1(), it.value().toString().toUtf8());
+
+    QWebSocketHandshakeOptions handshake;
+
+    handshake.setSubprotocols(params.value(QStringLiteral("protocols")).toStringList());
+
+    QObject::connect(socket, &QWebSocket::connected, this, [this, id, socket]() {
+        if (sockets_.value(id) != socket)
+            return;
+
+        if (auto *timer = socket->findChild<QTimer *>(QStringLiteral("pulsar-ws-timeout")))
+            timer->stop();
+
+        Q_EMIT wsOpened(id, socket->subprotocol());
+    });
+
+    QObject::connect(socket, &QWebSocket::textMessageReceived, this, [this, id, socket](const QString &message) {
+        if (sockets_.value(id) == socket)
+            Q_EMIT wsText(id, message);
+    });
+    QObject::connect(socket, &QWebSocket::binaryMessageReceived, this, [this, id, socket](const QByteArray &message) {
+        if (sockets_.value(id) == socket)
+            Q_EMIT wsBinary(id, message);
+    });
+    QObject::connect(socket, &QWebSocket::disconnected, this, [this, id, socket]() {
+        if (sockets_.value(id) != socket)
+            return;
+
+        const int code = int(socket->closeCode());
+        const bool wasClean = code != 0 && code != int(QWebSocketProtocol::CloseCodeAbnormalDisconnection);
+
+        sockets_.remove(id);
+        socket->deleteLater();
+
+        Q_EMIT wsClosed(id, code, socket->closeReason(), wasClean);
+    });
+    QObject::connect(socket, &QWebSocket::errorOccurred, this,
+                     [this, id, socket](QAbstractSocket::SocketError error) {
+                         if (sockets_.value(id) != socket)
+                             return;
+
+                         const QString message = socket->errorString();
+
+                         sockets_.remove(id);
+                         socket->abort();
+                         socket->deleteLater();
+
+                         Q_EMIT failed(id, socketErrorCode(error), message);
+                     });
+
+    const int timeout = params.value(QStringLiteral("timeoutMs")).toInt();
+    auto *timer = new QTimer(socket);
+
+    timer->setObjectName(QStringLiteral("pulsar-ws-timeout"));
+    timer->setSingleShot(true);
+    QObject::connect(timer, &QTimer::timeout, this, [this, id, socket]() {
+        if (sockets_.value(id) != socket)
+            return;
+
+        sockets_.remove(id);
+        socket->abort();
+        socket->deleteLater();
+
+        Q_EMIT failed(id, QStringLiteral("ERR_TIMEOUT"), QStringLiteral("websocket connection timed out"));
+    });
+    timer->start(timeout > 0 ? timeout : kDefaultTimeoutMs);
+
+    socket->open(request, handshake);
+}
+
+void NetworkService::sendSocket(const QVariantMap &params)
+{
+    const quint32 id = params.value(QStringLiteral("id")).toUInt();
+    QWebSocket *socket = sockets_.value(id);
+
+    if (!socket)
+        return;
+
+    if (params.value(QStringLiteral("encoding")).toString() == QLatin1String("base64")) {
+        const QByteArray data =
+            QByteArray::fromBase64(params.value(QStringLiteral("base64")).toString().toLatin1());
+
+        socket->sendBinaryMessage(data);
+
+        return;
+    }
+
+    socket->sendTextMessage(params.value(QStringLiteral("text")).toString());
+}
+
+void NetworkService::closeSocket(const QVariantMap &params)
+{
+    const quint32 id = params.value(QStringLiteral("id")).toUInt();
+    QWebSocket *socket = sockets_.value(id);
+
+    if (!socket)
+        return;
+
+    const int code = params.value(QStringLiteral("code")).toInt();
+    const auto closeCode = code > 0 ? static_cast<QWebSocketProtocol::CloseCode>(code)
+                                    : QWebSocketProtocol::CloseCodeNormal;
+
+    socket->close(closeCode, params.value(QStringLiteral("reason")).toString());
 }
 
 void NetworkService::handle(const QVariantMap &params)
@@ -396,6 +550,21 @@ void NetworkService::handle(const QVariantMap &params)
 
     if (action == QLatin1String("abort")) {
         abort(id);
+        return;
+    }
+
+    if (action == QLatin1String("websocket")) {
+        openSocket(params);
+        return;
+    }
+
+    if (action == QLatin1String("websocket-send")) {
+        sendSocket(params);
+        return;
+    }
+
+    if (action == QLatin1String("websocket-close")) {
+        closeSocket(params);
         return;
     }
 

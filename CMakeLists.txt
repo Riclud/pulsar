@@ -25,7 +25,7 @@ foreach(config IN ITEMS DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
 endforeach()
 
 # Pulsar requires Qt 6.8+. The host is a Qt app, so use Qt's CMake package.
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Qml Quick Network QuickControls2)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Qml Quick Network WebSockets QuickControls2)
 
 set(CMAKE_AUTOMOC ON)
 
@@ -66,6 +66,7 @@ target_link_libraries(qml-host PRIVATE
     Qt6::Qml
     Qt6::Quick
     Qt6::Network
+    Qt6::WebSockets
     Qt6::QuickControls2
 )
 
@@ -103,6 +104,7 @@ target_link_libraries(qml-host-qjs PRIVATE
     Qt6::Qml
     Qt6::Quick
     Qt6::Network
+    Qt6::WebSockets
     qjs
 )
 
@@ -142,6 +144,7 @@ if(ANDROID)
         Qt6::Qml
         Qt6::Quick
         Qt6::Network
+        Qt6::WebSockets
         qjs
     )
 

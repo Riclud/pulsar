@@ -60,6 +60,39 @@ interface Listeners {
   error?: (error: NetErrorData) => void
 }
 
+export interface WebSocketOptions {
+  headers?: Record<string, string>
+  protocols?: string[]
+  timeoutMs?: number
+}
+
+export interface WebSocketOpenInfo {
+  protocol: string
+}
+
+export interface WebSocketCloseInfo {
+  code: number
+  reason: string
+  wasClean: boolean
+}
+
+export interface NetWebSocket {
+  readonly id: number
+  on(event: "open", fn: (info: WebSocketOpenInfo) => void): this
+  on(event: "message", fn: (data: string | Uint8Array) => void): this
+  on(event: "close", fn: (info: WebSocketCloseInfo) => void): this
+  on(event: "error", fn: (error: NetErrorData) => void): this
+  send(data: string | Uint8Array): void
+  close(code?: number, reason?: string): void
+}
+
+interface SocketListeners {
+  open?: (info: WebSocketOpenInfo) => void
+  message?: (data: string | Uint8Array) => void
+  close?: (info: WebSocketCloseInfo) => void
+  error?: (error: NetErrorData) => void
+}
+
 const BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
 const bytesToBase64 = (bytes: Uint8Array): string => {
@@ -149,17 +182,72 @@ class RequestHandle implements NetRequest {
   }
 }
 
+class SocketHandle implements NetWebSocket {
+  private listeners: SocketListeners = {}
+
+  constructor(
+    readonly id: number,
+    private readonly client: NetClient,
+  ) {}
+
+  on(event: "open", fn: (info: WebSocketOpenInfo) => void): this
+  on(event: "message", fn: (data: string | Uint8Array) => void): this
+  on(event: "close", fn: (info: WebSocketCloseInfo) => void): this
+  on(event: "error", fn: (error: NetErrorData) => void): this
+  on(event: string, fn: (value: never) => void): this {
+    const listeners = this.listeners as Record<string, unknown>
+
+    listeners[event] = fn
+
+    return this
+  }
+
+  send(data: string | Uint8Array): void {
+    this.client.sendSocket(this.id, data)
+  }
+
+  close(code = 1000, reason = ""): void {
+    this.client.closeSocket(this.id, code, reason)
+  }
+
+  emitOpen(info: WebSocketOpenInfo): void {
+    this.listeners.open?.(info)
+  }
+
+  emitMessage(data: string | Uint8Array): void {
+    this.listeners.message?.(data)
+  }
+
+  emitClose(info: WebSocketCloseInfo): void {
+    this.listeners.close?.(info)
+  }
+
+  emitError(error: NetErrorData): void {
+    this.listeners.error?.(error)
+  }
+}
+
 class NetClient {
   private transport: NetTransport | null = null
   private guard: (name: string) => void = () => {}
   private nextId = 1
   private readonly requests = new Map<number, RequestHandle>()
+  private readonly sockets = new Map<number, SocketHandle>()
 
   install(transport: NetTransport, guard: (name: string) => void): void {
     this.transport = transport
     this.guard = guard
     this.requests.clear()
+    this.sockets.clear()
     this.nextId = 1
+  }
+
+  private allocateID(): number {
+    const id = this.nextId
+
+    this.nextId = this.nextId >= 0xffffffff ? 1 : this.nextId + 1
+
+    return id
   }
 
   request(url: string, options: NetOptions = {}): NetRequest {
@@ -170,9 +258,7 @@ class NetClient {
     this.guard("nw.request")
     if (!/^https?:\/\//i.test(url)) throw new Error(`net: unsupported URL: ${url}`)
 
-    const id = this.nextId
-
-    this.nextId = this.nextId >= 0xffffffff ? 1 : this.nextId + 1
+    const id = this.allocateID()
 
     const handle = new RequestHandle(id, this)
 
@@ -201,6 +287,65 @@ class NetClient {
     })
 
     return handle
+  }
+
+  websocket(url: string, options: WebSocketOptions = {}): NetWebSocket {
+    const transport = this.transport
+
+    if (!transport) throw new Error("net: the runtime transport is not ready")
+
+    this.guard("nw.websocket")
+    if (!/^wss?:\/\//i.test(url)) throw new Error(`net: unsupported WebSocket URL: ${url}`)
+
+    const id = this.allocateID()
+    const handle = new SocketHandle(id, this)
+
+    this.sockets.set(id, handle)
+
+    transport.send({
+      jsonrpc: "2.0",
+      method: "__net",
+      params: {
+        id,
+        action: "websocket",
+        url,
+        headers: options.headers ?? {},
+        protocols: options.protocols ?? [],
+        timeoutMs: options.timeoutMs,
+      },
+    })
+
+    return handle
+  }
+
+  sendSocket(id: number, data: string | Uint8Array): void {
+    if (!this.transport) return
+
+    if (typeof data === "string") {
+      this.transport.send({
+        jsonrpc: "2.0",
+        method: "__net",
+        params: { id, action: "websocket-send", text: data },
+      })
+
+      return
+    }
+
+    this.transport.send({
+      jsonrpc: "2.0",
+      method: "__net",
+      params: { id, action: "websocket-send", base64: bytesToBase64(data), encoding: "base64" },
+    })
+  }
+
+  closeSocket(id: number, code: number, reason: string): void {
+    if (!this.transport) return
+
+    this.transport.send({
+      jsonrpc: "2.0",
+      method: "__net",
+      params: { id, action: "websocket-close", code, reason },
+    })
   }
 
   fetch(url: string, options: NetOptions = {}): Promise<NetResponse> {
@@ -265,11 +410,55 @@ class NetClient {
       headers?: Record<string, string>
       text?: string
       base64?: string
-      code?: string
+      code?: string | number
       message?: string
+      protocol?: string
+      reason?: string
+      wasClean?: boolean
     }
 
     const id = Number(params.id)
+    const socket = this.sockets.get(id)
+
+    if (socket) {
+      if (params.type === "open") {
+        socket.emitOpen({ protocol: String(params.protocol ?? "") })
+
+        return true
+      }
+
+      if (params.type === "message") {
+        const data = typeof params.text === "string" ? params.text : base64ToBytes(params.base64 ?? "")
+
+        socket.emitMessage(data)
+
+        return true
+      }
+
+      if (params.type === "close") {
+        this.sockets.delete(id)
+        socket.emitClose({
+          code: Number(params.code ?? 1006),
+          reason: String(params.reason ?? ""),
+          wasClean: params.wasClean === true,
+        })
+
+        return true
+      }
+
+      if (params.type === "error") {
+        this.sockets.delete(id)
+        socket.emitError({
+          code: String(params.code ?? "ERR_NETWORK"),
+          message: String(params.message ?? "network error"),
+        })
+
+        return true
+      }
+
+      return false
+    }
+
     const request = this.requests.get(id)
 
     if (!request) return false
@@ -314,16 +503,25 @@ class NetClient {
   }
 
   handleData(id: number, data: Uint8Array): void {
+    const socket = this.sockets.get(id)
+
+    if (socket) {
+      socket.emitMessage(data)
+
+      return
+    }
+
     this.requests.get(id)?.emitData(data)
   }
 }
 
 const client = new NetClient()
 
-/** HTTP/HTTPS requests. Runs in the native host, independent of the JS engine. */
+/** HTTP/HTTPS requests and WebSockets. Runs in the native host, independent of the JS engine. */
 export const net = {
   fetch: (url: string, options?: NetOptions): Promise<NetResponse> => client.fetch(url, options),
   request: (url: string, options?: NetOptions): NetRequest => client.request(url, options),
+  websocket: (url: string, options?: WebSocketOptions): NetWebSocket => client.websocket(url, options),
   abort: (id: number): void => client.abortRequest(id),
 }
 

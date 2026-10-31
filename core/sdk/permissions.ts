@@ -19,6 +19,7 @@ export const CAPABILITY_PERMISSIONS: Record<string, string> = {
   "fs.open": "fs",
   "nw.fetch": "net",
   "nw.request": "net",
+  "nw.websocket": "net",
   "nw.abort": "net",
   "paths.get": "paths",
   "shell.open": "shell",
