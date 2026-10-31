@@ -5,12 +5,21 @@
 
 #include <QClipboard>
 #include <QCoreApplication>
+#include <QDesktopServices>
+#include <QFile>
+#include <QFileInfo>
 #include <QGuiApplication>
+
+#ifdef Q_OS_ANDROID
+#include <QJniObject>
+#endif
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonValue>
 #include <QQmlPropertyMap>
+#include <QStandardPaths>
 #include <QStyleHints>
+#include <QUrl>
 
 #include <cstdio>
 
@@ -129,6 +138,69 @@ void EmbeddedBridge::notify(const QString &name, const QJsonObject &data)
     reply(QStringLiteral("__event"), params);
 }
 
+void EmbeddedBridge::beginFileDialog(const QString &token)
+{
+    pendingFileToken_ = token;
+
+#ifdef Q_OS_ANDROID
+    const QJniObject activity = QNativeInterface::QAndroidApplication::context();
+
+    if (activity.isValid())
+        activity.callMethod<void>("pickFiles");
+#endif
+}
+
+void EmbeddedBridge::beginFileExport(const QString &token, const QString &path, const QString &name)
+{
+    pendingExportToken_ = token;
+
+#ifdef Q_OS_ANDROID
+    QJniObject activity = QNativeInterface::QAndroidApplication::context();
+
+    if (!activity.isValid()) {
+        finishFileExport(false);
+        return;
+    }
+
+    const QString fileName = name.isEmpty() ? QFileInfo(path).fileName() : name;
+
+    activity.callMethod<void>("exportFile", "(Ljava/lang/String;Ljava/lang/String;)V",
+                              QJniObject::fromString(path).object<jstring>(),
+                              QJniObject::fromString(fileName).object<jstring>());
+#else
+    const QString target = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation)
+        + QLatin1Char('/') + (name.isEmpty() ? QFileInfo(path).fileName() : name);
+
+    finishFileExport(QFile::copy(path, target));
+#endif
+}
+
+void EmbeddedBridge::finishFileExport(bool ok)
+{
+    const QString token = pendingExportToken_;
+
+    pendingExportToken_.clear();
+
+    QJsonObject replyParams;
+    replyParams.insert(QStringLiteral("token"), token);
+    replyParams.insert(QStringLiteral("value"), ok);
+
+    reply(QStringLiteral("__export-result"), replyParams);
+}
+
+void EmbeddedBridge::finishFileDialog(const QJsonArray &paths)
+{
+    const QString token = pendingFileToken_;
+
+    pendingFileToken_.clear();
+
+    QJsonObject replyParams;
+    replyParams.insert(QStringLiteral("token"), token);
+    replyParams.insert(QStringLiteral("value"), paths);
+
+    reply(QStringLiteral("__dialog-result"), replyParams);
+}
+
 void EmbeddedBridge::reply(const QString &method, const QJsonObject &params)
 {
     QJsonObject body;
@@ -228,6 +300,15 @@ void EmbeddedBridge::handleMessage(const QJsonObject &message)
     }
 
     if (method == QLatin1String("__dialog")) {
+        const QString kind = params.value(QStringLiteral("kind")).toString();
+
+#ifdef Q_OS_ANDROID
+        if (kind == QLatin1String("open-files")) {
+            beginFileDialog(params.value(QStringLiteral("token")).toString());
+            return;
+        }
+#endif
+
         QJsonObject replyParams;
         replyParams.insert(QStringLiteral("token"), params.value(QStringLiteral("token")));
         replyParams.insert(QStringLiteral("value"),
@@ -235,6 +316,40 @@ void EmbeddedBridge::handleMessage(const QJsonObject &message)
                                ? QJsonValue(true)
                                : QJsonValue::Null);
         reply(QStringLiteral("__dialog-result"), replyParams);
+        return;
+    }
+
+    if (method == QLatin1String("__toast")) {
+#ifdef Q_OS_ANDROID
+        const QJniObject activity = QNativeInterface::QAndroidApplication::context();
+
+        if (activity.isValid())
+            activity.callMethod<void>("showToast", "(Ljava/lang/String;)V",
+                                      QJniObject::fromString(params.value(QStringLiteral("text")).toString())
+                                          .object<jstring>());
+#endif
+        return;
+    }
+
+    if (method == QLatin1String("__open")) {
+        const QString path = params.value(QStringLiteral("path")).toString();
+
+#ifdef Q_OS_ANDROID
+        const QJniObject activity = QNativeInterface::QAndroidApplication::context();
+
+        if (activity.isValid())
+            activity.callMethod<void>("openFile", "(Ljava/lang/String;)V",
+                                      QJniObject::fromString(path).object<jstring>());
+#else
+        QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+#endif
+        return;
+    }
+
+    if (method == QLatin1String("__export")) {
+        beginFileExport(params.value(QStringLiteral("token")).toString(),
+                        params.value(QStringLiteral("path")).toString(),
+                        params.value(QStringLiteral("name")).toString());
         return;
     }
 

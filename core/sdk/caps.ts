@@ -79,6 +79,9 @@ export const fs = {
   copy: (from: string, to: string, recursive = true): Promise<boolean> =>
     callCapability("fs.copy", { from, to, recursive }) as Promise<boolean>,
   moveToTrash: (path: string): Promise<boolean> => callCapability("fs.moveToTrash", { path }) as Promise<boolean>,
+  exportTo: (path: string, name?: string): Promise<boolean> =>
+    callCapability("fs.exportTo", { path, name }) as Promise<boolean>,
+  open: (path: string): Promise<boolean> => callCapability("fs.open", { path }) as Promise<boolean>,
 }
 
 /** Standard per-OS directories the app is allowed to write to. */
@@ -110,6 +113,7 @@ export const dialog = {
     callCapability("dialog.saveFile", options) as Promise<string | null>,
   message: (options: MessageDialogOptions = {}): Promise<boolean> =>
     callCapability("dialog.message", options) as Promise<boolean>,
+  toast: (text: string): Promise<boolean> => callCapability("dialog.toast", { text }) as Promise<boolean>,
 }
 
 export interface TrayMenuItem {

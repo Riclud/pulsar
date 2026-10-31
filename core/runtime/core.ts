@@ -132,11 +132,33 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
     })
   }
 
+  const requestExport = (params: unknown): Promise<unknown> => {
+    const token = String(++dialogToken)
+
+    return new Promise((resolve) => {
+      pendingDialogs.set(token, resolve)
+      send({ jsonrpc: "2.0", method: "__export", params: { token, ...(params as object) } })
+    })
+  }
+
   registerCapability("dialog.openFile", (params) => requestDialog("open", params))
   registerCapability("dialog.openFiles", (params) => requestDialog("open-files", params))
   registerCapability("dialog.openDirectory", (params) => requestDialog("open-directory", params))
   registerCapability("dialog.saveFile", (params) => requestDialog("save", params))
   registerCapability("dialog.message", (params) => requestDialog("message", params))
+  registerCapability("fs.exportTo", (params) => requestExport(params))
+
+  registerCapability("fs.open", (params: unknown) => {
+    send({ jsonrpc: "2.0", method: "__open", params: params ?? {} })
+
+    return Promise.resolve(true)
+  })
+
+  registerCapability("dialog.toast", (params: unknown) => {
+    send({ jsonrpc: "2.0", method: "__toast", params: params ?? {} })
+
+    return Promise.resolve(true)
+  })
 
   registerCapability("tray", (params: unknown) => {
     send({ jsonrpc: "2.0", method: "__tray", params: params ?? {} })
@@ -299,7 +321,7 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
       return
     }
 
-    if (req.method === "__dialog-result") {
+    if (req.method === "__dialog-result" || req.method === "__export-result") {
       const resolve = pendingDialogs.get(String(params.token))
 
       if (resolve) {

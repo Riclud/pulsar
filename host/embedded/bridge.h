@@ -39,6 +39,18 @@ public:
     /** Push an unsolicited event to the JS runtime (`__event`). */
     void notify(const QString &name, const QJsonObject &data);
 
+    /** Start the native multi-file picker and remember which dialog to resolve. */
+    void beginFileDialog(const QString &token);
+
+    /** Resolve the pending file dialog with the picked local paths. */
+    void finishFileDialog(const QJsonArray &paths);
+
+    /** Send a file to the device Downloads (or a desktop download folder). */
+    void beginFileExport(const QString &token, const QString &path, const QString &name);
+
+    /** Resolve the pending export with its success flag. */
+    void finishFileExport(bool ok);
+
     /** Send a raw JSON-RPC notification to the JS runtime. */
     void notifyMethod(const QString &method, const QJsonObject &params);
 
@@ -77,4 +89,6 @@ private:
     qint64 nextId_ = 1;
     QHash<qint64, PendingCall> pending_;
     QJSValue promiseFactory_;
+    QString pendingFileToken_;
+    QString pendingExportToken_;
 };

@@ -3,6 +3,7 @@
 #include "quickjs_runtime.h"
 
 #include <QDir>
+#include <QElapsedTimer>
 #include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
@@ -18,7 +19,12 @@
 #include <QStandardPaths>
 #include <QTimer>
 #include <QUrl>
+#include <QWindow>
 #include <QtQml/qqml.h>
+
+#ifdef Q_OS_ANDROID
+#include <QJniEnvironment>
+#endif
 
 #ifdef Q_OS_ANDROID
 class BackHandler : public QObject {
@@ -33,6 +39,16 @@ protected:
     {
         Q_UNUSED(watched)
 
+        if (event->type() == QEvent::Close) {
+            if (backTimer_.isValid() && backTimer_.elapsed() < 500) {
+                qInfo().noquote() << "pulsar: ignoring close caused by back";
+
+                return true;
+            }
+
+            return false;
+        }
+
         if (event->type() != QEvent::KeyPress && event->type() != QEvent::KeyRelease)
             return false;
 
@@ -41,15 +57,69 @@ protected:
         if (key->key() != Qt::Key_Back)
             return false;
 
-        if (event->type() == QEvent::KeyPress)
+        if (event->type() == QEvent::KeyPress) {
+            backTimer_.restart();
             bridge_->notify(QStringLiteral("back-pressed"), QJsonObject());
+        }
 
         return true;
     }
 
 private:
     EmbeddedBridge *bridge_;
+    QElapsedTimer backTimer_;
 };
+
+static EmbeddedBridge *g_backBridge = nullptr;
+
+static void pulsarNotifyBack(JNIEnv *, jclass)
+{
+    if (!g_backBridge)
+        return;
+
+    QMetaObject::invokeMethod(
+        g_backBridge,
+        [] {
+            if (g_backBridge)
+                g_backBridge->notify(QStringLiteral("back-pressed"), QJsonObject());
+        },
+        Qt::QueuedConnection);
+}
+
+static void pulsarFileExported(JNIEnv *, jclass, jboolean ok)
+{
+    if (!g_backBridge)
+        return;
+
+    const bool value = ok;
+
+    QMetaObject::invokeMethod(
+        g_backBridge,
+        [value] {
+            if (g_backBridge)
+                g_backBridge->finishFileExport(value);
+        },
+        Qt::QueuedConnection);
+}
+
+static void pulsarFilesPicked(JNIEnv *env, jclass, jstring json)
+{
+    if (!g_backBridge)
+        return;
+
+    const char *chars = env->GetStringUTFChars(json, nullptr);
+    const QString text = QString::fromUtf8(chars);
+
+    env->ReleaseStringUTFChars(json, chars);
+
+    QMetaObject::invokeMethod(
+        g_backBridge,
+        [text] {
+            if (g_backBridge)
+                g_backBridge->finishFileDialog(QJsonDocument::fromJson(text.toUtf8()).array());
+        },
+        Qt::QueuedConnection);
+}
 #endif
 
 static QString appDir()
@@ -121,6 +191,10 @@ int main(int argc, char **argv)
     QGuiApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("pulsar-app"));
 
+#ifdef Q_OS_ANDROID
+    app.setQuitOnLastWindowClosed(false);
+#endif
+
     const QString dir =
 #ifdef Q_OS_ANDROID
         androidAppDir();
@@ -152,6 +226,23 @@ int main(int argc, char **argv)
     QQmlPropertyMap store;
     pulsar::QuickJsRuntime runtime;
     EmbeddedBridge bridge(&runtime, &engine, &store);
+
+#ifdef Q_OS_ANDROID
+    g_backBridge = &bridge;
+
+    JNINativeMethod methods[] = {
+        { const_cast<char *>("notifyBack"), const_cast<char *>("()V"),
+          reinterpret_cast<void *>(pulsarNotifyBack) },
+        { const_cast<char *>("filesPicked"), const_cast<char *>("(Ljava/lang/String;)V"),
+          reinterpret_cast<void *>(pulsarFilesPicked) },
+        { const_cast<char *>("fileExported"), const_cast<char *>("(Z)V"),
+          reinterpret_cast<void *>(pulsarFileExported) },
+    };
+
+    QJniEnvironment jniEnvironment;
+
+    jniEnvironment.registerNativeMethods("com/pulsar/host/PulsarActivity", methods, 3);
+#endif
 
     pulsar::NetworkService network(&app);
 
@@ -256,6 +347,19 @@ int main(int argc, char **argv)
         qWarning().noquote() << "pulsar: QML root is empty";
         return 1;
     }
+
+#ifdef Q_OS_ANDROID
+    for (QObject *root : engine.rootObjects())
+        root->installEventFilter(backHandler);
+
+    for (QWindow *window : QGuiApplication::allWindows())
+        window->installEventFilter(backHandler);
+
+    QObject::connect(&app, &QGuiApplication::focusWindowChanged, backHandler, [backHandler](QWindow *window) {
+        if (window)
+            window->installEventFilter(backHandler);
+    });
+#endif
 
     bridge.invoke(QStringLiteral("__sync"), QJSValue());
 
