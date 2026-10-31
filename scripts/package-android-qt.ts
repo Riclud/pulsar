@@ -98,6 +98,34 @@ if (existsSync(targetQtConf)) {
   writeFileSync(targetQtConf, conf.replace(/^HostPrefix=.*$/m, "HostPrefix=../../gcc_64"))
 }
 
+const patchDir = join(root, "scripts", "android-qt-patch")
+const androidJar = join(targetDir, "jar", "Qt6Android.jar")
+
+if (existsSync(patchDir) && existsSync(androidJar)) {
+  const classes: string[] = []
+
+  const collect = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const abs = join(dir, entry.name)
+
+      if (entry.isDirectory()) {
+        collect(abs)
+        continue
+      }
+
+      classes.push(relative(patchDir, abs).split(sep).join("/"))
+    }
+  }
+
+  collect(patchDir)
+
+  const patched = spawnSync("zip", ["-q", "-X", androidJar, ...classes], { cwd: patchDir, stdio: "inherit" })
+
+  if (patched.status !== 0) throw new Error("failed to patch the Android Qt input delegate")
+
+  console.log(`patched Qt6Android.jar (${classes.length} classes)`)
+}
+
 const name = `pulsar-android-qt-${ANDROID_QT_VERSION}-${platform}.tar.gz`
 const archive = join(out, name)
 const relDest = relative(stage, archive).split(sep).join("/")
