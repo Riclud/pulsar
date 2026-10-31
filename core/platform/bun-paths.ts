@@ -74,6 +74,11 @@ const ensurePaths = async (id: string) => {
   return paths
 }
 
+/** Drop the memoized paths, so tests can isolate their environment. */
+export const resetAppPaths = (): void => {
+  ensured.clear()
+}
+
 /** Resolved paths with data/config/cache ensured to exist. */
 export const appPaths = async (): Promise<AppPaths> => {
   const id = currentAppId()

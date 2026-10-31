@@ -2,7 +2,7 @@ import { describe, expect, test, afterAll } from "bun:test"
 import { existsSync, mkdtempSync, rmSync } from "fs"
 import { tmpdir } from "os"
 import { join } from "path"
-import { appPaths, computePaths } from "../platform/bun-paths.ts"
+import { appPaths, computePaths, resetAppPaths } from "../platform/bun-paths.ts"
 import { sanitizeAppId } from "./paths.ts"
 
 const HOME = "/home/tester"
@@ -66,6 +66,7 @@ describe("appPaths", () => {
       if (value === undefined) delete process.env[key]
       else process.env[key] = value
     }
+    resetAppPaths()
   })
 
   test("creates and memoizes the directories for an app id", async () => {
@@ -73,6 +74,7 @@ describe("appPaths", () => {
     process.env.XDG_DATA_HOME = join(dir, "data")
     process.env.XDG_CONFIG_HOME = join(dir, "config")
     process.env.XDG_CACHE_HOME = join(dir, "cache")
+    resetAppPaths()
 
     const first = await appPaths()
     const second = await appPaths()

@@ -4,17 +4,31 @@ import { tmpdir } from "os"
 import { join } from "path"
 import { createStorageCaps } from "./storage.ts"
 import { createBunPlatform } from "../platform/bun.ts"
+import { resetAppPaths } from "../platform/bun-paths.ts"
 
 let dir: string
+let savedData: string | undefined
+let savedHome: string | undefined
+
+const restore = (key: string, value: string | undefined) => {
+  if (value === undefined) delete process.env[key]
+  else process.env[key] = value
+}
 
 beforeAll(() => {
   dir = mkdtempSync(join(tmpdir(), "pulsar-storage-"))
+  savedData = process.env.XDG_DATA_HOME
+  savedHome = process.env.HOME
   process.env.XDG_DATA_HOME = dir
   process.env.HOME = dir
+  resetAppPaths()
 })
 
 afterAll(() => {
   rmSync(dir, { recursive: true, force: true })
+  restore("XDG_DATA_HOME", savedData)
+  restore("HOME", savedHome)
+  resetAppPaths()
 })
 
 const caps = createStorageCaps(createBunPlatform())
