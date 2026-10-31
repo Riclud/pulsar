@@ -80,6 +80,38 @@ const run = async () => {
     app.store.set("netFingerprint", errorCode(e) === "ERR_FINGERPRINT_UNAVAILABLE")
   }
 
+  const websocket = await new Promise<boolean>((resolve) => {
+    const socket = net.websocket(`${base.replace(/^http/, "ws")}/ws`, { protocols: ["chat"] })
+
+    let protocol = ""
+
+    let text = ""
+
+    let binary = ""
+
+    socket.on("open", (info) => {
+      protocol = info.protocol
+      socket.send("ping")
+    })
+    socket.on("message", (data) => {
+      if (typeof data === "string") {
+        text = data
+        socket.send(new Uint8Array([1, 2, 3]))
+
+        return
+      }
+
+      binary = Array.from(data).join(",")
+      socket.close(1000, "bye")
+    })
+    socket.on("close", (info) =>
+      resolve(info.wasClean && protocol === "chat" && text === "echo:ping" && binary === "1,2,3"),
+    )
+    socket.on("error", () => resolve(false))
+  })
+
+  app.store.set("netWebSocket", websocket)
+
   app.store.set("netOk", true)
 }
 

@@ -139,3 +139,98 @@ describe("net", () => {
     expect(() => net.request("file:///tmp/x")).toThrow(/unsupported URL/)
   })
 })
+
+describe("net.websocket", () => {
+  test("opens with headers and protocols", () => {
+    const transport = setup()
+
+    const socket = net.websocket("wss://example.com/ws", {
+      headers: { "X-Test": "1" },
+      protocols: ["chat", "v2"],
+      timeoutMs: 500,
+    })
+
+    expect(lastParams(transport)).toMatchObject({
+      id: socket.id,
+      action: "websocket",
+      url: "wss://example.com/ws",
+      headers: { "X-Test": "1" },
+      protocols: ["chat", "v2"],
+      timeoutMs: 500,
+    })
+  })
+
+  test("sends text and binary messages", () => {
+    const transport = setup()
+    const socket = net.websocket("wss://example.com/ws")
+
+    socket.send("hello")
+    expect(lastParams(transport)).toMatchObject({ id: socket.id, action: "websocket-send", text: "hello" })
+
+    socket.send(new Uint8Array([1, 2, 3]))
+    expect(lastParams(transport)).toMatchObject({
+      id: socket.id,
+      action: "websocket-send",
+      base64: "AQID",
+      encoding: "base64",
+    })
+  })
+
+  test("closes with a code and reason", () => {
+    const transport = setup()
+    const socket = net.websocket("wss://example.com/ws")
+
+    socket.close(1001, "going away")
+
+    expect(lastParams(transport)).toEqual({
+      id: socket.id,
+      action: "websocket-close",
+      code: 1001,
+      reason: "going away",
+    })
+  })
+
+  test("delivers open, text, binary and close events", () => {
+    const transport = setup()
+    const socket = net.websocket("wss://example.com/ws")
+    const id = lastParams(transport).id as number
+
+    const seen: string[] = []
+
+    socket.on("open", (info) => seen.push(`open:${info.protocol}`))
+    socket.on("message", (data) => {
+      seen.push(typeof data === "string" ? `text:${data}` : `bin:${Array.from(data).join(",")}`)
+    })
+    socket.on("close", (info) => seen.push(`close:${info.code}:${info.reason}:${info.wasClean}`))
+
+    netInternals.handleMessage({ id, type: "open", protocol: "chat" })
+    netInternals.handleMessage({ id, type: "message", text: "hello" })
+    netInternals.handleData(id, new Uint8Array([1, 2, 3]))
+    netInternals.handleMessage({ id, type: "close", code: 1000, reason: "bye", wasClean: true })
+
+    expect(seen).toEqual(["open:chat", "text:hello", "bin:1,2,3", "close:1000:bye:true"])
+  })
+
+  test("delivers errors, enforces permissions and validates the URL", () => {
+    const transport = setup()
+    const socket = net.websocket("wss://example.com/ws")
+    const id = lastParams(transport).id as number
+
+    const errors: string[] = []
+
+    socket.on("error", (error) => errors.push(error.code))
+    netInternals.handleMessage({ id, type: "error", code: "ERR_TLS", message: "handshake failed" })
+
+    expect(errors).toEqual(["ERR_TLS"])
+
+    setup((name) => {
+      if (name === "nw.websocket") throw new Error(`permission denied: ${name}`)
+    })
+
+    expect(() => net.websocket("wss://example.com/ws")).toThrow(/permission denied/)
+
+    setup()
+
+    expect(() => net.websocket("http://example.com/ws")).toThrow(/unsupported WebSocket URL/)
+  })
+})

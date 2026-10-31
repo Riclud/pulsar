@@ -396,8 +396,14 @@ try {
     const server = Bun.serve({
       hostname: "127.0.0.1",
       port: 0,
-      fetch: async (request) => {
+      fetch: async (request, server) => {
         const path = new URL(request.url).pathname
+
+        if (path === "/ws") {
+          if (server.upgrade(request, { headers: { "Sec-WebSocket-Protocol": "chat" } })) return
+
+          return new Response("upgrade failed", { status: 400 })
+        }
 
         if (path === "/hello") return new Response("hello pulsar", { headers: { "Content-Type": "text/plain" } })
 
@@ -433,6 +439,12 @@ try {
         }
 
         return new Response("not found", { status: 404 })
+      },
+      websocket: {
+        message(ws, message) {
+          if (typeof message === "string") ws.send(`echo:${message}`)
+          else ws.send(message)
+        },
       },
     })
 
@@ -470,6 +482,7 @@ try {
     check(netLog, "STORE netTimeout = QVariant(bool, true)")
     check(netLog, "STORE netAbort = QVariant(bool, true)")
     check(netLog, "STORE netFingerprint = QVariant(bool, true)")
+    check(netLog, "STORE netWebSocket = QVariant(bool, true)")
     check(netLog, "STORE netOk = QVariant(bool, true)")
   }
 
