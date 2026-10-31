@@ -5,9 +5,11 @@
 #include <QQmlContext>
 #include <QQmlError>
 #include <QQmlPropertyMap>
+#include <QQuickStyle>
 #include <QQuickWindow>
 #include <QIcon>
 #include <QDir>
+#include <QDesktopServices>
 #include <QFile>
 #include <QFileOpenEvent>
 #include <QHash>
@@ -15,6 +17,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QStandardPaths>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFileSystemWatcher>
@@ -670,6 +673,27 @@ static void wireWindowEvents(QObject *root, const QString &label)
     });
 }
 
+static void handleExportRequest(const QVariantMap &m)
+{
+    Bridge *bridge = gBridge;
+
+    if (!bridge)
+        return;
+
+    const QString token = m.value(QStringLiteral("token")).toString();
+    const QString path = m.value(QStringLiteral("path")).toString();
+    const QString name = m.value(QStringLiteral("name")).toString();
+    const QString target = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation)
+        + QLatin1Char('/') + (name.isEmpty() ? QFileInfo(path).fileName() : name);
+    const bool ok = QFile::copy(path, target);
+
+    QJsonObject params;
+    params.insert(QStringLiteral("token"), token);
+    params.insert(QStringLiteral("value"), ok);
+
+    bridge->notify(QStringLiteral("__export-result"), params);
+}
+
 static void handleDialogRequest(const QVariantMap &m)
 {
     Bridge *bridge = gBridge;
@@ -938,6 +962,9 @@ int main(int argc, char **argv)
     // with it as well.
     QApplication app(argc, argv);
     app.setOrganizationName(QStringLiteral("Pulsar"));
+
+    if (qEnvironmentVariableIsEmpty("QT_QUICK_CONTROLS_STYLE"))
+        QQuickStyle::setStyle(QStringLiteral("Material"));
     app.setApplicationName(QStringLiteral("pulsar-host"));
 
     // Single-file distribution: if this executable carries an appended payload,
@@ -1168,6 +1195,11 @@ int main(int argc, char **argv)
                                                       m.value(QStringLiteral("token")).toString());
                          } else if (method == QLatin1String("__dialog")) {
                              handleDialogRequest(params.toVariant().toMap());
+                         } else if (method == QLatin1String("__export")) {
+                             handleExportRequest(params.toVariant().toMap());
+                         } else if (method == QLatin1String("__open")) {
+                             QDesktopServices::openUrl(QUrl::fromLocalFile(
+                                 params.toVariant().toMap().value(QStringLiteral("path")).toString()));
                          } else if (method == QLatin1String("__tray")) {
                              handleTrayCommand(params.toVariant().toMap());
                          } else if (method == QLatin1String("__recent")) {
