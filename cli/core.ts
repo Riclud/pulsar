@@ -1,6 +1,6 @@
 import { createHash } from "crypto"
-import { existsSync, readFileSync } from "fs"
-import { join, resolve } from "path"
+import { existsSync, readFileSync, realpathSync } from "fs"
+import { basename, join, resolve } from "path"
 
 /** GitHub repository that hosts the releases. */
 export const REPO = process.env.PULSAR_REPO ?? "riclud/pulsar"
@@ -44,6 +44,15 @@ export const toolchainDir = (version: string): string => {
 
 export const toolchainCurrent = (): string => {
   return join(pulsarHome(), "toolchain", "current")
+}
+
+/** Version of the active toolchain, or null when none is installed. */
+export const toolchainVersion = (): string | null => {
+  try {
+    return basename(realpathSync(toolchainCurrent()))
+  } catch {
+    return null
+  }
 }
 
 /** `linux-x64`, `macos-arm64`, `windows-x64`. */

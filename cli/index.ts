@@ -23,7 +23,7 @@ import {
   type RuntimeKind,
   type Target,
 } from "../core/sdk/manifest.ts"
-import { cliVersion, findBridge, findHost, findLauncher, pulsarRoot } from "./core.ts"
+import { cliVersion, findBridge, findHost, findLauncher, pulsarRoot, toolchainVersion } from "./core.ts"
 import { buildAndroid, installAndroid } from "./android.ts"
 import { create } from "./create.ts"
 import { install } from "./install.ts"
@@ -247,6 +247,13 @@ const doctor = () => {
       lines.push(`FAIL  bridge binary: ${e instanceof Error ? e.message : e}`)
     }
   }
+
+  const toolchain = toolchainVersion()
+  const version = cliVersion()
+
+  if (!toolchain) lines.push("warn  toolchain: not installed (run `pulsar install`)")
+  else if (toolchain !== version) lines.push(`warn  toolchain: ${toolchain} != CLI ${version} (run \`pulsar update\`)`)
+  else lines.push(`ok    toolchain: ${toolchain}`)
 
   lines.push(`ok    bun: ${Bun.version ?? "unknown"}`)
 
