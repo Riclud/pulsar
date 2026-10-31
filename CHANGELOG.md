@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-10-31
+
+### Added
+
+- `pulsar doctor` warns when the active toolchain version differs from the CLI
+  version, with the command that fixes it.
+
+### Docs
+
+- README (English and Russian) now covers `fs.open`, `fs.exportTo` and
+  `dialog.toast`, including where exported files land on desktop and Android.
+
+### Tests
+
+- Unit tests for `fs.open`, `fs.exportTo`, `dialog.toast` and the
+  `__export-result` reply, using a mock transport.
+
 ## [1.0.0] - 2026-10-31
 
 First stable release. The documented API is considered stable; the gaps listed
