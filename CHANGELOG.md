@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2026-10-25
+## [1.0.0] - 2026-10-31
 
 First stable release. The documented API is considered stable; the gaps listed
 below are planned for 1.1.
@@ -35,8 +35,16 @@ below are planned for 1.1.
 - Android: in-process QuickJS and QML, lifecycle events (`app-pause`,
   `app-resume`, `app-stop`, `back-pressed`), native HTTP with binary streaming,
   and `pulsar install --android` to provision JDK, SDK, NDK and Qt.
+- Attachments: the multi-file SAF picker and `fs.exportTo` to the device
+  Downloads on Android, `fs.open` and `dialog.toast` on both platforms, and
+  `fs.exportTo`/`fs.open` on the desktop.
 - Portable runtime target with an import audit (`pulsar check --target
 android|portable`).
+
+### Fixed
+
+- Android: the keyboard now opens on the first tap on Samsung and Android 16;
+  the packaged Qt bundle carries the patched input delegate.
 
 ### Known gaps
 
