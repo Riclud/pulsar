@@ -28,12 +28,16 @@ import { launcherName, readManifest, resolveEntry, type BuildTarget } from "./ap
 import { create } from "./create.ts"
 import {
   deviceBack,
+  deviceEval,
   deviceExpect,
+  deviceKey,
   deviceReload,
   deviceSelect,
   deviceShot,
   deviceState,
+  deviceSwipe,
   deviceTap,
+  deviceTapAt,
   deviceToggle,
   deviceType,
   deviceUI,
@@ -164,6 +168,8 @@ const positional = (): string[] => {
     "--event",
     "--into",
     "--out",
+    "--at",
+    "--duration",
     "--timeout",
     "--device",
     "--port",
@@ -546,14 +552,17 @@ const usage = () => {
       "  run            run the app in the current directory",
       "  build          build a single-file executable (--target desktop|android|portable, --dev)",
       "  check          audit a target for portable imports (--target android)",
-      "  ui             dump the running dev app's UI tree (JSON)",
+      "  ui             dump the running dev app's UI tree (JSON; --system for uiautomator)",
       "  state          dump the running dev app's store (JSON)",
-      "  tap <text>     press a node by text (--path|--id|--event)",
+      "  tap <text>     press a node by text (--path|--id|--event|--at x,y)",
       "  type <text>    send input to a field (--into <label>)",
       "  toggle <text>  toggle a checkbox or switch",
       "  select <t> <v> choose a select option",
       "  expect <text>  wait until the text appears (--timeout ms)",
       "  shot           screenshot the device (--out, --window)",
+      "  swipe x1 y1 x2 y2  swipe on the screen (--duration ms)",
+      "  key <name>     send an Android key (back, home, enter, ... or a code)",
+      "  eval <code>    evaluate JS in the running app",
       "  back           send the Android back event",
       "  reload         restart the running app",
       "  doctor         check the toolchain (host, bridge, Qt, Bun)",
@@ -601,12 +610,26 @@ switch (cmd) {
     await checkTarget(process.cwd(), buildTarget())
     break
   case "ui":
-    await runDevice(() => deviceUI(process.cwd()))
+    await runDevice(() => deviceUI(process.cwd(), args.includes("--system")))
     break
   case "state":
     await runDevice(() => deviceState(process.cwd()))
     break
   case "tap": {
+    const at = flagValue("--at")
+
+    if (at) {
+      const [x, y] = at.split(",").map((part) => Number.parseFloat(part.trim()))
+
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        console.error(`pulsar tap: invalid --at ${at} (expected x,y)`)
+        process.exit(1)
+      }
+
+      await runDevice(() => deviceTapAt(process.cwd(), x!, y!))
+      break
+    }
+
     const [text] = positional()
     const idFlag = flagValue("--id")
 
@@ -620,6 +643,25 @@ switch (cmd) {
     )
     break
   }
+  case "swipe": {
+    const points = positional().map((value) => Number.parseFloat(value))
+    const durationFlag = flagValue("--duration")
+    const duration = durationFlag ? Number.parseInt(durationFlag, 10) : undefined
+
+    if (points.length < 4 || points.some((value) => !Number.isFinite(value))) {
+      console.error("pulsar swipe: expected x1 y1 x2 y2 [--duration ms]")
+      process.exit(1)
+    }
+
+    await runDevice(() => deviceSwipe(process.cwd(), [points[0]!, points[1]!], [points[2]!, points[3]!], duration))
+    break
+  }
+  case "key":
+    await runDevice(() => deviceKey(process.cwd(), positional()[0] ?? ""))
+    break
+  case "eval":
+    await runDevice(() => deviceEval(process.cwd(), positional().join(" ")))
+    break
   case "type":
     await runDevice(() => deviceType(process.cwd(), positional().join(" "), flagValue("--into")))
     break

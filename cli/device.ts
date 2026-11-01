@@ -23,13 +23,28 @@ export interface TapQuery {
   event?: string
 }
 
+const KEYCODES: Record<string, number> = {
+  back: 4,
+  home: 3,
+  enter: 66,
+  tab: 61,
+  escape: 111,
+  space: 62,
+  delete: 67,
+  power: 26,
+  volumeup: 24,
+  volumedown: 25,
+  menu: 82,
+  appswitch: 187,
+}
+
 const sessionPath = (appDir: string): string => join(appDir, ".pulsar", "dev.json")
 
 const retryable = (error: unknown): boolean => {
   return error instanceof Error && /node not found|no ui tree/i.test(error.message)
 }
 
-const waitForNode = async <T>(action: () => Promise<T>, attempts = 10): Promise<T> => {
+export const controlRetry = async <T>(action: () => Promise<T>, attempts = 10): Promise<T> => {
   let last: unknown
 
   for (let attempt = 0; attempt < attempts; attempt++) {
@@ -74,30 +89,76 @@ export const control = async (appDir: string, body: Record<string, unknown>): Pr
   return reply.value
 }
 
-const collectText = (value: unknown, out: string[]): void => {
-  if (Array.isArray(value)) {
-    for (const item of value) collectText(item, out)
+const adbInherit = (session: DevSession, args: string[]): void => {
+  const result = spawnSync(process.env.ADB ?? "adb", ["-s", session.device, ...args], { stdio: "inherit" })
+
+  if (result.status !== 0) throw new Error(`adb ${args.join(" ")} failed`)
+}
+
+const adbText = (session: DevSession, args: string[]): string => {
+  const result = spawnSync(process.env.ADB ?? "adb", ["-s", session.device, ...args], { encoding: "utf8" })
+
+  if (result.status !== 0) throw new Error(`adb ${args.join(" ")} failed`)
+
+  return result.stdout
+}
+
+const collectTexts = (value: unknown): string[] => {
+  const out: string[] = []
+
+  const walk = (item: unknown): void => {
+    if (Array.isArray(item)) {
+      for (const child of item) walk(child)
+
+      return
+    }
+
+    if (!item || typeof item !== "object") return
+
+    const node = item as Record<string, unknown>
+    const props = node.props as Record<string, unknown> | undefined
+
+    if (props) {
+      for (const key of ["text", "title", "placeholder", "label", "value"]) {
+        const text = props[key]
+
+        if (typeof text === "string" && text.length > 0) out.push(text)
+      }
+    }
+
+    if (node.children) walk(node.children)
+  }
+
+  walk(value)
+
+  return out
+}
+
+export const treeTexts = async (appDir: string): Promise<string[]> => {
+  return collectTexts(await control(appDir, { cmd: "tree" }))
+}
+
+export const deviceUI = async (appDir: string, system = false): Promise<void> => {
+  if (system) {
+    const session = readSession(appDir)
+    const remote = "/sdcard/pulsar-ui.xml"
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const dump = spawnSync(process.env.ADB ?? "adb", ["-s", session.device, "shell", "uiautomator", "dump", remote], {
+        encoding: "utf8",
+      })
+
+      if (dump.status === 0 && dump.stdout.includes("dumped")) break
+
+      await new Promise((done) => setTimeout(done, 300))
+    }
+
+    console.log(adbText(session, ["exec-out", "cat", remote]))
+    spawnSync(process.env.ADB ?? "adb", ["-s", session.device, "shell", "rm", "-f", remote], { stdio: "ignore" })
 
     return
   }
 
-  if (!value || typeof value !== "object") return
-
-  const node = value as Record<string, unknown>
-  const props = node.props as Record<string, unknown> | undefined
-
-  if (props) {
-    for (const key of ["text", "title", "placeholder", "label", "value"]) {
-      const text = props[key]
-
-      if (typeof text === "string" && text.length > 0) out.push(text)
-    }
-  }
-
-  if (node.children) collectText(node.children, out)
-}
-
-export const deviceUI = async (appDir: string): Promise<void> => {
   console.log(JSON.stringify(await control(appDir, { cmd: "tree" }), null, 2))
 }
 
@@ -115,13 +176,53 @@ export const deviceTap = async (appDir: string, query: TapQuery): Promise<void> 
 
   if (query.event) body.event = query.event
 
-  const value = await waitForNode(() => control(appDir, body))
+  const value = await controlRetry(() => control(appDir, body))
 
   console.log(JSON.stringify(value))
 }
 
+export const deviceTapAt = async (appDir: string, x: number, y: number): Promise<void> => {
+  const session = readSession(appDir)
+
+  adbInherit(session, ["shell", "input", "tap", String(Math.round(x)), String(Math.round(y))])
+  console.log(JSON.stringify({ at: [x, y] }))
+}
+
+export const deviceSwipe = async (
+  appDir: string,
+  from: [number, number],
+  to: [number, number],
+  duration?: number,
+): Promise<void> => {
+  const session = readSession(appDir)
+  const args = ["shell", "input", "swipe", ...from.map(String), ...to.map(String)]
+
+  if (duration !== undefined) args.push(String(Math.round(duration)))
+
+  adbInherit(session, args)
+  console.log(JSON.stringify({ swipe: [...from, ...to], duration: duration ?? 300 }))
+}
+
+export const resolveKey = (key: string): string | undefined => {
+  if (/^\d+$/.test(key)) return key
+
+  const code = KEYCODES[key.toLowerCase()]
+
+  return code === undefined ? undefined : String(code)
+}
+
+export const deviceKey = async (appDir: string, key: string): Promise<void> => {
+  const session = readSession(appDir)
+  const code = resolveKey(key)
+
+  if (code === undefined) throw new Error(`unknown key: ${key} (use a name or a numeric keycode)`)
+
+  adbInherit(session, ["shell", "input", "keyevent", code])
+  console.log(JSON.stringify({ key, code }))
+}
+
 export const deviceType = async (appDir: string, text: string, into?: string): Promise<void> => {
-  const value = await waitForNode(() => control(appDir, { cmd: "type", value: text, ...(into ? { into } : {}) }))
+  const value = await controlRetry(() => control(appDir, { cmd: "type", value: text, ...(into ? { into } : {}) }))
 
   console.log(JSON.stringify(value))
 }
@@ -129,13 +230,13 @@ export const deviceType = async (appDir: string, text: string, into?: string): P
 export const deviceToggle = async (appDir: string, text: string, value?: boolean): Promise<void> => {
   console.log(
     JSON.stringify(
-      await waitForNode(() => control(appDir, { cmd: "toggle", text, ...(value === undefined ? {} : { value }) })),
+      await controlRetry(() => control(appDir, { cmd: "toggle", text, ...(value === undefined ? {} : { value }) })),
     ),
   )
 }
 
 export const deviceSelect = async (appDir: string, text: string, value: string): Promise<void> => {
-  console.log(JSON.stringify(await waitForNode(() => control(appDir, { cmd: "select", text, value }))))
+  console.log(JSON.stringify(await controlRetry(() => control(appDir, { cmd: "select", text, value }))))
 }
 
 export const deviceBack = async (appDir: string): Promise<void> => {
@@ -146,14 +247,15 @@ export const deviceReload = async (appDir: string): Promise<void> => {
   console.log(JSON.stringify(await control(appDir, { cmd: "reload" })))
 }
 
+export const deviceEval = async (appDir: string, code: string): Promise<void> => {
+  console.log(JSON.stringify(await control(appDir, { cmd: "eval", code }), null, 2))
+}
+
 export const deviceExpect = async (appDir: string, text: string, timeoutMs = 5000): Promise<void> => {
   const deadline = Date.now() + timeoutMs
 
   while (Date.now() < deadline) {
-    const tree = await control(appDir, { cmd: "tree" })
-    const texts: string[] = []
-
-    collectText(tree, texts)
+    const texts = await treeTexts(appDir)
 
     if (texts.some((candidate) => candidate.toLowerCase().includes(text.toLowerCase()))) return
 
@@ -163,7 +265,7 @@ export const deviceExpect = async (appDir: string, text: string, timeoutMs = 500
   throw new Error(`text not found: ${text}`)
 }
 
-export const deviceShot = async (appDir: string, out?: string, windowOnly = false): Promise<void> => {
+export const captureShot = async (appDir: string, out?: string, windowOnly = false): Promise<string> => {
   const session = readSession(appDir)
   const target = resolve(out ?? join(appDir, ".pulsar", "shots", `${Date.now()}.png`))
 
@@ -176,13 +278,16 @@ export const deviceShot = async (appDir: string, out?: string, windowOnly = fals
 
     writeFileSync(target, Buffer.from(value.data, "base64"))
   } else {
-    const adb = process.env.ADB ?? "adb"
-    const result = spawnSync(adb, ["-s", session.device, "exec-out", "screencap", "-p"])
+    const result = spawnSync(process.env.ADB ?? "adb", ["-s", session.device, "exec-out", "screencap", "-p"])
 
     if (result.status !== 0 || !result.stdout?.length) throw new Error("adb screencap failed")
 
     writeFileSync(target, result.stdout)
   }
 
-  console.log(target)
+  return target
+}
+
+export const deviceShot = async (appDir: string, out?: string, windowOnly = false): Promise<void> => {
+  console.log(await captureShot(appDir, out, windowOnly))
 }

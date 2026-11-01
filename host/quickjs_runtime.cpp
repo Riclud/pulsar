@@ -174,6 +174,48 @@ void QuickJsRuntime::setRestoreState(const QJsonObject &state)
     restoreState_ = state;
 }
 
+QJsonObject QuickJsRuntime::evaluateForDev(const QString &expression)
+{
+    if (!context_ || !runtime_)
+        return { { QStringLiteral("error"), QStringLiteral("QuickJS is not initialized") } };
+
+    const QByteArray array = QJsonDocument(QJsonArray{ expression }).toJson(QJsonDocument::Compact);
+    const QByteArray quoted = array.mid(1, array.size() - 2);
+    const QByteArray code =
+        "(function(){try{var v=eval(" + quoted
+        + ");return JSON.stringify({value:v===undefined?null:v})}catch(e){return JSON.stringify({error:String(e),stack:e.stack||''})}})()";
+
+    JSValue result = JS_Eval(context_, code.constData(), code.size(), "<eval>", JS_EVAL_TYPE_GLOBAL);
+
+    if (JS_IsException(result)) {
+        JSValue exception = JS_GetException(context_);
+        const char *text = JS_ToCString(context_, exception);
+        QJsonObject out;
+
+        out.insert(QStringLiteral("error"), QString::fromUtf8(text ? text : "eval failed"));
+
+        if (text)
+            JS_FreeCString(context_, text);
+
+        JS_FreeValue(context_, exception);
+        JS_FreeValue(context_, result);
+
+        return out;
+    }
+
+    const char *text = JS_ToCString(context_, result);
+    const QByteArray json = text ? text : "{}";
+
+    if (text)
+        JS_FreeCString(context_, text);
+
+    JS_FreeValue(context_, result);
+
+    const QJsonDocument document = QJsonDocument::fromJson(json);
+
+    return document.isObject() ? document.object() : QJsonObject();
+}
+
 QuickJsRuntime::~QuickJsRuntime()
 {
     for (auto it = timers_.begin(); it != timers_.end(); ++it) {

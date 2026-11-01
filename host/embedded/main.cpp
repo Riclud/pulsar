@@ -268,7 +268,7 @@ int main(int argc, char **argv)
     std::unique_ptr<DevChannel> devChannel;
 
     if (!devUrl.isEmpty()) {
-        devChannel = std::make_unique<DevChannel>(&bridge, &store, QUrl(devUrl));
+        devChannel = std::make_unique<DevChannel>(&bridge, &runtime, &store, QUrl(devUrl));
         devChannel->start();
     }
 #endif

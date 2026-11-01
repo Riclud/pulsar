@@ -12,6 +12,10 @@
 
 class EmbeddedBridge;
 class QQmlPropertyMap;
+
+namespace pulsar {
+class QuickJsRuntime;
+}
 class QNetworkReply;
 
 /** Dev-only control channel: long-poll for commands, POST for logs and replies. */
@@ -19,7 +23,8 @@ class DevChannel : public QObject {
     Q_OBJECT
 
 public:
-    DevChannel(EmbeddedBridge *bridge, QQmlPropertyMap *store, const QUrl &url, QObject *parent = nullptr);
+    DevChannel(EmbeddedBridge *bridge, pulsar::QuickJsRuntime *runtime, QQmlPropertyMap *store, const QUrl &url,
+               QObject *parent = nullptr);
 
     void start();
     void sendLog(const QString &level, const QString &message, const QString &source);
@@ -43,6 +48,7 @@ private:
     QJsonObject grabWindow() const;
 
     EmbeddedBridge *bridge_;
+    pulsar::QuickJsRuntime *runtime_;
     QQmlPropertyMap *store_;
     QUrl base_;
     QNetworkAccessManager network_;

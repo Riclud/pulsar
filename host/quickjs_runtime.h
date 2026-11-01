@@ -51,6 +51,9 @@ public:
     void reset();
     void setRestoreState(const QJsonObject &state);
 
+    /** Evaluate an expression in the JS context for the dev channel. */
+    QJsonObject evaluateForDev(const QString &expression);
+
     /** Deliver a control message from the host to the JS transport. */
     void receive(const QJsonObject &message);
     void receiveBinary(quint32 id, const QByteArray &data);

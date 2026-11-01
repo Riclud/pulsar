@@ -1,6 +1,7 @@
 #include "devchannel.h"
 
 #include "bridge.h"
+#include "quickjs_runtime.h"
 
 #include <QBuffer>
 #include <QDateTime>
@@ -70,9 +71,11 @@ QNetworkRequest jsonRequest(const QUrl &url)
 
 } // namespace
 
-DevChannel::DevChannel(EmbeddedBridge *bridge, QQmlPropertyMap *store, const QUrl &url, QObject *parent)
+DevChannel::DevChannel(EmbeddedBridge *bridge, pulsar::QuickJsRuntime *runtime, QQmlPropertyMap *store,
+                       const QUrl &url, QObject *parent)
     : QObject(parent)
     , bridge_(bridge)
+    , runtime_(runtime)
     , store_(store)
     , base_(baseUrl(url))
 {
@@ -253,6 +256,25 @@ void DevChannel::handle(const QJsonObject &command)
         const QJsonObject image = grabWindow();
 
         reply(request, !image.isEmpty(), image);
+        return;
+    }
+
+    if (name == QLatin1String("eval")) {
+        const QJsonObject result = runtime_ ? runtime_->evaluateForDev(command.value(QStringLiteral("code")).toString())
+                                            : QJsonObject();
+
+        if (result.contains(QStringLiteral("error"))) {
+            QString text = result.value(QStringLiteral("error")).toString();
+            const QString stack = result.value(QStringLiteral("stack")).toString();
+
+            if (!stack.isEmpty())
+                text += QLatin1Char('\n') + stack;
+
+            reply(request, false, text);
+            return;
+        }
+
+        reply(request, true, result.value(QStringLiteral("value")));
         return;
     }
 
