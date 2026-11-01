@@ -878,7 +878,7 @@ scroll and input state survive a re-render.
 | Layout    | `Column`, `Row`, `Box`, `Scroll`, `Spacer`, `Divider`                                             |
 | Content   | `Text`, `Image`, `Icon`, `Button`, `IconButton`, `Fab`, `Chip`, `Progress`, `EmptyState`          |
 | Input     | `Input` (`TextField`), `SearchField`, `Checkbox`, `Switch`, `RadioGroup`, `Slider`, `RangeSlider`, `Select` |
-| Structure | `List` / `For`, `Card`, `Header` (`AppBar`), `Toolbar`, `Modal` (`Sheet`), `Menu`, `Accordion`, `When` |
+| Structure | `List` / `For`, `Card`, `Header` (`AppBar`), `Toolbar`, `NavigationRail`, `NavBar`, `Container`, `Modal` (`Sheet`), `Menu`, `Accordion`, `When` |
 
 - `bind(() => expr)` marks a value that reads from `Store`; plain functions in
   `on*` props are event handlers.
@@ -907,6 +907,16 @@ scroll and input state survive a re-render.
   placement: "bottom-end" })` floats above the content; use `placement:
   "inline"` to keep it in the layout.
 - `EmptyState({ icon, title, text, action })` is the standard empty placeholder.
+- `NavBar({ items, value, onChange })` is the bottom navigation bar for narrow
+  screens; `NavigationRail` stays the wide-screen sidebar. `Container({ maxWidth,
+  padding })` caps and centers content on large windows.
+- `Grid({ columns: "auto", minColumnWidth: 180 })` derives the column count from
+  the available width instead of a fixed number.
+- Responsive layouts use `createBreakpoints(app)`:
+  `const bp = createBreakpoints(app)`, then read `bp.current()` / `bp.atLeast("medium")`
+  and pick `NavigationRail` or `NavBar`. The state is also published to
+  `Store.breakpoint`, and window sizes (including Android rotation and split
+  screen) arrive as `window-resize` events.
 - `neon` works on any component: `Card({ neon: { color: "cyan", intensity: 1.2 } })`
   or `Text({ neon: true })`. It wraps the node in a padded colored glow drawn
   with `MultiEffect`: `color` (defaults to the theme primary), `intensity`,

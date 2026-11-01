@@ -896,7 +896,7 @@ app.run()
 | Раскладка | `Column`, `Row`, `Box`, `Scroll`, `Spacer`, `Divider`                                             |
 | Контент   | `Text`, `Image`, `Icon`, `Button`, `IconButton`, `Fab`, `Chip`, `Progress`, `EmptyState`          |
 | Ввод      | `Input` (`TextField`), `SearchField`, `Checkbox`, `Switch`, `RadioGroup`, `Slider`, `RangeSlider`, `Select` |
-| Структура | `List` / `For`, `Card`, `Header` (`AppBar`), `Toolbar`, `Modal` (`Sheet`), `Menu`, `Accordion`, `When` |
+| Структура | `List` / `For`, `Card`, `Header` (`AppBar`), `Toolbar`, `NavigationRail`, `NavBar`, `Container`, `Modal` (`Sheet`), `Menu`, `Accordion`, `When` |
 
 - `bind(() => expr)` помечает значение, читающее `Store`; обычные функции в
   `on*` — обработчики событий.
@@ -927,6 +927,15 @@ app.run()
   оставляет его в раскладке.
 - `EmptyState({ icon, title, text, action })` — стандартная заглушка пустого
   экрана.
+- `NavBar({ items, value, onChange })` — нижняя навигация для узких экранов;
+  `NavigationRail` остаётся боковым рельсом для широких. `Container({ maxWidth,
+  padding })` ограничивает ширину и центрирует контент на больших окнах.
+- `Grid({ columns: "auto", minColumnWidth: 180 })` сам считает число колонок по
+  доступной ширине вместо фиксированного.
+- Адаптив строится на `createBreakpoints(app)`: `const bp = createBreakpoints(app)`,
+  затем `bp.current()` / `bp.atLeast("medium")` и выбор `NavigationRail` или
+  `NavBar`. Состояние публикуется в `Store.breakpoint`, а размер окна (включая
+  поворот и split screen на Android) приходит событием `window-resize`.
 - `neon` работает на любом компоненте: `Card({ neon: { color: "cyan",
   intensity: 1.2 } })` или `Text({ neon: true })`. Компонент оборачивается в
   слой с цветным свечением (`MultiEffect`): `color` (по умолчанию цвет темы),
