@@ -1,0 +1,7 @@
+{
+  "id": "com.pulsar.uikit",
+  "name": "ui-kit",
+  "version": "0.1.0",
+  "main": "main.ts",
+  "windows": [{ "label": "main", "width": 420, "height": 640, "title": "UI Kit" }]
+}

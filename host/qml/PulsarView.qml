@@ -322,6 +322,296 @@ ApplicationWindow {
         }
     }
 
+    Component {
+        id: pagerComponent
+
+        SwipeView {
+            id: pagerRoot
+
+            interactive: true
+            property var pulsarMeta: null
+            property var nodeData: null
+            property bool syncing: false
+
+            onCurrentIndexChanged: {
+                if (pagerRoot.syncing)
+                    return;
+                view.emitNodeEvent(pagerRoot.nodeData, "change", currentIndex);
+            }
+        }
+    }
+
+    Component {
+        id: tabsComponent
+
+        ColumnLayout {
+            id: tabsRoot
+
+            spacing: 0
+            property var pulsarMeta: null
+            property var nodeData: null
+            property var tabItems: []
+            property bool syncing: false
+            property alias contentLayout: tabsStack
+            property alias tabBar: tabsBar
+
+            TabBar {
+                id: tabsBar
+
+                Layout.fillWidth: true
+
+                Repeater {
+                    model: tabsRoot.tabItems
+
+                    TabButton {
+                        text: modelData.label
+                    }
+                }
+
+                onCurrentIndexChanged: {
+                    if (tabsRoot.syncing)
+                        return;
+                    view.emitNodeEvent(tabsRoot.nodeData, "change", currentIndex);
+                }
+            }
+
+            StackLayout {
+                id: tabsStack
+
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                currentIndex: tabsBar.currentIndex
+                property var pulsarMeta: null
+            }
+        }
+    }
+
+    Component {
+        id: segmentedComponent
+
+        TabBar {
+            id: segmentedRoot
+
+            property var pulsarMeta: null
+            property var nodeData: null
+            property var tabItems: []
+            property bool syncing: false
+
+            Repeater {
+                model: segmentedRoot.tabItems
+
+                TabButton {
+                    text: modelData.label
+                }
+            }
+
+            onCurrentIndexChanged: {
+                if (segmentedRoot.syncing)
+                    return;
+                view.emitNodeEvent(segmentedRoot.nodeData, "change", currentIndex);
+            }
+        }
+    }
+
+    Component {
+        id: snackbarComponent
+
+        Item {
+            id: snackRoot
+
+            anchors.fill: parent
+            visible: opacity > 0
+            opacity: open ? 1 : 0
+            z: 500
+            property bool open: false
+            property int stayDuration: 3000
+            property real openedAT: 0
+            property var pulsarMeta: null
+            property var nodeData: null
+            property alias textLabel: snackText
+            property alias actionButton: snackAction
+            property alias contentRow: snackRow
+
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: 120
+                    easing.type: Easing.OutCubic
+                }
+            }
+
+            onOpenChanged: {
+                if (!open)
+                    return;
+                openedAT = Date.now();
+                hideTimer.restart();
+            }
+
+            Timer {
+                id: hideTimer
+
+                onTriggered: {
+                    if (snackRoot.open)
+                        view.emitNodeEvent(snackRoot.nodeData, "close");
+                }
+            }
+
+            Rectangle {
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: 24
+                width: Math.min(parent.width - 32, 560)
+                height: snackRow.implicitHeight + 24
+                radius: view.themeRadius
+                color: view.darkMode ? "#323238" : "#3b3b42"
+
+                RowLayout {
+                    id: snackRow
+
+                    anchors.fill: parent
+                    anchors.margins: 12
+                    spacing: 8
+
+                    Label {
+                        id: snackText
+
+                        Layout.fillWidth: true
+                        color: "#ffffff"
+                        wrapMode: Text.WordWrap
+                    }
+
+                    Button {
+                        id: snackAction
+
+                        visible: false
+                        flat: true
+
+                        onClicked: view.emitNodeEvent(snackRoot.nodeData, "action")
+                    }
+                }
+            }
+        }
+    }
+
+    Component {
+        id: popoverComponent
+
+        Item {
+            id: popRoot
+
+            anchors.fill: parent
+            visible: open || opacity > 0
+            opacity: open ? 1 : 0
+            z: 600
+            property bool open: false
+            property bool modal: false
+            property bool dismissible: true
+            property int fadeDuration: 120
+            property real openedAT: 0
+            property var pulsarMeta: null
+            property var nodeData: null
+            property alias panel: popPanel
+            property alias contentLayout: popContent
+
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: popRoot.fadeDuration
+                    easing.type: Easing.OutCubic
+                }
+            }
+
+            onOpenChanged: {
+                if (open)
+                    openedAT = Date.now();
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                color: popRoot.modal ? "#66000000" : "transparent"
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: {
+                        if (!popRoot.dismissible)
+                            return;
+                        if (Date.now() - popRoot.openedAT < 250)
+                            return;
+                        view.emitNodeEvent(popRoot.nodeData, "close");
+                    }
+                }
+            }
+
+            Rectangle {
+                id: popPanel
+
+                width: Math.min(parent.width - 32, 320)
+                radius: view.themeRadius
+                color: view.themeSurface
+                border.width: 1
+                border.color: view.themeBorder
+                x: 16
+                y: 16
+
+                ColumnLayout {
+                    id: popContent
+
+                    x: 12
+                    y: 12
+                    width: popPanel.width - 24
+                    spacing: 4
+                    property var pulsarMeta: null
+                }
+            }
+        }
+    }
+
+    Component {
+        id: zoomableComponent
+
+        Item {
+            id: zoomRoot
+
+            clip: true
+            property var pulsarMeta: null
+            property var nodeData: null
+            property real zoom: 1
+            property real minZoom: 1
+            property real maxZoom: 4
+            property alias contentItem: zoomContent
+
+            Item {
+                id: zoomContent
+
+                anchors.fill: parent
+                transformOrigin: Item.Center
+                property var pulsarMeta: null
+                scale: Math.max(zoomRoot.minZoom, Math.min(zoomRoot.maxZoom, zoomRoot.zoom * pinch.persistentScale * pinch.activeScale))
+
+                PinchHandler {
+                    id: pinch
+
+                    target: null
+                    minimumScale: 0.25
+                    maximumScale: 16
+
+                    onActiveChanged: {
+                        if (active)
+                            return;
+
+                        const next = Math.max(zoomRoot.minZoom, Math.min(zoomRoot.maxZoom, zoomRoot.zoom * pinch.persistentScale));
+
+                        pinch.persistentScale = 1;
+
+                        if (next === zoomRoot.zoom)
+                            return;
+
+                        zoomRoot.zoom = next;
+                        view.emitNodeEvent(zoomRoot.nodeData, "zoom", next);
+                    }
+                }
+            }
+        }
+    }
+
     onTreeChanged: {
         errorText = ""
         rebuild()
@@ -526,6 +816,18 @@ ApplicationWindow {
             item = chipComponent.createObject(parent);
         } else if (node.type === "sheet") {
             item = sheetComponent.createObject(overlay);
+        } else if (node.type === "pager") {
+            item = pagerComponent.createObject(parent);
+        } else if (node.type === "tabs") {
+            item = tabsComponent.createObject(parent);
+        } else if (node.type === "segmented") {
+            item = segmentedComponent.createObject(parent);
+        } else if (node.type === "snackbar") {
+            item = snackbarComponent.createObject(overlay);
+        } else if (node.type === "popover") {
+            item = popoverComponent.createObject(overlay);
+        } else if (node.type === "zoomable") {
+            item = zoomableComponent.createObject(parent);
         } else if (node.type === "text") {
             item = make("import QtQuick.Controls; Label " + base, parent);
         } else if (node.type === "selectableText") {
@@ -642,16 +944,52 @@ ApplicationWindow {
                     emitEvent(item.pulsarMeta.node, "change", options[index].value);
             });
         }
+
+        if (hasEvent(node, "longPress")) {
+            const press = make("import QtQuick; TapHandler { longPressThreshold: 0.5 }", item);
+
+            press.longPressed.connect(function () {
+                if (hasEvent(item.pulsarMeta.node, "longPress"))
+                    emitEvent(item.pulsarMeta.node, "longPress");
+            });
+        }
+    }
+
+    function applyTooltip(item, text) {
+        let tip = item.pulsarMeta.extra.tooltip;
+
+        if (!tip) {
+            tip = make("import QtQuick.Controls; ToolTip { delay: 400 }", item);
+
+            item.pulsarMeta.extra.tooltip = tip;
+
+            const hover = make("import QtQuick; HoverHandler {}", item);
+
+            hover.hoveredChanged.connect(function () {
+                const current = item.pulsarMeta.node ? prop(item.pulsarMeta.node.props, "tooltip", "") : "";
+
+                if (hover.hovered && current.length > 0) {
+                    tip.text = current;
+                    tip.open();
+                } else {
+                    tip.close();
+                }
+            });
+        }
+
+        tip.text = text;
     }
 
     function applyCommon(item, node, isRoot) {
         const props = node.props;
         const defaultFillWidth = node.type === "card" || node.type === "list" || node.type === "scroll"
                 || node.type === "appBar" || node.type === "divider" || node.type === "textInput"
-                || node.type === "textArea";
+                || node.type === "textArea" || node.type === "pager" || node.type === "tabs"
+                || node.type === "segmented";
         const fill = prop(props, "fill", undefined);
         let fillWidth = defaultFillWidth;
-        let fillHeight = node.type === "list" || node.type === "scroll";
+        let fillHeight = node.type === "list" || node.type === "scroll" || node.type === "pager"
+                || node.type === "tabs";
 
         if (props.expand !== undefined)
             fillWidth = props.expand;
@@ -664,8 +1002,13 @@ ApplicationWindow {
         if (props.fillHeight !== undefined)
             fillHeight = props.fillHeight;
 
-        if (node.type === "sheet")
+        if (node.type === "sheet" || node.type === "snackbar" || node.type === "popover")
             return;
+
+        const tooltip = prop(props, "tooltip", "");
+
+        if (tooltip.length > 0)
+            applyTooltip(item, tooltip);
 
         if (props.width !== undefined) {
             item.width = props.width;
@@ -850,6 +1193,78 @@ ApplicationWindow {
                 item.contentLayout.pulsarMeta = contentMeta();
 
             reconcile(item.contentLayout, node.children || [], false);
+        } else if (node.type === "pager") {
+            item.nodeData = node;
+            item.syncing = true;
+            item.currentIndex = prop(props, "index", item.currentIndex);
+            item.interactive = prop(props, "interactive", true);
+            item.syncing = false;
+            reconcile(item, node.children || [], false);
+        } else if (node.type === "tabs") {
+            item.nodeData = node;
+            item.tabItems = prop(props, "items", []);
+            const tabIndex = prop(props, "index", 0);
+
+            item.syncing = true;
+            item.tabBar.currentIndex = tabIndex;
+            item.syncing = false;
+
+            if (!item.contentLayout.pulsarMeta)
+                item.contentLayout.pulsarMeta = contentMeta();
+
+            reconcile(item.contentLayout, node.children || [], false);
+
+            for (let i = 0; i < item.contentLayout.children.length; i++) {
+                const page = item.contentLayout.children[i];
+
+                if (page.Layout !== undefined) {
+                    page.Layout.fillWidth = true;
+                    page.Layout.fillHeight = true;
+                }
+            }
+        } else if (node.type === "segmented") {
+            item.nodeData = node;
+            item.tabItems = prop(props, "items", []);
+            item.syncing = true;
+            item.currentIndex = prop(props, "value", 0);
+            item.syncing = false;
+        } else if (node.type === "snackbar") {
+            item.nodeData = node;
+            item.textLabel.text = prop(props, "text", "");
+            item.actionButton.text = prop(props, "actionLabel", "");
+            item.actionButton.visible = hasEvent(node, "action");
+            item.stayDuration = prop(props, "duration", 3000);
+            item.open = prop(props, "open", true);
+        } else if (node.type === "popover") {
+            item.nodeData = node;
+            item.open = prop(props, "open", true);
+            item.modal = prop(props, "modal", false);
+            item.dismissible = prop(props, "dismissible", true);
+            item.fadeDuration = prop(props, "duration", 120);
+
+            const popWidth = prop(props, "width", Math.min(item.panel.parent.width - 32, 320));
+
+            item.panel.width = popWidth;
+            item.panel.x = prop(props, "x", (item.width - popWidth) / 2);
+            item.panel.y = prop(props, "y", (item.height - item.panel.implicitHeight) / 2);
+            item.panel.height = Qt.binding(function () {
+                return item.contentLayout.implicitHeight + 24;
+            });
+
+            if (!item.contentLayout.pulsarMeta)
+                item.contentLayout.pulsarMeta = contentMeta();
+
+            reconcile(item.contentLayout, node.children || [], false);
+        } else if (node.type === "zoomable") {
+            item.nodeData = node;
+            item.minZoom = prop(props, "minScale", 1);
+            item.maxZoom = prop(props, "maxScale", 4);
+            item.zoom = prop(props, "zoom", 1);
+
+            if (!item.contentItem.pulsarMeta)
+                item.contentItem.pulsarMeta = contentMeta();
+
+            reconcile(item.contentItem, node.children || [], false);
         } else if (node.type === "text" || node.type === "selectableText") {
             const wrap = prop(props, "wrap", false);
             const align = prop(props, "align", "left");
@@ -875,12 +1290,11 @@ ApplicationWindow {
             } else {
                 item.selectByMouse = prop(props, "selectable", true);
 
-                if (props.maxLines !== undefined)
-                    item.height = Math.min(item.height, item.contentHeight);
-
-                item.implicitHeight = Qt.binding(function () {
-                    return item.contentHeight;
-                });
+                if (props.height === undefined && props.maxLines === undefined) {
+                    item.height = Qt.binding(function () {
+                        return item.contentHeight;
+                    });
+                }
             }
 
             item.Layout.preferredWidth = -1;

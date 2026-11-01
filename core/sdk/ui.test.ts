@@ -13,7 +13,9 @@ import {
   When,
   appBar,
   bind,
+  box,
   button,
+  card,
   checkbox,
   chip,
   column,
@@ -21,13 +23,20 @@ import {
   dispatchUiEvent,
   forgetHandlers,
   iconButton,
+  image,
   list,
+  pager,
+  popover,
   progress,
+  segmented,
   serialize,
   sheet,
+  snackbar,
+  tabs,
   text,
   textInput,
   ui,
+  zoomable,
 } from "./ui.ts"
 
 describe("ui", () => {
@@ -140,6 +149,64 @@ describe("ui", () => {
   test("selectable text uses a text editor node", () => {
     expect(text({ text: "copy me", selectable: true }).type).toBe("selectableText")
     expect(text("plain").type).toBe("text")
+  })
+})
+
+describe("gestures and layers", () => {
+  test("pager, tabs and segmented normalize items and forward changes", () => {
+    const seen: string[] = []
+    const p = pager({ onPageChange: (index) => seen.push(`page:${index}`) }, text("a"))
+    const t = tabs({ items: ["One", "Two"], onChange: (index) => seen.push(`tab:${index}`) }, text("a"))
+    const s = segmented({ items: [{ label: "A" }], onChange: (index) => seen.push(`segment:${index}`) })
+
+    expect(p.type).toBe("pager")
+    expect(t.type).toBe("tabs")
+    expect(t.props.items).toEqual([{ label: "One" }, { label: "Two" }])
+    expect(s.type).toBe("segmented")
+
+    dispatchUiEvent(p.id, "change", 1)
+    dispatchUiEvent(t.id, "change", 1)
+    dispatchUiEvent(s.id, "change", 0)
+
+    expect(seen).toEqual(["page:1", "tab:1", "segment:0"])
+  })
+
+  test("snackbar, popover and zoomable forward their events", () => {
+    const seen: string[] = []
+    const bar = snackbar({
+      text: "saved",
+      actionLabel: "Undo",
+      duration: 1000,
+      onAction: () => seen.push("action"),
+      onClose: () => seen.push("close"),
+    })
+    const pop = popover({ open: true, onClose: () => seen.push("popover") })
+    const zoom = zoomable({ onZoom: (scale) => seen.push(`zoom:${scale}`) })
+
+    expect(bar.props.duration).toBe(1000)
+    expect(pop.type).toBe("popover")
+
+    dispatchUiEvent(bar.id, "action", undefined)
+    dispatchUiEvent(pop.id, "close", undefined)
+    dispatchUiEvent(zoom.id, "zoom", 2)
+
+    expect(seen).toEqual(["action", "popover", "zoom:2"])
+  })
+
+  test("long press is available on buttons, cards, boxes, images and chips", () => {
+    const seen: string[] = []
+
+    const nodes = [
+      button("b", { onLongPress: () => seen.push("button") }),
+      card({ onLongPress: () => seen.push("card") }),
+      box({ onLongPress: () => seen.push("box") }),
+      image({ src: "a.png", onLongPress: () => seen.push("image") }),
+      chip("c", { onLongPress: () => seen.push("chip") }),
+    ]
+
+    for (const node of nodes) dispatchUiEvent(node.id, "longPress", undefined)
+
+    expect(seen).toEqual(["button", "card", "box", "image", "chip"])
   })
 })
 

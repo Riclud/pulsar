@@ -19,6 +19,12 @@ export type UiNodeType =
   | "select"
   | "chip"
   | "sheet"
+  | "pager"
+  | "tabs"
+  | "segmented"
+  | "snackbar"
+  | "popover"
+  | "zoomable"
   | "progress"
   | "image"
   | "spacer"
@@ -43,6 +49,8 @@ interface CommonOptions {
   fill?: boolean
   fillWidth?: boolean
   fillHeight?: boolean
+  /** Hover tooltip text. */
+  tooltip?: string
 }
 
 export interface LayoutOptions extends CommonOptions {
@@ -68,6 +76,7 @@ export interface CardOptions extends CommonOptions {
   color?: string
   radius?: number
   padding?: number
+  onLongPress?: () => void
 }
 
 export interface AppBarOptions extends CommonOptions {
@@ -82,6 +91,7 @@ export interface BoxOptions extends CommonOptions {
   radius?: number
   padding?: number
   expand?: boolean
+  onLongPress?: () => void
 }
 
 export interface TextOptions extends CommonOptions {
@@ -103,12 +113,14 @@ export interface TextOptions extends CommonOptions {
 export interface ImageOptions extends CommonOptions {
   src: string
   fillMode?: string
+  onLongPress?: () => void
 }
 
 export interface ButtonOptions extends CommonOptions {
   expand?: boolean
   enabled?: boolean
   onClick?: () => void
+  onLongPress?: () => void
 }
 
 export interface IconOptions extends CommonOptions {
@@ -182,6 +194,7 @@ export interface ChipOptions extends CommonOptions {
   color?: string
   onClick?: () => void
   onRemove?: () => void
+  onLongPress?: () => void
 }
 
 export interface SheetOptions extends CommonOptions {
@@ -191,6 +204,54 @@ export interface SheetOptions extends CommonOptions {
   dismissible?: boolean
   duration?: number
   onClose?: () => void
+}
+
+export interface PagerOptions extends CommonOptions {
+  index?: number
+  interactive?: boolean
+  onPageChange?: (index: number) => void
+}
+
+export interface TabItem {
+  label: string
+  icon?: string
+}
+
+export interface TabsOptions extends CommonOptions {
+  items: Array<string | TabItem>
+  index?: number
+  onChange?: (index: number) => void
+}
+
+export interface SegmentedOptions extends CommonOptions {
+  items: Array<string | TabItem>
+  value?: number
+  onChange?: (index: number) => void
+}
+
+export interface SnackbarOptions extends CommonOptions {
+  open?: boolean
+  text: string
+  actionLabel?: string
+  duration?: number
+  onAction?: () => void
+  onClose?: () => void
+}
+
+export interface PopoverOptions extends CommonOptions {
+  open?: boolean
+  x?: number
+  y?: number
+  modal?: boolean
+  dismissible?: boolean
+  onClose?: () => void
+}
+
+export interface ZoomableOptions extends CommonOptions {
+  minScale?: number
+  maxScale?: number
+  zoom?: number
+  onZoom?: (scale: number) => void
 }
 
 export interface ProgressOptions extends CommonOptions {
@@ -292,6 +353,18 @@ const makeNode = <P extends object>(
   return node
 }
 
+const withLongPress = <P extends { onLongPress?: () => void }>(
+  type: UiNodeType,
+  options: P,
+  children: UiChild[] = [],
+): UiNode => {
+  const { onLongPress, ...props } = options
+
+  if (!onLongPress) return makeNode(type, props, children)
+
+  return makeNode(type, props, children, ["longPress"], { longPress: () => onLongPress() })
+}
+
 export const column = (options: LayoutOptions = {}, ...children: UiChild[]): UiNode => {
   return makeNode("column", options, children)
 }
@@ -301,7 +374,7 @@ export const row = (options: LayoutOptions = {}, ...children: UiChild[]): UiNode
 }
 
 export const box = (options: BoxOptions = {}, ...children: UiChild[]): UiNode => {
-  return makeNode("box", options, children)
+  return withLongPress("box", options, children)
 }
 
 export const scroll = (options: ScrollOptions = {}, ...children: UiChild[]): UiNode => {
@@ -309,7 +382,7 @@ export const scroll = (options: ScrollOptions = {}, ...children: UiChild[]): UiN
 }
 
 export const card = (options: CardOptions = {}, ...children: UiChild[]): UiNode => {
-  return makeNode("card", options, children)
+  return withLongPress("card", options, children)
 }
 
 export const list = <T>(options: ListOptions<T>): UiNode => {
@@ -340,7 +413,7 @@ export const icon = (name: string, options: IconOptions = {}): UiNode => {
 }
 
 export const image = (options: ImageOptions): UiNode => {
-  return makeNode("image", options)
+  return withLongPress("image", options)
 }
 
 export const spacer = (
@@ -354,11 +427,21 @@ export const divider = (options: { color?: string } = {}): UiNode => {
 }
 
 export const button = (label: string, options: ButtonOptions = {}): UiNode => {
-  const { onClick, ...props } = options
+  const { onClick, onLongPress, ...props } = options
+  const events: string[] = []
+  const callbacks: Record<string, UiHandler> = {}
 
-  if (!onClick) return makeNode("button", { label, ...props })
+  if (onClick) {
+    events.push("click")
+    callbacks.click = () => onClick()
+  }
 
-  return makeNode("button", { label, ...props }, [], ["click"], { click: () => onClick() })
+  if (onLongPress) {
+    events.push("longPress")
+    callbacks.longPress = () => onLongPress()
+  }
+
+  return makeNode("button", { label, ...props }, [], events, callbacks)
 }
 
 export const iconButton = (name: string, options: IconButtonOptions = {}): UiNode => {
@@ -370,7 +453,7 @@ export const iconButton = (name: string, options: IconButtonOptions = {}): UiNod
 }
 
 export const chip = (label: string, options: ChipOptions = {}): UiNode => {
-  const { onClick, onRemove, ...props } = options
+  const { onClick, onRemove, onLongPress, ...props } = options
   const events: string[] = []
   const callbacks: Record<string, UiHandler> = {}
 
@@ -382,6 +465,11 @@ export const chip = (label: string, options: ChipOptions = {}): UiNode => {
   if (onRemove) {
     events.push("remove")
     callbacks.remove = () => onRemove()
+  }
+
+  if (onLongPress) {
+    events.push("longPress")
+    callbacks.longPress = () => onLongPress()
   }
 
   return makeNode("chip", { label, ...props }, [], events, callbacks)
@@ -477,6 +565,78 @@ export const sheet = (options: SheetOptions = {}, ...children: UiChild[]): UiNod
   return makeNode("sheet", props, children, ["close"], { close: () => onClose() })
 }
 
+export const pager = (options: PagerOptions = {}, ...children: UiChild[]): UiNode => {
+  const { onPageChange, ...props } = options
+
+  if (!onPageChange) return makeNode("pager", props, children)
+
+  return makeNode("pager", props, children, ["change"], {
+    change: (value) => onPageChange(Number(value)),
+  })
+}
+
+const normalizeTabs = (items: Array<string | TabItem>): TabItem[] => {
+  return items.map((item) => (typeof item === "string" ? { label: item } : item))
+}
+
+export const tabs = (options: TabsOptions, ...children: UiChild[]): UiNode => {
+  const { onChange, items, ...props } = options
+  const normalized = normalizeTabs(items)
+
+  if (!onChange) return makeNode("tabs", { ...props, items: normalized }, children)
+
+  return makeNode("tabs", { ...props, items: normalized }, children, ["change"], {
+    change: (value) => onChange(Number(value)),
+  })
+}
+
+export const segmented = (options: SegmentedOptions): UiNode => {
+  const { onChange, items, ...props } = options
+  const normalized = normalizeTabs(items)
+
+  if (!onChange) return makeNode("segmented", { ...props, items: normalized })
+
+  return makeNode("segmented", { ...props, items: normalized }, [], ["change"], {
+    change: (value) => onChange(Number(value)),
+  })
+}
+
+export const snackbar = (options: SnackbarOptions): UiNode => {
+  const { onAction, onClose, ...props } = options
+  const events: string[] = []
+  const callbacks: Record<string, UiHandler> = {}
+
+  if (onAction) {
+    events.push("action")
+    callbacks.action = () => onAction()
+  }
+
+  if (onClose) {
+    events.push("close")
+    callbacks.close = () => onClose()
+  }
+
+  return makeNode("snackbar", props, [], events, callbacks)
+}
+
+export const popover = (options: PopoverOptions = {}, ...children: UiChild[]): UiNode => {
+  const { onClose, ...props } = options
+
+  if (!onClose) return makeNode("popover", props, children)
+
+  return makeNode("popover", props, children, ["close"], { close: () => onClose() })
+}
+
+export const zoomable = (options: ZoomableOptions = {}, ...children: UiChild[]): UiNode => {
+  const { onZoom, ...props } = options
+
+  if (!onZoom) return makeNode("zoomable", props, children)
+
+  return makeNode("zoomable", props, children, ["zoom"], {
+    zoom: (value) => onZoom(Number(value)),
+  })
+}
+
 export const For = <T>(options: ForOptions<T>): UiNode => {
   const { each, keyOf, render, ...props } = options
 
@@ -548,6 +708,18 @@ export const Select = select
 export const Progress = progress
 
 export const Sheet = (options: SheetOptions = {}, ...children: UiChild[]): UiNode => sheet(options, ...children)
+
+export const Pager = (options: PagerOptions = {}, ...children: UiChild[]): UiNode => pager(options, ...children)
+
+export const Tabs = (options: TabsOptions, ...children: UiChild[]): UiNode => tabs(options, ...children)
+
+export const Segmented = (options: SegmentedOptions): UiNode => segmented(options)
+
+export const Snackbar = (options: SnackbarOptions): UiNode => snackbar(options)
+
+export const Popover = (options: PopoverOptions = {}, ...children: UiChild[]): UiNode => popover(options, ...children)
+
+export const Zoomable = (options: ZoomableOptions = {}, ...children: UiChild[]): UiNode => zoomable(options, ...children)
 
 export const Modal = (options: SheetOptions = {}, ...children: UiChild[]): UiNode => {
   return sheet({ ...options, fullscreen: options.fullscreen ?? false }, ...children)
@@ -629,4 +801,10 @@ export const ui = {
   select,
   progress,
   sheet,
+  pager,
+  tabs,
+  segmented,
+  snackbar,
+  popover,
+  zoomable,
 }

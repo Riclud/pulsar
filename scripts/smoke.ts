@@ -41,6 +41,7 @@ const systemLog = join(tmp, "system.log")
 const secureLog = join(tmp, "secure.log")
 const trayLog = join(tmp, "tray.log")
 const jsUiLog = join(tmp, "js-ui.log")
+const uiKitLog = join(tmp, "ui-kit.log")
 const deepLog = join(tmp, "deep.log")
 const recentLog = join(tmp, "recent.log")
 const recentClearLog = join(tmp, "recent-clear.log")
@@ -274,6 +275,19 @@ try {
   check(jsUiLog, "STORE open = QVariant(bool, true)")
   check(jsUiLog, "STORE mutated = QVariant(bool, true)")
   checkAbsent(jsUiLog, "Error:")
+
+  // Extended UI kit: every new node type is created by the QML renderer
+  // without warnings.
+  runHost({
+    PULSAR_DEBUG: "1",
+    QT_QPA_PLATFORM: "offscreen",
+    PULSAR_APP: join(root, "tests", "apps", "ui-kit"),
+    AUTO_QUIT_MS: "2000",
+    QT_LOG_FILE: uiKitLog,
+  })
+  check(uiKitLog, "PulsarView built 1")
+  checkAbsent(uiKitLog, "Error:")
+  checkAbsent(uiKitLog, "qml:")
 
   // System tray: the app can configure the menu through the tray capability.
   runHost({
