@@ -53,6 +53,10 @@ interface CommonOptions {
   fillHeight?: boolean
   /** Hover tooltip text. */
   tooltip?: string
+  /** Accessibility name announced by screen readers. */
+  a11yLabel?: string
+  /** Accessibility hint/description announced after the name. */
+  a11yHint?: string
   /** Fade opacity changes over this many milliseconds. */
   animate?: number
 }

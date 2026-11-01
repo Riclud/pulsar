@@ -187,6 +187,27 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
     return Promise.resolve(true)
   })
 
+  registerCapability("clipboard.read", () => hostQuery("clipboard.read"))
+  registerCapability("clipboard.write", (params) => hostQuery("clipboard.write", params))
+
+  registerCapability("share", (params: unknown) => {
+    send({ jsonrpc: "2.0", method: "__share", params: params ?? {} })
+
+    return Promise.resolve(true)
+  })
+
+  registerCapability("device.orientation", (params: unknown) => {
+    send({ jsonrpc: "2.0", method: "__device", params: { action: "orientation", ...(params as object) } })
+
+    return Promise.resolve(true)
+  })
+
+  registerCapability("device.keepAwake", (params: unknown) => {
+    send({ jsonrpc: "2.0", method: "__device", params: { action: "keepAwake", ...(params as object) } })
+
+    return Promise.resolve(true)
+  })
+
   registerCapability("secure.available", () => hostQuery("secure.available"))
   registerCapability("secure.get", (params) => hostQuery("secure.get", params))
   registerCapability("secure.set", (params) => hostQuery("secure.set", params))

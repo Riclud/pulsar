@@ -161,6 +161,80 @@ public class PulsarActivity extends QtActivity {
         });
     }
 
+    public void shareText(String text, String title) {
+        runOnUiThread(() -> {
+            Intent intent = new Intent(Intent.ACTION_SEND);
+
+            intent.setType("text/plain");
+            intent.putExtra(Intent.EXTRA_TEXT, text);
+
+            Intent chooser = Intent.createChooser(intent, title != null && !title.isEmpty() ? title : null);
+
+            chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(chooser);
+        });
+    }
+
+    public void shareFile(String path, String mime, String title) {
+        runOnUiThread(() -> {
+            try {
+                File file = new File(path);
+                Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".qtprovider", file);
+                String type = mime != null && !mime.isEmpty() ? mime : mimeType(file.getName());
+
+                Intent intent = new Intent(Intent.ACTION_SEND);
+
+                intent.setType(type);
+                intent.putExtra(Intent.EXTRA_STREAM, uri);
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+                Intent chooser = Intent.createChooser(intent, title != null && !title.isEmpty() ? title : null);
+
+                chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(chooser);
+            } catch (Exception ignored) {
+            }
+        });
+    }
+
+    public void setOrientation(String orientation) {
+        runOnUiThread(() -> {
+            int value;
+
+            switch (orientation) {
+                case "portrait":
+                case "portrait-up":
+                    value = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+                    break;
+                case "portrait-down":
+                    value = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT;
+                    break;
+                case "landscape":
+                case "landscape-left":
+                    value = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
+                    break;
+                case "landscape-right":
+                    value = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE;
+                    break;
+                default:
+                    value = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+                    break;
+            }
+
+            setRequestedOrientation(value);
+        });
+    }
+
+    public void setKeepAwake(boolean enabled) {
+        runOnUiThread(() -> {
+            if (enabled) {
+                getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            } else {
+                getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            }
+        });
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode != PICK_FILES_REQUEST) {

@@ -396,10 +396,75 @@ void EmbeddedBridge::handleMessage(const QJsonObject &message)
     }
 
     if (method == QLatin1String("__query")) {
+        const QString kind = params.value(QStringLiteral("kind")).toString();
+
         QJsonObject replyParams;
         replyParams.insert(QStringLiteral("token"), params.value(QStringLiteral("token")));
-        replyParams.insert(QStringLiteral("value"), QJsonValue::Null);
+
+        if (kind == QLatin1String("clipboard.read")) {
+            replyParams.insert(QStringLiteral("value"), QGuiApplication::clipboard()->text());
+        } else if (kind == QLatin1String("clipboard.write")) {
+            QGuiApplication::clipboard()->setText(params.value(QStringLiteral("text")).toString());
+            replyParams.insert(QStringLiteral("value"), true);
+        } else {
+            replyParams.insert(QStringLiteral("value"), QJsonValue::Null);
+        }
+
         reply(QStringLiteral("__query-result"), replyParams);
+        return;
+    }
+
+    if (method == QLatin1String("__share")) {
+#ifdef Q_OS_ANDROID
+        const QJniObject activity = QNativeInterface::QAndroidApplication::context();
+
+        if (activity.isValid()) {
+            const QString kind = params.value(QStringLiteral("kind")).toString();
+            const QString title = params.value(QStringLiteral("title")).toString();
+
+            if (kind == QLatin1String("file")) {
+                activity.callMethod<void>("shareFile", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
+                                          QJniObject::fromString(params.value(QStringLiteral("path")).toString())
+                                              .object<jstring>(),
+                                          QJniObject::fromString(params.value(QStringLiteral("mime")).toString())
+                                              .object<jstring>(),
+                                          QJniObject::fromString(title).object<jstring>());
+            } else {
+                const QString text = kind == QLatin1String("url")
+                    ? params.value(QStringLiteral("url")).toString()
+                    : params.value(QStringLiteral("text")).toString();
+
+                activity.callMethod<void>("shareText", "(Ljava/lang/String;Ljava/lang/String;)V",
+                                          QJniObject::fromString(text).object<jstring>(),
+                                          QJniObject::fromString(title).object<jstring>());
+            }
+        }
+#else
+        const QString kind = params.value(QStringLiteral("kind")).toString();
+        const QString text = kind == QLatin1String("file")
+            ? params.value(QStringLiteral("path")).toString()
+            : kind == QLatin1String("url")
+                ? params.value(QStringLiteral("url")).toString()
+                : params.value(QStringLiteral("text")).toString();
+
+        QGuiApplication::clipboard()->setText(text);
+#endif
+        return;
+    }
+
+    if (method == QLatin1String("__device")) {
+#ifdef Q_OS_ANDROID
+        const QJniObject activity = QNativeInterface::QAndroidApplication::context();
+        const QString action = params.value(QStringLiteral("action")).toString();
+
+        if (activity.isValid() && action == QLatin1String("orientation")) {
+            activity.callMethod<void>("setOrientation", "(Ljava/lang/String;)V",
+                                      QJniObject::fromString(params.value(QStringLiteral("orientation")).toString())
+                                          .object<jstring>());
+        } else if (activity.isValid() && action == QLatin1String("keepAwake")) {
+            activity.callMethod<void>("setKeepAwake", "(Z)V", params.value(QStringLiteral("enabled")).toBool());
+        }
+#endif
         return;
     }
 

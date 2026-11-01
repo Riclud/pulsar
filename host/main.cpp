@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QClipboard>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
@@ -833,6 +834,11 @@ static void handleQuery(Bridge *bridge, const QVariantMap &m)
         QJsonObject value;
         value.insert(QStringLiteral("scheme"), bridge->colorScheme());
         params.insert(QStringLiteral("value"), value);
+    } else if (kind == QLatin1String("clipboard.read")) {
+        params.insert(QStringLiteral("value"), QGuiApplication::clipboard()->text());
+    } else if (kind == QLatin1String("clipboard.write")) {
+        QGuiApplication::clipboard()->setText(m.value(QStringLiteral("text")).toString());
+        params.insert(QStringLiteral("value"), true);
     } else if (kind == QLatin1String("secure.available")) {
         params.insert(QStringLiteral("value"), pulsar::secureAvailable());
     } else if (kind == QLatin1String("secure.get")) {
@@ -1320,6 +1326,18 @@ int main(int argc, char **argv)
                                  if (root->metaObject()->indexOfProperty("themeData") >= 0)
                                      root->setProperty("themeData", gTheme);
                              }
+                         } else if (method == QLatin1String("__share")) {
+                             const QVariantMap m = params.toVariant().toMap();
+                             const QString kind = m.value(QStringLiteral("kind")).toString();
+                             const QString text = kind == QLatin1String("file")
+                                 ? m.value(QStringLiteral("path")).toString()
+                                 : kind == QLatin1String("url")
+                                     ? m.value(QStringLiteral("url")).toString()
+                                     : m.value(QStringLiteral("text")).toString();
+
+                             QGuiApplication::clipboard()->setText(text);
+                         } else if (method == QLatin1String("__device")) {
+                             // Orientation and keep-awake are Android-only.
                          } else if (method == QLatin1String("__notify")) {
                              const QVariantMap m = params.toVariant().toMap();
                              bridge->showNotification(m.value(QStringLiteral("title")).toString(),

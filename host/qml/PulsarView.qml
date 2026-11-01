@@ -1418,6 +1418,14 @@ ApplicationWindow {
         if (tooltip.length > 0)
             applyTooltip(item, tooltip);
 
+        const a11yLabel = prop(props, "a11yLabel", "");
+        const a11yHint = prop(props, "a11yHint", "");
+
+        if (a11yLabel.length > 0)
+            item.Accessible.name = a11yLabel;
+        if (a11yHint.length > 0)
+            item.Accessible.description = a11yHint;
+
         if (props.width !== undefined) {
             item.width = props.width;
             item.Layout.preferredWidth = props.width;

@@ -255,3 +255,47 @@ export const system = {
   locale: (): Promise<SystemLocale> => callCapability("system.locale") as Promise<SystemLocale>,
   power: (): Promise<PowerState> => callCapability("system.power") as Promise<PowerState>,
 }
+
+/** System clipboard. */
+export const clipboard = {
+  read: (): Promise<string> => callCapability("clipboard.read") as Promise<string>,
+  write: (text: string): Promise<boolean> => callCapability("clipboard.write", { text }) as Promise<boolean>,
+}
+
+export type ShareKind = "text" | "url" | "file"
+
+export interface ShareOptions {
+  /** Dialog title / chooser label. */
+  title?: string
+  /** MIME type for shared files; guessed from the extension when omitted. */
+  mime?: string
+}
+
+/** Hand content to the OS share sheet (Android) or clipboard (desktop). */
+export const share = {
+  text: (text: string, options: ShareOptions = {}): Promise<boolean> =>
+    callCapability("share", { kind: "text", text, ...options }) as Promise<boolean>,
+  url: (url: string, options: ShareOptions = {}): Promise<boolean> =>
+    callCapability("share", { kind: "url", url, ...options }) as Promise<boolean>,
+  file: (path: string, options: ShareOptions = {}): Promise<boolean> =>
+    callCapability("share", { kind: "file", path, ...options }) as Promise<boolean>,
+}
+
+export type Orientation =
+  | "auto"
+  | "portrait"
+  | "landscape"
+  | "portrait-up"
+  | "portrait-down"
+  | "landscape-left"
+  | "landscape-right"
+
+/** Device controls that only have an effect on Android. */
+export const device = {
+  /** Lock or unlock the screen orientation. */
+  setOrientation: (orientation: Orientation): Promise<boolean> =>
+    callCapability("device.orientation", { orientation }) as Promise<boolean>,
+  /** Keep the screen on while the app is foregrounded. */
+  setKeepAwake: (enabled: boolean): Promise<boolean> =>
+    callCapability("device.keepAwake", { enabled }) as Promise<boolean>,
+}

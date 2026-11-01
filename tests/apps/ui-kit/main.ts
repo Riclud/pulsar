@@ -10,6 +10,9 @@ import {
   Row,
   Segmented,
   Snackbar,
+  clipboard,
+  device,
+  share,
   Tabs,
   theme,
   VirtualList,
@@ -18,6 +21,12 @@ import {
 } from "../../../core/sdk/index.ts"
 
 const app = new App()
+
+void clipboard.write("pulsar")
+void clipboard.read()
+void device.setKeepAwake(false)
+void device.setOrientation("auto")
+void share.text("hello from ui-kit")
 
 void theme.set({
   palette: { primary: "#ff6600", radius: 14 },
@@ -33,7 +42,12 @@ app.store.set("text", "")
 app.window("main").render(() =>
   Column(
     { fill: true, padding: 8, gap: 8 },
-    Header({ title: "UI Kit", subtitle: "extended primitives", animate: 150 }),
+    Header({
+      title: "UI Kit",
+      subtitle: "extended primitives",
+      animate: 150,
+      a11yLabel: "UI kit header",
+    }),
     Tabs(
       {
         items: ["One", "Two"],
