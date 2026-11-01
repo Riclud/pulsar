@@ -53,6 +53,8 @@ export type {
   ScrollOptions,
   ListOptions,
   GridOptions,
+  GradientOptions,
+  FontWeight,
   VirtualListItem,
   VirtualSwipeAction,
   VirtualListOptions,
@@ -85,6 +87,8 @@ export { loadManifest, resolveAppConfig, resolveWindows, setManifest } from "./m
 export type { AppManifest, FileAssociation, ManifestWindow } from "./manifest.ts"
 export { parseLaunchArgs } from "./launch.ts"
 export type { LaunchArgs } from "./launch.ts"
+export { CSS_COLOR_NAMES, defineTheme, isColorName } from "./theme.ts"
+export type { ColorName, ColorValue, Theme, ThemeColor, ThemeColors, ThemeMotion } from "./theme.ts"
 export { Router, createRouter } from "./nav.ts"
 export type { Route, RouterState, RouterScreen, RouterOptions } from "./nav.ts"
 export { Breakpoints, createBreakpoints, responsive } from "./responsive.ts"

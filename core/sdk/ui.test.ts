@@ -154,6 +154,86 @@ describe("ui", () => {
   })
 })
 
+describe("styling", () => {
+  test("text accepts numeric and named typography", () => {
+    const node = text({
+      text: "Title",
+      size: 22,
+      weight: "semibold",
+      italic: true,
+      family: "serif",
+      letterSpacing: 1,
+      lineHeight: 1.4,
+      color: "navy",
+    })
+
+    expect(node.props).toMatchObject({
+      weight: "semibold",
+      italic: true,
+      family: "serif",
+      letterSpacing: 1,
+      lineHeight: 1.4,
+      color: "navy",
+    })
+  })
+
+  test("button carries variant, colors and icon", () => {
+    const node = button("Save", {
+      variant: "outline",
+      size: "lg",
+      color: "teal",
+      textColor: "white",
+      radius: 18,
+      icon: "check",
+      iconPosition: "right",
+      elevation: 2,
+    })
+
+    expect(node.props).toMatchObject({
+      label: "Save",
+      variant: "outline",
+      size: "lg",
+      color: "teal",
+      textColor: "white",
+      radius: 18,
+      icon: "check",
+      iconPosition: "right",
+      elevation: 2,
+    })
+  })
+
+  test("panels carry borders, gradients and elevation", () => {
+    const node = card({
+      color: "black",
+      borderColor: "gold",
+      borderWidth: 2,
+      elevation: 4,
+      gradient: { from: "blue", to: "purple", direction: "horizontal" },
+    })
+
+    expect(node.props).toMatchObject({
+      color: "black",
+      borderColor: "gold",
+      borderWidth: 2,
+      elevation: 4,
+      gradient: { from: "blue", to: "purple", direction: "horizontal" },
+    })
+  })
+
+  test("input and chip style props survive serialization", () => {
+    const field = textInput({ variant: "outline", color: "white", borderColor: "orange", radius: 6 })
+    const tag = chip("News", { variant: "outline", selected: true, selectedColor: "gold", textColor: "black" })
+
+    expect(field.type).toBe("textInput")
+    expect(field.props).toMatchObject({ variant: "outline", color: "white", borderColor: "orange", radius: 6 })
+    expect(tag.props).toMatchObject({ variant: "outline", selected: true, selectedColor: "gold", textColor: "black" })
+
+    const out = serialize([tag]) as Array<{ props: Record<string, unknown> }>
+    expect(out[0]!.props.color).toBeUndefined()
+    expect(out[0]!.props.selected).toBe(true)
+  })
+})
+
 describe("gestures and layers", () => {
   test("pager, tabs and segmented normalize items and forward changes", () => {
     const seen: string[] = []

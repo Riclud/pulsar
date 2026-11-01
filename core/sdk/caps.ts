@@ -268,6 +268,8 @@ export interface ThemePalette {
 
 export interface ThemeOptions {
   palette?: ThemePalette
+  /** Custom named colors referenced from node props, e.g. { brand: "#ff5722" }. */
+  colors?: Record<string, string>
   /** Multiplier for every font size (default 1). */
   fontScale?: number
   /** Multiplier for spacing and radii (default 1). */

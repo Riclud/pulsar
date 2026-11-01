@@ -33,6 +33,7 @@ void permissions.request("camera").then((granted) => app.store.set("permissionRe
 
 void theme.set({
   palette: { primary: "#ff6600", radius: 14 },
+  colors: { brand: "deepskyblue", ink: "#101014" },
   fontScale: 1.1,
   density: 1.1,
 })
@@ -67,9 +68,9 @@ app.window("main").render(() =>
     }),
     Grid(
       { columns: 2, gap: 8, height: 96, fillHeight: false },
-      ui.box({ color: "#e0e0e0", padding: 8 }, ui.text("cell 1")),
-      ui.box({ color: "#e8e8e8", padding: 8 }, ui.text("cell 2")),
-      ui.box({ color: "#f0f0f0", padding: 8 }, ui.text("cell 3")),
+      ui.box({ color: "tomato", padding: 8 }, ui.text({ text: "cell 1", color: "white" })),
+      ui.box({ color: "gold", padding: 8 }, ui.text({ text: "cell 2", color: "black" })),
+      ui.box({ color: "brand", padding: 8 }, ui.text({ text: "cell 3", color: "ink" })),
     ),
     VirtualList({
       items: [

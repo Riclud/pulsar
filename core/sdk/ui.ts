@@ -1,3 +1,5 @@
+import type { ColorValue } from "./theme.ts"
+
 export type UiNodeType =
   | "column"
   | "row"
@@ -99,7 +101,7 @@ export interface VirtualSwipeAction {
   id: string
   label?: string
   icon?: string
-  color?: string
+  color?: ColorValue
 }
 
 export interface VirtualListOptions extends CommonOptions {
@@ -120,33 +122,56 @@ export interface VirtualListOptions extends CommonOptions {
   onReorder?: (from: number, to: number) => void
 }
 
+export interface GradientOptions {
+  from: ColorValue
+  to: ColorValue
+  direction?: "vertical" | "horizontal"
+}
+
 export interface CardOptions extends CommonOptions {
-  color?: string
+  color?: ColorValue
   radius?: number
   padding?: number
+  borderColor?: ColorValue
+  borderWidth?: number
+  gradient?: GradientOptions
+  elevation?: number
   onLongPress?: () => void
 }
 
 export interface AppBarOptions extends CommonOptions {
   title?: string
   subtitle?: string
+  color?: ColorValue
+  textColor?: ColorValue
   onBack?: () => void
   actions?: UiNode[]
 }
 
 export interface BoxOptions extends CommonOptions {
-  color?: string
+  color?: ColorValue
   radius?: number
   padding?: number
+  borderColor?: ColorValue
+  borderWidth?: number
+  gradient?: GradientOptions
+  elevation?: number
   expand?: boolean
   onLongPress?: () => void
 }
 
+export type FontWeight = number | "light" | "normal" | "medium" | "semibold" | "bold"
+
 export interface TextOptions extends CommonOptions {
   text?: string
-  color?: string
+  color?: ColorValue
   size?: number
   bold?: boolean
+  weight?: FontWeight
+  italic?: boolean
+  family?: string
+  letterSpacing?: number
+  lineHeight?: number
   wrap?: boolean
   expand?: boolean
   selectable?: boolean
@@ -165,6 +190,14 @@ export interface ImageOptions extends CommonOptions {
 }
 
 export interface ButtonOptions extends CommonOptions {
+  variant?: "solid" | "soft" | "outline" | "ghost" | "elevated"
+  size?: "sm" | "md" | "lg"
+  color?: ColorValue
+  textColor?: ColorValue
+  radius?: number
+  icon?: string
+  iconPosition?: "left" | "right"
+  elevation?: number
   expand?: boolean
   enabled?: boolean
   onClick?: () => void
@@ -173,12 +206,12 @@ export interface ButtonOptions extends CommonOptions {
 
 export interface IconOptions extends CommonOptions {
   size?: number
-  color?: string
+  color?: ColorValue
 }
 
 export interface IconButtonOptions extends CommonOptions {
   enabled?: boolean
-  color?: string
+  color?: ColorValue
   size?: number
   onClick?: () => void
 }
@@ -195,6 +228,11 @@ export type KeyboardType =
 export interface TextInputOptions extends CommonOptions {
   value?: string
   placeholder?: string
+  variant?: "filled" | "outline"
+  color?: ColorValue
+  textColor?: ColorValue
+  borderColor?: ColorValue
+  radius?: number
   expand?: boolean
   /** Render a multi-line TextArea instead of a single-line field. */
   multiline?: boolean
@@ -223,6 +261,7 @@ export interface SliderOptions extends CommonOptions {
   value?: number
   min?: number
   max?: number
+  color?: ColorValue
   expand?: boolean
   onChange?: (value: number) => void
 }
@@ -235,11 +274,16 @@ export interface SelectOption {
 export interface SelectOptions extends CommonOptions {
   value?: string | number
   options: Array<string | SelectOption>
+  color?: ColorValue
   onChange?: (value: string | number) => void
 }
 
 export interface ChipOptions extends CommonOptions {
-  color?: string
+  variant?: "solid" | "soft" | "outline"
+  color?: ColorValue
+  textColor?: ColorValue
+  selected?: boolean
+  selectedColor?: ColorValue
   onClick?: () => void
   onRemove?: () => void
   onLongPress?: () => void
@@ -304,6 +348,7 @@ export interface ZoomableOptions extends CommonOptions {
 
 export interface ProgressOptions extends CommonOptions {
   value?: number
+  color?: ColorValue
 }
 
 export interface ForOptions<T> extends Omit<ListOptions<T>, "items" | "render"> {
@@ -532,7 +577,7 @@ export const spacer = (
   return makeNode("spacer", options)
 }
 
-export const divider = (options: { color?: string } = {}): UiNode => {
+export const divider = (options: { color?: ColorValue } = {}): UiNode => {
   return makeNode("divider", options)
 }
 

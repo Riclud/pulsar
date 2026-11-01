@@ -13,6 +13,7 @@ ApplicationWindow {
     property var themeData: ({})
 
     readonly property var themePalette: themeData && themeData.palette ? themeData.palette : ({})
+    readonly property var themeColors: themeData && themeData.colors ? themeData.colors : ({})
     readonly property real fontScale: themeData && themeData.fontScale !== undefined ? themeData.fontScale : 1
     readonly property real density: themeData && themeData.density !== undefined ? themeData.density : 1
     readonly property bool darkMode: PulsarBridge.colorScheme === "dark"
@@ -28,6 +29,93 @@ ApplicationWindow {
 
     function fs(px) {
         return Math.round(px * fontScale);
+    }
+
+    function resolveColor(value, fallback) {
+        if (value === undefined || value === null)
+            return fallback;
+
+        const colors = view.themeColors;
+
+        if (colors && colors[value] !== undefined)
+            return colors[value];
+
+        return value;
+    }
+
+    function fontWeight(value) {
+        if (typeof value === "number")
+            return value;
+
+        if (value === "light")
+            return 300;
+        if (value === "medium")
+            return 500;
+        if (value === "semibold")
+            return 600;
+        if (value === "bold")
+            return 700;
+
+        return 400;
+    }
+
+    function applyGradient(item, gradient) {
+        const extra = item.pulsarMeta.extra;
+
+        if (!gradient) {
+            if (item.gradient !== null)
+                item.gradient = null;
+
+            return;
+        }
+
+        let stops = extra.gradientStops;
+
+        if (!stops) {
+            const shape = make("import QtQuick; Gradient {}", item);
+
+            stops = [
+                make("import QtQuick; GradientStop { position: 0 }", shape),
+                make("import QtQuick; GradientStop { position: 1 }", shape)
+            ];
+
+            extra.gradientShape = shape;
+            extra.gradientStops = stops;
+        }
+
+        extra.gradientShape.orientation = gradient.direction === "horizontal"
+                ? Gradient.Horizontal : Gradient.Vertical;
+        stops[0].color = resolveColor(gradient.from, "transparent");
+        stops[1].color = resolveColor(gradient.to, "transparent");
+
+        if (item.gradient !== extra.gradientShape)
+            item.gradient = extra.gradientShape;
+    }
+
+    function applyElevation(item, level) {
+        const extra = item.pulsarMeta.extra;
+
+        if (!level || level <= 0) {
+            if (extra.shadowEffect)
+                item.layer.enabled = false;
+
+            return;
+        }
+
+        let effect = extra.shadowEffect;
+
+        if (!effect) {
+            effect = make("import QtQuick.Effects; MultiEffect { shadowEnabled: true; autoPaddingEnabled: true; shadowColor: '#000000' }", item);
+
+            extra.shadowEffect = effect;
+            item.layer.enabled = true;
+            item.layer.effect = effect;
+        }
+
+        item.layer.enabled = true;
+        effect.shadowBlur = Math.min(1, 0.2 + level * 0.15);
+        effect.shadowOpacity = Math.min(0.5, 0.12 + level * 0.04);
+        effect.shadowVerticalOffset = level * 2;
     }
 
     FontLoader {
@@ -201,6 +289,71 @@ ApplicationWindow {
                     font.pixelSize: view.fs(16)
 
                     onClicked: view.emitNodeEvent(chipRoot.nodeData, "remove")
+                }
+            }
+        }
+    }
+
+    Component {
+        id: buttonComponent
+
+        Button {
+            id: buttonRoot
+
+            property var pulsarMeta: null
+            property var nodeData: null
+            property string variant: "solid"
+            property color fillColor: view.themePrimary
+            property color labelColor: "#ffffff"
+            property int radius: view.themeRadius
+            property string iconName: ""
+            property string iconPosition: "left"
+
+            flat: true
+            leftPadding: 16
+            rightPadding: 16
+            topPadding: 8
+            bottomPadding: 8
+            implicitHeight: 40
+
+            background: Rectangle {
+                radius: buttonRoot.radius
+                color: buttonRoot.variant === "outline" || buttonRoot.variant === "ghost"
+                        ? "transparent"
+                        : buttonRoot.variant === "soft"
+                            ? Qt.rgba(buttonRoot.fillColor.r, buttonRoot.fillColor.g, buttonRoot.fillColor.b, 0.16)
+                            : buttonRoot.fillColor
+                border.width: buttonRoot.variant === "outline" ? 1 : 0
+                border.color: buttonRoot.fillColor
+            }
+
+            contentItem: RowLayout {
+                spacing: 6
+
+                Label {
+                    visible: text.length > 0 && buttonRoot.iconPosition === "left"
+                    text: buttonRoot.iconName
+                    font.family: iconFont.name
+                    font.pixelSize: view.fs(18)
+                    color: buttonRoot.labelColor
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: buttonRoot.text
+                    color: buttonRoot.labelColor
+                    font.pixelSize: buttonRoot.font.pixelSize
+                    font.bold: buttonRoot.font.bold
+                    horizontalAlignment: Text.AlignHCenter
+                    elide: Text.ElideRight
+                }
+
+                Label {
+                    visible: text.length > 0 && buttonRoot.iconPosition === "right"
+                    text: buttonRoot.iconName
+                    font.family: iconFont.name
+                    font.pixelSize: view.fs(18)
+                    color: buttonRoot.labelColor
                 }
             }
         }
@@ -766,7 +919,7 @@ ApplicationWindow {
                             Rectangle {
                                 width: 72
                                 height: row.height
-                                color: modelData.color !== undefined ? modelData.color : "#b3261e"
+                                color: view.resolveColor(modelData.color, "#b3261e")
 
                                 Column {
                                     anchors.centerIn: parent
@@ -1221,7 +1374,7 @@ ApplicationWindow {
         } else if (node.type === "selectableText") {
             item = make("import QtQuick; TextEdit { readOnly: true; selectByMouse: true; property var pulsarMeta: null }", parent);
         } else if (node.type === "button") {
-            item = make("import QtQuick.Controls; Button " + base, parent);
+            item = buttonComponent.createObject(parent);
         } else if (node.type === "icon") {
             item = make("import QtQuick; Text " + base, parent);
         } else if (node.type === "iconButton") {
@@ -1486,8 +1639,12 @@ ApplicationWindow {
             item.spacing = prop(props, "gap", 0);
             reconcile(item, node.children || [], false);
         } else if (node.type === "box") {
-            item.color = prop(props, "color", "transparent");
+            item.color = resolveColor(prop(props, "color", "transparent"), "transparent");
             item.radius = prop(props, "radius", 0);
+            item.border.width = prop(props, "borderWidth", 0);
+            item.border.color = resolveColor(prop(props, "borderColor", view.themeBorder), view.themeBorder);
+            applyGradient(item, prop(props, "gradient", null));
+            applyElevation(item, prop(props, "elevation", 0));
 
             let inner = item.pulsarMeta.content;
             const padding = prop(props, "padding", 0);
@@ -1587,9 +1744,12 @@ ApplicationWindow {
             list.sectionForIndex = sections;
             list.updateSticky();
         } else if (node.type === "card") {
-            item.color = prop(props, "color", view.themeSurface);
+            item.color = resolveColor(prop(props, "color", view.themeSurface), view.themeSurface);
             item.radius = prop(props, "radius", view.themeRadius);
-            item.border.color = view.themeBorder;
+            item.border.width = prop(props, "borderWidth", 1);
+            item.border.color = resolveColor(prop(props, "borderColor", view.themeBorder), view.themeBorder);
+            applyGradient(item, prop(props, "gradient", null));
+            applyElevation(item, prop(props, "elevation", 0));
 
             let inner = item.pulsarMeta.content;
             const padding = prop(props, "padding", 16);
@@ -1610,10 +1770,15 @@ ApplicationWindow {
             inner.spacing = view.themeSpacing;
             reconcile(inner, node.children || [], false);
         } else if (node.type === "appBar") {
+            const barText = prop(props, "textColor", undefined);
+
             item.nodeData = node;
+            item.color = resolveColor(prop(props, "color", view.themeSurface), view.themeSurface);
             item.titleLabel.text = prop(props, "title", "");
             item.subtitleLabel.text = prop(props, "subtitle", "");
             item.subtitleLabel.visible = item.subtitleLabel.text.length > 0;
+            item.titleLabel.color = barText !== undefined ? resolveColor(barText, view.themeText) : view.themeText;
+            item.subtitleLabel.color = barText !== undefined ? resolveColor(barText, view.themeTextSecondary) : view.themeTextSecondary;
             item.backButton.visible = hasEvent(node, "back");
             item.implicitHeight = prop(props, "height", 56);
 
@@ -1622,9 +1787,22 @@ ApplicationWindow {
 
             reconcile(item.actionsRow, node.children || [], false);
         } else if (node.type === "chip") {
+            const chipVariant = prop(props, "variant", "solid");
+            const chipColor = resolveColor(prop(props, "color", view.themeSurfaceVariant), view.themeSurfaceVariant);
+            const chipSelected = prop(props, "selected", false);
+            const chipFill = chipSelected
+                    ? resolveColor(prop(props, "selectedColor", chipColor), chipColor)
+                    : chipColor;
+            const chipText = prop(props, "textColor", undefined);
+
             item.nodeData = node;
             item.labelItem.text = prop(props, "label", "");
-            item.color = prop(props, "color", view.themeSurfaceVariant);
+            item.color = chipVariant === "outline" ? "transparent" : chipFill;
+            item.border.width = chipVariant === "outline" ? 1 : 0;
+            item.border.color = chipFill;
+            item.labelItem.color = chipText !== undefined
+                    ? resolveColor(chipText, view.themeText)
+                    : (chipVariant === "outline" ? chipFill : view.themeText);
             item.removeButton.visible = hasEvent(node, "remove");
             item.implicitWidth = Qt.binding(function () {
                 return item.contentRow.implicitWidth;
@@ -1742,15 +1920,26 @@ ApplicationWindow {
         } else if (node.type === "text" || node.type === "selectableText") {
             const wrap = prop(props, "wrap", false);
             const align = prop(props, "align", "left");
+            const weight = prop(props, "weight", undefined);
 
             item.text = prop(props, "text", "");
-            item.color = prop(props, "color", view.themeText);
+            item.color = resolveColor(prop(props, "color", view.themeText), view.themeText);
             item.font.pixelSize = view.fs(prop(props, "size", 15));
             item.font.bold = prop(props, "bold", false);
+            item.font.italic = prop(props, "italic", false);
             item.textFormat = prop(props, "markdown", false) ? Text.MarkdownText : Text.PlainText;
             item.horizontalAlignment = align === "center" ? Text.AlignHCenter
                     : align === "right" ? Text.AlignRight : Text.AlignLeft;
             item.wrapMode = wrap ? Text.WordWrap : Text.NoWrap;
+
+            if (weight !== undefined)
+                item.font.weight = fontWeight(weight);
+            if (props.letterSpacing !== undefined)
+                item.font.letterSpacing = props.letterSpacing;
+            if (props.lineHeight !== undefined && node.type === "text")
+                item.lineHeight = props.lineHeight;
+            if (props.family !== undefined)
+                item.font.family = props.family;
 
             if (node.type === "text") {
                 const elide = prop(props, "elide", false);
@@ -1773,13 +1962,37 @@ ApplicationWindow {
 
             item.Layout.preferredWidth = -1;
         } else if (node.type === "button") {
+            const variant = prop(props, "variant", "solid");
+            const size = prop(props, "size", "md");
+            const fill = resolveColor(prop(props, "color", view.themePrimary), view.themePrimary);
+            const explicitText = prop(props, "textColor", undefined);
+
             item.text = prop(props, "label", "");
             item.enabled = prop(props, "enabled", true);
+            item.variant = variant;
+            item.fillColor = fill;
+            item.radius = prop(props, "radius", variant === "solid" || variant === "elevated" ? 10 : view.themeRadius);
+            item.iconName = prop(props, "icon", "");
+            item.iconPosition = prop(props, "iconPosition", "left");
+            item.font.pixelSize = view.fs(size === "sm" ? 13 : size === "lg" ? 17 : 15);
+            item.font.bold = size !== "sm";
+            item.leftPadding = size === "sm" ? 12 : size === "lg" ? 20 : 16;
+            item.rightPadding = item.leftPadding;
+            item.topPadding = size === "sm" ? 4 : size === "lg" ? 12 : 8;
+            item.bottomPadding = item.topPadding;
+            item.implicitHeight = size === "sm" ? 32 : size === "lg" ? 48 : 40;
+            item.labelColor = explicitText !== undefined
+                    ? resolveColor(explicitText, item.labelColor)
+                    : (variant === "soft" || variant === "outline" || variant === "ghost")
+                        ? fill
+                        : (view.darkMode ? "#121214" : "#ffffff");
+
+            applyElevation(item, variant === "elevated" ? prop(props, "elevation", 2) : prop(props, "elevation", 0));
         } else if (node.type === "icon") {
             item.text = prop(props, "name", "");
             item.font.family = iconFont.name;
             item.font.pixelSize = view.fs(prop(props, "size", 24));
-            item.color = prop(props, "color", view.themeText);
+            item.color = resolveColor(prop(props, "color", view.themeText), view.themeText);
         } else if (node.type === "iconButton") {
             item.text = prop(props, "name", "");
             item.enabled = prop(props, "enabled", true);
@@ -1792,6 +2005,32 @@ ApplicationWindow {
 
             item.placeholderText = prop(props, "placeholder", "");
             item.readOnly = prop(props, "readOnly", false);
+
+            const inputVariant = prop(props, "variant", undefined);
+            const customInput = inputVariant !== undefined || props.color !== undefined
+                    || props.textColor !== undefined || props.borderColor !== undefined
+                    || props.radius !== undefined;
+
+            if (customInput) {
+                let background = item.pulsarMeta.extra.background;
+
+                if (!background) {
+                    background = make("import QtQuick; Rectangle {}", item);
+                    item.pulsarMeta.extra.background = background;
+                    item.background = background;
+                }
+
+                const outlined = inputVariant === "outline";
+
+                background.color = outlined ? "transparent"
+                        : resolveColor(prop(props, "color", view.themeSurfaceVariant), view.themeSurfaceVariant);
+                background.radius = prop(props, "radius", 8);
+                background.border.width = outlined ? 1 : 0;
+                background.border.color = resolveColor(prop(props, "borderColor", view.themeBorder), view.themeBorder);
+            }
+
+            if (props.textColor !== undefined)
+                item.color = resolveColor(props.textColor, view.themeText);
 
             if (props.maxLength !== undefined)
                 item.maximumLength = props.maxLength;
@@ -1833,11 +2072,18 @@ ApplicationWindow {
             item.checked = prop(props, "checked", false);
             item.pulsarMeta.syncing = false;
         } else if (node.type === "slider") {
+            const sliderColor = prop(props, "color", undefined);
+
             item.pulsarMeta.syncing = true;
             item.value = prop(props, "value", 0);
             item.from = prop(props, "min", 0);
             item.to = prop(props, "max", 100);
             item.pulsarMeta.syncing = false;
+
+            if (sliderColor !== undefined) {
+                item.palette.highlight = resolveColor(sliderColor, view.themePrimary);
+                item.palette.accent = resolveColor(sliderColor, view.themePrimary);
+            }
         } else if (node.type === "select") {
             const options = prop(props, "options", []);
             const labels = [];
@@ -1863,10 +2109,20 @@ ApplicationWindow {
 
             item.currentIndex = current;
             item.Layout.preferredWidth = prop(props, "expand", false) ? -1 : prop(props, "width", 200);
+
+            if (props.color !== undefined) {
+                item.palette.highlight = resolveColor(props.color, view.themePrimary);
+                item.palette.accent = resolveColor(props.color, view.themePrimary);
+            }
         } else if (node.type === "progress") {
             item.indeterminate = prop(props, "indeterminate", false);
             item.value = Math.max(0, Math.min(1, prop(props, "value", 0)));
             item.Layout.preferredWidth = prop(props, "expand", false) ? -1 : prop(props, "width", 160);
+
+            if (props.color !== undefined) {
+                item.palette.highlight = resolveColor(props.color, view.themePrimary);
+                item.palette.accent = resolveColor(props.color, view.themePrimary);
+            }
         } else if (node.type === "image") {
             item.source = prop(props, "src", "");
 
@@ -1877,7 +2133,7 @@ ApplicationWindow {
             item.Layout.preferredWidth = prop(props, "width", size);
             item.Layout.preferredHeight = prop(props, "height", size);
         } else if (node.type === "divider") {
-            item.color = prop(props, "color", view.themeBorder);
+            item.color = resolveColor(prop(props, "color", view.themeBorder), view.themeBorder);
             item.implicitHeight = 1;
         }
     }
