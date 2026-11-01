@@ -4,6 +4,8 @@ export type UiNodeType =
   | "box"
   | "scroll"
   | "list"
+  | "grid"
+  | "virtualList"
   | "card"
   | "appBar"
   | "text"
@@ -70,6 +72,46 @@ export interface ListOptions<T> extends CommonOptions {
   keyOf?: (item: T, index: number) => string | number
   spacing?: number
   padding?: number
+}
+
+export interface GridOptions extends CommonOptions {
+  columns?: number
+  gap?: number
+  padding?: number
+}
+
+export interface VirtualListItem {
+  key?: string | number
+  title: string
+  subtitle?: string
+  icon?: string
+  trailing?: string
+  section?: string
+}
+
+export interface VirtualSwipeAction {
+  id: string
+  label?: string
+  icon?: string
+  color?: string
+}
+
+export interface VirtualListOptions extends CommonOptions {
+  items: VirtualListItem[]
+  spacing?: number
+  padding?: number
+  selectable?: boolean
+  selected?: Array<string | number>
+  reorderable?: boolean
+  refreshable?: boolean
+  stickySections?: boolean
+  swipeActions?: VirtualSwipeAction[]
+  onEndReached?: () => void
+  onRefresh?: () => void
+  onSelect?: (key: string | number, selected: boolean) => void
+  onPress?: (key: string | number) => void
+  onAction?: (key: string | number, action: string) => void
+  onReorder?: (from: number, to: number) => void
 }
 
 export interface CardOptions extends CommonOptions {
@@ -393,6 +435,68 @@ export const list = <T>(options: ListOptions<T>): UiNode => {
   return makeNode("list", { ...props, itemKeys }, children)
 }
 
+export const grid = (options: GridOptions = {}, ...children: UiChild[]): UiNode => {
+  return makeNode("grid", options, children)
+}
+
+export const virtualList = (options: VirtualListOptions): UiNode => {
+  const {
+    onEndReached,
+    onRefresh,
+    onSelect,
+    onPress,
+    onAction,
+    onReorder,
+    ...props
+  } = options
+  const events: string[] = []
+  const callbacks: Record<string, UiHandler> = {}
+
+  if (onEndReached) {
+    events.push("endReached")
+    callbacks.endReached = () => onEndReached()
+  }
+
+  if (onRefresh) {
+    events.push("refresh")
+    callbacks.refresh = () => onRefresh()
+  }
+
+  if (onSelect) {
+    events.push("select")
+    callbacks.select = (value) => {
+      const data = value as { key: string | number; selected: boolean }
+
+      onSelect(data.key, data.selected)
+    }
+  }
+
+  if (onPress) {
+    events.push("press")
+    callbacks.press = (value) => onPress(value as string | number)
+  }
+
+  if (onAction) {
+    events.push("action")
+    callbacks.action = (value) => {
+      const data = value as { key: string | number; action: string }
+
+      onAction(data.key, data.action)
+    }
+  }
+
+  if (onReorder) {
+    events.push("reorder")
+    callbacks.reorder = (value) => {
+      const data = value as { from: number; to: number }
+
+      onReorder(data.from, data.to)
+    }
+  }
+
+  return makeNode("virtualList", props, [], events, callbacks)
+}
+
 export const appBar = (options: AppBarOptions = {}, ...children: UiChild[]): UiNode => {
   const { onBack, actions, ...props } = options
   const items = actions ?? flatten(children)
@@ -661,6 +765,10 @@ export const Box = (options: BoxOptions = {}, ...children: UiChild[]): UiNode =>
 
 export const Scroll = (options: ScrollOptions = {}, ...children: UiChild[]): UiNode => scroll(options, ...children)
 
+export const Grid = (options: GridOptions = {}, ...children: UiChild[]): UiNode => grid(options, ...children)
+
+export const VirtualList = (options: VirtualListOptions): UiNode => virtualList(options)
+
 export const Card = (options: CardOptions = {}, ...children: UiChild[]): UiNode => card(options, ...children)
 
 export const Header = (options: AppBarOptions = {}, ...children: UiChild[]): UiNode => {
@@ -783,6 +891,8 @@ export const ui = {
   box,
   scroll,
   list,
+  grid,
+  virtualList,
   card,
   appBar,
   text,

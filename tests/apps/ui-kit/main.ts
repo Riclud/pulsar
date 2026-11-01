@@ -2,6 +2,7 @@ import {
   App,
   Box,
   Column,
+  Grid,
   Header,
   Input,
   Pager,
@@ -10,6 +11,7 @@ import {
   Segmented,
   Snackbar,
   Tabs,
+  VirtualList,
   ui,
   Zoomable,
 } from "../../../core/sdk/index.ts"
@@ -38,6 +40,32 @@ app.window("main").render(() =>
       items: ["A", "B"],
       value: 0,
       onChange: (index) => app.store.set("segment", index),
+    }),
+    Grid(
+      { columns: 2, gap: 8, height: 96, fillHeight: false },
+      ui.box({ color: "#e0e0e0", padding: 8 }, ui.text("cell 1")),
+      ui.box({ color: "#e8e8e8", padding: 8 }, ui.text("cell 2")),
+      ui.box({ color: "#f0f0f0", padding: 8 }, ui.text("cell 3")),
+    ),
+    VirtualList({
+      items: [
+        { key: "a", title: "Alpha", subtitle: "first", section: "A" },
+        { key: "b", title: "Beta", trailing: "2", section: "A" },
+        { key: "c", title: "Gamma", section: "B" },
+      ],
+      height: 168,
+      fillHeight: false,
+      selectable: true,
+      stickySections: true,
+      swipeActions: [{ id: "delete", icon: "delete", label: "Delete" }],
+      onSelect: () => {},
+      onPress: () => {},
+      onAction: () => {},
+      onEndReached: () => {},
+      onRefresh: () => {},
+      onReorder: () => {},
+      reorderable: true,
+      refreshable: true,
     }),
     Pager(
       {

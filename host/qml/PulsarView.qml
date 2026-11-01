@@ -612,6 +612,383 @@ ApplicationWindow {
         }
     }
 
+    Component {
+        id: gridComponent
+
+        Flickable {
+            id: gridFlick
+
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            property var pulsarMeta: null
+            property alias gridLayout: gridLayout
+
+            contentWidth: width
+            contentHeight: gridLayout.implicitHeight + 2 * gridLayout.padding
+
+            GridLayout {
+                id: gridLayout
+
+                property var pulsarMeta: null
+                property int padding: 0
+
+                x: padding
+                y: padding
+                width: gridFlick.width - 2 * padding
+                columns: 2
+                columnSpacing: 8
+                rowSpacing: 8
+            }
+        }
+    }
+
+    Component {
+        id: virtualListComponent
+
+        Item {
+            id: vlistRoot
+
+            property var pulsarMeta: null
+            property var nodeData: null
+            property alias listView: vlist
+            property alias stickyHeader: stickyHeader
+            property alias stickyLabel: stickyLabel
+
+            ListView {
+                id: vlist
+
+                anchors.fill: parent
+                clip: true
+                boundsBehavior: Flickable.DragOverBounds
+                property var nodeData: vlistRoot.nodeData
+                property var items: []
+                property var selectedKeys: []
+                property var swipeActions: []
+                property var sectionForIndex: []
+                property bool selectable: false
+                property bool reorderable: false
+                property bool refreshable: false
+                property bool stickySections: false
+                property real actionWidth: swipeActions.length * 72
+                property int padding: 0
+                property string currentSection: ""
+                property bool endReached: false
+
+                model: items
+                topMargin: padding
+                bottomMargin: padding
+
+                function keyOf(index) {
+                    const item = items[index];
+
+                    if (!item)
+                        return index;
+
+                    return item.key !== undefined ? item.key : index;
+                }
+
+                function isSelected(index) {
+                    return selectedKeys.indexOf(keyOf(index)) >= 0;
+                }
+
+                function updateSticky() {
+                    if (!stickySections)
+                        return;
+
+                    const index = indexAt(1, contentY + 1);
+                    const section = index >= 0 && index < sectionForIndex.length ? sectionForIndex[index] : "";
+
+                    if (section !== currentSection)
+                        currentSection = section;
+                }
+
+                function checkEnd() {
+                    if (endReached || !hasEvent(nodeData, "endReached"))
+                        return;
+                    if (contentHeight <= height + 80)
+                        return;
+                    if (contentY + height < contentHeight - 80)
+                        return;
+
+                    endReached = true;
+                    view.emitNodeEvent(nodeData, "endReached");
+                }
+
+                onContentYChanged: {
+                    updateSticky();
+                    checkEnd();
+                }
+
+                onMovementEnded: {
+                    if (refreshable && contentY < -60) {
+                        contentY = 0;
+
+                        if (hasEvent(nodeData, "refresh"))
+                            view.emitNodeEvent(nodeData, "refresh");
+
+                        return;
+                    }
+
+                    checkEnd();
+                }
+
+                onCountChanged: {
+                    endReached = false;
+                    updateSticky();
+                }
+
+                delegate: Item {
+                    id: row
+
+                    width: vlist.width
+                    height: rowColumn.implicitHeight
+                    property var rowData: modelData
+                    property int rowIndex: index
+
+                    Row {
+                        id: swipeRow
+
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        height: row.height
+                        spacing: 0
+
+                        Repeater {
+                            model: vlist.swipeActions
+
+                            Rectangle {
+                                width: 72
+                                height: row.height
+                                color: modelData.color !== undefined ? modelData.color : "#b3261e"
+
+                                Column {
+                                    anchors.centerIn: parent
+                                    spacing: 2
+
+                                    Label {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        text: modelData.icon !== undefined ? modelData.icon : ""
+                                        visible: text.length > 0
+                                        font.family: iconFont.name
+                                        font.pixelSize: 20
+                                        color: "#ffffff"
+                                    }
+
+                                    Label {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        text: modelData.label !== undefined ? modelData.label : modelData.id
+                                        color: "#ffffff"
+                                        font.pixelSize: 11
+                                    }
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: {
+                                        if (hasEvent(vlist.nodeData, "action"))
+                                            view.emitNodeEvent(vlist.nodeData, "action", {
+                                                key: vlist.keyOf(row.rowIndex),
+                                                action: modelData.id
+                                            });
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        id: rowContent
+
+                        width: parent.width
+                        height: parent.height
+                        color: vlist.isSelected(row.rowIndex) ? (view.darkMode ? "#2d2d38" : "#e8e0ff")
+                                : "transparent"
+
+                        Column {
+                            id: rowColumn
+
+                            width: parent.width
+                            spacing: 0
+
+                            Label {
+                                width: parent.width
+                                visible: vlist.stickySections && row.rowData !== undefined && row.rowData.section !== undefined
+                                        && (row.rowIndex === 0 || vlist.items[row.rowIndex - 1].section !== row.rowData.section)
+                                text: visible && row.rowData !== undefined ? (row.rowData.section || "") : ""
+                                leftPadding: 16
+                                topPadding: 6
+                                bottomPadding: 4
+                                color: view.themeTextSecondary
+                                font.pixelSize: 12
+                                font.bold: true
+                                elide: Text.ElideRight
+                            }
+
+                            RowLayout {
+                                width: parent.width
+                                height: 56
+                                spacing: 8
+
+                                Label {
+                                    Layout.leftMargin: 16
+                                    visible: row.rowData !== undefined && row.rowData.icon !== undefined && row.rowData.icon.length > 0
+                                    text: visible ? row.rowData.icon : ""
+                                    font.family: iconFont.name
+                                    font.pixelSize: 22
+                                    color: view.themeTextSecondary
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 0
+
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: row.rowData !== undefined ? row.rowData.title : ""
+                                        color: view.themeText
+                                        font.pixelSize: 15
+                                        elide: Text.ElideRight
+                                    }
+
+                                    Label {
+                                        Layout.fillWidth: true
+                                        visible: text.length > 0
+                                        text: row.rowData !== undefined && row.rowData.subtitle !== undefined ? row.rowData.subtitle : ""
+                                        color: view.themeTextSecondary
+                                        font.pixelSize: 12
+                                        elide: Text.ElideRight
+                                    }
+                                }
+
+                                Label {
+                                    visible: vlist.selectable && vlist.isSelected(row.rowIndex)
+                                    text: "check"
+                                    font.family: iconFont.name
+                                    font.pixelSize: 20
+                                    color: view.themePrimary
+                                }
+
+                                Label {
+                                    Layout.rightMargin: 16
+                                    visible: row.rowData !== undefined && row.rowData.trailing !== undefined && row.rowData.trailing.length > 0
+                                    text: visible ? row.rowData.trailing : ""
+                                    color: view.themeTextSecondary
+                                    font.pixelSize: 13
+                                }
+
+                                Label {
+                                    Layout.rightMargin: 12
+                                    visible: vlist.reorderable
+                                    text: "drag_handle"
+                                    font.family: iconFont.name
+                                    font.pixelSize: 20
+                                    color: view.themeTextSecondary
+
+                                    DragHandler {
+                                        id: reorderDrag
+
+                                        target: null
+
+                                        onActiveChanged: {
+                                            if (active)
+                                                return;
+
+                                            const step = row.height + vlist.spacing;
+                                            const delta = Math.round(reorderDrag.activeTranslation.y / Math.max(1, step));
+                                            const to = Math.max(0, Math.min(vlist.count - 1, row.rowIndex + delta));
+
+                                            if (to !== row.rowIndex && hasEvent(vlist.nodeData, "reorder"))
+                                                view.emitNodeEvent(vlist.nodeData, "reorder", {
+                                                    from: row.rowIndex,
+                                                    to: to
+                                                });
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                if (vlist.selectable) {
+                                    if (hasEvent(vlist.nodeData, "select"))
+                                        view.emitNodeEvent(vlist.nodeData, "select", {
+                                            key: vlist.keyOf(row.rowIndex),
+                                            selected: !vlist.isSelected(row.rowIndex)
+                                        });
+                                    return;
+                                }
+
+                                if (hasEvent(vlist.nodeData, "press"))
+                                    view.emitNodeEvent(vlist.nodeData, "press", vlist.keyOf(row.rowIndex));
+                            }
+                        }
+
+                        DragHandler {
+                            id: swipeDrag
+
+                            target: null
+
+                            property real startX: 0
+
+                            xAxis {
+                                enabled: vlist.swipeActions.length > 0
+                                minimum: -vlist.actionWidth
+                                maximum: 0
+                            }
+
+                            onActiveChanged: {
+                                if (active) {
+                                    startX = rowContent.x;
+                                    return;
+                                }
+
+                                rowContent.x = rowContent.x < -vlist.actionWidth / 2 ? -vlist.actionWidth : 0;
+                            }
+
+                            onActiveTranslationChanged: {
+                                if (!active)
+                                    return;
+
+                                rowContent.x = Math.max(-vlist.actionWidth, Math.min(0, startX + activeTranslation.x));
+                            }
+                        }
+
+                        Behavior on color {
+                            ColorAnimation {
+                                duration: 120
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                id: stickyHeader
+
+                anchors.top: parent.top
+                width: parent.width
+                height: 28
+                visible: vlist.stickySections && vlist.currentSection.length > 0
+                color: view.themeSurface
+
+                Label {
+                    id: stickyLabel
+
+                    anchors.fill: parent
+                    anchors.leftMargin: 16
+                    verticalAlignment: Text.AlignVCenter
+                    text: vlist.currentSection
+                    color: view.themeTextSecondary
+                    font.pixelSize: 12
+                    font.bold: true
+                    elide: Text.ElideRight
+                }
+            }
+        }
+    }
+
     onTreeChanged: {
         errorText = ""
         rebuild()
@@ -808,6 +1185,10 @@ ApplicationWindow {
             item = make("import QtQuick; Rectangle " + base, parent);
         } else if (node.type === "scroll" || node.type === "list") {
             item = make("import QtQuick; Flickable " + "{ clip: true; boundsBehavior: Flickable.StopAtBounds; property var pulsarMeta: null }", parent);
+        } else if (node.type === "grid") {
+            item = gridComponent.createObject(parent);
+        } else if (node.type === "virtualList") {
+            item = virtualListComponent.createObject(parent);
         } else if (node.type === "card") {
             item = make("import QtQuick; Rectangle { border.width: 1; property var pulsarMeta: null }", parent);
         } else if (node.type === "appBar") {
@@ -983,13 +1364,14 @@ ApplicationWindow {
     function applyCommon(item, node, isRoot) {
         const props = node.props;
         const defaultFillWidth = node.type === "card" || node.type === "list" || node.type === "scroll"
+                || node.type === "grid" || node.type === "virtualList"
                 || node.type === "appBar" || node.type === "divider" || node.type === "textInput"
                 || node.type === "textArea" || node.type === "pager" || node.type === "tabs"
                 || node.type === "segmented";
         const fill = prop(props, "fill", undefined);
         let fillWidth = defaultFillWidth;
-        let fillHeight = node.type === "list" || node.type === "scroll" || node.type === "pager"
-                || node.type === "tabs";
+        let fillHeight = node.type === "list" || node.type === "scroll" || node.type === "grid"
+                || node.type === "virtualList" || node.type === "pager" || node.type === "tabs";
 
         if (props.expand !== undefined)
             fillWidth = props.expand;
@@ -1112,6 +1494,46 @@ ApplicationWindow {
             const inner = wrapper.pulsarMeta.content;
             inner.spacing = node.type === "list" ? prop(props, "spacing", 0) : prop(props, "gap", view.themeSpacing);
             reconcile(inner, node.children || [], false);
+        } else if (node.type === "grid") {
+            const gap = prop(props, "gap", view.themeSpacing);
+            const padding = prop(props, "padding", 0);
+
+            item.gridLayout.columns = prop(props, "columns", 2);
+            item.gridLayout.columnSpacing = gap;
+            item.gridLayout.rowSpacing = gap;
+            item.gridLayout.padding = padding;
+
+            if (!item.gridLayout.pulsarMeta)
+                item.gridLayout.pulsarMeta = contentMeta();
+
+            reconcile(item.gridLayout, node.children || [], false);
+        } else if (node.type === "virtualList") {
+            const list = item.listView;
+            const items = prop(props, "items", []);
+
+            list.nodeData = node;
+            list.items = items;
+            list.selectedKeys = prop(props, "selected", []);
+            list.selectable = prop(props, "selectable", false);
+            list.reorderable = prop(props, "reorderable", false);
+            list.refreshable = prop(props, "refreshable", false);
+            list.stickySections = prop(props, "stickySections", false);
+            list.swipeActions = prop(props, "swipeActions", []);
+            list.spacing = prop(props, "spacing", 0);
+            list.padding = prop(props, "padding", 0);
+
+            const sections = [];
+            let current = "";
+
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].section !== undefined && items[i].section.length > 0)
+                    current = items[i].section;
+
+                sections.push(current);
+            }
+
+            list.sectionForIndex = sections;
+            list.updateSticky();
         } else if (node.type === "card") {
             item.color = prop(props, "color", view.themeSurface);
             item.radius = prop(props, "radius", view.themeRadius);

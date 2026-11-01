@@ -22,6 +22,7 @@ import {
   defineComponent,
   dispatchUiEvent,
   forgetHandlers,
+  grid,
   iconButton,
   image,
   list,
@@ -36,6 +37,7 @@ import {
   text,
   textInput,
   ui,
+  virtualList,
   zoomable,
 } from "./ui.ts"
 
@@ -207,6 +209,46 @@ describe("gestures and layers", () => {
     for (const node of nodes) dispatchUiEvent(node.id, "longPress", undefined)
 
     expect(seen).toEqual(["button", "card", "box", "image", "chip"])
+  })
+})
+
+describe("lists and grids", () => {
+  test("grid keeps its children", () => {
+    const tree = grid({ columns: 3 }, text("a"), text("b"))
+
+    expect(tree.type).toBe("grid")
+    expect(tree.props.columns).toBe(3)
+    expect(tree.children?.length).toBe(2)
+  })
+
+  test("virtual list forwards paging, selection and action events", () => {
+    const seen: string[] = []
+    const node = virtualList({
+      items: [{ key: "a", title: "Alpha" }],
+      selectable: true,
+      onEndReached: () => seen.push("end"),
+      onRefresh: () => seen.push("refresh"),
+      onSelect: (key, selected) => seen.push(`select:${key}:${selected}`),
+      onPress: (key) => seen.push(`press:${key}`),
+      onAction: (key, action) => seen.push(`action:${key}:${action}`),
+      onReorder: (from, to) => seen.push(`reorder:${from}:${to}`),
+    })
+
+    dispatchUiEvent(node.id, "endReached", undefined)
+    dispatchUiEvent(node.id, "refresh", undefined)
+    dispatchUiEvent(node.id, "select", { key: "a", selected: true })
+    dispatchUiEvent(node.id, "press", "a")
+    dispatchUiEvent(node.id, "action", { key: "a", action: "delete" })
+    dispatchUiEvent(node.id, "reorder", { from: 0, to: 2 })
+
+    expect(seen).toEqual([
+      "end",
+      "refresh",
+      "select:a:true",
+      "press:a",
+      "action:a:delete",
+      "reorder:0:2",
+    ])
   })
 })
 
