@@ -685,6 +685,7 @@ static void wireWindowEvents(QObject *root, const QString &label)
     });
     QObject::connect(window, &QQuickWindow::widthChanged, sizeTimer, qOverload<>(&QTimer::start));
     QObject::connect(window, &QQuickWindow::heightChanged, sizeTimer, qOverload<>(&QTimer::start));
+    sizeTimer->start();
 
     auto *moveTimer = new QTimer(window);
 

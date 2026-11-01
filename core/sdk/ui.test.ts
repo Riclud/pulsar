@@ -32,7 +32,9 @@ import {
   iconButton,
   image,
   list,
+  container,
   menu,
+  navBar,
   navRail,
   neon,
   pager,
@@ -594,6 +596,37 @@ describe("qml-like components", () => {
     expect(node.type).toBe("column")
     expect(node.props).toMatchObject({ align: "center", fillWidth: true })
     expect(node.children?.map((child) => child.type)).toEqual(["box", "text", "text", "button"])
+  })
+
+  test("nav bar normalizes items and reports the index", () => {
+    const changes: number[] = []
+    const node = navBar({
+      items: ["Quick", { label: "Kit", icon: "widgets" }],
+      value: 1,
+      showLabels: true,
+      onChange: (value) => changes.push(value),
+    })
+
+    expect(node.type).toBe("navBar")
+    expect(node.props).toMatchObject({
+      items: [{ label: "Quick" }, { label: "Kit", icon: "widgets" }],
+      value: 1,
+      showLabels: true,
+    })
+
+    dispatchUiEvent(node.id, "change", 0)
+
+    expect(changes).toEqual([0])
+  })
+
+  test("container caps the width and centers its content", () => {
+    const node = container({ maxWidth: 720, gap: 4 }, Text({}, "Body"))
+
+    expect(node.type).toBe("box")
+    expect(node.props).toMatchObject({ maxWidth: 720, fillWidth: true, align: "center" })
+    expect(node.children?.[0]?.type).toBe("column")
+    expect(node.children?.[0]?.props.gap).toBe(4)
+    expect(node.children?.[0]?.children?.[0]?.type).toBe("text")
   })
 
   test("neon wraps a node and keeps its layout props", () => {

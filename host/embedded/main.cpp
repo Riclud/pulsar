@@ -532,6 +532,7 @@ int main(int argc, char **argv)
     qmlRegisterSingletonInstance("Pulsar", 1, 0, "Store", &store);
     engine.rootContext()->setContextProperty(QStringLiteral("PulsarBridge"), &bridge);
     engine.rootContext()->setContextProperty(QStringLiteral("PulsarWindowLabel"), QStringLiteral("main"));
+    engine.rootContext()->setContextProperty(QStringLiteral("PulsarEmbedded"), true);
 
     QObject::connect(&runtime, &pulsar::QuickJsRuntime::message, &bridge, &EmbeddedBridge::handleMessage);
     QObject::connect(&runtime, &pulsar::QuickJsRuntime::failed, [&](const QString &message) {

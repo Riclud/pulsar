@@ -44,6 +44,32 @@ ApplicationWindow {
             ? themeData.iconFamily
             : (Qt.fontFamilies().indexOf("Material Symbols Rounded") >= 0 ? "Material Symbols Rounded" : iconFont.name)
     readonly property string fontFamily: themeData && themeData.fontFamily !== undefined ? themeData.fontFamily : "Paper Mono"
+    readonly property bool embeddedHost: typeof PulsarEmbedded !== "undefined" && PulsarEmbedded
+
+    function reportWindowSize() {
+        if (!embeddedHost || typeof PulsarBridge === "undefined")
+            return;
+
+        PulsarBridge.emit("__event", {
+            name: "window-resize",
+            data: {
+                label: typeof PulsarWindowLabel !== "undefined" ? PulsarWindowLabel : "main",
+                width: Math.round(width),
+                height: Math.round(height)
+            }
+        });
+    }
+
+    onWidthChanged: if (embeddedHost) sizeReportTimer.restart()
+    onHeightChanged: if (embeddedHost) sizeReportTimer.restart()
+    Component.onCompleted: if (embeddedHost) sizeReportTimer.start()
+
+    Timer {
+        id: sizeReportTimer
+
+        interval: 60
+        onTriggered: view.reportWindowSize()
+    }
 
     function fs(px) {
         return Math.round(px * fontScale);
@@ -2434,6 +2460,105 @@ ApplicationWindow {
     }
 
     Component {
+        id: navBarComponent
+
+        Rectangle {
+            id: navRoot
+
+            property var pulsarMeta: null
+            property var nodeData: null
+            property var items: []
+            property int currentIndex: 0
+            property color barColor: view.themeSurface
+            property color accent: view.themePrimary
+            property bool showLabels: true
+
+            implicitHeight: showLabels ? 62 : 50
+            radius: view.themeRadius
+            color: barColor
+            border.width: 1
+            border.color: view.themeBorder
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 6
+                anchors.rightMargin: 6
+                anchors.topMargin: 4
+                anchors.bottomMargin: 4
+                spacing: 2
+
+                Repeater {
+                    model: navRoot.items
+
+                    delegate: Item {
+                        id: navItem
+
+                        required property var modelData
+                        required property int index
+
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+
+                        readonly property bool selected: navRoot.currentIndex === navItem.index
+
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: view.themeRadius
+                            color: navItem.selected ? view.themeSurfaceVariant : "transparent"
+
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: view.motionFast
+                                    easing.type: Easing.BezierSpline
+                                    easing.bezierCurve: view.motionCurve
+                                }
+                            }
+                        }
+
+                        ColumnLayout {
+                            anchors.centerIn: parent
+                            spacing: 2
+
+                            Label {
+                                Layout.alignment: Qt.AlignHCenter
+                                visible: text.length > 0
+                                text: navItem.modelData.icon !== undefined ? navItem.modelData.icon : ""
+                                font.family: view.iconFamily
+                                font.pixelSize: view.fs(22)
+                                color: navItem.selected ? navRoot.accent : view.themeTextSecondary
+                            }
+
+                            Label {
+                                Layout.alignment: Qt.AlignHCenter
+                                visible: navRoot.showLabels
+                                text: navItem.modelData.label
+                                font.family: view.fontFamily
+                                font.pixelSize: view.fs(11)
+                                color: navItem.selected ? navRoot.accent : view.themeTextSecondary
+                            }
+                        }
+
+                        HoverHandler {
+                            cursorShape: Qt.PointingHandCursor
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                if (navItem.selected)
+                                    return;
+
+                                navRoot.currentIndex = navItem.index;
+                                view.emitNodeEvent(navRoot.nodeData, "change", navItem.index);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Component {
         id: zoomableComponent
 
         Item {
@@ -3104,6 +3229,8 @@ ApplicationWindow {
             item = rangeSliderComponent.createObject(parent);
         } else if (node.type === "neon") {
             item = neonComponent.createObject(parent);
+        } else if (node.type === "navBar") {
+            item = navBarComponent.createObject(parent);
         } else if (node.type === "zoomable") {
             item = zoomableComponent.createObject(parent);
         } else if (node.type === "text") {
@@ -3368,7 +3495,7 @@ ApplicationWindow {
                 || node.type === "navRail" || node.type === "segmented"
                 || node.type === "accordion" || node.type === "accordionSection"
                 || node.type === "radioGroup" || node.type === "searchField"
-                || node.type === "rangeSlider";
+                || node.type === "rangeSlider" || node.type === "navBar";
         const fill = prop(props, "fill", undefined);
         let fillWidth = defaultFillWidth;
         let fillHeight = node.type === "list" || node.type === "scroll" || node.type === "grid"
@@ -3448,6 +3575,9 @@ ApplicationWindow {
 
         item.Layout.fillWidth = fillWidth;
         item.Layout.fillHeight = fillHeight;
+
+        if (props.maxWidth !== undefined)
+            item.Layout.maximumWidth = props.maxWidth;
 
         if (props.align !== undefined) {
             const align = props.align;
@@ -3548,7 +3678,20 @@ ApplicationWindow {
             const gap = prop(props, "gap", view.themeSpacing);
             const padding = prop(props, "padding", 0);
 
-            item.gridLayout.columns = prop(props, "columns", 2);
+            const gridColumns = prop(props, "columns", 2);
+
+            if (gridColumns === "auto") {
+                const minColumnWidth = prop(props, "minColumnWidth", 160);
+
+                item.gridLayout.columns = Qt.binding(function () {
+                    const available = Math.max(0, item.gridLayout.width - 2 * padding);
+
+                    return Math.max(1, Math.floor((available + gap) / (minColumnWidth + gap)));
+                });
+            } else {
+                item.gridLayout.columns = gridColumns;
+            }
+
             item.gridLayout.columnSpacing = gap;
             item.gridLayout.rowSpacing = gap;
             item.gridLayout.padding = padding;
@@ -4210,6 +4353,20 @@ ApplicationWindow {
             item.palette.highlight = rangeColor;
             item.palette.accent = rangeColor;
             item.Layout.preferredWidth = prop(props, "expand", false) ? -1 : prop(props, "width", 200);
+        } else if (node.type === "navBar") {
+            const navItems = prop(props, "items", []);
+            const navKey = JSON.stringify(navItems);
+
+            item.nodeData = node;
+            item.currentIndex = prop(props, "value", 0);
+            item.showLabels = prop(props, "showLabels", true);
+            item.barColor = resolveColor(prop(props, "color", view.themeSurface), view.themeSurface);
+            item.accent = resolveColor(prop(props, "activeColor", view.themePrimary), view.themePrimary);
+
+            if (item.pulsarMeta.extra.itemsKey !== navKey) {
+                item.pulsarMeta.extra.itemsKey = navKey;
+                item.items = navItems;
+            }
         } else if (node.type === "neon") {
             item.nodeData = node;
             item.pad = prop(props, "padding", 24);

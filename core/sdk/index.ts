@@ -40,6 +40,8 @@ export {
   Toolbar,
   EmptyState,
   Neon,
+  NavBar,
+  Container,
   Sheet,
   Pager,
   Tabs,
@@ -116,6 +118,9 @@ export type {
   ToolbarOptions,
   EmptyStateOptions,
   NeonOptions,
+  NavBarItem,
+  NavBarOptions,
+  ContainerOptions,
   ZoomableOptions,
   ProgressOptions,
 } from "./ui.ts"

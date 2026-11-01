@@ -41,6 +41,7 @@ export type UiNodeType =
   | "accordion"
   | "accordionSection"
   | "fab"
+  | "navBar"
   | "neon"
   | "zoomable"
   | "progress"
@@ -86,6 +87,8 @@ interface CommonOptions {
   a11yHint?: string
   /** Horizontal placement inside a layout: "start" (default), "center" or "end". */
   align?: "start" | "center" | "end" | "left" | "right"
+  /** Cap the width inside a layout (the node stays centered when `align` is "center"). */
+  maxWidth?: number
   /** Fade opacity changes over this many milliseconds. */
   animate?: number
   /** Neon glow around the node; `true` uses the theme primary. */
@@ -96,6 +99,12 @@ export interface LayoutOptions extends CommonOptions {
   gap?: number
   padding?: number
   expand?: boolean
+}
+
+export interface ContainerOptions extends CommonOptions {
+  maxWidth?: number
+  gap?: number
+  padding?: number
 }
 
 export interface ScrollOptions extends CommonOptions {
@@ -112,7 +121,10 @@ export interface ListOptions<T> extends CommonOptions {
 }
 
 export interface GridOptions extends CommonOptions {
-  columns?: number
+  /** Fixed column count, or "auto" to derive it from the available width. */
+  columns?: number | "auto"
+  /** Minimum column width used when `columns` is "auto". */
+  minColumnWidth?: number
   gap?: number
   padding?: number
 }
@@ -521,6 +533,20 @@ export interface TabsOptions extends CommonOptions {
 export interface SegmentedOptions extends CommonOptions {
   items: Array<string | TabItem>
   value?: number
+  onChange?: (index: number) => void
+}
+
+export interface NavBarItem {
+  label: string
+  icon?: string
+}
+
+export interface NavBarOptions extends CommonOptions {
+  items: Array<string | NavBarItem>
+  value?: number
+  color?: ColorValue
+  activeColor?: ColorValue
+  showLabels?: boolean
   onChange?: (index: number) => void
 }
 
@@ -1176,6 +1202,26 @@ export const neon = (options: NeonOptions = {}, ...children: UiChild[]): UiNode 
   return makeNode("neon", options, children)
 }
 
+export const navBar = (options: NavBarOptions): UiNode => {
+  const { onChange, items, ...props } = options
+  const normalized = items.map((item) => (typeof item === "string" ? { label: item } : item))
+
+  if (!onChange) return makeNode("navBar", { ...props, items: normalized })
+
+  return makeNode("navBar", { ...props, items: normalized }, [], ["change"], {
+    change: (value) => onChange(Number(value)),
+  })
+}
+
+export const container = (options: ContainerOptions = {}, ...children: UiChild[]): UiNode => {
+  const { maxWidth = 900, gap = 12, padding = 16, ...props } = options
+
+  return box(
+    { ...props, maxWidth, padding, fillWidth: true, align: "center" },
+    column({ gap, fillWidth: true, fillHeight: props.fillHeight === true }, ...children),
+  )
+}
+
 export const For = <T>(options: ForOptions<T>): UiNode => {
   const { each, keyOf, render, ...props } = options
 
@@ -1291,6 +1337,11 @@ export const EmptyState = (options: EmptyStateOptions = {}): UiNode => emptyStat
 
 export const Neon = (options: NeonOptions = {}, ...children: UiChild[]): UiNode => neon(options, ...children)
 
+export const NavBar = (options: NavBarOptions): UiNode => navBar(options)
+
+export const Container = (options: ContainerOptions = {}, ...children: UiChild[]): UiNode =>
+  container(options, ...children)
+
 export const Modal = (options: SheetOptions = {}, ...children: UiChild[]): UiNode => {
   return sheet({ ...options, fullscreen: options.fullscreen ?? false }, ...children)
 }
@@ -1393,6 +1444,8 @@ export const ui = {
   toolbar,
   emptyState,
   neon,
+  navBar,
+  container,
   sheet,
   bottomSheet,
   pager,

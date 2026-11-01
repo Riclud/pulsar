@@ -20,9 +20,12 @@ import {
   Switch,
   Text,
   Toolbar,
+  Container,
   EmptyState,
+  NavBar,
   VirtualList,
   catppuccinTheme,
+  createBreakpoints,
   clipboard,
   device,
   permissions,
@@ -34,10 +37,27 @@ import {
 const app = new App()
 
 const catppuccinOptions = catppuccinTheme("frappe")
+const breakpoints = createBreakpoints(app)
 
-void theme.set({
-  ...catppuccinOptions,
-  colors: { ...catppuccinOptions.colors, brand: "deepskyblue", ink: "#101014" },
+let currentDensity = 1
+
+const applyTheme = (density: number) => {
+  void theme.set({
+    ...catppuccinOptions,
+    density,
+    colors: { ...catppuccinOptions.colors, brand: "deepskyblue", ink: "#101014" },
+  })
+}
+
+applyTheme(currentDensity)
+
+breakpoints.subscribe(() => {
+  const density = breakpoints.is("compact") ? 0.92 : 1
+
+  if (density === currentDensity) return
+
+  currentDensity = density
+  applyTheme(density)
 })
 
 void clipboard.write("pulsar")
@@ -288,7 +308,7 @@ const kitPage = page(
       { gap: 12, fillWidth: true },
       ui.avatar({ name: "Иван Майор", size: 44, status: "online", badge: 3 }),
       ui.avatar({ name: "Макс", size: 36, status: "away" }),
-      ui.avatar({ src: "file:///home/user/pulsar/examples/windows/icon.png", name: "Pulsar", size: 44 }),
+      ui.avatar({ name: "Pulsar", size: 44 }),
       ui.avatar({ name: "AI", size: 36, status: "busy", radius: 12 }),
     ),
   ),
@@ -417,24 +437,38 @@ const kitPage = page(
   ),
 )
 
-app.window("main").render(() =>
-  NavigationRail(
+const navItems = [
+  { label: "Quick", icon: "bolt" },
+  { label: "Interface", icon: "palette" },
+  { label: "Forms", icon: "edit_note" },
+  { label: "Kit", icon: "widgets" },
+]
+
+const pages = [quickPage, interfacePage, formsPage, kitPage]
+
+app.window("main").render(() => {
+  const breakpoint = app.store.get("breakpoint") as { name: string } | null
+  const compact = breakpoint === null || breakpoint.name === "compact"
+  const index = Math.min(pages.length - 1, Math.max(0, (app.store.get("tab") as number) ?? 0))
+  const onChange = (value: number) => app.store.set("tab", value)
+
+  if (compact) {
+    return Column(
+      { fill: true, gap: 8, padding: 8 },
+      Container({ maxWidth: 720, padding: 0, fillHeight: true, gap: 8 }, pages[index]!),
+      NavBar({ items: navItems, value: index, onChange }),
+    )
+  }
+
+  return NavigationRail(
     {
-      items: [
-        { label: "Quick", icon: "bolt" },
-        { label: "Interface", icon: "palette" },
-        { label: "Forms", icon: "edit_note" },
-        { label: "Kit", icon: "widgets" },
-      ],
-      index: (app.store.get("tab") as number) ?? 0,
-      expanded: true,
-      onChange: (index) => app.store.set("tab", index),
+      items: navItems,
+      index,
+      expanded: breakpoint?.name === "expanded",
+      onChange,
     },
-    quickPage,
-    interfacePage,
-    formsPage,
-    kitPage,
-  ),
-)
+    ...pages.map((page) => Container({ maxWidth: 980, padding: 0, fillHeight: true }, page)),
+  )
+})
 
 app.run()
