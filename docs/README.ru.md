@@ -214,11 +214,32 @@ pulsar tap "Добавить"     # нажатие по тексту, пути �
 pulsar type "молоко" --into "Новая задача"
 pulsar expect "молоко"    # ждать текст
 pulsar shot --out shot.png
+pulsar tap --at 540,1200          # координаты (QML-приложения, системный UI)
+pulsar swipe 500 1200 500 400 --duration 250
+pulsar key back                   # back, home, enter, ... или числовой код
+pulsar ui --system                # uiautomator-дамп переднего плана
+pulsar eval "6*7"                 # выполнить JS в работающем QuickJS
 ```
 
 `pulsar shot` снимает весь экран через `adb`; `--window` снимает только окно
-приложения по dev-каналу. Командам нужно дерево JS UI, поэтому они работают
-для JS-окон, а не для приложений с `ui/main.qml`.
+приложения по dev-каналу. Семантическим командам нужно дерево JS UI, поэтому
+они работают для JS-окон, а не для приложений с `ui/main.qml`. `pulsar ui
+--system` показывает дамп переднего окна (удобно для permission-диалогов), а
+`--at`/`swipe`/`key` работают по координатам.
+
+Флоу-тесты могут использовать host API:
+
+```ts
+import { connect } from "../../cli/testing.ts"
+
+const app = connect()
+
+await app.tap({ text: "Добавить" })
+await app.expect("1 задача")
+await app.shot(".pulsar/shots/after.png")
+```
+
+Запуск: `bun flows/todo.ts`, пока работает `pulsar dev --android`.
 
 Необработанная ошибка показывает полноэкранный overlay с кнопкой Reload. Пока
 запущен dev-сервер, стек маппится обратно в ваши `.ts`-файлы и в терминале,

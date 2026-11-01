@@ -212,11 +212,32 @@ pulsar tap "Add"          # press by text, path or id
 pulsar type "milk" --into "New task"
 pulsar expect "milk"      # wait for text
 pulsar shot --out shot.png
+pulsar tap --at 540,1200          # coordinates (QML apps, system UI)
+pulsar swipe 500 1200 500 400 --duration 250
+pulsar key back                   # back, home, enter, ... or a numeric code
+pulsar ui --system                # uiautomator dump of the foreground screen
+pulsar eval "6*7"                 # evaluate JS in the running QuickJS context
 ```
 
 `pulsar shot` uses `adb` and captures the whole screen; `--window` grabs only
-the app window over the dev channel. These commands need a JS UI tree, so they
-apply to JS-rendered windows, not `ui/main.qml` apps.
+the app window over the dev channel. The semantic commands need a JS UI tree,
+so they apply to JS-rendered windows, not `ui/main.qml` apps. `pulsar ui
+--system` dumps the foreground window (useful for permission dialogs), and
+`--at`/`swipe`/`key` drive the screen by coordinates.
+
+Flow tests can use the host API:
+
+```ts
+import { connect } from "../../cli/testing.ts"
+
+const app = connect()
+
+await app.tap({ text: "Add" })
+await app.expect("count=1")
+await app.shot(".pulsar/shots/after.png")
+```
+
+Run it with `bun flows/todo.ts` while `pulsar dev --android` is running.
 
 An uncaught error shows a full-screen overlay with a Reload button. While the
 dev server runs, stack frames are mapped back to your TypeScript sources in the
