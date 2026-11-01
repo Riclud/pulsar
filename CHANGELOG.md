@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.0] - 2026-11-01
 
 ### Added
 
@@ -25,6 +25,20 @@ All notable changes to this project are documented here. The format follows
 - `pulsar create` now scaffolds the TypeScript template by default. The QML
   starter moved to `--template qml`; `--template js` is an alias for the
   default.
+- Android dev loop: `pulsar dev --android` builds a dev APK once, serves the
+  bundle over `adb reverse` and reloads the app in 1–2 s. Native inputs (host
+  C++, manifest, CMake, app id) are fingerprinted, so the APK is rebuilt and
+  reinstalled only when they change.
+- Device control from the CLI while the dev loop runs: `ui`, `state`, `tap`,
+  `type`, `expect`, `shot`, `swipe`, `key` and `eval`, coordinate input with
+  `--at`, and `ui --system` for system dialogs.
+- A flow-test API (`cli/testing.ts`) for driving a running dev app with
+  `tap`, `type`, `expect`, `state` and `shot` from a Bun script.
+- In-process reload (`pulsar reload`): the QuickJS context is recreated and the
+  store is seeded from the previous session, so JS edits apply in about 200 ms
+  without restarting the app.
+- A dev error overlay with a Reload button; stack frames are mapped back to the
+  TypeScript sources in the terminal and in the overlay via inline source maps.
 
 ### Changed
 
