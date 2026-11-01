@@ -2399,46 +2399,36 @@ ApplicationWindow {
             property color neonColor: view.themePrimary
             property real neonIntensity: 1
             property real neonGlow: 0.8
-            property real neonBloom: 0.55
-            property real neonThreshold: 0.6
-            readonly property bool shaderSupported: GraphicsInfo.api !== GraphicsInfo.Software
 
             implicitWidth: neonContent.implicitWidth + pad * 2
             implicitHeight: neonContent.implicitHeight + pad * 2
 
-            ColumnLayout {
-                id: neonContent
+            Item {
+                id: neonSurface
 
                 anchors.fill: parent
-                anchors.margins: neonRoot.pad
-                spacing: 0
-                property var pulsarMeta: null
-            }
 
-            ShaderEffectSource {
-                id: neonSource
+                ColumnLayout {
+                    id: neonContent
 
-                sourceItem: neonContent
-                live: true
-                hideSource: neonRoot.shaderSupported
-                sourceRect: Qt.rect(-neonRoot.pad, -neonRoot.pad,
-                                    neonContent.width + neonRoot.pad * 2,
-                                    neonContent.height + neonRoot.pad * 2)
-            }
-
-            Loader {
-                anchors.fill: parent
-                active: neonRoot.shaderSupported
-                sourceComponent: ShaderEffect {
-                    property variant source: neonSource
-                    fragmentShader: "qrc:/runtime/shaders/neon.frag.qsb"
-                    property real intensity: neonRoot.neonIntensity
-                    property real glow: neonRoot.neonGlow
-                    property real bloom: neonRoot.neonBloom
-                    property real threshold: neonRoot.neonThreshold
-                    property vector2d texel: Qt.vector2d(1.0 / Math.max(1, width), 1.0 / Math.max(1, height))
-                    property color neonColor: neonRoot.neonColor
+                    anchors.fill: parent
+                    anchors.margins: neonRoot.pad
+                    spacing: 0
+                    property var pulsarMeta: null
                 }
+            }
+
+            MultiEffect {
+                anchors.fill: parent
+                z: -1
+                source: neonSurface
+                autoPaddingEnabled: true
+                shadowEnabled: true
+                shadowColor: neonRoot.neonColor
+                shadowBlur: 1
+                shadowOpacity: Math.min(1, Math.max(0, neonRoot.neonGlow * neonRoot.neonIntensity))
+                shadowHorizontalOffset: 0
+                shadowVerticalOffset: 0
             }
         }
     }
@@ -4226,8 +4216,6 @@ ApplicationWindow {
             item.neonColor = resolveColor(prop(props, "color", view.themePrimary), view.themePrimary);
             item.neonIntensity = prop(props, "intensity", 1);
             item.neonGlow = prop(props, "glow", 0.8);
-            item.neonBloom = prop(props, "bloom", 0.55);
-            item.neonThreshold = prop(props, "threshold", 0.6);
 
             if (!item.contentLayout.pulsarMeta)
                 item.contentLayout.pulsarMeta = contentMeta();

@@ -61,14 +61,10 @@ export type UiChild = UiNode | string | number | null | false | undefined | UiCh
 export interface NeonOptions {
   /** Glow color; defaults to the theme primary. */
   color?: ColorValue
-  /** Overall multiplier for glow and bloom. */
+  /** Overall multiplier for the glow. */
   intensity?: number
-  /** Outer halo strength (0..1). */
+  /** Glow strength (0..1). */
   glow?: number
-  /** Bright-core spill strength (0..1). */
-  bloom?: number
-  /** Luminance above this starts blooming (0..1). */
-  threshold?: number
   /** Transparent margin that the glow can occupy, in px. */
   padding?: number
 }
@@ -92,7 +88,7 @@ interface CommonOptions {
   align?: "start" | "center" | "end" | "left" | "right"
   /** Fade opacity changes over this many milliseconds. */
   animate?: number
-  /** Neon glow and bloom around the node; `true` uses the theme primary. */
+  /** Neon glow around the node; `true` uses the theme primary. */
   neon?: boolean | NeonOptions
 }
 
