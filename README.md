@@ -184,9 +184,39 @@ tools. The result is `dist/<name>.apk` for `arm64-v8a` (minSdk 28, targetSdk
 35). `pulsar install --android` performs the same setup without building, and
 `pulsar check --target android` rejects `node:`/`bun:` imports before packaging.
 
-`net.fetch`, streaming `net.request` and `net.websocket` work on Android:
-transport runs in the native host through QtNetwork/Qt WebSockets, so text and
-binary chunks arrive without any JS-side networking code.
+`net.fetch` and streaming `net.request` work on Android: transport runs in the
+native host through QtNetwork. `net.websocket` needs the Qt WebSockets module,
+which the current Android Qt bundle does not ship; calls report
+`ERR_UNSUPPORTED` there (desktop builds are unaffected).
+
+#### Android dev loop
+
+```sh
+pulsar dev --android
+```
+
+The first run builds a dev APK (`applicationId <id>.dev`, label
+`<name> (dev)`) and installs it next to production. The CLI starts a bundle
+server, points the app at it through `adb reverse`, watches the app directory
+and restarts the app after an edit (1–2 s). Native inputs (host C++, the
+manifest, CMake, the app id) are fingerprinted; when they change the APK is
+rebuilt and reinstalled. Flags: `--device <serial>`, `--port <n>`,
+`--no-install`, `--force-install`, `--no-keep-awake`.
+
+While it runs, another terminal can inspect and drive the app:
+
+```sh
+pulsar ui                 # UI tree (JSON)
+pulsar state              # store snapshot (JSON)
+pulsar tap "Add"          # press by text, path or id
+pulsar type "milk" --into "New task"
+pulsar expect "milk"      # wait for text
+pulsar shot --out shot.png
+```
+
+`pulsar shot` uses `adb` and captures the whole screen; `--window` grabs only
+the app window over the dev channel. These commands need a JS UI tree, so they
+apply to JS-rendered windows, not `ui/main.qml` apps.
 
 ## The manifest — `pulsar.json`
 

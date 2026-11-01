@@ -186,9 +186,39 @@ Android SDK/NDK и бандл Qt for Android с host-инструментами.
 `pulsar install --android` делает ту же установку без сборки, а
 `pulsar check --target android` отсекает `node:`/`bun:` импорты до упаковки.
 
-`net.fetch`, потоковый `net.request` и `net.websocket` работают на Android:
-HTTP и WebSocket выполняются в нативном хосте через QtNetwork/Qt WebSockets,
-поэтому текст и бинарные чанки приходят без сетевого кода на JS.
+`net.fetch` и потоковый `net.request` работают на Android: транспорт выполняется
+в нативном хосте через QtNetwork. `net.websocket` требует модуль Qt WebSockets,
+которого нет в текущем бандле Qt for Android: на устройстве вызов вернёт
+`ERR_UNSUPPORTED` (на десктопе всё работает).
+
+#### Dev-цикл на Android
+
+```sh
+pulsar dev --android
+```
+
+Первый запуск собирает dev-APK (`applicationId <id>.dev`, имя
+`<name> (dev)`) и ставит его рядом с production. CLI поднимает сервер бандла,
+прокидывает его на устройство через `adb reverse`, следит за каталогом
+приложения и перезапускает его после правки (1–2 с). Нативные входы (C++ хоста,
+манифест, CMake, id приложения) хешируются; при их изменении APK пересобирается
+и переустанавливается. Флаги: `--device <serial>`, `--port <n>`,
+`--no-install`, `--force-install`, `--no-keep-awake`.
+
+Пока он запущен, из другого терминала можно смотреть и нажимать:
+
+```sh
+pulsar ui                 # дерево UI (JSON)
+pulsar state              # снимок store (JSON)
+pulsar tap "Добавить"     # нажатие по тексту, пути или id
+pulsar type "молоко" --into "Новая задача"
+pulsar expect "молоко"    # ждать текст
+pulsar shot --out shot.png
+```
+
+`pulsar shot` снимает весь экран через `adb`; `--window` снимает только окно
+приложения по dev-каналу. Командам нужно дерево JS UI, поэтому они работают
+для JS-окон, а не для приложений с `ui/main.qml`.
 
 ## Манифест — `pulsar.json`
 
