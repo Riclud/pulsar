@@ -1,8 +1,8 @@
 # {{title}}
 
-A [Pulsar](https://github.com/riclud/pulsar) app written entirely in
-TypeScript. There is no QML: `main.ts` builds the UI with the `ui` helpers and
-`app.store` keeps it in sync.
+A [Pulsar](https://github.com/riclud/pulsar) app with a QML UI and a Bun
+backend. QML is the advanced/escape-hatch path; the default template uses
+TypeScript components instead.
 
 ## Requirements
 

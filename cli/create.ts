@@ -72,14 +72,15 @@ export const create = (args: string[]): void => {
 
   if (!name) {
     console.error(
-      "pulsar create: missing app name\n  pulsar create <name> [--template default|js|windows|tray] [--dir <path>]",
+      "pulsar create: missing app name\n  pulsar create <name> [--template default|js|qml|windows|tray] [--dir <path>]",
     )
     process.exit(1)
   }
 
   const template = flag(args, "--template") ?? "default"
+  const templateName = template === "js" ? "default" : template
   const templatesDir = join(pulsarRoot(), "cli", "templates")
-  const templateDir = join(templatesDir, template)
+  const templateDir = join(templatesDir, templateName)
 
   if (!existsSync(templateDir)) {
     console.error(`pulsar create: unknown template "${template}" (have: ${listTemplates(templatesDir).join(", ")})`)

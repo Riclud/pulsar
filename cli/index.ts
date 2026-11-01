@@ -508,7 +508,7 @@ const usage = () => {
     [
       "pulsar <command>",
       "",
-      "  create <name>  scaffold a new app (--template default|js|windows|tray)",
+      "  create <name>  scaffold a new app (--template default|js|qml|windows|tray)",
       "  install        download the native toolchain for this platform (--android for the APK toolchain)",
       "  update         update the CLI to the latest release",
       "  dev            run with hot reload (watch sources)",

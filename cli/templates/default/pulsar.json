@@ -3,12 +3,13 @@
   "name": "{{name}}",
   "version": "0.1.0",
   "main": "main.ts",
+  "targets": ["desktop", "android"],
+  "compat": "portable",
   "windows": [
     {
       "label": "main",
-      "ui": "ui/main.qml",
-      "width": 800,
-      "height": 600,
+      "width": 420,
+      "height": 640,
       "title": "{{title}}"
     }
   ],
