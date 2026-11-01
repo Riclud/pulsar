@@ -1,3 +1,5 @@
+import { isAbsolute, relative, resolve } from "path"
+
 export interface MappedLocation {
   source: string
   line: number
@@ -6,6 +8,11 @@ export interface MappedLocation {
 
 export interface SourceMapper {
   map(line: number, column: number): MappedLocation | null
+}
+
+export interface SourceMapOptions {
+  baseDir?: string
+  root?: string
 }
 
 interface SourceMapV3 {
@@ -86,8 +93,23 @@ const decodeMappings = (mappings: string): Segment[][] => {
   return lines
 }
 
-const mapperFor = (map: SourceMapV3): SourceMapper => {
+const displaySource = (source: string, options?: SourceMapOptions): string => {
+  const base = options?.baseDir?.replace(/\/+$/, "")
+
+  if (!base) return source
+
+  const absolute = isAbsolute(source) ? source : resolve(base, source)
+  const root = options?.root?.replace(/\/+$/, "")
+
+  if (root && absolute.startsWith(`${root}/`)) return relative(root, absolute)
+  if (absolute.startsWith(`${base}/`)) return relative(base, absolute)
+
+  return absolute
+}
+
+const mapperFor = (map: SourceMapV3, options?: SourceMapOptions): SourceMapper => {
   const lines = decodeMappings(map.mappings)
+  const sources = map.sources.map((source) => displaySource(source, options))
 
   return {
     map(line, column) {
@@ -112,13 +134,13 @@ const mapperFor = (map: SourceMapV3): SourceMapper => {
         high = middle - 1
       }
 
-      return { source: map.sources[best.source] ?? "", line: best.line + 1, column: best.column + 1 }
+      return { source: sources[best.source] ?? "", line: best.line + 1, column: best.column + 1 }
     },
   }
 }
 
 /** Parse the inline `sourceMappingURL` Bun appends to a bundle. */
-export const parseInlineSourceMap = (bundle: string): SourceMapper | null => {
+export const parseInlineSourceMap = (bundle: string, options?: SourceMapOptions): SourceMapper | null => {
   const marker = "sourceMappingURL="
   const index = bundle.lastIndexOf(marker)
 
@@ -135,7 +157,7 @@ export const parseInlineSourceMap = (bundle: string): SourceMapper | null => {
 
     if (map.version !== 3 || !Array.isArray(map.sources) || typeof map.mappings !== "string") return null
 
-    return mapperFor(map)
+    return mapperFor(map, options)
   } catch {
     return null
   }

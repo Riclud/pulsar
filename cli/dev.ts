@@ -182,12 +182,15 @@ const printLog = (log: DeviceLog, mapper: SourceMapper | null): string => {
   return message
 }
 
-const mapperForPayload = (payload: DevPayload): SourceMapper | null => {
+const mapperForPayload = (payload: DevPayload, appDir: string): SourceMapper | null => {
   const runtime = payload.files.find((file) => file.path === "runtime.js")
 
   if (!runtime) return null
 
-  return parseInlineSourceMap(Buffer.from(runtime.data, "base64").toString("utf8"))
+  return parseInlineSourceMap(Buffer.from(runtime.data, "base64").toString("utf8"), {
+    baseDir: appDir,
+    root: pulsarRoot(),
+  })
 }
 
 export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
@@ -245,7 +248,7 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
   }
 
   let payload = await buildPayload(appDir, entry, manifest)
-  let mapper = mapperForPayload(payload)
+  let mapper = mapperForPayload(payload, appDir)
 
   const commands: Record<string, unknown>[] = []
   const replies = new Map<number, { resolve: (value: unknown) => void; timer: ReturnType<typeof setTimeout> }>()
@@ -446,7 +449,7 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
       }
 
       payload = next
-      mapper = mapperForPayload(next)
+      mapper = mapperForPayload(next, appDir)
 
       console.log(`pulsar: bundle ${next.version.slice(0, 8)}; restarting ${packageName}`)
       launch()
