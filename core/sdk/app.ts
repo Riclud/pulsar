@@ -175,6 +175,14 @@ export class Store {
     for (const listener of this.listeners) listener()
   }
 
+  private same(a: unknown, b: unknown): boolean {
+    if (Object.is(a, b)) return true
+
+    if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false
+
+    return JSON.stringify(a) === JSON.stringify(b)
+  }
+
   get(key: string): unknown {
     return this.data.has(key) ? this.data.get(key) : null
   }
@@ -184,7 +192,7 @@ export class Store {
 
     const existed = this.data.has(key)
 
-    if (existed && Object.is(this.data.get(key), value)) return this
+    if (existed && this.same(this.data.get(key), value)) return this
 
     this.data.set(key, value)
     this.dirty.add(key)

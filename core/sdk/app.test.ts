@@ -55,6 +55,37 @@ describe("Store", () => {
     expect(patch.removed).toEqual(["a"])
     expect(patch.changed).toEqual({ b: 3 })
   })
+
+  test("ignores structurally equal objects and arrays", () => {
+    const store = new Store()
+    let notified = 0
+
+    store.subscribe(() => notified++)
+
+    store.set("todos", [{ id: "1", done: false, tags: [] }])
+    store.set("todos", [{ id: "1", done: false, tags: [] }])
+    expect(notified).toBe(1)
+
+    store.set("todos", [{ id: "1", done: true, tags: [] }])
+    expect(notified).toBe(2)
+
+    store.takePatch()
+    store.set("todos", [{ id: "1", done: true, tags: [] }])
+    expect(store.takePatch().changed).toEqual({})
+  })
+
+  test("still notifies when a key appears for the first time", () => {
+    const store = new Store()
+    let notified = 0
+
+    store.subscribe(() => notified++)
+    store.set("late", null)
+    store.set("late", null)
+    store.set("dynamic", { ready: true })
+
+    expect(notified).toBe(2)
+    expect(store.takePatch().changed).toEqual({ late: null, dynamic: { ready: true } })
+  })
 })
 
 describe("WindowHandle", () => {

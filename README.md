@@ -390,6 +390,12 @@ Only JSON-serializable values are allowed (objects, arrays, strings, finite
 numbers, booleans, `null`). Everything else throws a descriptive error; use
 `delete` instead of setting `undefined`. Circular references are rejected.
 
+Setting a value that is deeply equal to the current one does nothing: no
+listener runs, nothing is pushed and the UI is not re-rendered. This keeps a
+polling sync loop from rebuilding a list when nothing changed. Keys added
+after the window is open are pushed as usual; bind them directly
+(`Store.<key>`) so QML tracks them.
+
 ### Windows
 
 ```ts

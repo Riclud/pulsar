@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- `Store.set` is a no-op when the new value is deeply equal to the current one
+  (same JSON), so polling sync loops no longer re-render unchanged lists.
+
 ### Fixed
 
 - Desktop file dialogs on Linux use the Qt dialog instead of the platform
