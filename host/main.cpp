@@ -997,6 +997,7 @@ int main(int argc, char **argv)
 // Exposed to QML as `import Pulsar 1.0` -> Pulsar.emit(...) / Store.*
     qmlRegisterSingletonInstance("Pulsar", 1, 0, "Pulsar", bridge);
     qmlRegisterSingletonInstance("Pulsar", 1, 0, "Store", store);
+    engine.rootContext()->setContextProperty(QStringLiteral("PulsarBridge"), bridge);
 
     gWatch = watchMode();
     gBridge = bridge;

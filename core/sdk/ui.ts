@@ -355,7 +355,13 @@ export const textInput = (options: TextInputOptions = {}): UiNode => {
 
   if (!onInput) return makeNode("textInput", props, [], ["focus"])
 
-  return makeNode("textInput", props, [], ["input", "focus"], { input: (value) => onInput(String(value)) })
+  return makeNode("textInput", props, [], ["input", "focus"], {
+    input: (value) => {
+      if (value === null || value === undefined) return
+
+      onInput(String(value))
+    },
+  })
 }
 
 export const checkbox = (label: string, options: CheckboxOptions = {}): UiNode => {

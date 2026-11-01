@@ -205,19 +205,22 @@ int main(int argc, char **argv)
     QFile manifestFile(dir + QStringLiteral("/pulsar.json"));
     QString manifestJson = QStringLiteral("null");
     QString ui = QStringLiteral("ui/main.qml");
+    bool jsUi = false;
 
     if (manifestFile.open(QIODevice::ReadOnly)) {
         manifestJson = QString::fromUtf8(manifestFile.readAll());
 
         const QJsonObject manifest = QJsonDocument::fromJson(manifestJson.toUtf8()).object();
         const QJsonArray windows = manifest.value(QStringLiteral("windows")).toArray();
-
-        const QString value = windows.isEmpty()
-            ? QString()
-            : windows.first().toObject().value(QStringLiteral("ui")).toString();
+        const QJsonObject window = windows.isEmpty() ? QJsonObject() : windows.first().toObject();
+        const QString value = window.value(QStringLiteral("ui")).toString();
 
         if (!value.isEmpty())
             ui = value;
+        else
+            jsUi = true;
+    } else {
+        jsUi = true;
     }
 
     qputenv("PULSAR_APP", dir.toLocal8Bit());
@@ -226,6 +229,29 @@ int main(int argc, char **argv)
     QQmlPropertyMap store;
     pulsar::QuickJsRuntime runtime;
     EmbeddedBridge bridge(&runtime, &engine, &store);
+
+    QVariantList pendingUiTree;
+    bool hasPendingUiTree = false;
+    QObject *uiRoot = nullptr;
+
+    auto applyUiTree = [&](const QVariantList &tree) {
+        if (!uiRoot) {
+            pendingUiTree = tree;
+            hasPendingUiTree = true;
+            return;
+        }
+
+        uiRoot->setProperty("tree", tree);
+    };
+
+    QObject::connect(&bridge, &EmbeddedBridge::uiTree, &app,
+                     [&](const QString &target, const QVariantList &tree) {
+                         if (!jsUi)
+                             return;
+
+                         if (target == QLatin1String("main") || target == QLatin1String("*") || target.isEmpty())
+                             applyUiTree(tree);
+                     });
 
 #ifdef Q_OS_ANDROID
     g_backBridge = &bridge;
@@ -321,6 +347,7 @@ int main(int argc, char **argv)
 
     qmlRegisterSingletonInstance("Pulsar", 1, 0, "Pulsar", &bridge);
     qmlRegisterSingletonInstance("Pulsar", 1, 0, "Store", &store);
+    engine.rootContext()->setContextProperty(QStringLiteral("PulsarBridge"), &bridge);
     engine.rootContext()->setContextProperty(QStringLiteral("PulsarWindowLabel"), QStringLiteral("main"));
 
     QObject::connect(&runtime, &pulsar::QuickJsRuntime::message, &bridge, &EmbeddedBridge::handleMessage);
@@ -369,11 +396,21 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    engine.load(QUrl::fromLocalFile(dir + QLatin1Char('/') + ui));
+    const QUrl uiUrl = jsUi ? QUrl(QStringLiteral("qrc:/pulsar/PulsarView.qml"))
+                            : QUrl::fromLocalFile(dir + QLatin1Char('/') + ui);
+
+    engine.load(uiUrl);
 
     if (engine.rootObjects().isEmpty()) {
         qWarning().noquote() << "pulsar: QML root is empty";
         return 1;
+    }
+
+    if (jsUi) {
+        uiRoot = engine.rootObjects().first();
+
+        if (hasPendingUiTree)
+            uiRoot->setProperty("tree", pendingUiTree);
     }
 
 #ifdef Q_OS_ANDROID

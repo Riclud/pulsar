@@ -80,13 +80,18 @@ elseif(WIN32)
 endif()
 
 # Built-in renderer for JS-driven windows (loaded as qrc:/pulsar/PulsarView.qml).
-qt_add_resources(qml-host "pulsarview"
-    PREFIX "/pulsar"
-    BASE "${CMAKE_CURRENT_SOURCE_DIR}/host/qml"
-    FILES
-        "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/PulsarView.qml"
-        "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/fonts/MaterialIcons.ttf"
-)
+# The same resources are linked into every host that can render JS windows.
+function(pulsar_add_view_resources target resource_name)
+    qt_add_resources(${target} ${resource_name}
+        PREFIX "/pulsar"
+        BASE "${CMAKE_CURRENT_SOURCE_DIR}/host/qml"
+        FILES
+            "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/PulsarView.qml"
+            "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/fonts/MaterialIcons.ttf"
+    )
+endfunction()
+
+pulsar_add_view_resources(qml-host "pulsarview")
 
 # --- Embedded QML host (desktop test harness, Android host) ---
 add_executable(qml-host-qjs
@@ -109,6 +114,8 @@ target_link_libraries(qml-host-qjs PRIVATE
     Qt6::WebSockets
     qjs
 )
+
+pulsar_add_view_resources(qml-host-qjs "pulsarview_qjs")
 
 # --- Android host: the same embedded QuickJS/QML engine packaged as an APK ---
 if(ANDROID)
@@ -149,6 +156,8 @@ if(ANDROID)
         Qt6::WebSockets
         qjs
     )
+
+    pulsar_add_view_resources(pulsar-android "pulsarview_android")
 
     if(PULSAR_ANDROID_APP_QRC)
         set_target_properties(pulsar-android PROPERTIES AUTORCC ON)

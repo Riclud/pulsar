@@ -1,8 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQml.Models
-import Pulsar 1.0
 
 ApplicationWindow {
     id: view
@@ -12,7 +10,7 @@ ApplicationWindow {
     property var tree: []
     property bool testClicked: false
 
-    readonly property bool darkMode: Pulsar.colorScheme === "dark"
+    readonly property bool darkMode: PulsarBridge.colorScheme === "dark"
     readonly property color themeBackground: darkMode ? "#121214" : "#f7f7f8"
     readonly property color themeSurface: darkMode ? "#1c1c20" : "#ffffff"
     readonly property color themeSurfaceVariant: darkMode ? "#2a2a30" : "#ececf0"
@@ -38,56 +36,6 @@ ApplicationWindow {
         id: overlay
         anchors.fill: parent
         z: 1000
-    }
-
-    Component {
-        id: listRowDelegate
-
-        Item {
-            id: rowRoot
-
-            width: ListView.view ? ListView.view.width - ListView.view.leftMargin - ListView.view.rightMargin : 0
-            height: rowChild ? Math.max(rowChild.implicitHeight, rowChild.height) : 0
-            property var rowNode: node
-            property var rowChild: null
-
-            function rebuildRow() {
-                if (rowChild) {
-                    rowChild.destroy();
-                    rowChild = null;
-                }
-
-                if (!rowNode)
-                    return;
-
-                rowChild = view.createNode(rowNode, rowRoot, false);
-
-                if (rowChild)
-                    rowChild.width = Qt.binding(function () {
-                        return rowRoot.width;
-                    });
-            }
-
-            onRowNodeChanged: rebuildRow()
-            Component.onCompleted: rebuildRow()
-            Component.onDestruction: if (rowChild) rowChild.destroy()
-        }
-    }
-
-    Component {
-        id: listComponent
-
-        ListView {
-            id: listView
-
-            clip: true
-            boundsBehavior: Flickable.StopAtBounds
-            property var pulsarMeta: null
-            property ListModel pulsarModel: ListModel {}
-            model: pulsarModel
-            delegate: listRowDelegate
-            ScrollBar.vertical: ScrollBar {}
-        }
     }
 
     Component {
@@ -279,12 +227,14 @@ ApplicationWindow {
                         color: view.themeBorder
                     }
 
-                    ScrollView {
+                    Flickable {
                         id: sheetScroll
 
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         clip: true
+                        contentWidth: width
+                        contentHeight: sheetContent.implicitHeight + 32
 
                         ColumnLayout {
                             id: sheetContent
@@ -292,7 +242,7 @@ ApplicationWindow {
                             property var pulsarMeta: null
                             x: 16
                             y: 16
-                            width: sheetScroll.availableWidth - 32
+                            width: sheetScroll.width - 32
                             spacing: view.themeSpacing
                         }
                     }
@@ -310,7 +260,7 @@ ApplicationWindow {
             const clicked = clickFirst(host) || clickFirst(overlay);
             if (clicked)
                 view.testClicked = true;
-            if (Pulsar.env("PULSAR_DEBUG"))
+            if (PulsarBridge.env("PULSAR_DEBUG"))
                 console.log("PulsarView test click " + clicked);
         }
     }
@@ -334,7 +284,7 @@ ApplicationWindow {
     function maybeTestClick() {
         if (view.testClicked)
             return;
-        const ms = parseInt(Pulsar.env("PULSAR_UI_AUTOCLICK_MS") || "0");
+        const ms = parseInt(PulsarBridge.env("PULSAR_UI_AUTOCLICK_MS") || "0");
         if (ms <= 0)
             return;
         testClick.interval = ms;
@@ -352,7 +302,7 @@ ApplicationWindow {
     function emitEvent(node, event, value) {
         if (!node)
             return;
-        Pulsar.emit("ui-event", {
+        PulsarBridge.emit("ui-event", {
             id: node.id,
             event: event,
             value: value
@@ -492,14 +442,12 @@ ApplicationWindow {
             item = make("import QtQuick.Layouts; " + (node.type === "column" ? "ColumnLayout" : "RowLayout") + " " + base, parent);
         } else if (node.type === "box") {
             item = make("import QtQuick; Rectangle " + base, parent);
-        } else if (node.type === "scroll") {
-            item = make("import QtQuick.Controls; ScrollView " + "{ clip: true; property var pulsarMeta: null }", parent);
+        } else if (node.type === "scroll" || node.type === "list") {
+            item = make("import QtQuick; Flickable " + "{ clip: true; boundsBehavior: Flickable.StopAtBounds; property var pulsarMeta: null }", parent);
         } else if (node.type === "card") {
             item = make("import QtQuick; Rectangle { border.width: 1; property var pulsarMeta: null }", parent);
         } else if (node.type === "appBar") {
             item = appBarComponent.createObject(parent);
-        } else if (node.type === "list") {
-            item = listComponent.createObject(parent);
         } else if (node.type === "chip") {
             item = chipComponent.createObject(parent);
         } else if (node.type === "sheet") {
@@ -558,9 +506,11 @@ ApplicationWindow {
                     emitEvent(item.pulsarMeta.node, "click");
             });
         } else if (node.type === "textInput") {
-            item.textEdited.connect(function (value) {
+            item.textChanged.connect(function () {
+                if (item.pulsarMeta.syncing === true)
+                    return;
                 if (hasEvent(item.pulsarMeta.node, "input"))
-                    emitEvent(item.pulsarMeta.node, "input", value);
+                    emitEvent(item.pulsarMeta.node, "input", item.text);
             });
             item.activeFocusChanged.connect(function () {
                 emitEvent(item.pulsarMeta.node, item.activeFocus ? "focus" : "blur");
@@ -578,6 +528,20 @@ ApplicationWindow {
                     return;
                 if (hasEvent(item.pulsarMeta.node, "toggle"))
                     emitEvent(item.pulsarMeta.node, "toggle", value);
+            });
+
+            const area = make("import QtQuick; MouseArea { anchors.fill: parent; z: 10 }", item);
+
+            area.clicked.connect(function () {
+                if (item.pulsarMeta.syncing === true)
+                    return;
+
+                item.pulsarMeta.syncing = true;
+                item.checked = !item.checked;
+                item.pulsarMeta.syncing = false;
+
+                if (hasEvent(item.pulsarMeta.node, "toggle"))
+                    emitEvent(item.pulsarMeta.node, "toggle", item.checked);
             });
         } else if (node.type === "slider") {
             item.moved.connect(function () {
@@ -681,18 +645,24 @@ ApplicationWindow {
                 return inner.implicitHeight + 2 * padding;
             });
             reconcile(inner, node.children || [], false);
-        } else if (node.type === "scroll") {
+        } else if (node.type === "scroll" || node.type === "list") {
             let wrapper = item.pulsarMeta.content;
 
             if (!wrapper) {
                 wrapper = makeWrapper(item);
                 wrapper.width = Qt.binding(function () {
-                    return item.availableWidth;
+                    return item.width;
                 });
                 wrapper.implicitWidth = Qt.binding(function () {
-                    return item.availableWidth;
+                    return item.width;
                 });
                 item.pulsarMeta.content = wrapper;
+                item.contentWidth = Qt.binding(function () {
+                    return item.width;
+                });
+                item.contentHeight = Qt.binding(function () {
+                    return wrapper.implicitHeight;
+                });
 
                 const inner = makeContent(wrapper);
 
@@ -712,7 +682,7 @@ ApplicationWindow {
             }
 
             const inner = wrapper.pulsarMeta.content;
-            inner.spacing = prop(props, "gap", view.themeSpacing);
+            inner.spacing = node.type === "list" ? prop(props, "spacing", 0) : prop(props, "gap", view.themeSpacing);
             reconcile(inner, node.children || [], false);
         } else if (node.type === "card") {
             item.color = prop(props, "color", view.themeSurface);
@@ -749,10 +719,6 @@ ApplicationWindow {
                 item.actionsRow.pulsarMeta = contentMeta();
 
             reconcile(item.actionsRow, node.children || [], false);
-        } else if (node.type === "list") {
-            item.spacing = prop(props, "spacing", 0);
-            item.Layout.margins = 0;
-            updateList(item, node);
         } else if (node.type === "chip") {
             item.nodeData = node;
             item.labelItem.text = prop(props, "label", "");
@@ -822,8 +788,11 @@ ApplicationWindow {
         } else if (node.type === "textInput") {
             item.placeholderText = prop(props, "placeholder", "");
 
-            if (!item.activeFocus)
+            if (!item.activeFocus) {
+                item.pulsarMeta.syncing = true;
                 item.text = prop(props, "value", "");
+                item.pulsarMeta.syncing = false;
+            }
         } else if (node.type === "checkbox" || node.type === "switch") {
             item.text = prop(props, "label", "");
             item.pulsarMeta.syncing = true;
@@ -879,90 +848,13 @@ ApplicationWindow {
         }
     }
 
-    function sameNode(a, b) {
-        if (a === b)
-            return true;
-        if (!a || !b)
-            return false;
-        if (a.type !== b.type || a.path !== b.path)
-            return false;
-        if (JSON.stringify(a.props || {}) !== JSON.stringify(b.props || {}))
-            return false;
-        if ((a.events || []).join(",") !== (b.events || []).join(","))
-            return false;
-
-        const left = a.children || [];
-        const right = b.children || [];
-
-        if (left.length !== right.length)
-            return false;
-
-        for (let i = 0; i < left.length; i++) {
-            if (!sameNode(left[i], right[i]))
-                return false;
-        }
-
-        return true;
-    }
-
-    function updateList(item, node) {
-        const model = item.pulsarModel;
-        const rows = node.children || [];
-        const rawKeys = prop(node.props, "itemKeys", []);
-        const keys = [];
-        const padding = prop(node.props, "padding", 0);
-
-        item.leftMargin = padding;
-        item.rightMargin = padding;
-        item.topMargin = padding;
-        item.bottomMargin = padding;
-
-        for (let i = 0; i < rows.length; i++)
-            keys.push(String(prop(rawKeys, i, i)));
-
-        let i = 0;
-
-        while (i < keys.length) {
-            if (i < model.count && String(model.get(i).key) === keys[i]) {
-                if (!sameNode(model.get(i).node, rows[i]))
-                    model.setProperty(i, "node", rows[i]);
-                i++;
-                continue;
-            }
-
-            let found = -1;
-
-            for (let k = i + 1; k < model.count; k++) {
-                if (String(model.get(k).key) === keys[i]) {
-                    found = k;
-                    break;
-                }
-            }
-
-            if (found >= 0) {
-                model.move(found, i, 1);
-                model.setProperty(i, "node", rows[i]);
-            } else {
-                model.insert(i, {
-                    key: keys[i],
-                    node: rows[i]
-                });
-            }
-
-            i++;
-        }
-
-        while (model.count > keys.length)
-            model.remove(model.count - 1);
-    }
-
     function rebuild() {
         if (!host.pulsarMeta)
             host.pulsarMeta = contentMeta();
 
         reconcile(host, tree || [], true);
 
-        if (Pulsar.env("PULSAR_DEBUG"))
+        if (PulsarBridge.env("PULSAR_DEBUG"))
             console.log("PulsarView built " + host.children.length);
 
         maybeTestClick();
