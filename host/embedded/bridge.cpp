@@ -59,6 +59,25 @@ qint64 EmbeddedBridge::emit(const QString &method, const QJSValue &params)
     return invoke(method, params);
 }
 
+void EmbeddedBridge::devReload()
+{
+    Q_EMIT reloadRequested();
+}
+
+bool EmbeddedBridge::devMode() const
+{
+#ifdef PULSAR_DEV
+    return true;
+#else
+    return false;
+#endif
+}
+
+void EmbeddedBridge::setErrorText(const QString &text)
+{
+    Q_EMIT errorText(text);
+}
+
 void EmbeddedBridge::ensurePromiseFactory()
 {
     if (promiseFactory_.isCallable())
@@ -280,6 +299,15 @@ void EmbeddedBridge::handleMessage(const QJsonObject &message)
         Q_EMIT log(params.value(QStringLiteral("level")).toString(),
                    params.value(QStringLiteral("message")).toString(),
                    params.value(QStringLiteral("source")).toString());
+        return;
+    }
+
+    if (method == QLatin1String("__error")) {
+        const QString message = params.value(QStringLiteral("message")).toString();
+        const QString stack = params.value(QStringLiteral("stack")).toString();
+
+        Q_EMIT log(QStringLiteral("error"), message, QStringLiteral("app"));
+        Q_EMIT errorReported(params.value(QStringLiteral("scope")).toString(), message, stack);
         return;
     }
 

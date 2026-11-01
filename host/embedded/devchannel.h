@@ -24,6 +24,7 @@ public:
     void start();
     void sendLog(const QString &level, const QString &message, const QString &source);
     void setTree(const QVariantList &tree);
+    void requestReload();
 
 private:
     void hello();

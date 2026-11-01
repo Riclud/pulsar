@@ -177,6 +177,16 @@ void Bridge::startBridge()
     process_.start(chosen, QStringList{ qmlRootDir });
 }
 
+void Bridge::devReload()
+{
+    restart();
+}
+
+bool Bridge::devMode() const
+{
+    return true;
+}
+
 void Bridge::restart()
 {
     restarting_ = true;

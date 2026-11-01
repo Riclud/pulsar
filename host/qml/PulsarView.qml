@@ -8,7 +8,9 @@ ApplicationWindow {
     visible: true
     color: themeBackground
     property var tree: []
+    property string errorText: ""
     property bool testClicked: false
+
 
     readonly property bool darkMode: PulsarBridge.colorScheme === "dark"
     readonly property color themeBackground: darkMode ? "#121214" : "#f7f7f8"
@@ -36,6 +38,48 @@ ApplicationWindow {
         id: overlay
         anchors.fill: parent
         z: 1000
+    }
+
+    Rectangle {
+        id: errorView
+
+        anchors.fill: parent
+        z: 2000
+        visible: view.errorText.length > 0
+        color: view.themeBackground
+
+        Column {
+            anchors.fill: parent
+            anchors.margins: 24
+            spacing: 16
+
+            Label {
+                text: "App error"
+                font.pixelSize: 20
+                font.bold: true
+                color: view.themeText
+            }
+
+            ScrollView {
+                width: parent.width
+                height: parent.height - 120
+                clip: true
+
+                Label {
+                    width: errorView.width - 48
+                    text: view.errorText
+                    wrapMode: Text.WrapAnywhere
+                    font.family: "monospace"
+                    color: view.themeTextSecondary
+                }
+            }
+
+            Button {
+                text: "Reload"
+                visible: PulsarBridge.devMode()
+                onClicked: PulsarBridge.devReload()
+            }
+        }
     }
 
     Component {
@@ -251,7 +295,10 @@ ApplicationWindow {
         }
     }
 
-    onTreeChanged: rebuild()
+    onTreeChanged: {
+        errorText = ""
+        rebuild()
+    }
 
     Timer {
         id: testClick

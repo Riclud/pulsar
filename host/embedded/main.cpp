@@ -22,6 +22,7 @@
 #include <QWindow>
 #include <QtQml/qqml.h>
 
+#include <cstdio>
 #include <memory>
 
 #ifdef Q_OS_ANDROID
@@ -276,6 +277,35 @@ int main(int argc, char **argv)
         uiRoot->setProperty("tree", tree);
     };
 
+    QString pendingError;
+
+    auto showError = [&](const QString &text) {
+        if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
+            std::fprintf(stderr, "ERROR OVERLAY: %s\n", qPrintable(text));
+
+        if (uiRoot)
+            uiRoot->setProperty("errorText", text);
+        else
+            pendingError = text;
+    };
+
+    QObject::connect(&bridge, &EmbeddedBridge::errorText, &app, showError);
+    QObject::connect(&bridge, &EmbeddedBridge::errorReported, &app,
+                     [&](const QString &scope, const QString &message, const QString &stack) {
+                         QString text = QStringLiteral("%1: %2").arg(scope, message);
+
+                         if (!stack.isEmpty())
+                             text += QLatin1Char('\n') + stack;
+
+                         showError(text);
+                     });
+    QObject::connect(&bridge, &EmbeddedBridge::reloadRequested, &app, [&]() {
+#ifdef PULSAR_DEV
+        if (devChannel)
+            devChannel->requestReload();
+#endif
+    });
+
     QObject::connect(&bridge, &EmbeddedBridge::uiTree, &app,
                      [&](const QString &target, const QVariantList &tree) {
                          if (!jsUi)
@@ -392,6 +422,8 @@ int main(int argc, char **argv)
     QObject::connect(&runtime, &pulsar::QuickJsRuntime::failed, [&](const QString &message) {
         qWarning().noquote() << "pulsar: runtime failed:" << message;
 
+        bridge.setErrorText(message);
+
 #ifdef PULSAR_DEV
         if (devChannel)
             devChannel->sendLog(QStringLiteral("error"), message, QStringLiteral("runtime"));
@@ -468,6 +500,9 @@ int main(int argc, char **argv)
 
         if (hasPendingUiTree)
             uiRoot->setProperty("tree", pendingUiTree);
+
+        if (!pendingError.isEmpty())
+            uiRoot->setProperty("errorText", pendingError);
     }
 
 #ifdef Q_OS_ANDROID

@@ -31,6 +31,10 @@ public:
     // Called by the host to restart the whole Bun side (dev hot reload).
     Q_INVOKABLE void restart();
 
+    // Retry button on the dev error overlay.
+    Q_INVOKABLE void devReload();
+    Q_INVOKABLE bool devMode() const;
+
     // Native OS conveniences exposed to QML.
     Q_INVOKABLE void clipboardWrite(const QString &text);
     Q_INVOKABLE QString clipboardText() const;

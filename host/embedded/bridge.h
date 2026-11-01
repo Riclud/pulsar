@@ -33,6 +33,8 @@ public:
     Q_INVOKABLE QString env(const QString &name) const;
     Q_INVOKABLE void clipboardWrite(const QString &text);
     Q_INVOKABLE QString clipboardText() const;
+    Q_INVOKABLE void devReload();
+    Q_INVOKABLE bool devMode() const;
 
     QString colorScheme() const;
 
@@ -60,6 +62,9 @@ public:
     /** HTTP engine used for `__net` requests. */
     void setNetwork(pulsar::NetworkService *network);
 
+    /** Show the dev error overlay (called by the runtime and the dev channel). */
+    void setErrorText(const QString &text);
+
 public slots:
     void handleMessage(const QJsonObject &message);
 
@@ -69,6 +74,9 @@ signals:
     void config(const QVariantList &windows);
     void uiTree(const QString &target, const QVariantList &tree);
     void windowCommand(const QVariantMap &command);
+    void errorReported(const QString &scope, const QString &message, const QString &stack);
+    void errorText(const QString &text);
+    void reloadRequested();
     void colorSchemeChanged();
 
 private:

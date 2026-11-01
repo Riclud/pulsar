@@ -1253,9 +1253,17 @@ int main(int argc, char **argv)
                                                       << "!= host protocol" << kBridgeProtocolVersion;
                          } else if (method == QLatin1String("__error")) {
                              const QVariantMap m = params.toVariant().toMap();
-                             qCritical().noquote()
-                                 << "app error in" << m.value(QStringLiteral("scope")).toString()
-                                 << ":" << m.value(QStringLiteral("message")).toString();
+                             const QString scope = m.value(QStringLiteral("scope")).toString();
+                             const QString message = m.value(QStringLiteral("message")).toString();
+                             const QString stack = m.value(QStringLiteral("stack")).toString();
+                             const QString text =
+                                 stack.isEmpty() ? scope + QStringLiteral(": ") + message
+                                                 : scope + QStringLiteral(": ") + message + QLatin1Char('\n') + stack;
+
+                             qCritical().noquote() << "app error in" << scope << ":" << message;
+
+                             for (QObject *root : engine.rootObjects())
+                                 root->setProperty("errorText", text);
                          }
                      });
 

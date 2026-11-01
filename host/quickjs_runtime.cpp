@@ -353,14 +353,36 @@ void QuickJsRuntime::reportException(const QString &scope)
         JS_FreeCString(context_, text);
 
     JSValue line = JS_GetPropertyStr(context_, exception, "lineNumber");
+    JSValue column = JS_GetPropertyStr(context_, exception, "columnNumber");
+    JSValue stackValue = JS_GetPropertyStr(context_, exception, "stack");
+
     int32_t lineNumber = 0;
+    int32_t columnNumber = 0;
 
     JS_ToInt32(context_, &lineNumber, line);
+    JS_ToInt32(context_, &columnNumber, column);
 
+    QString stack;
+
+    if (JS_IsString(stackValue)) {
+        const char *stackText = JS_ToCString(context_, stackValue);
+
+        if (stackText) {
+            stack = QString::fromUtf8(stackText);
+            JS_FreeCString(context_, stackText);
+        }
+    }
+
+    JS_FreeValue(context_, stackValue);
+    JS_FreeValue(context_, column);
     JS_FreeValue(context_, line);
     JS_FreeValue(context_, exception);
 
-    Q_EMIT failed(QStringLiteral("%1:%2: %3").arg(scope).arg(lineNumber).arg(message));
+    const QString location = QStringLiteral("runtime.js:%1:%2").arg(lineNumber).arg(columnNumber);
+    const QString output = stack.isEmpty() ? QStringLiteral("%1 (%2): %3").arg(scope, location, message)
+                                           : QStringLiteral("%1 (%2): %3\n%4").arg(scope, location, message, stack);
+
+    Q_EMIT failed(output);
 }
 
 QString QuickJsRuntime::appId() const

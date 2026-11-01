@@ -194,6 +194,11 @@ void DevChannel::setTree(const QVariantList &tree)
     tree_ = QJsonArray::fromVariantList(tree);
 }
 
+void DevChannel::requestReload()
+{
+    post(QStringLiteral("__dev/reload"), QJsonObject());
+}
+
 void DevChannel::reply(const QJsonValue &id, bool ok, const QJsonValue &value)
 {
     QJsonObject out;
@@ -210,6 +215,12 @@ void DevChannel::handle(const QJsonObject &command)
 {
     const QJsonValue id = command.value(QStringLiteral("id"));
     const QString name = command.value(QStringLiteral("cmd")).toString();
+    const double ts = command.value(QStringLiteral("ts")).toDouble();
+
+    if (ts > 0 && QDateTime::currentMSecsSinceEpoch() - ts > 3000) {
+        reply(id, false, QStringLiteral("stale command"));
+        return;
+    }
 
     if (name == QLatin1String("ping")) {
         reply(id, true, QStringLiteral("pong"));
@@ -226,6 +237,12 @@ void DevChannel::handle(const QJsonObject &command)
         return;
     }
 
+    if (name == QLatin1String("reload")) {
+        requestReload();
+        reply(id, true, true);
+        return;
+    }
+
     if (name == QLatin1String("back")) {
         bridge_->notify(QStringLiteral("back-pressed"), QJsonObject());
         reply(id, true, true);
@@ -236,6 +253,12 @@ void DevChannel::handle(const QJsonObject &command)
         const QJsonObject image = grabWindow();
 
         reply(id, !image.isEmpty(), image);
+        return;
+    }
+
+    if (name == QLatin1String("show-error")) {
+        bridge_->setErrorText(command.value(QStringLiteral("text")).toString());
+        reply(id, true, true);
         return;
     }
 
