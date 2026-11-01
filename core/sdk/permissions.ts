@@ -51,6 +51,7 @@ export const CAPABILITY_PERMISSIONS: Record<string, string> = {
   "permissions.request": "permissions",
   "permissions.check": "permissions",
   "notification.channel": "notify",
+  media: "media",
   "fs.watch": "fs",
   "fs.unwatch": "fs",
   tray: "tray",

@@ -230,6 +230,14 @@ void EmbeddedBridge::finishFileExport(bool ok)
     reply(QStringLiteral("__export-result"), replyParams);
 }
 
+void EmbeddedBridge::finishMediaState(const QJsonObject &state)
+{
+    if (state.contains(QStringLiteral("command")))
+        notify(QStringLiteral("media-command"), state);
+    else
+        notify(QStringLiteral("media"), state);
+}
+
 void EmbeddedBridge::finishIntent(const QJsonObject &intent)
 {
     const QString text = intent.value(QStringLiteral("text")).toString();
@@ -439,6 +447,28 @@ void EmbeddedBridge::handleMessage(const QJsonObject &message)
                                ? QJsonValue(true)
                                : QJsonValue::Null);
         reply(QStringLiteral("__dialog-result"), replyParams);
+        return;
+    }
+
+    if (method == QLatin1String("__media")) {
+#ifdef Q_OS_ANDROID
+        const QJniObject activity = QNativeInterface::QAndroidApplication::context();
+
+        if (activity.isValid()) {
+            QJsonObject data = params;
+            const QString action = data.value(QStringLiteral("action")).toString();
+
+            data.remove(QStringLiteral("action"));
+
+            const QString json = QString::fromUtf8(QJsonDocument(data).toJson(QJsonDocument::Compact));
+
+            QJniObject::callStaticMethod<void>(
+                "com/pulsar/host/PulsarMediaService", "command",
+                "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;)V",
+                activity.object<jobject>(), QJniObject::fromString(action).object<jstring>(),
+                QJniObject::fromString(json).object<jstring>());
+        }
+#endif
         return;
     }
 

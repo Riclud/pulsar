@@ -63,6 +63,9 @@ public:
     /** Deliver an ACTION_SEND / ACTION_VIEW intent to the app. */
     void finishIntent(const QJsonObject &intent);
 
+    /** Deliver a playback state change from the Android media service. */
+    void finishMediaState(const QJsonObject &state);
+
     /** Send a raw JSON-RPC notification to the JS runtime. */
     void notifyMethod(const QString &method, const QJsonObject &params);
 

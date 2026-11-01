@@ -148,6 +148,25 @@ static void pulsarIntentReceived(JNIEnv *env, jclass, jstring json)
         Qt::QueuedConnection);
 }
 
+static void pulsarMediaEvent(JNIEnv *env, jclass, jstring json)
+{
+    if (!g_backBridge)
+        return;
+
+    const char *chars = env->GetStringUTFChars(json, nullptr);
+    const QString text = QString::fromUtf8(chars);
+
+    env->ReleaseStringUTFChars(json, chars);
+
+    QMetaObject::invokeMethod(
+        g_backBridge,
+        [text] {
+            if (g_backBridge)
+                g_backBridge->finishMediaState(QJsonDocument::fromJson(text.toUtf8()).object());
+        },
+        Qt::QueuedConnection);
+}
+
 static void pulsarNotificationClicked(JNIEnv *env, jclass, jstring token)
 {
     if (!g_backBridge)
@@ -409,9 +428,15 @@ int main(int argc, char **argv)
           reinterpret_cast<void *>(pulsarIntentReceived) },
     };
 
+    JNINativeMethod mediaMethods[] = {
+        { const_cast<char *>("nativeMediaEvent"), const_cast<char *>("(Ljava/lang/String;)V"),
+          reinterpret_cast<void *>(pulsarMediaEvent) },
+    };
+
     QJniEnvironment jniEnvironment;
 
     jniEnvironment.registerNativeMethods("com/pulsar/host/PulsarActivity", methods, 6);
+    jniEnvironment.registerNativeMethods("com/pulsar/host/PulsarMediaService", mediaMethods, 1);
 #endif
 
     pulsar::NetworkService network(&app);

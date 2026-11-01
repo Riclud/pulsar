@@ -35,6 +35,11 @@
 #include <QtQml/qqml.h>
 #include <QtGlobal>
 
+#ifdef PULSAR_HAS_MULTIMEDIA
+#include <QAudioOutput>
+#include <QMediaPlayer>
+#endif
+
 #include <utility>
 
 #include "assoc.h"
@@ -942,6 +947,129 @@ static bool playVideo(QQmlApplicationEngine &engine, const QString &path)
 }
 #endif
 
+#ifdef PULSAR_HAS_MULTIMEDIA
+static QMediaPlayer *gMediaPlayer = nullptr;
+static QAudioOutput *gMediaOutput = nullptr;
+static QTimer *gMediaTimer = nullptr;
+static QString gMediaTitle;
+static QString gMediaArtist;
+
+static QString mediaStateName()
+{
+    if (!gMediaPlayer)
+        return QStringLiteral("idle");
+
+    if (gMediaPlayer->mediaStatus() == QMediaPlayer::EndOfMedia)
+        return QStringLiteral("ended");
+    if (gMediaPlayer->mediaStatus() == QMediaPlayer::LoadingMedia)
+        return QStringLiteral("loading");
+    if (gMediaPlayer->mediaStatus() == QMediaPlayer::InvalidMedia)
+        return QStringLiteral("error");
+
+    switch (gMediaPlayer->playbackState()) {
+    case QMediaPlayer::PlayingState:
+        return QStringLiteral("playing");
+    case QMediaPlayer::PausedState:
+        return QStringLiteral("paused");
+    default:
+        return QStringLiteral("stopped");
+    }
+}
+
+static void emitMediaState()
+{
+    if (!gBridge || !gMediaPlayer)
+        return;
+
+    if (gMediaPlayer->playbackState() == QMediaPlayer::PlayingState) {
+        if (gMediaTimer && !gMediaTimer->isActive())
+            gMediaTimer->start();
+    } else if (gMediaTimer) {
+        gMediaTimer->stop();
+    }
+
+    QJsonObject data;
+    data.insert(QStringLiteral("state"), mediaStateName());
+    data.insert(QStringLiteral("position"), qint64(gMediaPlayer->position()));
+    data.insert(QStringLiteral("duration"), qint64(gMediaPlayer->duration()));
+    data.insert(QStringLiteral("rate"), gMediaPlayer->playbackRate());
+    data.insert(QStringLiteral("volume"), gMediaOutput ? gMediaOutput->volume() : 1.0);
+    data.insert(QStringLiteral("title"), gMediaTitle);
+    data.insert(QStringLiteral("artist"), gMediaArtist);
+
+    QJsonObject params;
+    params.insert(QStringLiteral("name"), QStringLiteral("media"));
+    params.insert(QStringLiteral("data"), data);
+
+    gBridge->notify(QStringLiteral("__event"), params);
+}
+
+static void ensureMedia()
+{
+    if (gMediaPlayer)
+        return;
+
+    gMediaPlayer = new QMediaPlayer(QCoreApplication::instance());
+    gMediaOutput = new QAudioOutput(QCoreApplication::instance());
+    gMediaPlayer->setAudioOutput(gMediaOutput);
+
+    gMediaTimer = new QTimer(QCoreApplication::instance());
+    gMediaTimer->setInterval(500);
+
+    QObject::connect(gMediaTimer, &QTimer::timeout, gMediaPlayer, []() { emitMediaState(); });
+    QObject::connect(gMediaPlayer, &QMediaPlayer::playbackStateChanged, gMediaPlayer,
+                     [](QMediaPlayer::PlaybackState) { emitMediaState(); });
+    QObject::connect(gMediaPlayer, &QMediaPlayer::mediaStatusChanged, gMediaPlayer,
+                     [](QMediaPlayer::MediaStatus status) {
+                         if (status == QMediaPlayer::EndOfMedia || status == QMediaPlayer::InvalidMedia)
+                             emitMediaState();
+                     });
+    QObject::connect(gMediaPlayer, &QMediaPlayer::durationChanged, gMediaPlayer,
+                     [](qint64) { emitMediaState(); });
+    QObject::connect(gMediaPlayer, &QMediaPlayer::errorOccurred, gMediaPlayer,
+                     [](QMediaPlayer::Error, const QString &) { emitMediaState(); });
+}
+
+static void handleMediaCommand(const QVariantMap &m)
+{
+    ensureMedia();
+
+    const QString action = m.value(QStringLiteral("action")).toString();
+
+    if (action == QLatin1String("open")) {
+        gMediaTitle = m.value(QStringLiteral("title")).toString();
+        gMediaArtist = m.value(QStringLiteral("artist")).toString();
+        gMediaPlayer->setSource(QUrl(m.value(QStringLiteral("source")).toString()));
+    } else if (action == QLatin1String("play")) {
+        gMediaPlayer->play();
+    } else if (action == QLatin1String("pause")) {
+        gMediaPlayer->pause();
+    } else if (action == QLatin1String("stop")) {
+        gMediaPlayer->stop();
+    } else if (action == QLatin1String("toggle")) {
+        if (gMediaPlayer->playbackState() == QMediaPlayer::PlayingState)
+            gMediaPlayer->pause();
+        else
+            gMediaPlayer->play();
+    } else if (action == QLatin1String("seek")) {
+        gMediaPlayer->setPosition(qint64(m.value(QStringLiteral("position")).toDouble()));
+    } else if (action == QLatin1String("rate")) {
+        gMediaPlayer->setPlaybackRate(m.value(QStringLiteral("rate")).toDouble());
+    } else if (action == QLatin1String("volume")) {
+        if (gMediaOutput)
+            gMediaOutput->setVolume(qBound(0.0, m.value(QStringLiteral("volume")).toDouble(), 1.0));
+    } else if (action == QLatin1String("metadata")) {
+        gMediaTitle = m.value(QStringLiteral("title")).toString();
+        gMediaArtist = m.value(QStringLiteral("artist")).toString();
+    } else if (action == QLatin1String("release")) {
+        gMediaPlayer->stop();
+        gMediaPlayer->setSource(QUrl());
+    }
+
+    emitMediaState();
+}
+#endif
+
 static void handleWindowCommand(QQmlApplicationEngine &engine, const QVariantMap &m)
 {
     QString label = m.value(QStringLiteral("label")).toString();
@@ -1362,6 +1490,10 @@ int main(int argc, char **argv)
                              QGuiApplication::clipboard()->setText(text);
                          } else if (method == QLatin1String("__device")) {
                              // Orientation and keep-awake are Android-only.
+                         } else if (method == QLatin1String("__media")) {
+#ifdef PULSAR_HAS_MULTIMEDIA
+                             handleMediaCommand(params.toVariant().toMap());
+#endif
                          } else if (method == QLatin1String("__fs-watch")) {
                              const QVariantMap m = params.toVariant().toMap();
                              const QString action = m.value(QStringLiteral("action")).toString();

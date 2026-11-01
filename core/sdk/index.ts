@@ -116,6 +116,8 @@ export {
   setPermissionGate,
 } from "./caps.ts"
 export { net, NetError } from "./net.ts"
+export { MediaManager, media } from "./media.ts"
+export type { MediaState, MediaTrack, MediaSnapshot } from "./media.ts"
 export type { DownloadOptions, DownloadResult, NetErrorData, NetOptions, NetRequest, NetResponse, NetResponseInfo } from "./net.ts"
 export type {
   AppPaths,
