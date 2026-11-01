@@ -7,10 +7,12 @@ export type UiNodeType =
   | "card"
   | "appBar"
   | "text"
+  | "selectableText"
   | "button"
   | "icon"
   | "iconButton"
   | "textInput"
+  | "textArea"
   | "checkbox"
   | "switch"
   | "slider"
@@ -89,6 +91,13 @@ export interface TextOptions extends CommonOptions {
   bold?: boolean
   wrap?: boolean
   expand?: boolean
+  selectable?: boolean
+  /** How overflowing text is cut: "left", "right", "middle" or true (right). */
+  elide?: "left" | "right" | "middle" | boolean
+  /** Render Markdown instead of plain text. */
+  markdown?: boolean
+  maxLines?: number
+  align?: "left" | "center" | "right"
 }
 
 export interface ImageOptions extends CommonOptions {
@@ -114,11 +123,35 @@ export interface IconButtonOptions extends CommonOptions {
   onClick?: () => void
 }
 
+export type KeyboardType =
+  | "text"
+  | "email"
+  | "number"
+  | "decimal"
+  | "phone"
+  | "url"
+  | "search"
+
 export interface TextInputOptions extends CommonOptions {
   value?: string
   placeholder?: string
   expand?: boolean
+  /** Render a multi-line TextArea instead of a single-line field. */
+  multiline?: boolean
+  /** Mask the value (password field). */
+  password?: boolean
+  keyboardType?: KeyboardType
+  /** Focus the field as soon as it is created. */
+  autoFocus?: boolean
+  maxLength?: number
+  readOnly?: boolean
+  selectable?: boolean
+  /** Visible lines for a multiline field; also sets its preferred height. */
+  lines?: number
   onInput?: (value: string) => void
+  onSubmitted?: (value: string) => void
+  onFocus?: () => void
+  onBlur?: () => void
 }
 
 export interface CheckboxOptions extends CommonOptions {
@@ -297,7 +330,9 @@ export const appBar = (options: AppBarOptions = {}, ...children: UiChild[]): UiN
 }
 
 export const text = (value: string | TextOptions): UiNode => {
-  return makeNode("text", typeof value === "string" ? { text: value } : value)
+  if (typeof value === "string") return makeNode("text", { text: value })
+
+  return makeNode(value.selectable ? "selectableText" : "text", value)
 }
 
 export const icon = (name: string, options: IconOptions = {}): UiNode => {
@@ -353,17 +388,40 @@ export const chip = (label: string, options: ChipOptions = {}): UiNode => {
 }
 
 export const textInput = (options: TextInputOptions = {}): UiNode => {
-  const { onInput, ...props } = options
+  const { onInput, onSubmitted, onFocus, onBlur, multiline, ...props } = options
+  const type: UiNodeType = multiline ? "textArea" : "textInput"
+  const events: string[] = ["focus", "blur"]
+  const callbacks: Record<string, UiHandler> = {}
 
-  if (!onInput) return makeNode("textInput", props, [], ["focus"])
-
-  return makeNode("textInput", props, [], ["input", "focus"], {
-    input: (value) => {
+  if (onInput) {
+    events.push("input")
+    callbacks.input = (value) => {
       if (value === null || value === undefined) return
 
       onInput(String(value))
-    },
-  })
+    }
+  }
+
+  if (onSubmitted) {
+    events.push("submit")
+    callbacks.submit = (value) => onSubmitted(value === null || value === undefined ? "" : String(value))
+  }
+
+  if (onFocus) {
+    events.push("focus")
+    callbacks.focus = () => onFocus()
+  }
+
+  if (onBlur) {
+    events.push("blur")
+    callbacks.blur = () => onBlur()
+  }
+
+  return makeNode(type, { ...props, multiline: Boolean(multiline) }, [], events, callbacks)
+}
+
+export const textArea = (options: Omit<TextInputOptions, "multiline"> = {}): UiNode => {
+  return textInput({ ...options, multiline: true })
 }
 
 export const checkbox = (label: string, options: CheckboxOptions = {}): UiNode => {
@@ -475,6 +533,8 @@ export const Input = (options: TextInputOptions = {}): UiNode => textInput(optio
 
 export const TextField = Input
 
+export const TextArea = (options: Omit<TextInputOptions, "multiline"> = {}): UiNode => textArea(options)
+
 export const Checkbox = (options: CheckboxOptions & { label?: string } = {}, ...children: UiChild[]): UiNode => {
   return checkbox(options.label ?? textOf(children), options)
 }
@@ -562,6 +622,7 @@ export const ui = {
   iconButton,
   chip,
   textInput,
+  textArea,
   checkbox,
   switch: switchControl,
   slider,

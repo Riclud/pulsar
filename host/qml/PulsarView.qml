@@ -528,6 +528,8 @@ ApplicationWindow {
             item = sheetComponent.createObject(overlay);
         } else if (node.type === "text") {
             item = make("import QtQuick.Controls; Label " + base, parent);
+        } else if (node.type === "selectableText") {
+            item = make("import QtQuick; TextEdit { readOnly: true; selectByMouse: true; property var pulsarMeta: null }", parent);
         } else if (node.type === "button") {
             item = make("import QtQuick.Controls; Button " + base, parent);
         } else if (node.type === "icon") {
@@ -536,6 +538,8 @@ ApplicationWindow {
             item = make("import QtQuick.Controls; ToolButton " + base, parent);
         } else if (node.type === "textInput") {
             item = make("import QtQuick.Controls; TextField " + base, parent);
+        } else if (node.type === "textArea") {
+            item = make("import QtQuick.Controls; TextArea " + base, parent);
         } else if (node.type === "checkbox" || node.type === "switch") {
             item = make("import QtQuick.Controls; " + (node.type === "checkbox" ? "CheckBox" : "Switch") + " " + base, parent);
         } else if (node.type === "slider") {
@@ -579,7 +583,7 @@ ApplicationWindow {
                 if (hasEvent(item.pulsarMeta.node, "click"))
                     emitEvent(item.pulsarMeta.node, "click");
             });
-        } else if (node.type === "textInput") {
+        } else if (node.type === "textInput" || node.type === "textArea") {
             item.textChanged.connect(function () {
                 if (item.pulsarMeta.syncing === true)
                     return;
@@ -589,6 +593,12 @@ ApplicationWindow {
             item.activeFocusChanged.connect(function () {
                 emitEvent(item.pulsarMeta.node, item.activeFocus ? "focus" : "blur");
             });
+            if (node.type === "textInput") {
+                item.accepted.connect(function () {
+                    if (hasEvent(item.pulsarMeta.node, "submit"))
+                        emitEvent(item.pulsarMeta.node, "submit", item.text);
+                });
+            }
             if (Qt.platform.os === "android") {
                 const tap = make("import QtQuick; TapHandler {}", item);
                 tap.tapped.connect(function () {
@@ -637,7 +647,8 @@ ApplicationWindow {
     function applyCommon(item, node, isRoot) {
         const props = node.props;
         const defaultFillWidth = node.type === "card" || node.type === "list" || node.type === "scroll"
-                || node.type === "appBar" || node.type === "divider" || node.type === "textInput";
+                || node.type === "appBar" || node.type === "divider" || node.type === "textInput"
+                || node.type === "textArea";
         const fill = prop(props, "fill", undefined);
         let fillWidth = defaultFillWidth;
         let fillHeight = node.type === "list" || node.type === "scroll";
@@ -839,12 +850,39 @@ ApplicationWindow {
                 item.contentLayout.pulsarMeta = contentMeta();
 
             reconcile(item.contentLayout, node.children || [], false);
-        } else if (node.type === "text") {
+        } else if (node.type === "text" || node.type === "selectableText") {
+            const wrap = prop(props, "wrap", false);
+            const align = prop(props, "align", "left");
+
             item.text = prop(props, "text", "");
             item.color = prop(props, "color", view.themeText);
             item.font.pixelSize = prop(props, "size", 15);
             item.font.bold = prop(props, "bold", false);
-            item.wrapMode = prop(props, "wrap", false) ? Text.WordWrap : Text.NoWrap;
+            item.textFormat = prop(props, "markdown", false) ? Text.MarkdownText : Text.PlainText;
+            item.horizontalAlignment = align === "center" ? Text.AlignHCenter
+                    : align === "right" ? Text.AlignRight : Text.AlignLeft;
+            item.wrapMode = wrap ? Text.WordWrap : Text.NoWrap;
+
+            if (node.type === "text") {
+                const elide = prop(props, "elide", false);
+
+                item.elide = elide === "left" ? Text.ElideLeft
+                        : elide === "middle" ? Text.ElideMiddle
+                        : (elide === "right" || elide === true) ? Text.ElideRight : Text.ElideNone;
+
+                if (props.maxLines !== undefined)
+                    item.maximumLineCount = props.maxLines;
+            } else {
+                item.selectByMouse = prop(props, "selectable", true);
+
+                if (props.maxLines !== undefined)
+                    item.height = Math.min(item.height, item.contentHeight);
+
+                item.implicitHeight = Qt.binding(function () {
+                    return item.contentHeight;
+                });
+            }
+
             item.Layout.preferredWidth = -1;
         } else if (node.type === "button") {
             item.text = prop(props, "label", "");
@@ -861,13 +899,45 @@ ApplicationWindow {
             item.font.pixelSize = prop(props, "size", 24);
             item.implicitWidth = 40;
             item.implicitHeight = 40;
-        } else if (node.type === "textInput") {
+        } else if (node.type === "textInput" || node.type === "textArea") {
+            const keyboard = prop(props, "keyboardType", "text");
+
             item.placeholderText = prop(props, "placeholder", "");
+            item.readOnly = prop(props, "readOnly", false);
+
+            if (props.maxLength !== undefined)
+                item.maximumLength = props.maxLength;
+
+            if (props.selectable !== undefined)
+                item.selectByMouse = props.selectable;
+
+            if (node.type === "textInput") {
+                item.echoMode = prop(props, "password", false) ? TextInput.Password : TextInput.Normal;
+                item.inputMethodHints = keyboard === "email" ? Qt.ImhEmailCharactersOnly
+                        : keyboard === "number" ? Qt.ImhDigitsOnly
+                        : keyboard === "decimal" ? Qt.ImhFormattedNumbersOnly
+                        : keyboard === "phone" ? Qt.ImhDialableCharactersOnly
+                        : keyboard === "url" ? Qt.ImhUrlCharactersOnly
+                        : keyboard === "search" ? Qt.ImhNoPredictiveText
+                        : Qt.ImhNone;
+            } else {
+                item.wrapMode = TextEdit.Wrap;
+
+                if (props.lines !== undefined && props.height === undefined)
+                    item.Layout.preferredHeight = props.lines * 24;
+            }
 
             if (!item.activeFocus) {
                 item.pulsarMeta.syncing = true;
                 item.text = prop(props, "value", "");
                 item.pulsarMeta.syncing = false;
+            }
+
+            if (prop(props, "autoFocus", false) && item.pulsarMeta.extra.autoFocused !== true) {
+                item.pulsarMeta.extra.autoFocused = true;
+                Qt.callLater(function () {
+                    item.forceActiveFocus();
+                });
             }
         } else if (node.type === "checkbox" || node.type === "switch") {
             item.text = prop(props, "label", "");

@@ -26,6 +26,7 @@ import {
   serialize,
   sheet,
   text,
+  textInput,
   ui,
 } from "./ui.ts"
 
@@ -110,6 +111,35 @@ describe("ui", () => {
   test("progress defaults to indeterminate", () => {
     expect(progress().props.indeterminate).toBe(true)
     expect(progress({ value: 0.5 }).props.indeterminate).toBe(false)
+  })
+
+  test("multiline input renders a textArea node", () => {
+    const single = textInput({ placeholder: "one" })
+    const multi = textInput({ multiline: true, lines: 4 })
+
+    expect(single.type).toBe("textInput")
+    expect(multi.type).toBe("textArea")
+    expect(multi.props.lines).toBe(4)
+  })
+
+  test("text input forwards submit and focus events", () => {
+    const seen: string[] = []
+    const node = textInput({
+      onSubmitted: (value) => seen.push(`submit:${value}`),
+      onFocus: () => seen.push("focus"),
+      onBlur: () => seen.push("blur"),
+    })
+
+    dispatchUiEvent(node.id, "submit", "hello")
+    dispatchUiEvent(node.id, "focus", undefined)
+    dispatchUiEvent(node.id, "blur", undefined)
+
+    expect(seen).toEqual(["submit:hello", "focus", "blur"])
+  })
+
+  test("selectable text uses a text editor node", () => {
+    expect(text({ text: "copy me", selectable: true }).type).toBe("selectableText")
+    expect(text("plain").type).toBe("text")
   })
 })
 
