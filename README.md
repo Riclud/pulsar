@@ -44,8 +44,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the release history.
   toolchain (`pulsar build --slim` / `pulsar install --slim`). The default
   toolchain and builds bundle Qt, so end users need nothing extra; its platform
   dependencies (X11/Wayland, fonts, GPU drivers) still come from the system.
-  Building from source also needs the Qt WebSockets module and Qt Shader Tools
-  (`qsb`, bundled with the Qt SDK) for the neon shader; QtMultimedia is
+  Building from source also needs the Qt WebSockets module; QtMultimedia is
   optional and enables the in-app desktop video player.
 
 ## Install
@@ -909,11 +908,10 @@ scroll and input state survive a re-render.
   "inline"` to keep it in the layout.
 - `EmptyState({ icon, title, text, action })` is the standard empty placeholder.
 - `neon` works on any component: `Card({ neon: { color: "cyan", intensity: 1.2 } })`
-  or `Text({ neon: true })`. It wraps the node in a padded glow/bloom layer
-  rendered by a Qt Quick shader: `color` (defaults to the theme primary),
-  `intensity`, `glow` (outer halo), `bloom` (bright-core spill), `threshold`
-  and `padding`. Under software rendering (no GPU) the glow is skipped and the
-  content renders normally.
+  or `Text({ neon: true })`. It wraps the node in a padded colored glow drawn
+  with `MultiEffect`: `color` (defaults to the theme primary), `intensity`,
+  `glow` (strength) and `padding` (room for the halo). Content stays crisp;
+  under software rendering the glow is skipped and the content renders normally.
 - The lower-level `ui.column(...)`, `ui.button(...)` factories remain available;
   the components above are thin wrappers over them.
 - QML windows keep working as before — mix freely (some windows in QML, some in
