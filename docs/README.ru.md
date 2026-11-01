@@ -686,7 +686,16 @@ const { scheme } = await theme.current() // "light" | "dark"
 app.on("theme-changed", (data) => console.log("теперь", data.scheme))
 
 const { locale, language, timezone } = await system.locale()
+
+const power = await system.power() // { known, source: "ac" | "battery" | "unknown", onBattery, percent? }
+app.on("power-suspend", () => saveNow())
+app.on("power-resume", () => refresh())
+app.on("power-source", ({ onBattery }) => console.log(onBattery ? "battery" : "ac"))
 ```
+
+Состояние и события питания берутся из logind и UPower на Linux (системный
+D-Bus), с запасным чтением `/sys/class/power_supply`. На других платформах
+`system.power()` возвращает `source: "unknown"`, а события не приходят.
 
 Кнопки в уведомлениях работают через freedesktop-демон уведомлений на Linux;
 на macOS и Windows уведомление показывается без кнопок, и

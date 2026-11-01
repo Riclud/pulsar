@@ -219,6 +219,14 @@ export interface SystemLocale {
   timezone: string
 }
 
+export interface PowerState {
+  known: boolean
+  source: "ac" | "battery" | "unknown"
+  onBattery: boolean
+  percent?: number
+}
+
 export const system = {
   locale: (): Promise<SystemLocale> => callCapability("system.locale") as Promise<SystemLocale>,
+  power: (): Promise<PowerState> => callCapability("system.power") as Promise<PowerState>,
 }

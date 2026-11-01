@@ -683,7 +683,16 @@ const { scheme } = await theme.current() // "light" | "dark"
 app.on("theme-changed", (data) => console.log("now", data.scheme))
 
 const { locale, language, timezone } = await system.locale()
+
+const power = await system.power() // { known, source: "ac" | "battery" | "unknown", onBattery, percent? }
+app.on("power-suspend", () => saveNow())
+app.on("power-resume", () => refresh())
+app.on("power-source", ({ onBattery }) => console.log(onBattery ? "battery" : "ac"))
 ```
+
+Power events and state come from logind and UPower on Linux (system D-Bus), with
+a `/sys/class/power_supply` fallback for the source. On other platforms
+`system.power()` reports `source: "unknown"` and the events do not fire.
 
 Notification action buttons use the freedesktop notification daemon on Linux;
 on macOS and Windows the notification is shown without buttons and

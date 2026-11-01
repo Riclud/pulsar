@@ -33,6 +33,7 @@ export const CAPABILITY_PERMISSIONS: Record<string, string> = {
   "screen.list": "screen",
   "theme.get": "theme",
   "system.locale": "system",
+  "system.power": "system",
   "storage.get": "storage",
   "storage.has": "storage",
   "storage.set": "storage",

@@ -8,6 +8,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Desktop power monitor: `system.power()` returns the power source, battery
+  state and percentage; `power-suspend`, `power-resume` and `power-source`
+  events fire on sleep and on AC/battery changes. Linux uses logind and UPower
+  over D-Bus with a sysfs fallback; other platforms report `unknown`.
 - `notify.show` takes `actions: [{ id, title }]`; a button press emits
   `notification-action` with the token and id. Uses the freedesktop
   notification daemon on Linux (D-Bus); other platforms show the plain body.

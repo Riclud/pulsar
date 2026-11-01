@@ -195,6 +195,12 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
     return Promise.resolve(token)
   })
 
+  registerCapability("system.power", async () => {
+    const value = await hostQuery("system.power")
+
+    return value ?? { known: false, onBattery: false, source: "unknown" }
+  })
+
   registerCapability("system.locale", () => {
     try {
       const resolved = Intl.DateTimeFormat().resolvedOptions()

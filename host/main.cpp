@@ -41,6 +41,7 @@
 #include "embedded.h"
 #include "log.h"
 #include "net.h"
+#include "power.h"
 #include "recent.h"
 #include "secure.h"
 
@@ -49,6 +50,7 @@ static bool gWatch = false;
 static QFileSystemWatcher *gWatcher = nullptr;
 static Bridge *gBridge = nullptr;
 static pulsar::NetworkService *gNet = nullptr;
+static PowerMonitor *gPower = nullptr;
 // Keychain entries are scoped to the app id; set once from pulsar.json.
 static QString gSecureService;
 
@@ -817,6 +819,12 @@ static void handleQuery(Bridge *bridge, const QVariantMap &m)
         }
 
         params.insert(QStringLiteral("value"), screens);
+    } else if (kind == QLatin1String("system.power")) {
+        if (gPower)
+            params.insert(QStringLiteral("value"), QJsonObject::fromVariantMap(gPower->state()));
+        else
+            params.insert(QStringLiteral("value"),
+                          QJsonObject{{QStringLiteral("source"), QStringLiteral("unknown")}});
     } else if (kind == QLatin1String("theme.get")) {
         QJsonObject value;
         value.insert(QStringLiteral("scheme"), bridge->colorScheme());
@@ -1060,6 +1068,31 @@ int main(int argc, char **argv)
     gWatch = watchMode();
     gBridge = bridge;
     gNet = new pulsar::NetworkService(&app);
+
+    PowerMonitor *power = new PowerMonitor(&app);
+    gPower = power;
+
+    QObject::connect(power, &PowerMonitor::suspend, &app, [bridge]() {
+        QJsonObject params;
+        params.insert(QStringLiteral("name"), QStringLiteral("power-suspend"));
+        params.insert(QStringLiteral("data"), QJsonObject());
+        bridge->notify(QStringLiteral("__event"), params);
+    });
+    QObject::connect(power, &PowerMonitor::resume, &app, [bridge]() {
+        QJsonObject params;
+        params.insert(QStringLiteral("name"), QStringLiteral("power-resume"));
+        params.insert(QStringLiteral("data"), QJsonObject());
+        bridge->notify(QStringLiteral("__event"), params);
+    });
+    QObject::connect(power, &PowerMonitor::sourceChanged, &app, [bridge](bool onBattery) {
+        QJsonObject data;
+        data.insert(QStringLiteral("onBattery"), onBattery);
+
+        QJsonObject params;
+        params.insert(QStringLiteral("name"), QStringLiteral("power-source"));
+        params.insert(QStringLiteral("data"), data);
+        bridge->notify(QStringLiteral("__event"), params);
+    });
 
     QObject::connect(gNet, &pulsar::NetworkService::response, &app,
                      [bridge](quint32 id,

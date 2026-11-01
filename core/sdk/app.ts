@@ -60,6 +60,9 @@ export interface PulsarEventMap {
   "tray-menu": { event?: string }
   "tray-activated": { reason?: number }
   "theme-changed": { scheme: "light" | "dark" }
+  "power-suspend": Record<string, never>
+  "power-resume": Record<string, never>
+  "power-source": { onBattery: boolean }
   "notification-click": { token: string }
   "notification-action": { token: string; id: string }
   "open-file": { path: string }
