@@ -54,6 +54,7 @@ interface RuntimeApi {
   wireApp: () => void
   handleRequest: (message: unknown) => Promise<void>
   reportError: (scope: string, error: unknown) => void
+  restore: (state: Record<string, unknown>) => void
   dispatchLaunch: (params: LaunchParams) => void
 }
 
@@ -227,6 +228,14 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
     send({ jsonrpc: "2.0", method: "__error", params: { scope, message, stack } })
   }
 
+  const restore = (state: Record<string, unknown>): void => {
+    const store = App.current?.store
+
+    if (!store) return
+
+    for (const [key, value] of Object.entries(state)) store.set(key, value)
+  }
+
   const fullState = (): Record<string, unknown> => {
     return App.current ? App.current.store.snapshot() : {}
   }
@@ -299,6 +308,12 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
   const handleNotification = (req: RequestMessage, params: RequestParams): void => {
     if (req.method === "__log") {
       App.current?.dispatchEvent("log", params)
+
+      return
+    }
+
+    if (req.method === "__restore") {
+      restore((params.state ?? {}) as Record<string, unknown>)
 
       return
     }
@@ -438,6 +453,7 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
     wireApp,
     handleRequest,
     reportError,
+    restore,
     dispatchLaunch,
   }
 }

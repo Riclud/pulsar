@@ -142,6 +142,26 @@ describe("lifecycle events", () => {
     expect(error?.params?.message).toContain("boom in ui")
   })
 
+  test("restore seeds the store directly", async () => {
+    const app = harness()
+    const instance = new App()
+
+    app.runtime.restore({ restored: 7 })
+    await flush()
+
+    expect(instance.store.get("restored")).toBe(7)
+  })
+
+  test("__restore seeds the store", async () => {
+    const app = harness()
+    const instance = new App()
+
+    app.deliver({ jsonrpc: "2.0", method: "__restore", params: { state: { restored: 42 } } })
+    await flush()
+
+    expect(instance.store.get("restored")).toBe(42)
+  })
+
   test("pause and resume reach the app", async () => {
     const app = harness()
     const instance = new App()

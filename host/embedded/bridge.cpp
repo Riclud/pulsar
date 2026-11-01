@@ -78,6 +78,13 @@ void EmbeddedBridge::setErrorText(const QString &text)
     Q_EMIT errorText(text);
 }
 
+void EmbeddedBridge::reset()
+{
+    pending_.clear();
+    pendingFileToken_.clear();
+    pendingExportToken_.clear();
+}
+
 void EmbeddedBridge::ensurePromiseFactory()
 {
     if (promiseFactory_.isCallable())

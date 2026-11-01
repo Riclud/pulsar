@@ -226,12 +226,22 @@ int main(int argc, char **argv)
     }
 #endif
 
-    QFile manifestFile(dir + QStringLiteral("/pulsar.json"));
     QString manifestJson = QStringLiteral("null");
     QString ui = QStringLiteral("ui/main.qml");
     bool jsUi = false;
 
-    if (manifestFile.open(QIODevice::ReadOnly)) {
+    auto readManifest = [&](const QString &root) {
+        manifestJson = QStringLiteral("null");
+        ui = QStringLiteral("ui/main.qml");
+        jsUi = false;
+
+        QFile manifestFile(root + QStringLiteral("/pulsar.json"));
+
+        if (!manifestFile.open(QIODevice::ReadOnly)) {
+            jsUi = true;
+            return;
+        }
+
         manifestJson = QString::fromUtf8(manifestFile.readAll());
 
         const QJsonObject manifest = QJsonDocument::fromJson(manifestJson.toUtf8()).object();
@@ -243,9 +253,9 @@ int main(int argc, char **argv)
             ui = value;
         else
             jsUi = true;
-    } else {
-        jsUi = true;
-    }
+    };
+
+    readManifest(dir);
 
     qputenv("PULSAR_APP", dir.toLocal8Bit());
 
@@ -299,13 +309,6 @@ int main(int argc, char **argv)
 
                          showError(text);
                      });
-    QObject::connect(&bridge, &EmbeddedBridge::reloadRequested, &app, [&]() {
-#ifdef PULSAR_DEV
-        if (devChannel)
-            devChannel->requestReload();
-#endif
-    });
-
     QObject::connect(&bridge, &EmbeddedBridge::uiTree, &app,
                      [&](const QString &target, const QVariantList &tree) {
                          if (!jsUi)
@@ -480,30 +483,147 @@ int main(int argc, char **argv)
                      });
 #endif
 
+    auto snapshotStore = [&]() {
+        QJsonObject state;
+
+        for (const QString &key : store.keys())
+            state.insert(key, QJsonValue::fromVariant(store.value(key)));
+
+        return state;
+    };
+
+    auto loadUi = [&]() -> bool {
+        if (jsUi) {
+            if (uiRoot) {
+                uiRoot->setProperty("tree", QVariantList());
+                uiRoot->setProperty("errorText", QString());
+
+                return true;
+            }
+
+            engine.load(QUrl(QStringLiteral("qrc:/runtime/PulsarView.qml")));
+        } else {
+            engine.load(QUrl::fromLocalFile(dir + QLatin1Char('/') + ui));
+        }
+
+        if (engine.rootObjects().isEmpty())
+            return false;
+
+        if (jsUi) {
+            uiRoot = engine.rootObjects().first();
+
+            if (hasPendingUiTree)
+                uiRoot->setProperty("tree", pendingUiTree);
+
+            if (!pendingError.isEmpty())
+                uiRoot->setProperty("errorText", pendingError);
+        }
+
+        return true;
+    };
+
     if (!runtime.start(dir + QStringLiteral("/runtime.js"), manifestJson, dir)) {
         qWarning().noquote() << "pulsar: cannot start the embedded runtime";
         return 1;
     }
 
-    const QUrl uiUrl = jsUi ? QUrl(QStringLiteral("qrc:/runtime/PulsarView.qml"))
-                            : QUrl::fromLocalFile(dir + QLatin1Char('/') + ui);
-
-    engine.load(uiUrl);
-
-    if (engine.rootObjects().isEmpty()) {
+    if (!loadUi()) {
         qWarning().noquote() << "pulsar: QML root is empty";
         return 1;
     }
 
-    if (jsUi) {
-        uiRoot = engine.rootObjects().first();
+    auto reloadApp = [&]() {
+        QString nextDir = dir;
 
-        if (hasPendingUiTree)
-            uiRoot->setProperty("tree", pendingUiTree);
+#ifdef PULSAR_DEV
+        if (!devUrl.isEmpty()) {
+            const pulsar::DevFetchResult fetched = pulsar::fetchDevApp(devUrl);
 
-        if (!pendingError.isEmpty())
-            uiRoot->setProperty("errorText", pendingError);
-    }
+            if (fetched.ok)
+                nextDir = fetched.dir;
+        }
+#endif
+
+        const QString previousDir = dir;
+        const QString previousManifest = manifestJson;
+        const QString previousUi = ui;
+        const bool previousJsUi = jsUi;
+
+        readManifest(nextDir);
+
+        if (jsUi != previousJsUi) {
+            dir = previousDir;
+            manifestJson = previousManifest;
+            ui = previousUi;
+            jsUi = previousJsUi;
+
+            qWarning().noquote() << "pulsar: the UI kind changed; restarting the app";
+
+#ifdef PULSAR_DEV
+            if (devChannel)
+                devChannel->requestReload();
+#endif
+            return;
+        }
+
+        const QJsonObject state = snapshotStore();
+
+#ifdef PULSAR_DEV
+        if (devChannel)
+            devChannel->setTree(QVariantList());
+#endif
+
+        if (jsUi) {
+            pendingUiTree.clear();
+            hasPendingUiTree = false;
+            pendingError.clear();
+
+            if (uiRoot) {
+                uiRoot->setProperty("tree", QVariantList());
+                uiRoot->setProperty("errorText", QString());
+            }
+        } else {
+            const QList<QObject *> roots = engine.rootObjects();
+
+            for (QObject *root : roots)
+                delete root;
+
+            engine.clearComponentCache();
+        }
+
+        dir = nextDir;
+        qputenv("PULSAR_APP", dir.toLocal8Bit());
+
+        bridge.reset();
+        runtime.setRestoreState(state);
+
+        if (!runtime.restart(dir + QStringLiteral("/runtime.js"), manifestJson, dir)) {
+            qWarning().noquote() << "pulsar: reload failed";
+
+#ifdef PULSAR_DEV
+            if (devChannel)
+                devChannel->requestReload();
+#endif
+            return;
+        }
+
+        if (!loadUi()) {
+            qWarning().noquote() << "pulsar: reload could not load the UI";
+
+#ifdef PULSAR_DEV
+            if (devChannel)
+                devChannel->requestReload();
+#endif
+            return;
+        }
+
+#ifdef Q_OS_ANDROID
+        for (QObject *root : engine.rootObjects())
+            root->installEventFilter(backHandler);
+#endif
+    };
+
+    QObject::connect(&bridge, &EmbeddedBridge::reloadRequested, &app, reloadApp);
 
 #ifdef Q_OS_ANDROID
     for (QObject *root : engine.rootObjects())

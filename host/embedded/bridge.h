@@ -65,6 +65,9 @@ public:
     /** Show the dev error overlay (called by the runtime and the dev channel). */
     void setErrorText(const QString &text);
 
+    /** Drop calls and dialogs that belonged to the previous JS runtime. */
+    void reset();
+
 public slots:
     void handleMessage(const QJsonObject &message);
 

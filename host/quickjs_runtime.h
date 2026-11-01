@@ -47,6 +47,9 @@ public:
     ~QuickJsRuntime() override;
 
     bool start(const QString &bundlePath, const QString &manifestJson, const QString &appDir);
+    bool restart(const QString &bundlePath, const QString &manifestJson, const QString &appDir);
+    void reset();
+    void setRestoreState(const QJsonObject &state);
 
     /** Deliver a control message from the host to the JS transport. */
     void receive(const QJsonObject &message);
@@ -66,6 +69,7 @@ private:
         bool repeating = false;
     };
 
+    bool createContext();
     void installGlobals();
     bool evaluate(const QByteArray &code, const QString &filename);
     void reportException(const QString &scope);
@@ -80,6 +84,7 @@ private:
     JSRuntime *runtime_ = nullptr;
     JSContext *context_ = nullptr;
     QJsonObject manifest_;
+    QJsonObject restoreState_;
     QString appDir_;
     QHash<int, TimerEntry> timers_;
     int nextTimer_ = 1;

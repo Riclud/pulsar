@@ -213,58 +213,58 @@ void DevChannel::reply(const QJsonValue &id, bool ok, const QJsonValue &value)
 
 void DevChannel::handle(const QJsonObject &command)
 {
-    const QJsonValue id = command.value(QStringLiteral("id"));
+    const QJsonValue request = command.value(QStringLiteral("request"));
     const QString name = command.value(QStringLiteral("cmd")).toString();
     const double ts = command.value(QStringLiteral("ts")).toDouble();
 
     if (ts > 0 && QDateTime::currentMSecsSinceEpoch() - ts > 3000) {
-        reply(id, false, QStringLiteral("stale command"));
+        reply(request, false, QStringLiteral("stale command"));
         return;
     }
 
     if (name == QLatin1String("ping")) {
-        reply(id, true, QStringLiteral("pong"));
+        reply(request, true, QStringLiteral("pong"));
         return;
     }
 
     if (name == QLatin1String("tree")) {
-        reply(id, true, tree_);
+        reply(request, true, tree_);
         return;
     }
 
     if (name == QLatin1String("state")) {
-        reply(id, true, storeSnapshot());
+        reply(request, true, storeSnapshot());
         return;
     }
 
     if (name == QLatin1String("reload")) {
-        requestReload();
-        reply(id, true, true);
+        bridge_->devReload();
+        reply(request, true, true);
         return;
     }
 
     if (name == QLatin1String("back")) {
         bridge_->notify(QStringLiteral("back-pressed"), QJsonObject());
-        reply(id, true, true);
+        reply(request, true, true);
         return;
     }
 
     if (name == QLatin1String("grab")) {
         const QJsonObject image = grabWindow();
 
-        reply(id, !image.isEmpty(), image);
+        reply(request, !image.isEmpty(), image);
         return;
     }
 
     if (name == QLatin1String("show-error")) {
         bridge_->setErrorText(command.value(QStringLiteral("text")).toString());
-        reply(id, true, true);
+        reply(request, true, true);
         return;
     }
 
     if (name != QLatin1String("tap") && name != QLatin1String("type") && name != QLatin1String("toggle")
         && name != QLatin1String("select")) {
-        reply(id, false, QStringLiteral("unknown command: %1").arg(name));
+        reply(request, false, QStringLiteral("unknown command: %1").arg(name));
         return;
     }
 
@@ -281,7 +281,7 @@ void DevChannel::handle(const QJsonObject &command)
     const QJsonObject node = resolveNode(selector, &event);
 
     if (node.isEmpty() || event.isEmpty()) {
-        reply(id, false, QStringLiteral("node not found"));
+        reply(request, false, QStringLiteral("node not found"));
         return;
     }
 
@@ -300,7 +300,7 @@ void DevChannel::handle(const QJsonObject &command)
     result.insert(QStringLiteral("text"), nodeText(node));
     result.insert(QStringLiteral("event"), event);
 
-    reply(id, true, result);
+    reply(request, true, result);
 }
 
 void DevChannel::dispatch(const QJsonObject &node, const QString &event, const QJsonValue &value)

@@ -275,10 +275,10 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
 
   const control = (body: Record<string, unknown>): Promise<unknown> => {
     return new Promise((resolve, reject) => {
-      const id = ++commandID
-      const command = { type: "cmd", id, ts: Date.now(), ...body }
+      const request = ++commandID
+      const command = { kind: "cmd", request, ts: Date.now(), ...body }
       const timer = setTimeout(() => {
-        replies.delete(id)
+        replies.delete(request)
 
         const index = commands.indexOf(command)
 
@@ -287,7 +287,7 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
         reject(new Error("device did not reply"))
       }, 5000)
 
-      replies.set(id, { resolve, timer })
+      replies.set(request, { resolve, timer })
       commands.push(command)
 
       if (pollResolve) finishPoll(commands.splice(0))
@@ -451,8 +451,14 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
       payload = next
       mapper = mapperForPayload(next, appDir)
 
-      console.log(`pulsar: bundle ${next.version.slice(0, 8)}; restarting ${packageName}`)
-      launch()
+      console.log(`pulsar: bundle ${next.version.slice(0, 8)}; reloading ${packageName}`)
+
+      try {
+        await control({ cmd: "reload" })
+      } catch (e) {
+        console.log(`pulsar: in-process reload failed (${e instanceof Error ? e.message : String(e)}); restarting`)
+        launch()
+      }
     } catch (e) {
       console.error(`pulsar: rebuild failed: ${e instanceof Error ? e.message : String(e)}`)
     } finally {

@@ -105,23 +105,73 @@ bool copyRecursive(const QString &from, const QString &to)
 QuickJsRuntime::QuickJsRuntime(QObject *parent)
     : QObject(parent)
 {
+    createContext();
+}
+
+bool QuickJsRuntime::createContext()
+{
     runtime_ = JS_NewRuntime();
 
     if (!runtime_) {
         Q_EMIT failed(QStringLiteral("cannot create the QuickJS runtime"));
-        return;
+        return false;
     }
 
     context_ = JS_NewContext(runtime_);
 
     if (!context_) {
+        JS_FreeRuntime(runtime_);
+        runtime_ = nullptr;
+
         Q_EMIT failed(QStringLiteral("cannot create the QuickJS context"));
-        return;
+        return false;
     }
 
     JS_SetContextOpaque(context_, this);
 
     installGlobals();
+
+    return true;
+}
+
+void QuickJsRuntime::reset()
+{
+    for (auto it = timers_.begin(); it != timers_.end(); ++it) {
+        if (it->timer) {
+            it->timer->stop();
+            it->timer->deleteLater();
+        }
+
+        if (context_)
+            JS_FreeValue(context_, it->callback);
+    }
+
+    timers_.clear();
+
+    if (context_)
+        JS_FreeContext(context_);
+    if (runtime_)
+        JS_FreeRuntime(runtime_);
+
+    context_ = nullptr;
+    runtime_ = nullptr;
+    manifest_ = {};
+    appDir_.clear();
+    nextTimer_ = 1;
+
+    createContext();
+}
+
+bool QuickJsRuntime::restart(const QString &bundlePath, const QString &manifestJson, const QString &appDir)
+{
+    reset();
+
+    return start(bundlePath, manifestJson, appDir);
+}
+
+void QuickJsRuntime::setRestoreState(const QJsonObject &state)
+{
+    restoreState_ = state;
 }
 
 QuickJsRuntime::~QuickJsRuntime()
@@ -228,6 +278,7 @@ bool QuickJsRuntime::start(const QString &bundlePath, const QString &manifestJso
 
     if (!evaluate(code, bundlePath)) return false;
 
+    restoreState_ = {};
     runJobs();
 
     return true;
@@ -240,11 +291,15 @@ bool QuickJsRuntime::evaluate(const QByteArray &code, const QString &filename)
     const QByteArray manifestText =
         manifest_.isEmpty() ? QByteArray("null") : QJsonDocument(manifest_).toJson(QJsonDocument::Compact);
     const QByteArray appDirText = appDir_.toUtf8();
+    const QByteArray restoreText =
+        restoreState_.isEmpty() ? QByteArray("null") : QJsonDocument(restoreState_).toJson(QJsonDocument::Compact);
 
     JS_SetPropertyStr(context_, global, "__pulsarManifest",
                       JS_NewStringLen(context_, manifestText.constData(), manifestText.size()));
     JS_SetPropertyStr(context_, global, "__pulsarAppDir",
                       JS_NewStringLen(context_, appDirText.constData(), appDirText.size()));
+    JS_SetPropertyStr(context_, global, "__pulsarRestore",
+                      JS_NewStringLen(context_, restoreText.constData(), restoreText.size()));
 
     JS_FreeValue(context_, global);
 
