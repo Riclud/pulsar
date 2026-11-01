@@ -306,7 +306,9 @@ void EmbeddedBridge::handleMessage(const QJsonObject &message)
         const QString message = params.value(QStringLiteral("message")).toString();
         const QString stack = params.value(QStringLiteral("stack")).toString();
 
-        Q_EMIT log(QStringLiteral("error"), message, QStringLiteral("app"));
+        const QString text = stack.isEmpty() ? message : message + QLatin1Char('\n') + stack;
+
+        Q_EMIT log(QStringLiteral("error"), text, QStringLiteral("app"));
         Q_EMIT errorReported(params.value(QStringLiteral("scope")).toString(), message, stack);
         return;
     }
