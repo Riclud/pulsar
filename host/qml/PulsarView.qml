@@ -600,8 +600,20 @@ ApplicationWindow {
         const props = node.props;
         const defaultFillWidth = node.type === "card" || node.type === "list" || node.type === "scroll"
                 || node.type === "appBar" || node.type === "divider" || node.type === "textInput";
-        const fillWidth = prop(props, "fillWidth", prop(props, "expand", defaultFillWidth));
-        const fillHeight = prop(props, "fillHeight", node.type === "list" || node.type === "scroll");
+        const fill = prop(props, "fill", undefined);
+        let fillWidth = defaultFillWidth;
+        let fillHeight = node.type === "list" || node.type === "scroll";
+
+        if (props.expand !== undefined)
+            fillWidth = props.expand;
+        if (fill !== undefined) {
+            fillWidth = fill;
+            fillHeight = fill;
+        }
+        if (props.fillWidth !== undefined)
+            fillWidth = props.fillWidth;
+        if (props.fillHeight !== undefined)
+            fillHeight = props.fillHeight;
 
         if (node.type === "sheet")
             return;

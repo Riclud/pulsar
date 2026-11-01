@@ -30,12 +30,15 @@ export interface UiNode {
   events?: string[]
 }
 
+export type UiChild = UiNode | string | number | null | false | undefined | UiChild[]
+
 interface CommonOptions {
   key?: string | number
   width?: number
   height?: number
   visible?: boolean
   opacity?: number
+  fill?: boolean
   fillWidth?: boolean
   fillHeight?: boolean
 }
@@ -159,7 +162,77 @@ export interface ProgressOptions extends CommonOptions {
   value?: number
 }
 
+export interface ForOptions<T> extends Omit<ListOptions<T>, "items" | "render"> {
+  each: T[] | (() => T[])
+  render: (item: T, index: number) => UiNode
+}
+
+export interface WhenOptions {
+  test: unknown | (() => unknown)
+  then: UiChild | (() => UiChild)
+  else?: UiChild | (() => UiChild)
+}
+
 type UiHandler = (value: unknown) => void
+
+const BINDING: unique symbol = Symbol("pulsar.binding")
+
+interface BindingBox<T> {
+  readonly [BINDING]: () => T
+}
+
+export const bind = <T>(read: () => T): T => {
+  return { [BINDING]: read } as unknown as T
+}
+
+const isBinding = (value: unknown): value is BindingBox<unknown> => {
+  return typeof value === "object" && value !== null && BINDING in value
+}
+
+const resolveValue = <T>(value: T | (() => T)): T => {
+  if (isBinding(value)) return (value as unknown as BindingBox<T>)[BINDING]()
+
+  return typeof value === "function" ? (value as () => T)() : value
+}
+
+const resolveChild = (value: UiChild | (() => UiChild)): UiChild => {
+  return typeof value === "function" ? value() : value
+}
+
+const flatten = (children: UiChild[], out: UiNode[] = []): UiNode[] => {
+  for (const child of children) {
+    if (!child) continue
+
+    if (Array.isArray(child)) {
+      flatten(child, out)
+      continue
+    }
+
+    if (typeof child === "object") out.push(child)
+  }
+
+  return out
+}
+
+const textOf = (children: UiChild[]): string => {
+  let out = ""
+
+  for (const child of children) {
+    if (typeof child === "string" || typeof child === "number") out += String(child)
+    else if (Array.isArray(child)) out += textOf(child)
+  }
+
+  return out
+}
+
+const resolveProps = (props: Record<string, unknown>): Record<string, unknown> => {
+  const out: Record<string, unknown> = {}
+
+  for (const [key, value] of Object.entries(props))
+    out[key] = isBinding(value) ? (value as BindingBox<unknown>)[BINDING]() : value
+
+  return out
+}
 
 const handlers = new Map<number, Record<string, UiHandler>>()
 let nextId = 1
@@ -167,7 +240,7 @@ let nextId = 1
 const makeNode = <P extends object>(
   type: UiNodeType,
   props: P,
-  children: UiNode[] = [],
+  children: UiChild[] = [],
   events: string[] = [],
   callbacks?: Record<string, UiHandler>,
 ): UiNode => {
@@ -176,30 +249,31 @@ const makeNode = <P extends object>(
   if (callbacks) handlers.set(id, callbacks)
 
   const node: UiNode = { id, type, props: props as Record<string, unknown> }
+  const nodes = flatten(children)
 
-  if (children.length > 0) node.children = children
+  if (nodes.length > 0) node.children = nodes
   if (events.length > 0) node.events = events
 
   return node
 }
 
-export const column = (options: LayoutOptions = {}, children: UiNode[] = []): UiNode => {
+export const column = (options: LayoutOptions = {}, ...children: UiChild[]): UiNode => {
   return makeNode("column", options, children)
 }
 
-export const row = (options: LayoutOptions = {}, children: UiNode[] = []): UiNode => {
+export const row = (options: LayoutOptions = {}, ...children: UiChild[]): UiNode => {
   return makeNode("row", options, children)
 }
 
-export const box = (options: BoxOptions = {}, children: UiNode[] = []): UiNode => {
+export const box = (options: BoxOptions = {}, ...children: UiChild[]): UiNode => {
   return makeNode("box", options, children)
 }
 
-export const scroll = (options: ScrollOptions = {}, children: UiNode[] = []): UiNode => {
+export const scroll = (options: ScrollOptions = {}, ...children: UiChild[]): UiNode => {
   return makeNode("scroll", options, children)
 }
 
-export const card = (options: CardOptions = {}, children: UiNode[] = []): UiNode => {
+export const card = (options: CardOptions = {}, ...children: UiChild[]): UiNode => {
   return makeNode("card", options, children)
 }
 
@@ -211,12 +285,13 @@ export const list = <T>(options: ListOptions<T>): UiNode => {
   return makeNode("list", { ...props, itemKeys }, children)
 }
 
-export const appBar = (options: AppBarOptions): UiNode => {
-  const { onBack, actions = [], ...props } = options
+export const appBar = (options: AppBarOptions = {}, ...children: UiChild[]): UiNode => {
+  const { onBack, actions, ...props } = options
+  const items = actions ?? flatten(children)
 
-  if (!onBack) return makeNode("appBar", props, actions)
+  if (!onBack) return makeNode("appBar", props, items)
 
-  return makeNode("appBar", props, actions, ["back"], { back: () => onBack() })
+  return makeNode("appBar", props, items, ["back"], { back: () => onBack() })
 }
 
 export const text = (value: string | TextOptions): UiNode => {
@@ -328,13 +403,104 @@ export const progress = (options: ProgressOptions = {}): UiNode => {
   return makeNode("progress", { ...options, value, indeterminate: value < 0 })
 }
 
-export const sheet = (options: SheetOptions = {}, children: UiNode[] = []): UiNode => {
+export const sheet = (options: SheetOptions = {}, ...children: UiChild[]): UiNode => {
   const { onClose, ...props } = options
 
   if (!onClose) return makeNode("sheet", props, children)
 
   return makeNode("sheet", props, children, ["close"], { close: () => onClose() })
 }
+
+export const For = <T>(options: ForOptions<T>): UiNode => {
+  const { each, keyOf, render, ...props } = options
+
+  return list({ ...props, items: resolveValue(each), keyOf, render })
+}
+
+export const When = (options: WhenOptions): UiChild => {
+  return resolveValue(options.test) ? resolveChild(options.then) : resolveChild(options.else ?? null)
+}
+
+export type DefinedComponent<P> = (props: P, ...children: UiChild[]) => UiNode
+
+export const defineComponent = <P>(component: DefinedComponent<P>): DefinedComponent<P> => {
+  return component
+}
+
+export const Column = (options: LayoutOptions = {}, ...children: UiChild[]): UiNode => column(options, ...children)
+
+export const Row = (options: LayoutOptions = {}, ...children: UiChild[]): UiNode => row(options, ...children)
+
+export const Box = (options: BoxOptions = {}, ...children: UiChild[]): UiNode => box(options, ...children)
+
+export const Scroll = (options: ScrollOptions = {}, ...children: UiChild[]): UiNode => scroll(options, ...children)
+
+export const Card = (options: CardOptions = {}, ...children: UiChild[]): UiNode => card(options, ...children)
+
+export const Header = (options: AppBarOptions = {}, ...children: UiChild[]): UiNode => {
+  return appBar({ ...options, actions: options.actions ?? flatten(children) })
+}
+
+export const AppBar = Header
+
+export const Text = (options: TextOptions = {}, ...children: UiChild[]): UiNode => {
+  return text({ ...options, text: options.text ?? textOf(children) })
+}
+
+export const Button = (options: ButtonOptions & { label?: string } = {}, ...children: UiChild[]): UiNode => {
+  return button(options.label ?? textOf(children), options)
+}
+
+export const Icon = (options: IconOptions & { name?: string; icon?: string }): UiNode => {
+  return icon(options.name ?? options.icon ?? "", options)
+}
+
+export const IconButton = (options: IconButtonOptions & { name?: string; icon?: string } = {}): UiNode => {
+  return iconButton(options.name ?? options.icon ?? "", options)
+}
+
+export const Chip = (options: ChipOptions & { label?: string } = {}, ...children: UiChild[]): UiNode => {
+  return chip(options.label ?? textOf(children), options)
+}
+
+export const Input = (options: TextInputOptions = {}): UiNode => textInput(options)
+
+export const TextField = Input
+
+export const Checkbox = (options: CheckboxOptions & { label?: string } = {}, ...children: UiChild[]): UiNode => {
+  return checkbox(options.label ?? textOf(children), options)
+}
+
+export const Switch = (options: CheckboxOptions & { label?: string } = {}, ...children: UiChild[]): UiNode => {
+  return switchControl(options.label ?? textOf(children), options)
+}
+
+export const Slider = slider
+export const Select = select
+export const Progress = progress
+
+export const Sheet = (options: SheetOptions = {}, ...children: UiChild[]): UiNode => sheet(options, ...children)
+
+export const Modal = (options: SheetOptions = {}, ...children: UiChild[]): UiNode => {
+  return sheet({ ...options, fullscreen: options.fullscreen ?? false }, ...children)
+}
+
+export const List = <T>(
+  options: Omit<ListOptions<T>, "render"> & { render?: (item: T, index: number) => UiNode },
+  ...children: UiChild[]
+): UiNode => {
+  const { render, ...props } = options
+
+  if (render) return list({ ...props, render })
+
+  const rows = flatten(children)
+
+  return list({ ...props, render: (_item, index) => rows[index] ?? box({}) })
+}
+
+export const Spacer = spacer
+export const Divider = divider
+export const Image = image
 
 const nodeSegment = (node: UiNode, index: number, keys?: Array<string | number>): string => {
   const explicit = node.props.key
@@ -348,7 +514,7 @@ const nodeSegment = (node: UiNode, index: number, keys?: Array<string | number>)
 export const serialize = (nodes: UiNode[], parentPath = "", keys?: Array<string | number>): unknown[] => {
   return nodes.map((node, index) => {
     const path = `${parentPath}/${nodeSegment(node, index, keys)}`
-    const out: Record<string, unknown> = { id: node.id, type: node.type, props: node.props, path }
+    const out: Record<string, unknown> = { id: node.id, type: node.type, props: resolveProps(node.props), path }
 
     if (node.children) {
       const childKeys = node.type === "list" ? (node.props.itemKeys as Array<string | number> | undefined) : undefined

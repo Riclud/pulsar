@@ -1,10 +1,23 @@
 import { describe, expect, test } from "bun:test"
 import {
+  Button,
+  Card,
+  Checkbox,
+  Column,
+  For,
+  Header,
+  Input,
+  Modal,
+  Text,
+  TextField,
+  When,
   appBar,
+  bind,
   button,
   checkbox,
   chip,
   column,
+  defineComponent,
   dispatchUiEvent,
   forgetHandlers,
   iconButton,
@@ -97,5 +110,62 @@ describe("ui", () => {
   test("progress defaults to indeterminate", () => {
     expect(progress().props.indeterminate).toBe(true)
     expect(progress({ value: 0.5 }).props.indeterminate).toBe(false)
+  })
+})
+
+describe("qml-like components", () => {
+  test("flattens variadic and array children and drops empty ones", () => {
+    const tree = Column({}, Text({}, "a"), null, false, [Text({}, "b")])
+
+    expect(tree.children?.map((child) => child.type)).toEqual(["text", "text"])
+  })
+
+  test("resolves bindings when the tree is serialized", () => {
+    let count = 0
+    const tree = Header({ title: bind(() => `Count ${count}`) })
+
+    count = 3
+
+    const out = serialize([tree]) as Array<{ props: Record<string, unknown> }>
+
+    expect(out[0]!.props.title).toBe("Count 3")
+  })
+
+  test("For builds a keyed list from a binding", () => {
+    const tasks = [{ id: "a" }, { id: "b" }]
+    const node = For({
+      each: bind(() => tasks),
+      keyOf: (task) => task.id,
+      render: (task) => Text({}, task.id),
+    })
+
+    expect(node.type).toBe("list")
+    expect(node.children?.length).toBe(2)
+    expect(node.props.itemKeys).toEqual(["a", "b"])
+  })
+
+  test("When returns a branch or null", () => {
+    const shown = When({ test: true, then: () => Text({}, "yes"), else: () => Text({}, "no") })
+    const hidden = When({ test: false, then: () => Text({}, "yes") })
+
+    expect((shown as { props: Record<string, unknown> }).props.text).toBe("yes")
+    expect(hidden).toBeNull()
+  })
+
+  test("web-named components map to the right nodes", () => {
+    const row = Card({ padding: 12 }, Button({}, "Save"), Input({ placeholder: "Name" }), Checkbox({ label: "Done" }))
+
+    expect(row.type).toBe("card")
+    expect(row.children?.map((child) => child.type)).toEqual(["button", "textInput", "checkbox"])
+    expect(Header({ title: "Tasks" }).type).toBe("appBar")
+    expect(Modal({ title: "Edit" }).type).toBe("sheet")
+    expect(TextField({ placeholder: "x" }).type).toBe("textInput")
+  })
+
+  test("defineComponent passes props and children", () => {
+    const Row = defineComponent<{ label: string }>(({ label }, ...children) => Column({}, Text({}, label), ...children))
+    const node = Row({ label: "Title" }, Text({}, "Body"))
+
+    expect(node.children?.length).toBe(2)
   })
 })
