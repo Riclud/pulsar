@@ -12,6 +12,8 @@ import {
   TextField,
   When,
   appBar,
+  accordion,
+  accordionSection,
   avatar,
   badge,
   bind,
@@ -23,15 +25,22 @@ import {
   column,
   defineComponent,
   dispatchUiEvent,
+  emptyState,
+  fab,
   forgetHandlers,
   grid,
   iconButton,
   image,
   list,
+  menu,
   navRail,
   pager,
   popover,
   progress,
+  radio,
+  radioGroup,
+  rangeSlider,
+  searchField,
   segmented,
   serialize,
   sheet,
@@ -42,6 +51,7 @@ import {
   tabs,
   text,
   textInput,
+  toolbar,
   ui,
   virtualList,
   zoomable,
@@ -376,14 +386,7 @@ describe("lists and grids", () => {
     dispatchUiEvent(node.id, "action", { key: "a", action: "delete" })
     dispatchUiEvent(node.id, "reorder", { from: 0, to: 2 })
 
-    expect(seen).toEqual([
-      "end",
-      "refresh",
-      "select:a:true",
-      "press:a",
-      "action:a:delete",
-      "reorder:0:2",
-    ])
+    expect(seen).toEqual(["end", "refresh", "select:a:true", "press:a", "action:a:delete", "reorder:0:2"])
   })
 })
 
@@ -441,5 +444,164 @@ describe("qml-like components", () => {
     const node = Row({ label: "Title" }, Text({}, "Body"))
 
     expect(node.children?.length).toBe(2)
+  })
+
+  test("radio and radio group carry options and emit values", () => {
+    const selected: boolean[] = []
+    const changed: Array<string | number> = []
+    const single = radio("Daily", { checked: true, onSelect: () => selected.push(true) })
+    const group = radioGroup({
+      options: ["Daily", { value: "weekly", label: "Weekly" }],
+      value: "daily",
+      direction: "horizontal",
+      onChange: (value) => changed.push(value),
+    })
+
+    expect(single.type).toBe("radio")
+    expect(single.props).toMatchObject({ label: "Daily", checked: true })
+    expect(group.type).toBe("radioGroup")
+    expect(group.props).toMatchObject({
+      options: [
+        { value: "Daily", label: "Daily" },
+        { value: "weekly", label: "Weekly" },
+      ],
+      value: "daily",
+      direction: "horizontal",
+    })
+
+    dispatchUiEvent(single.id, "select", true)
+    dispatchUiEvent(group.id, "change", "weekly")
+
+    expect(selected).toEqual([true])
+    expect(changed).toEqual(["weekly"])
+  })
+
+  test("range slider maps both handles", () => {
+    const ranges: Array<[number, number]> = []
+    const node = rangeSlider({
+      min: 0,
+      max: 100,
+      from: 20,
+      to: 80,
+      step: 5,
+      onChange: (from, to) => ranges.push([from, to]),
+    })
+
+    expect(node.type).toBe("rangeSlider")
+    expect(node.props).toMatchObject({ min: 0, max: 100, from: 20, to: 80, step: 5 })
+
+    dispatchUiEvent(node.id, "change", { from: 30, to: 60 })
+
+    expect(ranges).toEqual([[30, 60]])
+  })
+
+  test("search field emits input, submit and clear", () => {
+    const events: string[] = []
+    const node = searchField({
+      value: "",
+      placeholder: "Search",
+      debounce: 200,
+      onInput: (value) => events.push(`input:${value}`),
+      onSubmit: (value) => events.push(`submit:${value}`),
+      onClear: () => events.push("clear"),
+    })
+
+    expect(node.type).toBe("searchField")
+    expect(node.props).toMatchObject({ value: "", placeholder: "Search", debounce: 200 })
+
+    dispatchUiEvent(node.id, "input", "puls")
+    dispatchUiEvent(node.id, "submit", "pulsar")
+    dispatchUiEvent(node.id, "clear", null)
+
+    expect(events).toEqual(["input:puls", "submit:pulsar", "clear"])
+  })
+
+  test("menu serializes items and emits select and close", () => {
+    const got: string[] = []
+    const node = menu({
+      open: true,
+      items: [
+        { id: "rename", label: "Rename", icon: "edit" },
+        { id: "sep", label: "", separator: true },
+        { id: "delete", label: "Delete", danger: true },
+      ],
+      onSelect: (id) => got.push(`select:${id}`),
+      onClose: () => got.push("close"),
+    })
+
+    expect(node.type).toBe("menu")
+    expect(node.props.items).toHaveLength(3)
+
+    dispatchUiEvent(node.id, "select", "delete")
+    dispatchUiEvent(node.id, "close", null)
+
+    expect(got).toEqual(["select:delete", "close"])
+  })
+
+  test("accordion keeps sections as children and reports toggles", () => {
+    const seen: Array<[number, boolean]> = []
+    const node = accordion(
+      { multiple: false, onChange: (index, open) => seen.push([index, open]) },
+      accordionSection({ title: "General", icon: "tune", defaultOpen: true }, Text({}, "Body")),
+      accordionSection({ title: "Advanced" }),
+    )
+
+    expect(node.type).toBe("accordion")
+    expect(node.props.multiple).toBe(false)
+    expect(node.children?.map((child) => child.type)).toEqual(["accordionSection", "accordionSection"])
+    expect(node.children?.[0]?.props).toMatchObject({ title: "General", icon: "tune", defaultOpen: true })
+
+    dispatchUiEvent(node.id, "toggle", { index: 1, open: true })
+
+    expect(seen).toEqual([[1, true]])
+  })
+
+  test("fab carries placement and presses", () => {
+    const pressed: number[] = []
+    const node = fab({ icon: "add", size: 64, placement: "inline", onClick: () => pressed.push(1) })
+
+    expect(node.type).toBe("fab")
+    expect(node.props).toMatchObject({ icon: "add", size: 64, placement: "inline" })
+
+    dispatchUiEvent(node.id, "click", null)
+
+    expect(pressed).toEqual([1])
+  })
+
+  test("toolbar is a surface row with actions", () => {
+    const node = toolbar(
+      { gap: 6, padding: 10, actions: [button("Save", {})] },
+      ui.text("Inbox"),
+      ui.spacer({ fillWidth: true }),
+    )
+
+    expect(node.type).toBe("box")
+    expect(node.props).toMatchObject({ padding: 10 })
+    expect(node.children?.[0]?.type).toBe("row")
+    expect(node.children?.[0]?.props.gap).toBe(6)
+    expect(node.children?.[0]?.children?.map((child) => child.type)).toEqual(["text", "spacer", "button"])
+  })
+
+  test("empty state composes icon, title, text and action", () => {
+    const node = emptyState({
+      icon: "inbox",
+      title: "Nothing here",
+      text: "Messages will appear here.",
+      action: button("Refresh", {}),
+    })
+
+    expect(node.type).toBe("column")
+    expect(node.props).toMatchObject({ align: "center", fillWidth: true })
+    expect(node.children?.map((child) => child.type)).toEqual(["box", "text", "text", "button"])
+  })
+
+  test("elevation keeps shadow color alongside the level", () => {
+    const cardNode = card({ elevation: 4, shadowColor: "black" })
+    const boxNode = box({ elevation: 2, shadowColor: "navy" })
+    const buttonNode = button("Lift", { variant: "elevated", elevation: 3, shadowColor: "gray" })
+
+    expect(cardNode.props).toMatchObject({ elevation: 4, shadowColor: "black" })
+    expect(boxNode.props).toMatchObject({ elevation: 2, shadowColor: "navy" })
+    expect(buttonNode.props).toMatchObject({ elevation: 3, shadowColor: "gray" })
   })
 })

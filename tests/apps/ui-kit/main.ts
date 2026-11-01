@@ -1,17 +1,26 @@
 import {
+  Accordion,
+  AccordionSection,
   App,
   Box,
   Card,
   Chip,
   Column,
+  Fab,
   Input,
+  Menu,
   NavigationRail,
   Progress,
+  RadioGroup,
+  RangeSlider,
   Row,
+  SearchField,
   Segmented,
   Slider,
   Switch,
   Text,
+  Toolbar,
+  EmptyState,
   VirtualList,
   catppuccinTheme,
   clipboard,
@@ -46,6 +55,11 @@ app.store.set("text", "")
 app.store.set("sheet", false)
 app.store.set("dark", true)
 app.store.set("blur", true)
+app.store.set("radio", "daily")
+app.store.set("range", { from: 20, to: 80 })
+app.store.set("query", "")
+app.store.set("menu", false)
+app.store.set("presses", 0)
 
 const Section = (title: string, icon: string, ...children: ReturnType<typeof Column>[]) =>
   Column(
@@ -124,12 +138,7 @@ const interfacePage = page(
     Input({ variant: "filled", placeholder: "Filled field", onInput: (value) => app.store.set("text", value) }),
     Input({ variant: "outline", placeholder: "Outlined field", borderColor: "mauve" }),
   ),
-  Section(
-    "Progress",
-    "linear_scale",
-    Progress({ value: 0.6, color: "mauve" }),
-    Slider({ value: 40, color: "teal" }),
-  ),
+  Section("Progress", "linear_scale", Progress({ value: 0.6, color: "mauve" }), Slider({ value: 40, color: "teal" })),
   Section(
     "Cards",
     "layers",
@@ -155,6 +164,119 @@ const interfacePage = page(
       ),
     ),
   ),
+)
+
+const formsPage = page(
+  ui.text({ text: "Forms", size: 26, weight: "semibold", color: "text" }),
+  Section(
+    "Search",
+    "search",
+    SearchField({
+      value: app.store.get("query") as string,
+      placeholder: "Search components",
+      debounce: 250,
+      onInput: (value) => app.store.set("query", value),
+      onSubmit: (value) => app.store.set("query", value),
+    }),
+  ),
+  Section(
+    "Radio",
+    "radio_button_checked",
+    RadioGroup({
+      options: [
+        { value: "daily", label: "Daily" },
+        { value: "weekly", label: "Weekly" },
+        { value: "monthly", label: "Monthly" },
+      ],
+      value: app.store.get("radio") as string,
+      onChange: (value) => app.store.set("radio", value),
+    }),
+  ),
+  Section(
+    "Range",
+    "linear_scale",
+    RangeSlider({
+      min: 0,
+      max: 100,
+      from: (app.store.get("range") as { from: number }).from,
+      to: (app.store.get("range") as { to: number }).to,
+      color: "teal",
+      onChange: (from, to) => app.store.set("range", { from, to }),
+    }),
+  ),
+  Section(
+    "Accordion",
+    "expand_more",
+    Accordion(
+      { multiple: false },
+      AccordionSection(
+        { title: "Appearance", subtitle: "Theme, colours, motion", icon: "palette", defaultOpen: true },
+        ui.text({ text: "Catppuccin Frappe with Paper Mono.", color: "subtext" }),
+        Switch({ label: "Transparency", checked: true }),
+      ),
+      AccordionSection(
+        { title: "Notifications", icon: "notifications" },
+        ui.text({ text: "Desktop and Android notifications.", color: "subtext" }),
+        Switch({ label: "Enabled", checked: true }),
+      ),
+    ),
+  ),
+  Section(
+    "Toolbar",
+    "view_agenda",
+    Toolbar(
+      {},
+      ui.iconButton("arrow_back"),
+      ui.text({ text: "Inbox", size: 16, weight: "semibold", color: "text" }),
+      ui.spacer({ fillWidth: true }),
+      ui.iconButton("refresh"),
+      ui.iconButton("more_vert", { onClick: () => app.store.set("menu", true) }),
+    ),
+  ),
+  Section(
+    "Empty state",
+    "inbox",
+    Card(
+      { padding: 8, fillWidth: true },
+      EmptyState({
+        icon: "inbox",
+        title: "Nothing here yet",
+        text: "Messages you receive will show up in this list.",
+        action: ui.button("Refresh", { variant: "soft", color: "mauve" }),
+      }),
+    ),
+  ),
+  Section(
+    "Elevation",
+    "layers",
+    Card(
+      { padding: 16, elevation: 4, fillWidth: true },
+      ui.text({ text: "Elevated card", size: 15, weight: "semibold", color: "text" }),
+    ),
+    Row(
+      { gap: 8, fillWidth: true },
+      ui.button("Elevated", { variant: "elevated", color: "mauve", textColor: "crust" }),
+      ui.button("Flat", { variant: "solid", color: "teal" }),
+    ),
+  ),
+  Menu({
+    open: app.store.get("menu") === true,
+    items: [
+      { id: "rename", label: "Rename", icon: "edit" },
+      { id: "duplicate", label: "Duplicate", icon: "content_copy", shortcut: "Ctrl+D" },
+      { id: "sep", label: "", separator: true },
+      { id: "archive", label: "Archive", icon: "archive" },
+      { id: "delete", label: "Delete", icon: "delete", danger: true },
+    ],
+    onSelect: (id) => app.store.set("menuAction", id),
+    onClose: () => app.store.set("menu", false),
+  }),
+  Fab({
+    icon: "add",
+    color: "mauve",
+    textColor: "crust",
+    onClick: () => app.store.set("presses", (app.store.get("presses") as number) + 1),
+  }),
 )
 
 const kitPage = page(
@@ -256,6 +378,7 @@ app.window("main").render(() =>
       items: [
         { label: "Quick", icon: "bolt" },
         { label: "Interface", icon: "palette" },
+        { label: "Forms", icon: "edit_note" },
         { label: "Kit", icon: "widgets" },
       ],
       index: (app.store.get("tab") as number) ?? 0,
@@ -264,6 +387,7 @@ app.window("main").render(() =>
     },
     quickPage,
     interfacePage,
+    formsPage,
     kitPage,
   ),
 )

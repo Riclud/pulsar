@@ -27,8 +27,18 @@ export {
   Checkbox,
   Switch,
   Slider,
+  RangeSlider,
+  Radio,
+  RadioGroup,
+  SearchField,
   Select,
   Progress,
+  Menu,
+  Accordion,
+  AccordionSection,
+  Fab,
+  Toolbar,
+  EmptyState,
   Sheet,
   Pager,
   Tabs,
@@ -80,6 +90,11 @@ export type {
   KeyboardType,
   CheckboxOptions,
   SliderOptions,
+  RangeSliderOptions,
+  RadioOptions,
+  RadioGroupOption,
+  RadioGroupOptions,
+  SearchFieldOptions,
   SelectOption,
   SelectOptions,
   ChipOptions,
@@ -92,6 +107,13 @@ export type {
   SegmentedOptions,
   SnackbarOptions,
   PopoverOptions,
+  MenuItem,
+  MenuOptions,
+  AccordionOptions,
+  AccordionSectionOptions,
+  FabOptions,
+  ToolbarOptions,
+  EmptyStateOptions,
   ZoomableOptions,
   ProgressOptions,
 } from "./ui.ts"
@@ -100,12 +122,7 @@ export type { AppManifest, FileAssociation, ManifestWindow } from "./manifest.ts
 export { parseLaunchArgs } from "./launch.ts"
 export type { LaunchArgs } from "./launch.ts"
 export { CSS_COLOR_NAMES, defineTheme, isColorName } from "./theme.ts"
-export {
-  catppuccin,
-  catppuccinFrappe,
-  catppuccinLatte,
-  catppuccinTheme,
-} from "./themes/catppuccin.ts"
+export { catppuccin, catppuccinFrappe, catppuccinLatte, catppuccinTheme } from "./themes/catppuccin.ts"
 export type { CatppuccinFlavor, CatppuccinPalette } from "./themes/catppuccin.ts"
 export type { ColorName, ColorValue, Theme, ThemeMotion } from "./theme.ts"
 
@@ -155,7 +172,15 @@ export {
 export { net, NetError } from "./net.ts"
 export { MediaManager, media } from "./media.ts"
 export type { MediaState, MediaTrack, MediaSnapshot } from "./media.ts"
-export type { DownloadOptions, DownloadResult, NetErrorData, NetOptions, NetRequest, NetResponse, NetResponseInfo } from "./net.ts"
+export type {
+  DownloadOptions,
+  DownloadResult,
+  NetErrorData,
+  NetOptions,
+  NetRequest,
+  NetResponse,
+  NetResponseInfo,
+} from "./net.ts"
 export type {
   AppPaths,
   CapHandler,

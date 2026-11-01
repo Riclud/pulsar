@@ -25,6 +25,10 @@ export type UiNodeType =
   | "switch"
   | "slider"
   | "select"
+  | "rangeSlider"
+  | "radio"
+  | "radioGroup"
+  | "searchField"
   | "chip"
   | "sheet"
   | "pager"
@@ -33,6 +37,10 @@ export type UiNodeType =
   | "segmented"
   | "snackbar"
   | "popover"
+  | "menu"
+  | "accordion"
+  | "accordionSection"
+  | "fab"
   | "zoomable"
   | "progress"
   | "image"
@@ -64,6 +72,8 @@ interface CommonOptions {
   a11yLabel?: string
   /** Accessibility hint/description announced after the name. */
   a11yHint?: string
+  /** Horizontal placement inside a layout: "start" (default), "center" or "end". */
+  align?: "start" | "center" | "end" | "left" | "right"
   /** Fade opacity changes over this many milliseconds. */
   animate?: number
 }
@@ -141,6 +151,7 @@ export interface CardOptions extends CommonOptions {
   borderWidth?: number
   gradient?: GradientOptions
   elevation?: number
+  shadowColor?: ColorValue
   onLongPress?: () => void
 }
 
@@ -161,6 +172,7 @@ export interface BoxOptions extends CommonOptions {
   borderWidth?: number
   gradient?: GradientOptions
   elevation?: number
+  shadowColor?: ColorValue
   expand?: boolean
   onLongPress?: () => void
 }
@@ -240,6 +252,7 @@ export interface ButtonOptions extends CommonOptions {
   badge?: number | "dot"
   badgeColor?: ColorValue
   elevation?: number
+  shadowColor?: ColorValue
   expand?: boolean
   enabled?: boolean
   onClick?: () => void
@@ -262,14 +275,7 @@ export interface IconButtonOptions extends CommonOptions {
   onClick?: () => void
 }
 
-export type KeyboardType =
-  | "text"
-  | "email"
-  | "number"
-  | "decimal"
-  | "phone"
-  | "url"
-  | "search"
+export type KeyboardType = "text" | "email" | "number" | "decimal" | "phone" | "url" | "search"
 
 export interface TextInputOptions extends CommonOptions {
   value?: string
@@ -312,6 +318,37 @@ export interface SliderOptions extends CommonOptions {
   onChange?: (value: number) => void
 }
 
+export interface RangeSliderOptions extends CommonOptions {
+  min?: number
+  max?: number
+  from?: number
+  to?: number
+  step?: number
+  color?: ColorValue
+  expand?: boolean
+  onChange?: (from: number, to: number) => void
+}
+
+export interface RadioOptions extends CommonOptions {
+  checked?: boolean
+  color?: ColorValue
+  enabled?: boolean
+  onSelect?: () => void
+}
+
+export interface RadioGroupOption {
+  value: string | number
+  label: string
+}
+
+export interface RadioGroupOptions extends CommonOptions {
+  options: Array<string | RadioGroupOption>
+  value?: string | number
+  direction?: "vertical" | "horizontal"
+  color?: ColorValue
+  onChange?: (value: string | number) => void
+}
+
 export interface SelectOption {
   value: string | number
   label: string
@@ -322,6 +359,94 @@ export interface SelectOptions extends CommonOptions {
   options: Array<string | SelectOption>
   color?: ColorValue
   onChange?: (value: string | number) => void
+}
+
+export interface SearchFieldOptions extends CommonOptions {
+  value?: string
+  placeholder?: string
+  variant?: "filled" | "outline"
+  color?: ColorValue
+  borderColor?: ColorValue
+  radius?: number
+  debounce?: number
+  enabled?: boolean
+  onInput?: (value: string) => void
+  onSubmit?: (value: string) => void
+  onClear?: () => void
+  onFocus?: () => void
+  onBlur?: () => void
+}
+
+export interface MenuItem {
+  id: string
+  label: string
+  icon?: string
+  shortcut?: string
+  disabled?: boolean
+  separator?: boolean
+  danger?: boolean
+}
+
+export interface MenuOptions extends CommonOptions {
+  open?: boolean
+  items: MenuItem[]
+  x?: number
+  y?: number
+  maxHeight?: number
+  closeOnSelect?: boolean
+  dismissible?: boolean
+  modal?: boolean
+  duration?: number
+  elevation?: number
+  shadowColor?: ColorValue
+  onSelect?: (id: string) => void
+  onClose?: () => void
+}
+
+export interface AccordionOptions extends CommonOptions {
+  multiple?: boolean
+  onChange?: (index: number, open: boolean) => void
+}
+
+export interface AccordionSectionOptions extends CommonOptions {
+  title?: string
+  subtitle?: string
+  icon?: string
+  open?: boolean
+  defaultOpen?: boolean
+  enabled?: boolean
+}
+
+export interface FabOptions extends CommonOptions {
+  icon: string
+  size?: number
+  color?: ColorValue
+  textColor?: ColorValue
+  elevation?: number
+  shadowColor?: ColorValue
+  placement?: "bottom-end" | "inline"
+  enabled?: boolean
+  onClick?: () => void
+}
+
+export interface ToolbarOptions extends CommonOptions {
+  color?: ColorValue
+  borderColor?: ColorValue
+  borderWidth?: number
+  radius?: number
+  padding?: number
+  gap?: number
+  elevation?: number
+  shadowColor?: ColorValue
+  actions?: UiNode[]
+}
+
+export interface EmptyStateOptions extends CommonOptions {
+  icon?: string
+  title?: string
+  text?: string
+  action?: UiNode
+  color?: ColorValue
 }
 
 export interface ChipOptions extends CommonOptions {
@@ -345,6 +470,8 @@ export interface SheetOptions extends CommonOptions {
   /** Show a drag handle on bottom sheets. */
   handle?: boolean
   duration?: number
+  elevation?: number
+  shadowColor?: ColorValue
   onClose?: () => void
 }
 
@@ -398,6 +525,9 @@ export interface PopoverOptions extends CommonOptions {
   y?: number
   modal?: boolean
   dismissible?: boolean
+  duration?: number
+  elevation?: number
+  shadowColor?: ColorValue
   onClose?: () => void
 }
 
@@ -553,15 +683,7 @@ export const grid = (options: GridOptions = {}, ...children: UiChild[]): UiNode 
 }
 
 export const virtualList = (options: VirtualListOptions): UiNode => {
-  const {
-    onEndReached,
-    onRefresh,
-    onSelect,
-    onPress,
-    onAction,
-    onReorder,
-    ...props
-  } = options
+  const { onEndReached, onRefresh, onSelect, onPress, onAction, onReorder, ...props } = options
   const events: string[] = []
   const callbacks: Record<string, UiHandler> = {}
 
@@ -745,6 +867,39 @@ export const textArea = (options: Omit<TextInputOptions, "multiline"> = {}): UiN
   return textInput({ ...options, multiline: true })
 }
 
+export const searchField = (options: SearchFieldOptions = {}): UiNode => {
+  const { onInput, onSubmit, onClear, onFocus, onBlur, ...props } = options
+  const events: string[] = []
+  const callbacks: Record<string, UiHandler> = {}
+
+  if (onInput) {
+    events.push("input")
+    callbacks.input = (value) => onInput(value === null || value === undefined ? "" : String(value))
+  }
+
+  if (onSubmit) {
+    events.push("submit")
+    callbacks.submit = (value) => onSubmit(value === null || value === undefined ? "" : String(value))
+  }
+
+  if (onClear) {
+    events.push("clear")
+    callbacks.clear = () => onClear()
+  }
+
+  if (onFocus) {
+    events.push("focus")
+    callbacks.focus = () => onFocus()
+  }
+
+  if (onBlur) {
+    events.push("blur")
+    callbacks.blur = () => onBlur()
+  }
+
+  return makeNode("searchField", props, [], events, callbacks)
+}
+
 export const checkbox = (label: string, options: CheckboxOptions = {}): UiNode => {
   const { checked, onToggle, ...props } = options
 
@@ -771,6 +926,39 @@ export const slider = (options: SliderOptions = {}): UiNode => {
   if (!onChange) return makeNode("slider", props)
 
   return makeNode("slider", props, [], ["change"], { change: (value) => onChange(Number(value)) })
+}
+
+export const rangeSlider = (options: RangeSliderOptions = {}): UiNode => {
+  const { onChange, ...props } = options
+
+  if (!onChange) return makeNode("rangeSlider", props)
+
+  return makeNode("rangeSlider", props, [], ["change"], {
+    change: (value) => {
+      const range = value as { from: number; to: number }
+
+      onChange(Number(range.from), Number(range.to))
+    },
+  })
+}
+
+export const radio = (label: string, options: RadioOptions = {}): UiNode => {
+  const { onSelect, ...props } = options
+
+  if (!onSelect) return makeNode("radio", { label, ...props })
+
+  return makeNode("radio", { label, ...props }, [], ["select"], { select: () => onSelect() })
+}
+
+export const radioGroup = (options: RadioGroupOptions): UiNode => {
+  const { onChange, options: items, ...props } = options
+  const normalized = items.map((item) => (typeof item === "string" ? { value: item, label: item } : item))
+
+  if (!onChange) return makeNode("radioGroup", { ...props, options: normalized })
+
+  return makeNode("radioGroup", { ...props, options: normalized }, [], ["change"], {
+    change: (value) => onChange(value as string | number),
+  })
 }
 
 export const select = (options: SelectOptions): UiNode => {
@@ -885,6 +1073,80 @@ export const zoomable = (options: ZoomableOptions = {}, ...children: UiChild[]):
   })
 }
 
+export const menu = (options: MenuOptions): UiNode => {
+  const { onSelect, onClose, ...props } = options
+  const events: string[] = []
+  const callbacks: Record<string, UiHandler> = {}
+
+  if (onSelect) {
+    events.push("select")
+    callbacks.select = (value) => onSelect(String(value))
+  }
+
+  if (onClose) {
+    events.push("close")
+    callbacks.close = () => onClose()
+  }
+
+  return makeNode("menu", props, [], events, callbacks)
+}
+
+export const accordionSection = (options: AccordionSectionOptions = {}, ...children: UiChild[]): UiNode => {
+  return makeNode("accordionSection", options, children)
+}
+
+export const accordion = (options: AccordionOptions = {}, ...children: UiChild[]): UiNode => {
+  const { onChange, ...props } = options
+
+  if (!onChange) return makeNode("accordion", props, children)
+
+  return makeNode("accordion", props, children, ["toggle"], {
+    toggle: (value) => {
+      const state = value as { index: number; open: boolean }
+
+      onChange(Number(state.index), Boolean(state.open))
+    },
+  })
+}
+
+export const fab = (options: FabOptions): UiNode => {
+  const { onClick, ...props } = options
+
+  if (!onClick) return makeNode("fab", props)
+
+  return makeNode("fab", props, [], ["click"], { click: () => onClick() })
+}
+
+export const toolbar = (options: ToolbarOptions = {}, ...children: UiChild[]): UiNode => {
+  const { actions, gap = 8, padding = 8, ...props } = options
+
+  return box({ ...props, padding }, row({ gap, fillWidth: true, expand: true }, ...children, ...(actions ?? [])))
+}
+
+export const emptyState = (options: EmptyStateOptions = {}): UiNode => {
+  const { icon: glyph = "inbox", title = "Nothing here", text: body, action, color = "mauve", ...props } = options
+  const iconSize = 28
+  const circleSize = 64
+
+  return column(
+    { gap: 10, padding: 24, align: "center", fillWidth: true, ...props },
+    box(
+      {
+        color,
+        radius: circleSize / 2,
+        width: circleSize,
+        height: circleSize,
+        padding: (circleSize - iconSize) / 2,
+        align: "center",
+      },
+      column({ gap: 0, align: "center" }, icon(glyph, { size: iconSize, color: "text" })),
+    ),
+    text({ text: title, size: 17, weight: "semibold", color: "text", align: "center", fillWidth: true }),
+    body ? text({ text: body, size: 13, color: "subtext", align: "center", wrap: true, fillWidth: true }) : null,
+    action ?? null,
+  )
+}
+
 export const For = <T>(options: ForOptions<T>): UiNode => {
   const { each, keyOf, render, ...props } = options
 
@@ -973,7 +1235,30 @@ export const Snackbar = (options: SnackbarOptions): UiNode => snackbar(options)
 
 export const Popover = (options: PopoverOptions = {}, ...children: UiChild[]): UiNode => popover(options, ...children)
 
-export const Zoomable = (options: ZoomableOptions = {}, ...children: UiChild[]): UiNode => zoomable(options, ...children)
+export const Zoomable = (options: ZoomableOptions = {}, ...children: UiChild[]): UiNode =>
+  zoomable(options, ...children)
+
+export const RangeSlider = (options: RangeSliderOptions = {}): UiNode => rangeSlider(options)
+
+export const Radio = (label: string, options: RadioOptions = {}): UiNode => radio(label, options)
+
+export const RadioGroup = (options: RadioGroupOptions): UiNode => radioGroup(options)
+
+export const SearchField = (options: SearchFieldOptions = {}): UiNode => searchField(options)
+
+export const Menu = (options: MenuOptions): UiNode => menu(options)
+
+export const Accordion = (options: AccordionOptions = {}, ...children: UiChild[]): UiNode =>
+  accordion(options, ...children)
+
+export const AccordionSection = (options: AccordionSectionOptions = {}, ...children: UiChild[]): UiNode =>
+  accordionSection(options, ...children)
+
+export const Fab = (options: FabOptions): UiNode => fab(options)
+
+export const Toolbar = (options: ToolbarOptions = {}, ...children: UiChild[]): UiNode => toolbar(options, ...children)
+
+export const EmptyState = (options: EmptyStateOptions = {}): UiNode => emptyState(options)
 
 export const Modal = (options: SheetOptions = {}, ...children: UiChild[]): UiNode => {
   return sheet({ ...options, fullscreen: options.fullscreen ?? false }, ...children)
@@ -999,7 +1284,8 @@ export const Avatar = (options: AvatarOptions = {}): UiNode => avatar(options)
 export const Badge = (options: BadgeOptions = {}): UiNode => badge(options)
 export const Skeleton = (options: SkeletonOptions = {}): UiNode => skeleton(options)
 export const Spinner = (options: SpinnerOptions = {}): UiNode => spinner(options)
-export const BottomSheet = (options: SheetOptions = {}, ...children: UiChild[]): UiNode => bottomSheet(options, ...children)
+export const BottomSheet = (options: SheetOptions = {}, ...children: UiChild[]): UiNode =>
+  bottomSheet(options, ...children)
 
 const nodeSegment = (node: UiNode, index: number, keys?: Array<string | number>): string => {
   const explicit = node.props.key
@@ -1063,8 +1349,18 @@ export const ui = {
   checkbox,
   switch: switchControl,
   slider,
+  rangeSlider,
+  radio,
+  radioGroup,
+  searchField,
   select,
   progress,
+  menu,
+  accordion,
+  accordionSection,
+  fab,
+  toolbar,
+  emptyState,
   sheet,
   bottomSheet,
   pager,

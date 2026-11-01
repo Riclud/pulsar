@@ -143,34 +143,19 @@ ApplicationWindow {
             item.gradient = extra.gradientShape;
     }
 
-    function applyElevation(item, level) {
-        const managed = item.pulsarMeta !== null && item.pulsarMeta !== undefined;
-        const extra = managed ? item.pulsarMeta.extra : null;
-        let effect = managed ? extra.shadowEffect : item.pulsarShadowEffect;
+    readonly property string shadowItemCode: "property int pulsarElevation: 0; property color pulsarShadowColor: '#000000'; layer.enabled: shadowHost.pulsarElevation > 0; layer.effect: MultiEffect { shadowEnabled: true; autoPaddingEnabled: true; shadowColor: shadowHost.pulsarShadowColor; shadowBlur: Math.min(1, 0.2 + shadowHost.pulsarElevation * 0.15); shadowOpacity: Math.min(0.5, 0.12 + shadowHost.pulsarElevation * 0.04); shadowVerticalOffset: shadowHost.pulsarElevation * 2 }"
 
-        if (!level || level <= 0) {
-            if (effect)
-                item.layer.enabled = false;
-
+    function applyElevation(item, level, color) {
+        if (item.pulsarElevation === undefined)
             return;
-        }
 
-        if (!effect) {
-            effect = make("import QtQuick.Effects; MultiEffect { shadowEnabled: true; autoPaddingEnabled: true; shadowColor: '#000000' }", item);
+        const value = Math.max(0, Number(level) || 0);
 
-            if (managed)
-                extra.shadowEffect = effect;
-            else
-                item.pulsarShadowEffect = effect;
+        if (item.pulsarElevation !== value)
+            item.pulsarElevation = value;
 
-            item.layer.enabled = true;
-            item.layer.effect = effect;
-        }
-
-        item.layer.enabled = true;
-        effect.shadowBlur = Math.min(1, 0.2 + level * 0.15);
-        effect.shadowOpacity = Math.min(0.5, 0.12 + level * 0.04);
-        effect.shadowVerticalOffset = level * 2;
+        if (color !== undefined)
+            item.pulsarShadowColor = resolveColor(color, view.themeShadow);
     }
 
     FontLoader {
@@ -401,6 +386,18 @@ ApplicationWindow {
             property int radius: view.themeRadius
             property string iconName: ""
             property string iconPosition: "left"
+            property int pulsarElevation: 0
+            property color pulsarShadowColor: view.themeShadow
+
+            layer.enabled: buttonRoot.pulsarElevation > 0
+            layer.effect: MultiEffect {
+                shadowEnabled: true
+                autoPaddingEnabled: true
+                shadowColor: buttonRoot.pulsarShadowColor
+                shadowBlur: Math.min(1, 0.2 + buttonRoot.pulsarElevation * 0.15)
+                shadowOpacity: Math.min(0.5, 0.12 + buttonRoot.pulsarElevation * 0.04)
+                shadowVerticalOffset: buttonRoot.pulsarElevation * 2
+            }
 
             flat: true
             leftPadding: 16
@@ -993,7 +990,8 @@ ApplicationWindow {
             Rectangle {
                 id: sheetPanel
 
-                property var pulsarShadowEffect: null
+                property int pulsarElevation: 0
+                property color pulsarShadowColor: view.themeShadow
 
                 width: Math.min(parent.width - 24, 560)
                 height: Math.min(parent.height - 48, 720)
@@ -1023,6 +1021,16 @@ ApplicationWindow {
                         easing.type: Easing.BezierSpline
                         easing.bezierCurve: view.motionCurve
                     }
+                }
+
+                layer.enabled: pulsarElevation > 0
+                layer.effect: MultiEffect {
+                    shadowEnabled: true
+                    autoPaddingEnabled: true
+                    shadowColor: sheetPanel.pulsarShadowColor
+                    shadowBlur: Math.min(1, 0.2 + sheetPanel.pulsarElevation * 0.15)
+                    shadowOpacity: Math.min(0.5, 0.12 + sheetPanel.pulsarElevation * 0.04)
+                    shadowVerticalOffset: sheetPanel.pulsarElevation * 2
                 }
 
                 MouseArea {
@@ -1540,7 +1548,8 @@ ApplicationWindow {
             Rectangle {
                 id: popPanel
 
-                property var pulsarShadowEffect: null
+                property int pulsarElevation: 0
+                property color pulsarShadowColor: view.themeShadow
 
                 width: Math.min(parent.width - 32, 320)
                 radius: view.themeRadius
@@ -1560,6 +1569,20 @@ ApplicationWindow {
                     }
                 }
 
+                layer.enabled: pulsarElevation > 0
+                layer.effect: MultiEffect {
+                    shadowEnabled: true
+                    autoPaddingEnabled: true
+                    shadowColor: popPanel.pulsarShadowColor
+                    shadowBlur: Math.min(1, 0.2 + popPanel.pulsarElevation * 0.15)
+                    shadowOpacity: Math.min(0.5, 0.12 + popPanel.pulsarElevation * 0.04)
+                    shadowVerticalOffset: popPanel.pulsarElevation * 2
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                }
+
                 ColumnLayout {
                     id: popContent
 
@@ -1568,6 +1591,796 @@ ApplicationWindow {
                     width: popPanel.width - 24
                     spacing: 4
                     property var pulsarMeta: null
+                }
+            }
+        }
+    }
+
+    Component {
+        id: radioComponent
+
+        RadioButton {
+            id: radioRoot
+
+            property var pulsarMeta: null
+            property var nodeData: null
+            property color accent: view.themePrimary
+
+            autoExclusive: false
+            spacing: 10
+            leftPadding: 0
+            rightPadding: 0
+            topPadding: 4
+            bottomPadding: 4
+            font.family: view.fontFamily
+            font.pixelSize: view.fs(15)
+
+            indicator: Item {
+                implicitWidth: 22
+                implicitHeight: 22
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: width / 2
+                    color: "transparent"
+                    border.width: radioRoot.checked ? 0 : 1.5
+                    border.color: radioRoot.checked ? radioRoot.accent
+                            : radioRoot.hovered ? radioRoot.accent : view.themeBorder
+
+                    Behavior on border.color {
+                        ColorAnimation { duration: view.motionFast }
+                    }
+                }
+
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: radioRoot.checked ? 14 : 0
+                    height: width
+                    radius: width / 2
+                    color: radioRoot.accent
+
+                    Behavior on width {
+                        NumberAnimation {
+                            duration: view.motionFast
+                            easing.type: Easing.OutCubic
+                        }
+                    }
+                }
+            }
+
+            contentItem: Label {
+                text: radioRoot.text
+                color: radioRoot.enabled ? view.themeText : view.themeTextSecondary
+                font: radioRoot.font
+                verticalAlignment: Text.AlignVCenter
+                leftPadding: radioRoot.indicator.width + radioRoot.spacing
+            }
+        }
+    }
+
+    Component {
+        id: radioGroupComponent
+
+        GridLayout {
+            id: groupRoot
+
+            property var pulsarMeta: null
+            property var nodeData: null
+            property var options: []
+            property var value: undefined
+            property bool horizontal: false
+            property color accent: view.themePrimary
+
+            columns: horizontal ? -1 : 1
+            columnSpacing: 16
+            rowSpacing: 4
+            flow: GridLayout.LeftToRight
+
+            function syncChecked() {
+                for (let i = 0; i < groupRepeater.count; i++) {
+                    const button = groupRepeater.itemAt(i);
+
+                    if (button)
+                        button.checked = groupRoot.value === button.modelData.value;
+                }
+            }
+
+            onValueChanged: syncChecked()
+            onOptionsChanged: syncChecked()
+            Component.onCompleted: syncChecked()
+
+            Repeater {
+                id: groupRepeater
+
+                model: groupRoot.options
+
+                delegate: RadioButton {
+                    id: optionRoot
+
+                    required property var modelData
+                    required property int index
+
+                    autoExclusive: false
+                    checked: false
+                    text: modelData.label
+                    spacing: 10
+                    leftPadding: 0
+                    rightPadding: 0
+                    topPadding: 4
+                    bottomPadding: 4
+                    font.family: view.fontFamily
+                    font.pixelSize: view.fs(15)
+                    Layout.fillWidth: groupRoot.horizontal
+
+                    onClicked: {
+                        if (groupRoot.value === modelData.value)
+                            return;
+
+                        groupRoot.value = modelData.value;
+                        groupRoot.syncChecked();
+                        view.emitNodeEvent(groupRoot.nodeData, "change", modelData.value);
+                    }
+
+                    indicator: Item {
+                        implicitWidth: 22
+                        implicitHeight: 22
+
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: width / 2
+                            color: "transparent"
+                            border.width: optionRoot.checked ? 0 : 1.5
+                            border.color: optionRoot.checked ? groupRoot.accent
+                                    : optionRoot.hovered ? groupRoot.accent : view.themeBorder
+
+                            Behavior on border.color {
+                                ColorAnimation { duration: view.motionFast }
+                            }
+                        }
+
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: optionRoot.checked ? 14 : 0
+                            height: width
+                            radius: width / 2
+                            color: groupRoot.accent
+
+                            Behavior on width {
+                                NumberAnimation {
+                                    duration: view.motionFast
+                                    easing.type: Easing.OutCubic
+                                }
+                            }
+                        }
+                    }
+
+                    contentItem: Label {
+                        text: optionRoot.text
+                        color: optionRoot.enabled ? view.themeText : view.themeTextSecondary
+                        font: optionRoot.font
+                        verticalAlignment: Text.AlignVCenter
+                        leftPadding: optionRoot.indicator.width + optionRoot.spacing
+                    }
+                }
+            }
+        }
+    }
+
+    Component {
+        id: accordionComponent
+
+        ColumnLayout {
+            id: accordionRoot
+
+            property var pulsarMeta: null
+            property var nodeData: null
+            property bool multiple: true
+
+            spacing: view.themeSpacing
+
+            function closeOthers(section) {
+                for (let i = 0; i < children.length; i++) {
+                    const child = children[i];
+
+                    if (child !== section && child.setOpen !== undefined)
+                        child.setOpen(false);
+                }
+            }
+        }
+    }
+
+    Component {
+        id: accordionSectionComponent
+
+        Rectangle {
+            id: sectionRoot
+
+            property var pulsarMeta: null
+            property var nodeData: null
+            property var accordionRoot: null
+            property string title: ""
+            property string subtitle: ""
+            property string iconName: ""
+            property bool opened: false
+            property bool sectionEnabled: true
+            property alias contentLayout: sectionContent
+
+            implicitHeight: sectionColumn.implicitHeight
+            radius: view.themeRadius
+            color: view.themeSurface
+            border.width: 1
+            border.color: view.themeBorder
+            opacity: sectionEnabled ? 1 : 0.55
+
+            Behavior on implicitHeight {
+                NumberAnimation {
+                    duration: view.motionFast
+                    easing.type: Easing.BezierSpline
+                    easing.bezierCurve: view.motionCurve
+                }
+            }
+
+            function setOpen(value) {
+                if (opened === value)
+                    return;
+
+                opened = value;
+            }
+
+            function toggle() {
+                if (!sectionEnabled)
+                    return;
+
+                const next = !opened;
+
+                if (next && accordionRoot && accordionRoot.multiple === false)
+                    accordionRoot.closeOthers(sectionRoot);
+
+                opened = next;
+
+                if (accordionRoot && accordionRoot.nodeData) {
+                    const index = accordionRoot.children.indexOf(sectionRoot);
+
+                    view.emitNodeEvent(accordionRoot.nodeData, "toggle", { index: index, open: opened });
+                    return;
+                }
+
+                view.emitNodeEvent(nodeData, "toggle", opened);
+            }
+
+            Column {
+                id: sectionColumn
+
+                width: parent.width
+
+                Item {
+                    id: sectionHeader
+
+                    width: parent.width
+                    height: sectionRoot.subtitle.length > 0 ? 58 : 50
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: sectionRoot.toggle()
+                    }
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 14
+                        anchors.rightMargin: 12
+                        spacing: 10
+
+                        Label {
+                            visible: text.length > 0
+                            text: sectionRoot.iconName
+                            font.family: view.iconFamily
+                            font.pixelSize: view.fs(20)
+                            color: sectionRoot.opened ? view.themePrimary : view.themeTextSecondary
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 0
+
+                            Label {
+                                Layout.fillWidth: true
+                                text: sectionRoot.title
+                                elide: Text.ElideRight
+                                color: view.themeText
+                                font.family: view.fontFamily
+                                font.pixelSize: view.fs(15)
+                                font.weight: 600
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
+                                visible: text.length > 0
+                                text: sectionRoot.subtitle
+                                elide: Text.ElideRight
+                                color: view.themeTextSecondary
+                                font.family: view.fontFamily
+                                font.pixelSize: view.fs(12)
+                            }
+                        }
+
+                        Label {
+                            text: "expand_more"
+                            font.family: view.iconFamily
+                            font.pixelSize: view.fs(20)
+                            color: view.themeTextSecondary
+                            rotation: sectionRoot.opened ? 180 : 0
+
+                            Behavior on rotation {
+                                NumberAnimation {
+                                    duration: view.motionFast
+                                    easing.type: Easing.BezierSpline
+                                    easing.bezierCurve: view.motionCurve
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Item {
+                    id: sectionBody
+
+                    width: parent.width
+                    height: sectionRoot.opened ? sectionContent.implicitHeight + 12 : 0
+                    clip: true
+
+                    ColumnLayout {
+                        id: sectionContent
+
+                        x: 12
+                        width: parent.width - 24
+                        spacing: view.themeSpacing
+                        opacity: sectionRoot.opened ? 1 : 0
+                        property var pulsarMeta: null
+
+                        Behavior on opacity {
+                            NumberAnimation { duration: view.motionFast }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Component {
+        id: menuComponent
+
+        Item {
+            id: menuRoot
+
+            anchors.fill: parent
+            visible: open || opacity > 0
+            opacity: open ? 1 : 0
+            z: 700
+            focus: open
+            property bool open: false
+            property bool modal: false
+            property bool dismissible: true
+            property bool closeOnSelect: true
+            property int fadeDuration: 120
+            property real openedAT: 0
+            property real menuWidth: 220
+            property real maxHeight: 360
+            property var pulsarMeta: null
+            property var nodeData: null
+            property var items: []
+            property alias panel: menuPanel
+
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: menuRoot.fadeDuration
+                    easing.type: Easing.OutCubic
+                }
+            }
+
+            onOpenChanged: {
+                if (!open)
+                    return;
+
+                openedAT = Date.now();
+                forceActiveFocus();
+            }
+
+            Keys.onEscapePressed: view.emitNodeEvent(menuRoot.nodeData, "close")
+
+            Rectangle {
+                anchors.fill: parent
+                color: menuRoot.modal ? "#66000000" : "transparent"
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: {
+                        if (!menuRoot.dismissible)
+                            return;
+                        if (Date.now() - menuRoot.openedAT < 250)
+                            return;
+                        view.emitNodeEvent(menuRoot.nodeData, "close");
+                    }
+                }
+            }
+
+            Rectangle {
+                id: menuPanel
+
+                property int pulsarElevation: 3
+                property color pulsarShadowColor: view.themeShadow
+
+                x: 16
+                y: 16
+                width: menuRoot.menuWidth
+                height: Math.min(menuRoot.maxHeight, menuColumn.implicitHeight + 12)
+                radius: view.themeRadius
+                color: view.themeSurface
+                border.width: 1
+                border.color: view.themeBorder
+                clip: true
+                layer.enabled: pulsarElevation > 0
+
+                layer.effect: MultiEffect {
+                    shadowEnabled: true
+                    autoPaddingEnabled: true
+                    shadowColor: menuPanel.pulsarShadowColor
+                    shadowBlur: Math.min(1, 0.2 + menuPanel.pulsarElevation * 0.15)
+                    shadowOpacity: Math.min(0.5, 0.12 + menuPanel.pulsarElevation * 0.04)
+                    shadowVerticalOffset: menuPanel.pulsarElevation * 2
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                }
+
+                Flickable {
+                    anchors.fill: parent
+                    anchors.margins: 6
+                    clip: true
+                    contentWidth: width
+                    contentHeight: menuColumn.implicitHeight
+                    boundsBehavior: Flickable.StopAtBounds
+
+                    Column {
+                        id: menuColumn
+
+                        width: parent.width
+
+                        Repeater {
+                            model: menuRoot.items
+
+                            delegate: Item {
+                                id: menuRow
+
+                                required property var modelData
+                                required property int index
+
+                                readonly property bool isSeparator: modelData && modelData.separator === true
+                                readonly property bool isDisabled: !isSeparator && (modelData.disabled === true || modelData.enabled === false)
+
+                                width: menuColumn.width
+                                height: isSeparator ? 9 : 34
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    visible: !menuRow.isSeparator
+                                    radius: 8
+                                    color: menuRow.isDisabled ? "transparent"
+                                            : rowMouse.containsMouse ? view.withAlpha(view.themeText, 0.08) : "transparent"
+                                }
+
+                                Rectangle {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    x: 4
+                                    width: parent.width - 8
+                                    height: 1
+                                    visible: menuRow.isSeparator
+                                    color: view.themeBorder
+                                }
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 10
+                                    anchors.rightMargin: 10
+                                    spacing: 10
+                                    visible: !menuRow.isSeparator
+
+                                    Label {
+                                        visible: text.length > 0
+                                        text: menuRow.modelData.icon || ""
+                                        font.family: view.iconFamily
+                                        font.pixelSize: view.fs(18)
+                                        color: menuRow.isDisabled ? view.themeTextSecondary
+                                                : menuRow.modelData.danger === true ? view.resolveColor("red", "#e78284")
+                                                : view.themeText
+                                    }
+
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: menuRow.modelData.label || ""
+                                        elide: Text.ElideRight
+                                        color: menuRow.isDisabled ? view.themeTextSecondary
+                                                : menuRow.modelData.danger === true ? view.resolveColor("red", "#e78284")
+                                                : view.themeText
+                                        font.family: view.fontFamily
+                                        font.pixelSize: view.fs(14)
+                                    }
+
+                                    Label {
+                                        visible: text.length > 0
+                                        text: menuRow.modelData.shortcut || ""
+                                        color: view.themeTextSecondary
+                                        font.family: view.fontFamily
+                                        font.pixelSize: view.fs(11)
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: rowMouse
+
+                                    anchors.fill: parent
+                                    enabled: !menuRow.isSeparator && !menuRow.isDisabled
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        view.emitNodeEvent(menuRoot.nodeData, "select", menuRow.modelData.id);
+
+                                        if (menuRoot.closeOnSelect)
+                                            view.emitNodeEvent(menuRoot.nodeData, "close");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Component {
+        id: fabComponent
+
+        Item {
+            id: fabRoot
+
+            property var pulsarMeta: null
+            property var nodeData: null
+            property string iconName: ""
+            property int fabSize: 56
+            property bool floating: true
+            property bool fabEnabled: true
+            property color fabColor: view.themePrimary
+            property color fabTextColor: view.themeOnPrimary
+            property int pulsarElevation: 0
+            property color pulsarShadowColor: view.themeShadow
+
+            implicitWidth: fabSize
+            implicitHeight: fabSize
+            width: fabSize
+            height: fabSize
+            opacity: fabEnabled ? 1 : 0.45
+            layer.enabled: pulsarElevation > 0
+
+            layer.effect: MultiEffect {
+                shadowEnabled: true
+                autoPaddingEnabled: true
+                shadowColor: fabRoot.pulsarShadowColor
+                shadowBlur: Math.min(1, 0.2 + fabRoot.pulsarElevation * 0.15)
+                shadowOpacity: Math.min(0.5, 0.12 + fabRoot.pulsarElevation * 0.04)
+                shadowVerticalOffset: fabRoot.pulsarElevation * 2
+            }
+
+            onFloatingChanged: updateAnchors()
+
+            function updateAnchors() {
+                if (floating) {
+                    anchors.right = parent.right;
+                    anchors.bottom = parent.bottom;
+                    anchors.rightMargin = 24;
+                    anchors.bottomMargin = 24;
+                    return;
+                }
+
+                anchors.right = undefined;
+                anchors.bottom = undefined;
+            }
+
+            Rectangle {
+                id: fabCircle
+
+                anchors.fill: parent
+                radius: width / 2
+                color: fabRoot.fabEnabled
+                        ? (fabMouse.pressed ? view.activeColor(fabRoot.fabColor)
+                           : fabMouse.containsMouse ? view.hoverColor(fabRoot.fabColor) : fabRoot.fabColor)
+                        : view.disabledColor(fabRoot.fabColor)
+                scale: fabMouse.pressed ? 0.94 : 1
+
+                Behavior on color {
+                    ColorAnimation {
+                        duration: view.motionFast
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: view.motionCurve
+                    }
+                }
+
+                Behavior on scale {
+                    NumberAnimation {
+                        duration: view.motionFast
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: view.motionCurve
+                    }
+                }
+
+                Label {
+                    anchors.centerIn: parent
+                    text: fabRoot.iconName
+                    font.family: view.iconFamily
+                    font.pixelSize: view.fs(Math.round(fabRoot.fabSize * 0.43))
+                    color: fabRoot.fabTextColor
+                }
+
+                MouseArea {
+                    id: fabMouse
+
+                    anchors.fill: parent
+                    enabled: fabRoot.fabEnabled
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: view.emitNodeEvent(fabRoot.nodeData, "click")
+                }
+            }
+        }
+    }
+
+    Component {
+        id: searchFieldComponent
+
+        TextField {
+            id: searchRoot
+
+            property var pulsarMeta: null
+            property var nodeData: null
+            property bool outlined: false
+            property color fieldColor: view.themeSurfaceVariant
+            property color fieldBorderColor: view.themeBorder
+            property int fieldRadius: 8
+            property int debounce: 0
+            property alias clearButton: searchClear
+            property alias inputTimer: debounceTimer
+
+            color: view.themeText
+            placeholderTextColor: view.themeTextSecondary
+            font.family: view.fontFamily
+            font.pixelSize: view.fs(15)
+            leftPadding: 40
+            rightPadding: searchClear.visible ? 40 : 12
+            implicitHeight: 40
+
+            background: Rectangle {
+                color: searchRoot.fieldColor
+                radius: searchRoot.fieldRadius
+                border.width: searchRoot.activeFocus ? 2 : searchRoot.outlined ? 1 : 0
+                border.color: searchRoot.activeFocus ? view.themePrimary : searchRoot.fieldBorderColor
+
+                Behavior on border.width {
+                    NumberAnimation { duration: view.motionFast }
+                }
+            }
+
+            Label {
+                anchors.left: parent.left
+                anchors.leftMargin: 12
+                anchors.verticalCenter: parent.verticalCenter
+                text: "search"
+                font.family: view.iconFamily
+                font.pixelSize: view.fs(20)
+                color: searchRoot.activeFocus ? view.themePrimary : view.themeTextSecondary
+            }
+
+            ToolButton {
+                id: searchClear
+
+                anchors.right: parent.right
+                anchors.rightMargin: 4
+                anchors.verticalCenter: parent.verticalCenter
+                width: 32
+                height: 32
+                visible: searchRoot.text.length > 0
+                hoverEnabled: true
+
+                HoverHandler {
+                    cursorShape: Qt.PointingHandCursor
+                }
+
+                background: Rectangle {
+                    radius: 16
+                    color: searchClear.hovered ? view.withAlpha(view.themeText, 0.08) : "transparent"
+                }
+
+                contentItem: Label {
+                    text: "close"
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    font.family: view.iconFamily
+                    font.pixelSize: view.fs(18)
+                    color: view.themeTextSecondary
+                }
+
+                onClicked: {
+                    searchRoot.text = "";
+                    view.emitNodeEvent(searchRoot.nodeData, "clear");
+                    view.emitNodeEvent(searchRoot.nodeData, "input", "");
+                }
+            }
+
+            Timer {
+                id: debounceTimer
+
+                interval: Math.max(0, searchRoot.debounce)
+
+                onTriggered: view.emitNodeEvent(searchRoot.nodeData, "input", searchRoot.text)
+            }
+        }
+    }
+
+    Component {
+        id: rangeSliderComponent
+
+        RangeSlider {
+            id: rangeRoot
+
+            property var pulsarMeta: null
+            property var nodeData: null
+            property bool expand: false
+
+            implicitWidth: 200
+            implicitHeight: 40
+            snapMode: Slider.NoSnap
+
+            palette.highlight: view.themePrimary
+            palette.accent: view.themePrimary
+            palette.windowText: view.themeText
+            palette.text: view.themeText
+
+            first.handle: Rectangle {
+                x: rangeRoot.leftPadding + rangeRoot.first.visualPosition * (rangeRoot.availableWidth - width)
+                y: rangeRoot.topPadding + (rangeRoot.availableHeight - height) / 2
+                implicitWidth: 20
+                implicitHeight: 20
+                radius: 10
+                color: view.themeSurface
+                border.width: 2
+                border.color: view.themePrimary
+            }
+
+            second.handle: Rectangle {
+                x: rangeRoot.leftPadding + rangeRoot.second.visualPosition * (rangeRoot.availableWidth - width)
+                y: rangeRoot.topPadding + (rangeRoot.availableHeight - height) / 2
+                implicitWidth: 20
+                implicitHeight: 20
+                radius: 10
+                color: view.themeSurface
+                border.width: 2
+                border.color: view.themePrimary
+            }
+
+            background: Rectangle {
+                x: rangeRoot.leftPadding
+                y: rangeRoot.topPadding + (rangeRoot.availableHeight - height) / 2
+                implicitWidth: 200
+                implicitHeight: 4
+                width: rangeRoot.availableWidth
+                height: implicitHeight
+                radius: 2
+                color: view.themeSurfaceVariant
+
+                Rectangle {
+                    x: rangeRoot.first.position * parent.width
+                    width: rangeRoot.second.position * parent.width - rangeRoot.first.position * parent.width
+                    height: parent.height
+                    color: view.themePrimary
                 }
             }
         }
@@ -2197,7 +3010,7 @@ ApplicationWindow {
         if (node.type === "column" || node.type === "row") {
             item = make("import QtQuick.Layouts; " + (node.type === "column" ? "ColumnLayout" : "RowLayout") + " " + base, parent);
         } else if (node.type === "box") {
-            item = make("import QtQuick; Rectangle " + base, parent);
+            item = make("import QtQuick; import QtQuick.Effects; Rectangle { id: shadowHost; property var pulsarMeta: null; " + shadowItemCode + " }", parent);
         } else if (node.type === "scroll" || node.type === "list") {
             item = make("import QtQuick; Flickable " + "{ clip: true; boundsBehavior: Flickable.StopAtBounds; property var pulsarMeta: null }", parent);
         } else if (node.type === "grid") {
@@ -2205,7 +3018,7 @@ ApplicationWindow {
         } else if (node.type === "virtualList") {
             item = virtualListComponent.createObject(parent);
         } else if (node.type === "card") {
-            item = make("import QtQuick; Rectangle { border.width: 1; property var pulsarMeta: null }", parent);
+            item = make("import QtQuick; import QtQuick.Effects; Rectangle { id: shadowHost; border.width: 1; property var pulsarMeta: null; " + shadowItemCode + " }", parent);
         } else if (node.type === "appBar") {
             item = appBarComponent.createObject(parent);
         } else if (node.type === "chip") {
@@ -2224,6 +3037,24 @@ ApplicationWindow {
             item = snackbarComponent.createObject(overlay);
         } else if (node.type === "popover") {
             item = popoverComponent.createObject(overlay);
+        } else if (node.type === "menu") {
+            item = menuComponent.createObject(overlay);
+        } else if (node.type === "fab") {
+            const fabPlacement = prop(node.props, "placement", "bottom-end");
+
+            item = fabComponent.createObject(fabPlacement === "inline" ? parent : overlay);
+        } else if (node.type === "radio") {
+            item = radioComponent.createObject(parent);
+        } else if (node.type === "radioGroup") {
+            item = radioGroupComponent.createObject(parent);
+        } else if (node.type === "accordion") {
+            item = accordionComponent.createObject(parent);
+        } else if (node.type === "accordionSection") {
+            item = accordionSectionComponent.createObject(parent);
+        } else if (node.type === "searchField") {
+            item = searchFieldComponent.createObject(parent);
+        } else if (node.type === "rangeSlider") {
+            item = rangeSliderComponent.createObject(parent);
         } else if (node.type === "zoomable") {
             item = zoomableComponent.createObject(parent);
         } else if (node.type === "text") {
@@ -2344,6 +3175,41 @@ ApplicationWindow {
                 if (index >= 0 && index < options.length)
                     emitEvent(item.pulsarMeta.node, "change", options[index].value);
             });
+        } else if (node.type === "radio") {
+            item.toggled.connect(function (value) {
+                if (item.pulsarMeta.syncing === true)
+                    return;
+                if (value && hasEvent(item.pulsarMeta.node, "select"))
+                    emitEvent(item.pulsarMeta.node, "select", true);
+            });
+        } else if (node.type === "searchField") {
+            item.textEdited.connect(function () {
+                if (item.pulsarMeta.syncing === true)
+                    return;
+                if (item.debounce > 0) {
+                    item.inputTimer.restart();
+                    return;
+                }
+                if (hasEvent(item.pulsarMeta.node, "input"))
+                    emitEvent(item.pulsarMeta.node, "input", item.text);
+            });
+            item.accepted.connect(function () {
+                if (hasEvent(item.pulsarMeta.node, "submit"))
+                    emitEvent(item.pulsarMeta.node, "submit", item.text);
+            });
+            item.activeFocusChanged.connect(function () {
+                emitEvent(item.pulsarMeta.node, item.activeFocus ? "focus" : "blur");
+            });
+        } else if (node.type === "rangeSlider") {
+            const emitRange = function () {
+                if (item.pulsarMeta.syncing === true)
+                    return;
+                if (hasEvent(item.pulsarMeta.node, "change"))
+                    emitEvent(item.pulsarMeta.node, "change", { from: item.first.value, to: item.second.value });
+            };
+
+            item.first.moved.connect(emitRange);
+            item.second.moved.connect(emitRange);
         }
 
         if (hasEvent(node, "longPress")) {
@@ -2450,7 +3316,10 @@ ApplicationWindow {
                 || node.type === "grid" || node.type === "virtualList"
                 || node.type === "appBar" || node.type === "divider" || node.type === "textInput"
                 || node.type === "textArea" || node.type === "pager" || node.type === "tabs"
-                || node.type === "navRail" || node.type === "segmented";
+                || node.type === "navRail" || node.type === "segmented"
+                || node.type === "accordion" || node.type === "accordionSection"
+                || node.type === "radioGroup" || node.type === "searchField"
+                || node.type === "rangeSlider";
         const fill = prop(props, "fill", undefined);
         let fillWidth = defaultFillWidth;
         let fillHeight = node.type === "list" || node.type === "scroll" || node.type === "grid"
@@ -2468,7 +3337,7 @@ ApplicationWindow {
         if (props.fillHeight !== undefined)
             fillHeight = props.fillHeight;
 
-        if (node.type === "sheet" || node.type === "snackbar" || node.type === "popover")
+        if (node.type === "sheet" || node.type === "snackbar" || node.type === "popover" || node.type === "menu")
             return;
 
         const tooltip = prop(props, "tooltip", "");
@@ -2483,6 +3352,17 @@ ApplicationWindow {
             item.Accessible.name = a11yLabel;
         if (a11yHint.length > 0)
             item.Accessible.description = a11yHint;
+
+        let defaultElevation = 0;
+
+        if (node.type === "fab")
+            defaultElevation = 4;
+        else if (node.type === "button" && prop(props, "variant", "solid") === "elevated")
+            defaultElevation = 1;
+
+        const elevation = prop(props, "elevation", defaultElevation);
+
+        applyElevation(item, elevation, props.shadowColor);
 
         if (props.width !== undefined) {
             item.width = props.width;
@@ -2519,6 +3399,14 @@ ApplicationWindow {
 
         item.Layout.fillWidth = fillWidth;
         item.Layout.fillHeight = fillHeight;
+
+        if (props.align !== undefined) {
+            const align = props.align;
+
+            item.Layout.alignment = align === "center" ? Qt.AlignHCenter
+                    : align === "right" || align === "end" ? Qt.AlignRight
+                    : Qt.AlignLeft;
+        }
 
         if (!isRoot)
             return;
@@ -2733,6 +3621,8 @@ ApplicationWindow {
             item.open = prop(props, "open", true);
             item.titleLabel.text = prop(props, "title", "");
             item.closeButton.visible = hasEvent(node, "close");
+            item.panel.pulsarElevation = prop(props, "elevation", 3);
+            item.panel.pulsarShadowColor = resolveColor(props.shadowColor, view.themeShadow);
 
             if (item.isBottom) {
                 item.panel.width = Qt.binding(function () {
@@ -2872,6 +3762,8 @@ ApplicationWindow {
             item.modal = prop(props, "modal", false);
             item.dismissible = prop(props, "dismissible", true);
             item.fadeDuration = prop(props, "duration", 120);
+            item.panel.pulsarElevation = prop(props, "elevation", 3);
+            item.panel.pulsarShadowColor = resolveColor(props.shadowColor, view.themeShadow);
 
             const popWidth = prop(props, "width", Math.min(item.panel.parent.width - 32, 320));
 
@@ -3153,6 +4045,122 @@ ApplicationWindow {
             const size = prop(props, "size", 0);
             item.Layout.preferredWidth = prop(props, "width", size);
             item.Layout.preferredHeight = prop(props, "height", size);
+        } else if (node.type === "radio") {
+            item.nodeData = node;
+            item.text = prop(props, "label", "");
+            item.accent = resolveColor(prop(props, "color", view.themePrimary), view.themePrimary);
+            item.enabled = prop(props, "enabled", true);
+            item.pulsarMeta.syncing = true;
+            item.checked = prop(props, "checked", false);
+            item.pulsarMeta.syncing = false;
+        } else if (node.type === "radioGroup") {
+            const groupOptions = prop(props, "options", []);
+            const groupKey = JSON.stringify(groupOptions);
+
+            item.nodeData = node;
+            item.horizontal = prop(props, "direction", "vertical") === "horizontal";
+            item.accent = resolveColor(prop(props, "color", view.themePrimary), view.themePrimary);
+            item.value = prop(props, "value", undefined);
+
+            if (item.pulsarMeta.extra.optionsKey !== groupKey) {
+                item.pulsarMeta.extra.optionsKey = groupKey;
+                item.options = groupOptions;
+            }
+        } else if (node.type === "accordion") {
+            item.nodeData = node;
+            item.multiple = prop(props, "multiple", true);
+            reconcile(item, node.children || [], false);
+        } else if (node.type === "accordionSection") {
+            item.nodeData = node;
+            item.accordionRoot = item.parent && item.parent.multiple !== undefined ? item.parent : null;
+            item.title = prop(props, "title", "");
+            item.subtitle = prop(props, "subtitle", "");
+            item.iconName = prop(props, "icon", "");
+            item.sectionEnabled = prop(props, "enabled", true);
+
+            if (props.open !== undefined) {
+                item.setOpen(Boolean(props.open));
+            } else if (item.pulsarMeta.extra.initialized !== true) {
+                item.opened = Boolean(prop(props, "defaultOpen", false));
+            }
+
+            item.pulsarMeta.extra.initialized = true;
+
+            if (!item.contentLayout.pulsarMeta)
+                item.contentLayout.pulsarMeta = contentMeta();
+
+            reconcile(item.contentLayout, node.children || [], false);
+        } else if (node.type === "menu") {
+            const menuItems = prop(props, "items", []);
+            const menuKey = JSON.stringify(menuItems);
+            const menuWidth = prop(props, "width", 220);
+
+            item.nodeData = node;
+            item.open = prop(props, "open", true);
+            item.modal = prop(props, "modal", false);
+            item.dismissible = prop(props, "dismissible", true);
+            item.closeOnSelect = prop(props, "closeOnSelect", true);
+            item.fadeDuration = prop(props, "duration", 120);
+            item.menuWidth = menuWidth;
+            item.maxHeight = prop(props, "maxHeight", 360);
+            item.panel.x = prop(props, "x", Math.max(16, item.width - menuWidth - 16));
+            item.panel.y = prop(props, "y", 16);
+            item.panel.pulsarElevation = prop(props, "elevation", 3);
+            item.panel.pulsarShadowColor = resolveColor(props.shadowColor, view.themeShadow);
+
+            if (item.pulsarMeta.extra.itemsKey !== menuKey) {
+                item.pulsarMeta.extra.itemsKey = menuKey;
+                item.items = menuItems;
+            }
+        } else if (node.type === "fab") {
+            const fabSize = prop(props, "size", 56);
+            const fabPlacement = prop(props, "placement", "bottom-end");
+
+            item.nodeData = node;
+            item.iconName = prop(props, "icon", "");
+            item.fabSize = fabSize;
+            item.floating = fabPlacement !== "inline";
+            item.fabEnabled = prop(props, "enabled", true);
+            item.fabColor = resolveColor(prop(props, "color", view.themePrimary), view.themePrimary);
+            item.fabTextColor = resolveColor(prop(props, "textColor", view.themeOnPrimary), view.themeOnPrimary);
+            item.width = fabSize;
+            item.height = fabSize;
+            item.implicitWidth = fabSize;
+            item.implicitHeight = fabSize;
+            item.updateAnchors();
+        } else if (node.type === "searchField") {
+            const searchOutlined = prop(props, "variant", "filled") === "outline";
+            const searchValue = prop(props, "value", item.text);
+
+            item.nodeData = node;
+            item.placeholderText = prop(props, "placeholder", "Search");
+            item.outlined = searchOutlined;
+            item.fieldColor = searchOutlined ? "transparent"
+                    : resolveColor(prop(props, "color", view.themeSurfaceVariant), view.themeSurfaceVariant);
+            item.fieldRadius = prop(props, "radius", 8);
+            item.fieldBorderColor = resolveColor(prop(props, "borderColor", view.themeBorder), view.themeBorder);
+            item.debounce = prop(props, "debounce", 0);
+            item.enabled = prop(props, "enabled", true);
+
+            if (item.text !== searchValue) {
+                item.pulsarMeta.syncing = true;
+                item.text = searchValue;
+                item.pulsarMeta.syncing = false;
+            }
+        } else if (node.type === "rangeSlider") {
+            const rangeColor = resolveColor(prop(props, "color", view.themePrimary), view.themePrimary);
+
+            item.nodeData = node;
+            item.pulsarMeta.syncing = true;
+            item.from = prop(props, "min", 0);
+            item.to = prop(props, "max", 100);
+            item.stepSize = prop(props, "step", 0);
+            item.first.value = prop(props, "from", item.from);
+            item.second.value = prop(props, "to", item.to);
+            item.pulsarMeta.syncing = false;
+            item.palette.highlight = rangeColor;
+            item.palette.accent = rangeColor;
+            item.Layout.preferredWidth = prop(props, "expand", false) ? -1 : prop(props, "width", 200);
         } else if (node.type === "divider") {
             item.color = resolveColor(prop(props, "color", view.themeBorder), view.themeBorder);
             item.implicitHeight = 1;
