@@ -222,6 +222,12 @@ An uncaught error shows a full-screen overlay with a Reload button. While the
 dev server runs, stack frames are mapped back to your TypeScript sources in the
 terminal and in the overlay.
 
+Edits reload the app in process (~200 ms on the device): the JS runtime is
+recreated and the store is seeded from the previous session. JS windows keep
+their view; QML windows are reloaded from `ui/main.qml`. Because the store is
+preserved, changing an initial `app.store.set` value in code does not take
+effect until a full restart (`pulsar dev` again).
+
 ## The manifest — `pulsar.json`
 
 One file drives the app config and packaging.
