@@ -17,6 +17,7 @@ import {
   findAndroidTools,
 } from "./android.ts"
 import { readManifest, resolveEntry } from "./app.ts"
+import { createIgnoreFilter } from "./ignore.ts"
 import { mapErrorText, parseInlineSourceMap, type SourceMapper } from "./sourcemap.ts"
 import { pulsarRoot } from "./core.ts"
 
@@ -147,7 +148,7 @@ const buildPayload = async (appDir: string, entry: string, manifest: AppManifest
     }
 
     const runtime = await bundle.outputs[0]!.text()
-    const entries = appFiles(appDir).map((path) => ({ path, data: readFileSync(join(appDir, path)) }))
+    const entries = appFiles(appDir, manifest).map((path) => ({ path, data: readFileSync(join(appDir, path)) }))
     const devJson = Buffer.from(`${JSON.stringify(devManifest(manifest), null, 2)}\n`)
     const manifestIndex = entries.findIndex((item) => item.path === "pulsar.json")
 
@@ -196,6 +197,7 @@ const mapperForPayload = (payload: DevPayload, appDir: string): SourceMapper | n
 export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
   const appDir = options.appDir
   const manifest = readManifest(appDir)
+  const ignore = createIgnoreFilter(appDir, manifest)
 
   if (!manifestTargets(manifest).includes("android"))
     throw new Error(`android is not listed in targets (${manifestTargets(manifest).join(", ")})`)
@@ -472,9 +474,7 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
   }
 
   const skipped = (path: string): boolean => {
-    const parts = path.replaceAll("\\", "/").split("/")
-
-    return parts.some((part) => SKIP.has(part))
+    return ignore.ignored(path)
   }
 
   try {

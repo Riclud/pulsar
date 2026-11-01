@@ -6,6 +6,7 @@ import { homedir } from "os"
 import { basename, dirname, join, resolve } from "path"
 import type { AppManifest } from "../core/sdk/manifest.ts"
 import { cliVersion, platformId, pulsarHome, pulsarRoot, releaseUrl } from "./core.ts"
+import { createIgnoreFilter } from "./ignore.ts"
 
 export const ANDROID_QT_VERSION = "6.9.3"
 export const ANDROID_ABI = "arm64-v8a"
@@ -256,15 +257,19 @@ export const devManifest = (manifest: AppManifest | null): AppManifest => {
   return { ...(manifest ?? {}), id: androidPackageName(manifest, true) }
 }
 
-export const appFiles = (appDir: string): string[] => {
+export const appFiles = (appDir: string, manifest: AppManifest | null = null): string[] => {
   const files: string[] = []
+  const ignore = createIgnoreFilter(appDir, manifest)
 
   const walk = (dir: string, rel: string): void => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (entry.isSymbolicLink() || SKIP.has(entry.name)) continue
+      if (entry.isSymbolicLink()) continue
+
+      const relPath = rel ? `${rel}/${entry.name}` : entry.name
+
+      if (ignore.ignored(relPath, entry.isDirectory())) continue
 
       const abs = join(dir, entry.name)
-      const relPath = rel ? `${rel}/${entry.name}` : entry.name
 
       if (entry.isDirectory()) {
         walk(abs, relPath)
@@ -536,7 +541,7 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
     overrides["pulsar.json"] = devPath
   }
 
-  const files = appFiles(appDir)
+  const files = appFiles(appDir, manifest)
   const qrc = writeQrc(
     join(assembly, "app.qrc"),
     files,

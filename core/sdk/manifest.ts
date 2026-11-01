@@ -61,6 +61,8 @@ export interface AppManifest {
   runtime?: RuntimeConfig
   /** Portable code is required when android is a target. */
   compat?: Compat
+  /** Extra paths kept out of builds, using .gitignore syntax. */
+  ignore?: string[]
 }
 
 const WINDOW_KEYS = [

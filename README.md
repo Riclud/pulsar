@@ -293,6 +293,12 @@ One file drives the app config and packaging.
 | `protocols`        | Custom URL schemes (deep links) the app handles.                                                                                                |
 | `fileAssociations` | File types the app opens: `ext` (without the dot), `mime`, `name`.                                                                              |
 | `singleInstance`   | Forward a second launch to the running instance and exit (default `false`).                                                                     |
+| `ignore`           | Extra paths left out of builds, in `.gitignore` syntax.                                                                                         |
+
+Builds always skip `.git`, `node_modules`, `dist`, `build`, `.cache`,
+`.pulsar`, `.env*` and `sync.db*`, and honour the app's root `.gitignore`.
+`ignore` adds patterns on top of that; a `!` entry re-includes a path ignored
+by `.gitignore`, but never one of the built-in exclusions.
 
 `App` derives its config from the first manifest window; explicit options
 passed to `new App({...})` override the manifest.

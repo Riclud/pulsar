@@ -11,6 +11,9 @@ All notable changes to this project are documented here. The format follows
 - Desktop file dialogs on Linux use the Qt dialog instead of the platform
   theme's native one, so the picker lists files under a KDE theme outside
   Plasma instead of failing with `Unknown protocol "file"`.
+- Builds honour the app's root `.gitignore` and a new manifest `ignore` list,
+  and always skip `.env*` and `sync.db*`, so secrets and local databases no
+  longer end up in executables, APKs or the Android dev payload.
 
 ## [1.1.0] - 2026-11-01
 

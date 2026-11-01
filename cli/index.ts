@@ -45,6 +45,7 @@ import {
 import { devAndroid } from "./dev.ts"
 import { install } from "./install.ts"
 import { collectQt } from "./qt.ts"
+import { createIgnoreFilter } from "./ignore.ts"
 import { update } from "./update.ts"
 
 const [cmd, ...args] = process.argv.slice(2)
@@ -337,6 +338,7 @@ const fnv1a64 = (parts: string[]): bigint => {
 /** The native host/bridge, runtime and every app file (except build noise). */
 const collectPayload = (
   appDir: string,
+  manifest: AppManifest | null,
   runtime: string,
   bridge: string,
   host: string,
@@ -347,14 +349,17 @@ const collectPayload = (
     { path: "bin/bridge", data: readFileSync(bridge) },
     { path: "runtime", data: readFileSync(runtime) },
   ]
-  const skip = new Set(["node_modules", ".git", "dist", "build", ".cache", skipOut])
+  const ignore = createIgnoreFilter(appDir, manifest, skipOut ? [skipOut] : [])
 
   const walk = (dir: string, rel: string): void => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (entry.isSymbolicLink() || skip.has(entry.name)) continue
+      if (entry.isSymbolicLink()) continue
+
+      const relPath = rel ? `${rel}/${entry.name}` : entry.name
+
+      if (ignore.ignored(relPath, entry.isDirectory())) continue
 
       const abs = join(dir, entry.name)
-      const relPath = rel ? `${rel}/${entry.name}` : entry.name
 
       if (entry.isDirectory()) {
         walk(abs, relPath)
@@ -486,7 +491,7 @@ const build = async () => {
       process.exit(1)
     }
 
-    const entries = collectPayload(appDir, runtimeOut, bridge, host, basename(outDir))
+    const entries = collectPayload(appDir, manifest, runtimeOut, bridge, host, basename(outDir))
 
     if (!slim) collectQt(entries, host)
 
