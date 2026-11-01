@@ -29,6 +29,7 @@ import { create } from "./create.ts"
 import {
   deviceBack,
   deviceExpect,
+  deviceReload,
   deviceSelect,
   deviceShot,
   deviceState,
@@ -554,6 +555,7 @@ const usage = () => {
       "  expect <text>  wait until the text appears (--timeout ms)",
       "  shot           screenshot the device (--out, --window)",
       "  back           send the Android back event",
+      "  reload         restart the running app",
       "  doctor         check the toolchain (host, bridge, Qt, Bun)",
       "  version        print the version",
       "",
@@ -636,6 +638,9 @@ switch (cmd) {
   }
   case "back":
     await runDevice(() => deviceBack(process.cwd()))
+    break
+  case "reload":
+    await runDevice(() => deviceReload(process.cwd()))
     break
   case "expect":
     await runDevice(() => deviceExpect(process.cwd(), positional().join(" "), Number(flagValue("--timeout") ?? 5000)))

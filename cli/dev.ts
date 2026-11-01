@@ -17,6 +17,7 @@ import {
   findAndroidTools,
 } from "./android.ts"
 import { readManifest, resolveEntry } from "./app.ts"
+import { mapErrorText, parseInlineSourceMap, type SourceMapper } from "./sourcemap.ts"
 import { pulsarRoot } from "./core.ts"
 
 export interface DevAndroidOptions {
@@ -125,7 +126,7 @@ const buildPayload = async (appDir: string, entry: string, manifest: AppManifest
   const assembly = mkdtempSync(join(tmpdir(), "pulsar-dev-"))
 
   try {
-    const { result } = bundleRuntime(entry, assembly)
+    const { result } = bundleRuntime(entry, assembly, true)
 
     let bundle: Awaited<typeof result>
 
@@ -172,10 +173,21 @@ const buildPayload = async (appDir: string, entry: string, manifest: AppManifest
   }
 }
 
-const printLog = (log: DeviceLog): void => {
+const printLog = (log: DeviceLog, mapper: SourceMapper | null): string => {
   const prefix = log.source ? `[${log.source}/${log.level}]` : `[${log.level}]`
+  const message = log.level === "error" ? mapErrorText(log.message, mapper) : log.message
 
-  console.log(`  ${prefix} ${log.message}`)
+  console.log(`  ${prefix} ${message}`)
+
+  return message
+}
+
+const mapperForPayload = (payload: DevPayload): SourceMapper | null => {
+  const runtime = payload.files.find((file) => file.path === "runtime.js")
+
+  if (!runtime) return null
+
+  return parseInlineSourceMap(Buffer.from(runtime.data, "base64").toString("utf8"))
 }
 
 export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
@@ -233,6 +245,7 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
   }
 
   let payload = await buildPayload(appDir, entry, manifest)
+  let mapper = mapperForPayload(payload)
 
   const commands: Record<string, unknown>[] = []
   const replies = new Map<number, { resolve: (value: unknown) => void; timer: ReturnType<typeof setTimeout> }>()
@@ -260,7 +273,7 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
   const control = (body: Record<string, unknown>): Promise<unknown> => {
     return new Promise((resolve, reject) => {
       const id = ++commandID
-      const command = { type: "cmd", id, ...body }
+      const command = { type: "cmd", id, ts: Date.now(), ...body }
       const timer = setTimeout(() => {
         replies.delete(id)
 
@@ -276,6 +289,28 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
 
       if (pollResolve) finishPoll(commands.splice(0))
     })
+  }
+
+  let port = options.port ?? 0
+
+  const launch = (): void => {
+    spawnSync(adb, ["-s", device, "shell", "am", "force-stop", packageName], { stdio: "ignore" })
+    spawnSync(
+      adb,
+      [
+        "-s",
+        device,
+        "shell",
+        "am",
+        "start",
+        "-n",
+        `${packageName}/${PACKAGE_ACTIVITY}`,
+        "--es",
+        "pulsar-dev-url",
+        `http://127.0.0.1:${port}/`,
+      ],
+      { stdio: "ignore" },
+    )
   }
 
   const server = Bun.serve({
@@ -297,8 +332,17 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
 
       if (url.pathname === "/__dev/log") {
         try {
-          printLog((await request.json()) as DeviceLog)
+          const log = (await request.json()) as DeviceLog
+          const message = printLog(log, mapper)
+
+          if (log.level === "error") void control({ cmd: "show-error", text: message }).catch(() => {})
         } catch {}
+
+        return json({ ok: true })
+      }
+
+      if (url.pathname === "/__dev/reload") {
+        launch()
 
         return json({ ok: true })
       }
@@ -345,7 +389,8 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
     },
   })
 
-  const port = server.port
+  port = server.port ?? port
+
   const sessionPath = join(appDir, ".pulsar", "dev.json")
 
   mkdirSync(dirname(sessionPath), { recursive: true })
@@ -370,26 +415,6 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
     spawnSync(adb, ["-s", device, "shell", "svc", "power", "stayon", "true"], { stdio: "ignore" })
     spawnSync(adb, ["-s", device, "shell", "input", "keyevent", "KEYCODE_WAKEUP"], { stdio: "ignore" })
     spawnSync(adb, ["-s", device, "shell", "wm", "dismiss-keyguard"], { stdio: "ignore" })
-  }
-
-  const launch = (): void => {
-    spawnSync(adb, ["-s", device, "shell", "am", "force-stop", packageName], { stdio: "ignore" })
-    spawnSync(
-      adb,
-      [
-        "-s",
-        device,
-        "shell",
-        "am",
-        "start",
-        "-n",
-        `${packageName}/${PACKAGE_ACTIVITY}`,
-        "--es",
-        "pulsar-dev-url",
-        `http://127.0.0.1:${port}/`,
-      ],
-      { stdio: "ignore" },
-    )
   }
 
   let watcher: ReturnType<typeof watch> | undefined
@@ -421,6 +446,7 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
       }
 
       payload = next
+      mapper = mapperForPayload(next)
 
       console.log(`pulsar: bundle ${next.version.slice(0, 8)}; restarting ${packageName}`)
       launch()

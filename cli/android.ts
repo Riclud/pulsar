@@ -320,7 +320,7 @@ const hashFiles = (files: string[], appDir: string, extra: string): string => {
   return hash.digest("hex")
 }
 
-export const bundleRuntime = (entry: string, assembly: string) => {
+export const bundleRuntime = (entry: string, assembly: string, sourcemap = false) => {
   const root = pulsarRoot()
   const runtimeEntry = join(assembly, "entry.ts")
   const spec = (p: string) => JSON.stringify(p.replace(/\\/g, "/"))
@@ -363,6 +363,7 @@ export const bundleRuntime = (entry: string, assembly: string) => {
     target: "browser",
     format: "iife",
     write: false,
+    sourcemap: sourcemap ? "inline" : "none",
     plugins: [plugin],
   } as unknown as Parameters<typeof Bun.build>[0]
 

@@ -42,7 +42,12 @@ export const control = async (appDir: string, body: Record<string, unknown>): Pr
   })
   const reply = (await response.json()) as DevReply
 
-  if (!reply.ok) throw new Error(reply.error ?? "device command failed")
+  if (!reply.ok) {
+    if (typeof reply.error === "string") throw new Error(reply.error)
+    if (typeof reply.value === "string") throw new Error(reply.value)
+
+    throw new Error("device command failed")
+  }
 
   return reply.value
 }
@@ -109,6 +114,10 @@ export const deviceSelect = async (appDir: string, text: string, value: string):
 
 export const deviceBack = async (appDir: string): Promise<void> => {
   console.log(JSON.stringify(await control(appDir, { cmd: "back" })))
+}
+
+export const deviceReload = async (appDir: string): Promise<void> => {
+  console.log(JSON.stringify(await control(appDir, { cmd: "reload" })))
 }
 
 export const deviceExpect = async (appDir: string, text: string, timeoutMs = 5000): Promise<void> => {
