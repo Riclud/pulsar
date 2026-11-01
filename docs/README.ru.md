@@ -637,9 +637,11 @@ socket.send(new Uint8Array([1, 2, 3]))
 socket.close(1000, "bye")
 ```
 
-`fs.open(path)` отдаёт файл ОС: приложению по умолчанию на десктопе
-(`QDesktopServices`) или `ACTION_VIEW` на Android, где видео открывается во
-встроенном полноэкранном плеере. `fs.exportTo(path, name?)` копирует файл из
+`fs.open(path)` отдаёт файл ОС. Видео открывается во встроенном полноэкранном
+плеере: на Android всегда, на десктопе — если в установленном Qt есть
+QtMultimedia (в бандлах toolchain он есть). Остальные файлы уходят приложению
+по умолчанию на десктопе (`QDesktopServices`) или через `ACTION_VIEW` на
+Android. `fs.exportTo(path, name?)` копирует файл из
 песочницы приложения в папку Downloads; на Android открывается диалог
 сохранения SAF и возвращается `true` после успешного копирования. Оба метода
 возвращают `Promise<boolean>`. `dialog.toast(text)` показывает короткий тост

@@ -27,7 +27,7 @@ endforeach()
 # Pulsar requires Qt 6.8+. The host is a Qt app, so use Qt's CMake package.
 # WebSockets is optional: the Android Qt bundle ships without it.
 find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Qml Quick Network QuickControls2)
-find_package(Qt6 6.8 QUIET OPTIONAL_COMPONENTS WebSockets)
+find_package(Qt6 6.8 QUIET OPTIONAL_COMPONENTS WebSockets Multimedia)
 
 function(pulsar_link_websockets target)
     if(TARGET Qt6::WebSockets)
@@ -80,6 +80,13 @@ target_link_libraries(qml-host PRIVATE
 
 pulsar_link_websockets(qml-host)
 
+# In-app video uses QtMultimedia when the Qt install ships it; otherwise
+# fs.open falls back to the system handler.
+if(TARGET Qt6::Multimedia)
+    target_link_libraries(qml-host PRIVATE Qt6::Multimedia)
+    target_compile_definitions(qml-host PRIVATE PULSAR_HAS_MULTIMEDIA=1)
+endif()
+
 # OS secret storage: Keychain on macOS, DPAPI on Windows, libsecret on Linux.
 # Recent documents use Security/AppKit on macOS and the shell API on Windows.
 if(APPLE)
@@ -102,6 +109,14 @@ function(pulsar_add_view_resources target resource_name)
 endfunction()
 
 pulsar_add_view_resources(qml-host "pulsarview")
+
+if(TARGET Qt6::Multimedia)
+    qt_add_resources(qml-host "pulsarvideo"
+        PREFIX "/runtime"
+        BASE "${CMAKE_CURRENT_SOURCE_DIR}/host/qml"
+        FILES "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/VideoPlayer.qml"
+    )
+endif()
 
 # --- Embedded QML host (desktop test harness, Android host) ---
 add_executable(qml-host-qjs

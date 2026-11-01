@@ -44,7 +44,8 @@ See [CHANGELOG.md](CHANGELOG.md) for the release history.
   toolchain (`pulsar build --slim` / `pulsar install --slim`). The default
   toolchain and builds bundle Qt, so end users need nothing extra; its platform
   dependencies (X11/Wayland, fonts, GPU drivers) still come from the system.
-  Building from source also needs the Qt WebSockets module.
+  Building from source also needs the Qt WebSockets module; QtMultimedia is
+  optional and enables the in-app desktop video player.
 
 ## Install
 
@@ -634,9 +635,10 @@ socket.send(new Uint8Array([1, 2, 3]))
 socket.close(1000, "bye")
 ```
 
-`fs.open(path)` hands a file to the OS: the default application on desktop
-(`QDesktopServices`) or `ACTION_VIEW` on Android, where videos play in a
-full-screen built-in player. `fs.exportTo(path, name?)` copies a file out of
+`fs.open(path)` hands a file to the OS. Videos play in a full-screen built-in
+player: on Android always, on desktop when the Qt install has QtMultimedia
+(the bundled toolchains do). Other files go to the default application on
+desktop (`QDesktopServices`) or `ACTION_VIEW` on Android. `fs.exportTo(path, name?)` copies a file out of
 the app sandbox into the user's Downloads folder; on Android it opens the SAF
 save dialog and returns `true` once the copy succeeded. Both return
 `Promise<boolean>`. `dialog.toast(text)` shows a short Android toast; on

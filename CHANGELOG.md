@@ -8,6 +8,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Desktop video playback in a built-in full-screen player: `fs.open` on a
+  video file plays it in-app when QtMultimedia is available instead of handing
+  it to the OS. The release toolchains now bundle QtMultimedia. Tap or Space
+  pauses, Escape or the close button exits, with a seek bar and timer.
 - `Sheet` / `Modal` take `dismissible` (default `true`) and `duration` (fade
   time in ms, default 140). `dismissible: false` keeps the overlay open on a
   backdrop tap.

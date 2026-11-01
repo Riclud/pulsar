@@ -7,6 +7,7 @@
 #include <QQmlPropertyMap>
 #include <QQuickStyle>
 #include <QQuickWindow>
+#include <QPointer>
 #include <QIcon>
 #include <QDir>
 #include <QDesktopServices>
@@ -872,6 +873,53 @@ static void handleRecentCommand(const QVariantMap &m)
         pulsar::clearRecentDocuments();
 }
 
+
+#ifdef PULSAR_HAS_MULTIMEDIA
+static QPointer<QObject> gVideoPlayer;
+
+static bool isVideoPath(const QString &path)
+{
+    static const QStringList extensions = {QStringLiteral("mp4"), QStringLiteral("m4v"), QStringLiteral("mkv"),
+                                          QStringLiteral("webm"), QStringLiteral("mov"), QStringLiteral("avi"),
+                                          QStringLiteral("wmv"), QStringLiteral("flv"), QStringLiteral("mpg"),
+                                          QStringLiteral("mpeg"), QStringLiteral("ts"), QStringLiteral("3gp"),
+                                          QStringLiteral("ogv")};
+
+    return extensions.contains(QFileInfo(path).suffix().toLower());
+}
+
+static bool playVideo(QQmlApplicationEngine &engine, const QString &path)
+{
+    if (!isVideoPath(path))
+        return false;
+
+    if (!gVideoPlayer) {
+        QQmlComponent component(&engine, QUrl(QStringLiteral("qrc:/runtime/VideoPlayer.qml")));
+        QObject *created = component.create();
+
+        if (!created) {
+            qWarning().noquote() << "Pulsar: cannot create the video player:" << component.errors();
+            return false;
+        }
+
+        gVideoPlayer = created;
+    }
+
+    QMetaObject::invokeMethod(gVideoPlayer, "open", Q_ARG(QVariant, QUrl::fromLocalFile(path)));
+
+    if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
+        qInfo().noquote() << "VIDEO" << path;
+
+    if (auto *window = qobject_cast<QQuickWindow *>(gVideoPlayer.data())) {
+        window->show();
+        window->raise();
+        window->requestActivate();
+    }
+
+    return true;
+}
+#endif
+
 static void handleWindowCommand(QQmlApplicationEngine &engine, const QVariantMap &m)
 {
     QString label = m.value(QStringLiteral("label")).toString();
@@ -1238,8 +1286,13 @@ int main(int argc, char **argv)
                          } else if (method == QLatin1String("__export")) {
                              handleExportRequest(params.toVariant().toMap());
                          } else if (method == QLatin1String("__open")) {
-                             QDesktopServices::openUrl(QUrl::fromLocalFile(
-                                 params.toVariant().toMap().value(QStringLiteral("path")).toString()));
+                             const QString path =
+                                 params.toVariant().toMap().value(QStringLiteral("path")).toString();
+#ifdef PULSAR_HAS_MULTIMEDIA
+                             if (playVideo(engine, path))
+                                 return;
+#endif
+                             QDesktopServices::openUrl(QUrl::fromLocalFile(path));
                          } else if (method == QLatin1String("__tray")) {
                              handleTrayCommand(params.toVariant().toMap());
                          } else if (method == QLatin1String("__recent")) {
