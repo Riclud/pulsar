@@ -230,6 +230,35 @@ void EmbeddedBridge::finishFileExport(bool ok)
     reply(QStringLiteral("__export-result"), replyParams);
 }
 
+void EmbeddedBridge::finishIntent(const QJsonObject &intent)
+{
+    const QString text = intent.value(QStringLiteral("text")).toString();
+    const QString url = intent.value(QStringLiteral("url")).toString();
+    const QJsonArray files = intent.value(QStringLiteral("files")).toArray();
+
+    if (!text.isEmpty()) {
+        QJsonObject data;
+        data.insert(QStringLiteral("text"), text);
+        data.insert(QStringLiteral("files"), files);
+
+        notify(QStringLiteral("share"), data);
+    }
+
+    if (!url.isEmpty()) {
+        QJsonObject data;
+        data.insert(QStringLiteral("url"), url);
+
+        notify(QStringLiteral("open-url"), data);
+    }
+
+    for (const QJsonValue &value : files) {
+        QJsonObject data;
+        data.insert(QStringLiteral("path"), value.toString());
+
+        notify(QStringLiteral("open-file"), data);
+    }
+}
+
 void EmbeddedBridge::finishNotificationClick(const QString &token)
 {
     QJsonObject data;

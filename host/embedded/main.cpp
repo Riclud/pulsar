@@ -129,6 +129,25 @@ static void pulsarFilesPicked(JNIEnv *env, jclass, jstring json)
         Qt::QueuedConnection);
 }
 
+static void pulsarIntentReceived(JNIEnv *env, jclass, jstring json)
+{
+    if (!g_backBridge)
+        return;
+
+    const char *chars = env->GetStringUTFChars(json, nullptr);
+    const QString text = QString::fromUtf8(chars);
+
+    env->ReleaseStringUTFChars(json, chars);
+
+    QMetaObject::invokeMethod(
+        g_backBridge,
+        [text] {
+            if (g_backBridge)
+                g_backBridge->finishIntent(QJsonDocument::fromJson(text.toUtf8()).object());
+        },
+        Qt::QueuedConnection);
+}
+
 static void pulsarNotificationClicked(JNIEnv *env, jclass, jstring token)
 {
     if (!g_backBridge)
@@ -386,11 +405,13 @@ int main(int argc, char **argv)
           reinterpret_cast<void *>(pulsarPermissionResult) },
         { const_cast<char *>("notificationClicked"), const_cast<char *>("(Ljava/lang/String;)V"),
           reinterpret_cast<void *>(pulsarNotificationClicked) },
+        { const_cast<char *>("intentReceived"), const_cast<char *>("(Ljava/lang/String;)V"),
+          reinterpret_cast<void *>(pulsarIntentReceived) },
     };
 
     QJniEnvironment jniEnvironment;
 
-    jniEnvironment.registerNativeMethods("com/pulsar/host/PulsarActivity", methods, 5);
+    jniEnvironment.registerNativeMethods("com/pulsar/host/PulsarActivity", methods, 6);
 #endif
 
     pulsar::NetworkService network(&app);

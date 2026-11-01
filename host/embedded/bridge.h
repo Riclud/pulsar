@@ -60,6 +60,9 @@ public:
     /** Report a notification tap back to the app. */
     void finishNotificationClick(const QString &token);
 
+    /** Deliver an ACTION_SEND / ACTION_VIEW intent to the app. */
+    void finishIntent(const QJsonObject &intent);
+
     /** Send a raw JSON-RPC notification to the JS runtime. */
     void notifyMethod(const QString &method, const QJsonObject &params);
 

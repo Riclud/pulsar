@@ -32,6 +32,7 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.content.FileProvider;
 
 import org.json.JSONArray;
+import org.json.JSONObject;
 import org.qtproject.qt.android.bindings.QtActivity;
 
 import java.io.File;
@@ -56,6 +57,8 @@ public class PulsarActivity extends QtActivity {
 
     private static native void notificationClicked(String token);
 
+    private static native void intentReceived(String json);
+
     private static final String DEFAULT_NOTIFICATION_CHANNEL = "pulsar";
     private static final String NOTIFICATION_TOKEN_EXTRA = "pulsarNotificationToken";
 
@@ -67,6 +70,7 @@ public class PulsarActivity extends QtActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         handleNotificationIntent(getIntent());
+        handleShareIntent(getIntent());
     }
 
     @Override
@@ -74,6 +78,70 @@ public class PulsarActivity extends QtActivity {
         super.onNewIntent(intent);
         setIntent(intent);
         handleNotificationIntent(intent);
+        handleShareIntent(intent);
+    }
+
+    private void handleShareIntent(Intent intent) {
+        if (intent == null)
+            return;
+
+        final String action = intent.getAction();
+
+        if (!Intent.ACTION_SEND.equals(action) && !Intent.ACTION_VIEW.equals(action))
+            return;
+
+        JSONObject result = new JSONObject();
+        JSONArray files = new JSONArray();
+
+        try {
+            if (Intent.ACTION_SEND.equals(action)) {
+                String text = intent.getStringExtra(Intent.EXTRA_TEXT);
+
+                if (text != null && !text.isEmpty())
+                    result.put("text", text);
+
+                Uri stream = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+
+                if (stream != null) {
+                    String path = copyUriToCache(stream);
+
+                    if (path != null)
+                        files.put(path);
+                }
+            } else {
+                Uri data = intent.getData();
+
+                if (data != null) {
+                    String scheme = data.getScheme();
+
+                    if ("http".equals(scheme) || "https".equals(scheme)) {
+                        result.put("url", data.toString());
+                    } else {
+                        String path = copyUriToCache(data);
+
+                        if (path != null)
+                            files.put(path);
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
+
+        intent.setAction(Intent.ACTION_MAIN);
+        intent.setData(null);
+        intent.removeExtra(Intent.EXTRA_TEXT);
+        intent.removeExtra(Intent.EXTRA_STREAM);
+
+        if (result.length() == 0 && files.length() == 0)
+            return;
+
+        try {
+            result.put("files", files);
+            result.put("action", action == null ? "" : action);
+        } catch (Exception ignored) {
+        }
+
+        intentReceived(result.toString());
     }
 
     private void handleNotificationIntent(Intent intent) {
@@ -436,34 +504,42 @@ public class PulsarActivity extends QtActivity {
                 uris.add(data.getData());
             }
 
-            File directory = new File(getCacheDir(), "picked");
-
-            directory.mkdirs();
-
             for (Uri uri : uris) {
-                File target = new File(directory, System.currentTimeMillis() + "-" + queryName(uri));
+                String path = copyUriToCache(uri);
 
-                try (InputStream input = getContentResolver().openInputStream(uri);
-                     OutputStream output = new FileOutputStream(target)) {
-                    if (input == null) continue;
-
-                    byte[] buffer = new byte[8192];
-                    int read;
-
-                    while ((read = input.read(buffer)) > 0) output.write(buffer, 0, read);
-
-                    long modified = queryModified(uri);
-
-                    if (modified > 0) target.setLastModified(modified);
-
-                    paths.put(target.getAbsolutePath());
-                } catch (Exception ignored) {
-                }
+                if (path != null)
+                    paths.put(path);
             }
         }
 
         filesPicked(paths.toString());
         super.onActivityResult(requestCode, resultCode, data);
+    }
+
+    private String copyUriToCache(Uri uri) {
+        File directory = new File(getCacheDir(), "picked");
+
+        directory.mkdirs();
+
+        File target = new File(directory, System.currentTimeMillis() + "-" + queryName(uri));
+
+        try (InputStream input = getContentResolver().openInputStream(uri);
+             OutputStream output = new FileOutputStream(target)) {
+            if (input == null) return null;
+
+            byte[] buffer = new byte[8192];
+            int read;
+
+            while ((read = input.read(buffer)) > 0) output.write(buffer, 0, read);
+
+            long modified = queryModified(uri);
+
+            if (modified > 0) target.setLastModified(modified);
+
+            return target.getAbsolutePath();
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     public void exportFile(String path, String name) {

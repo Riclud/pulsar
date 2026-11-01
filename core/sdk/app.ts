@@ -82,6 +82,7 @@ export interface PulsarEventMap {
   "notification-action": { token: string; id: string }
   "open-file": { path: string }
   "open-url": { url: string }
+  share: { text?: string; files?: string[]; url?: string }
   "second-instance": { argv: string[]; cwd: string }
 }
 
