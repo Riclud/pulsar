@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { registerCapability } from "./caps.ts"
 import { NetError, net, netInternals } from "./net.ts"
 
 class FakeTransport {
@@ -98,6 +99,50 @@ describe("net", () => {
 
     const response = await pending
     expect(Array.from(response.bytes ?? [])).toEqual([9, 8, 7])
+  })
+
+  test("download streams chunks to a file with progress", async () => {
+    const transport = setup()
+    const writes: string[] = []
+    const progress: Array<[number, number | null]> = []
+
+    registerCapability("fs.exists", (async () => false) as never)
+    registerCapability("fs.stat", (async () => ({ size: 0 })) as never)
+    registerCapability("fs.writeFile", (async (p: { path: string }) => {
+      writes.push(`write:${p.path}`)
+
+      return true
+    }) as never)
+    registerCapability("fs.appendFile", (async (p: { content: string }) => {
+      writes.push(`append:${p.content}`)
+
+      return true
+    }) as never)
+
+    const pending = net.download("https://example.com/file", "/tmp/file", {
+      onProgress: (received, total) => progress.push([received, total]),
+    })
+
+    for (let i = 0; i < 10 && transport.messages.length === 0; i++) await Promise.resolve()
+
+    const id = lastParams(transport).id as number
+
+    netInternals.handleMessage({
+      id,
+      type: "response",
+      status: 200,
+      statusText: "OK",
+      url: "https://example.com/file",
+      headers: { "content-length": "3" },
+    })
+    netInternals.handleMessage({ id, type: "data", text: "abc" })
+    netInternals.handleMessage({ id, type: "end" })
+
+    const result = await pending
+
+    expect(result).toMatchObject({ path: "/tmp/file", bytes: 3, resumed: false, status: 200 })
+    expect(writes).toEqual(["write:/tmp/file", "append:YWJj"])
+    expect(progress.at(-1)).toEqual([3, 3])
   })
 
   test("abort sends an abort action", () => {

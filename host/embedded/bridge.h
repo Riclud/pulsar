@@ -12,6 +12,7 @@
 #include <QVariantMap>
 
 class QQmlPropertyMap;
+class QFileSystemWatcher;
 
 namespace pulsar {
 class NetworkService;
@@ -107,4 +108,5 @@ private:
     QString pendingFileToken_;
     QString pendingExportToken_;
     QHash<QString, QString> pendingPermissionTokens_;
+    QFileSystemWatcher *watcher_ = nullptr;
 };

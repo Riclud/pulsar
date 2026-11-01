@@ -1,4 +1,4 @@
-import { assertCapability } from "./caps.ts"
+import { assertCapability, fs } from "./caps.ts"
 
 export interface NetTransport {
   readonly supportsBinary: boolean
@@ -27,6 +27,20 @@ export interface NetResponseInfo {
 export interface NetResponse extends NetResponseInfo {
   text: string
   bytes?: Uint8Array
+}
+
+export interface DownloadOptions {
+  headers?: Record<string, string>
+  timeoutMs?: number
+  /** Continue a partial file with a Range request when the server allows it. */
+  resume?: boolean
+  onProgress?: (received: number, total: number | null) => void
+}
+
+export interface DownloadResult extends NetResponseInfo {
+  path: string
+  bytes: number
+  resumed: boolean
 }
 
 export interface NetErrorData {
@@ -94,6 +108,25 @@ interface SocketListeners {
 }
 
 const BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+
+const textBytes = (value: string): Uint8Array => {
+  if (typeof TextEncoder !== "undefined") return new TextEncoder().encode(value)
+
+  const out: number[] = []
+
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i)
+
+    if (code < 0x80) out.push(code)
+    else if (code < 0x800) {
+      out.push(0xc0 | (code >> 6), 0x80 | (code & 0x3f))
+    } else {
+      out.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 0x3f), 0x80 | (code & 0x3f))
+    }
+  }
+
+  return Uint8Array.from(out)
+}
 
 const bytesToBase64 = (bytes: Uint8Array): string => {
   let out = ""
@@ -395,6 +428,89 @@ class NetClient {
     })
   }
 
+  download(url: string, path: string, options: DownloadOptions = {}): Promise<DownloadResult> {
+    return new Promise((resolve, reject) => {
+      let info: NetResponseInfo = { status: 0, statusText: "", url, headers: {} }
+      let received = 0
+      let total: number | null = null
+      let resumed = false
+      let failure: Error | null = null
+      let chain: Promise<unknown> = Promise.resolve()
+
+      const headers: Record<string, string> = { ...(options.headers ?? {}) }
+
+      const prepare = options.resume
+        ? fs.exists(path).then(async (exists) => {
+            if (!exists) return
+
+            const stat = await fs.stat(path)
+
+            if (stat.size <= 0) return
+
+            resumed = true
+            received = stat.size
+            headers.Range = `bytes=${stat.size}-`
+          })
+        : fs.writeFile(path, "", "utf8").then(() => undefined)
+
+      prepare.then(() => {
+        const request = this.request(url, {
+          method: "GET",
+          headers,
+          timeoutMs: options.timeoutMs,
+          responseType: "binary",
+        })
+
+        const track = (work: Promise<unknown>): void => {
+          chain = chain.then(() => work).catch((error) => {
+            failure ??= error instanceof Error ? error : new Error(String(error))
+          })
+        }
+
+        request.on("response", (value) => {
+          info = value
+
+          const length = Number(value.headers["content-length"] ?? value.headers["Content-Length"])
+          const offset = value.status === 206 ? received : 0
+
+          total = Number.isFinite(length) ? length + offset : null
+
+          if (resumed && value.status !== 206) {
+            received = 0
+            resumed = false
+          }
+
+          if (options.resume && value.status !== 206)
+            track(fs.writeFile(path, "", "utf8"))
+
+          options.onProgress?.(received, total)
+        })
+
+        request.on("data", (chunk) => {
+          const bytes = typeof chunk === "string" ? textBytes(chunk) : chunk
+
+          received += bytes.byteLength
+
+          track(fs.appendFile(path, bytesToBase64(bytes), "base64"))
+          options.onProgress?.(received, total)
+        })
+
+        request.on("end", () => {
+          void chain.then(() => {
+            if (failure) {
+              reject(failure)
+              return
+            }
+
+            resolve({ ...info, path, bytes: received, resumed })
+          })
+        })
+
+        request.on("error", (error) => reject(new NetError(error.code, error.message)))
+      }).catch((error) => reject(error instanceof Error ? error : new Error(String(error))))
+    })
+  }
+
   abortRequest(id: number): void {
     if (!this.transport) return
     this.transport.send({ jsonrpc: "2.0", method: "__net", params: { id, action: "abort" } })
@@ -521,6 +637,8 @@ const client = new NetClient()
 export const net = {
   fetch: (url: string, options?: NetOptions): Promise<NetResponse> => client.fetch(url, options),
   request: (url: string, options?: NetOptions): NetRequest => client.request(url, options),
+  download: (url: string, path: string, options?: DownloadOptions): Promise<DownloadResult> =>
+    client.download(url, path, options),
   websocket: (url: string, options?: WebSocketOptions): NetWebSocket => client.websocket(url, options),
   abort: (id: number): void => client.abortRequest(id),
 }

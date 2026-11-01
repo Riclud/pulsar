@@ -93,6 +93,7 @@ export { CAPABILITY_PERMISSIONS, capabilityPermission, createPermissionGate } fr
 export {
   dialog,
   fs,
+  fsWatchInternals,
   notify,
   paths,
   screen,
@@ -115,7 +116,7 @@ export {
   setPermissionGate,
 } from "./caps.ts"
 export { net, NetError } from "./net.ts"
-export type { NetErrorData, NetOptions, NetRequest, NetResponse, NetResponseInfo } from "./net.ts"
+export type { DownloadOptions, DownloadResult, NetErrorData, NetOptions, NetRequest, NetResponse, NetResponseInfo } from "./net.ts"
 export type {
   AppPaths,
   CapHandler,

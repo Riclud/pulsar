@@ -49,6 +49,7 @@
 static bool gErrorShown = false;
 static bool gWatch = false;
 static QFileSystemWatcher *gWatcher = nullptr;
+static QFileSystemWatcher *gAppWatcher = nullptr;
 static Bridge *gBridge = nullptr;
 static pulsar::NetworkService *gNet = nullptr;
 static PowerMonitor *gPower = nullptr;
@@ -1240,6 +1241,26 @@ int main(int argc, char **argv)
 
     gWatcher = new QFileSystemWatcher(&app);
 
+    gAppWatcher = new QFileSystemWatcher(&app);
+
+    auto emitFsChange = [bridge](const QString &path) {
+        QJsonObject data;
+        data.insert(QStringLiteral("path"), path);
+
+        QJsonObject params;
+        params.insert(QStringLiteral("name"), QStringLiteral("fs-change"));
+        params.insert(QStringLiteral("data"), data);
+
+        bridge->notify(QStringLiteral("__event"), params);
+
+        if (QFileInfo::exists(path) && !gAppWatcher->files().contains(path)
+            && !gAppWatcher->directories().contains(path))
+            gAppWatcher->addPath(path);
+    };
+
+    QObject::connect(gAppWatcher, &QFileSystemWatcher::fileChanged, &app, emitFsChange);
+    QObject::connect(gAppWatcher, &QFileSystemWatcher::directoryChanged, &app, emitFsChange);
+
     QObject::connect(gWatcher, &QFileSystemWatcher::fileChanged, &app, [&engine]() {
         qInfo().noquote() << "qml changed; reloading";
         destroyWindows(engine);
@@ -1341,6 +1362,17 @@ int main(int argc, char **argv)
                              QGuiApplication::clipboard()->setText(text);
                          } else if (method == QLatin1String("__device")) {
                              // Orientation and keep-awake are Android-only.
+                         } else if (method == QLatin1String("__fs-watch")) {
+                             const QVariantMap m = params.toVariant().toMap();
+                             const QString action = m.value(QStringLiteral("action")).toString();
+                             const QString path = m.value(QStringLiteral("path")).toString();
+
+                             if (gAppWatcher && !path.isEmpty()) {
+                                 if (action == QLatin1String("add"))
+                                     gAppWatcher->addPath(path);
+                                 else if (action == QLatin1String("remove"))
+                                     gAppWatcher->removePath(path);
+                             }
                          } else if (method == QLatin1String("__notify")) {
                              const QVariantMap m = params.toVariant().toMap();
                              bridge->showNotification(m.value(QStringLiteral("title")).toString(),

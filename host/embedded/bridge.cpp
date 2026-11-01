@@ -8,6 +8,7 @@
 #include <QDesktopServices>
 #include <QFile>
 #include <QFileInfo>
+#include <QFileSystemWatcher>
 #include <QGuiApplication>
 
 #ifdef Q_OS_ANDROID
@@ -30,6 +31,21 @@ EmbeddedBridge::EmbeddedBridge(pulsar::QuickJsRuntime *runtime, QJSEngine *engin
     , engine_(engine)
     , store_(store)
 {
+    watcher_ = new QFileSystemWatcher(this);
+
+    auto emitChange = [this](const QString &path) {
+        QJsonObject data;
+        data.insert(QStringLiteral("path"), path);
+
+        notify(QStringLiteral("fs-change"), data);
+
+        if (QFileInfo::exists(path) && !watcher_->files().contains(path)
+            && !watcher_->directories().contains(path))
+            watcher_->addPath(path);
+    };
+
+    connect(watcher_, &QFileSystemWatcher::fileChanged, this, emitChange);
+    connect(watcher_, &QFileSystemWatcher::directoryChanged, this, emitChange);
 }
 
 qint64 EmbeddedBridge::send(const QString &method, const QJsonObject &params)
@@ -301,6 +317,20 @@ void EmbeddedBridge::handleMessage(const QJsonObject &message)
     if (method == QLatin1String("__state")) {
         applyState(params.value(QStringLiteral("state")).toObject(),
                    params.value(QStringLiteral("unset")).toArray());
+        return;
+    }
+
+    if (method == QLatin1String("__fs-watch")) {
+        const QString action = params.value(QStringLiteral("action")).toString();
+        const QString path = params.value(QStringLiteral("path")).toString();
+
+        if (watcher_ && !path.isEmpty()) {
+            if (action == QLatin1String("add"))
+                watcher_->addPath(path);
+            else if (action == QLatin1String("remove"))
+                watcher_->removePath(path);
+        }
+
         return;
     }
 

@@ -5,6 +5,7 @@ import {
   callCapability,
   createPermissionGate,
   dispatchUiEvent,
+  fsWatchInternals,
   hasCapability,
   listCapabilities,
   parseLaunchArgs,
@@ -183,6 +184,18 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
   registerCapability("theme.get", () => hostQuery("theme.get"))
   registerCapability("theme.set", (params: unknown) => {
     send({ jsonrpc: "2.0", method: "__theme", params: params ?? {} })
+
+    return Promise.resolve(true)
+  })
+
+  registerCapability("fs.watch", (params: unknown) => {
+    send({ jsonrpc: "2.0", method: "__fs-watch", params: { action: "add", ...(params as object) } })
+
+    return Promise.resolve(true)
+  })
+
+  registerCapability("fs.unwatch", (params: unknown) => {
+    send({ jsonrpc: "2.0", method: "__fs-watch", params: { action: "remove", ...(params as object) } })
 
     return Promise.resolve(true)
   })
@@ -401,6 +414,12 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
 
     if (req.method === "__net-event") {
       netInternals.handleMessage(params)
+
+      return
+    }
+
+    if (req.method === "__fs-change") {
+      fsWatchInternals.notify(String((params as { path?: string }).path ?? ""))
 
       return
     }

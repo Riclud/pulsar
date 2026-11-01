@@ -60,6 +60,15 @@ export const callCapability = (name: string, params?: unknown): Promise<unknown>
   return invoke(params ?? {})
 }
 
+const watchListeners = new Map<string, Set<(path: string) => void>>()
+
+/** Used by the runtime to deliver `fs-change` events. */
+export const fsWatchInternals = {
+  notify: (path: string): void => {
+    for (const listener of watchListeners.get(path) ?? []) listener(path)
+  },
+}
+
 /** Built-in filesystem capabilities. */
 export const fs = {
   readFile: (path: string, encoding: FsEncoding = "utf8"): Promise<string> =>
@@ -82,7 +91,34 @@ export const fs = {
   exportTo: (path: string, name?: string): Promise<boolean> =>
     callCapability("fs.exportTo", { path, name }) as Promise<boolean>,
   open: (path: string): Promise<boolean> => callCapability("fs.open", { path }) as Promise<boolean>,
+  /**
+   * Watch a file or directory; `listener` runs after each change. Returns an
+   * unsubscribe function. Watches are reference-counted per path.
+   */
+  watch: (path: string, listener: (path: string) => void): (() => void) => {
+    const listeners = watchListeners.get(path) ?? new Set<(value: string) => void>()
+    const first = listeners.size === 0
+
+    listeners.add(listener)
+    watchListeners.set(path, listeners)
+
+    if (first) void callCapability("fs.watch", { path })
+
+    return () => {
+      const current = watchListeners.get(path)
+
+      if (!current) return
+
+      current.delete(listener)
+
+      if (current.size > 0) return
+
+      watchListeners.delete(path)
+      void callCapability("fs.unwatch", { path })
+    }
+  },
 }
+
 
 /** Standard per-OS directories the app is allowed to write to. */
 export const paths = {
