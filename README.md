@@ -5,13 +5,15 @@
 
 # Pulsar
 
-An app framework built on **QML** for the UI and **Bun** for the backend.
+An app framework with a declarative **TypeScript** UI and a **Bun** backend.
 On the desktop it ships as a single self-contained executable; on Android it
-builds an APK that runs QuickJS and QML in one process.
+builds an APK that runs QuickJS in one process. QML is available as an escape
+hatch for advanced UI work.
 
-- **UI**: QML (native GPU rendering, low memory — no Chromium).
+- **UI**: functional components, bindings and the `Store`, written in TypeScript;
+  rendered natively by QML (GPU, low memory — no Chromium).
 - **Backend**: TypeScript running on [Bun](https://bun.sh).
-- **Bridge**: a capability layer between QML and the backend, plus a small
+- **Bridge**: a capability layer between the UI and the backend, plus a small
   Qt host and a C++ process supervisor.
 - **Packaging**: `pulsar build` produces one file with the Bun runtime (and,
   by default, the Qt runtime) bundled in; `pulsar build --target android`
@@ -93,7 +95,7 @@ Requires CMake, a C++20 compiler and a Qt 6 development installation
 ## Quick start
 
 ```sh
-pulsar create my-app      # scaffold (templates: default, js, windows, tray)
+pulsar create my-app      # default: TypeScript UI (templates: default, qml, windows, tray)
 cd my-app
 pulsar dev                # run with hot reload
 ```
@@ -103,8 +105,7 @@ pulsar dev                # run with hot reload
 ```
 my-app/
   pulsar.json     # app manifest: id, windows, entry point
-  main.ts         # backend (Bun) — App, state, events
-  ui/main.qml     # UI (QML)
+  main.ts         # UI + state + events, all in TypeScript
   assets/icon.png
   package.json
   tsconfig.json
@@ -113,51 +114,36 @@ my-app/
 `main.ts`:
 
 ```ts
-import { App } from "pulsar"
+import { App, bind, Button, Column, Header, Text } from "pulsar"
 
 const app = new App()
 
-app.store.set("greeting", "Hello from Pulsar")
+app.store.set("count", 0)
 
-app.on("greet", (params: { name: string }) => {
-  app.store.set("greeting", `Hello, ${params.name}!`)
-})
+app
+  .window("main")
+  .render(() =>
+    Column(
+      { fill: true },
+      Header({ title: "Hello from Pulsar" }),
+      Text({ size: 20, text: bind(() => `Count: ${app.store.get("count")}`) }),
+      Button({ onClick: () => app.store.set("count", (app.store.get("count") as number) + 1) }, "+1"),
+    ),
+  )
 
 app.run()
 ```
 
-`ui/main.qml`:
-
-```qml
-import QtQuick
-import QtQuick.Controls
-import Pulsar 1.0
-
-ApplicationWindow {
-    visible: true
-
-    Column {
-        anchors.centerIn: parent
-        spacing: 12
-
-        Label { text: Store.greeting || "" }
-
-        Button {
-            text: "Greet"
-            onClicked: Pulsar.emit("greet", { name: "World" })
-        }
-    }
-}
-```
-
-`pulsar.json` supplies the window defaults, so `new App()` needs no arguments.
+No QML files. `pulsar.json` supplies the window defaults, so `new App()` needs
+no arguments. Advanced users can switch a window to QML with `"ui": "ui/main.qml"`
+and start from `pulsar create my-app --template qml`.
 
 ## CLI
 
 ```
 pulsar <command>
 
-  create <name>  scaffold a new app (--template default|js|windows|tray)
+  create <name>  scaffold a new app (--template default|js|qml|windows|tray)
   install        download the native toolchain for this platform (--android for APK)
   update         update the CLI to the latest release
   dev            run with hot reload (watch sources)
@@ -663,14 +649,32 @@ app.on("log", (params: { level: string; source: "qml" | "js"; message: string; f
 })
 ```
 
-## UI from JS
+## UI in TypeScript
 
-You don't have to write QML: a window declared **without `ui`** is rendered from
-a JS tree built with the `ui` helpers. `pulsar create my-app --template js`
-scaffolds exactly this — a TypeScript app with no QML files.
+A window declared **without `ui`** is rendered from a tree built in TypeScript.
+`pulsar create my-app` scaffolds exactly this — no QML files. Components are
+plain functions, props are plain objects, and events use web names: `onClick`,
+`onInput`, `onToggle`, `onChange`, `onClose`.
 
 ```ts
-import { App, ui } from "pulsar"
+import {
+  App,
+  bind,
+  defineComponent,
+  Button,
+  Card,
+  Checkbox,
+  Column,
+  For,
+  Header,
+  IconButton,
+  Input,
+  Modal,
+  Row,
+  Spacer,
+  Text,
+  When,
+} from "pulsar"
 
 interface Task {
   id: string
@@ -685,61 +689,98 @@ app.store.set("tasks", [
   { id: "2", text: "Write my first app", done: false },
 ] as Task[])
 
-app.window("main").render(() => {
-  const tasks = app.store.get("tasks") as Task[]
+const tasks = (): Task[] => app.store.get("tasks") as Task[]
 
-  return ui.column({ fillWidth: true, fillHeight: true }, [
-    ui.appBar({
+const TaskRow = defineComponent<{ task: Task }>(({ task }) =>
+  Card(
+    { padding: 12 },
+    Row(
+      { gap: 8, fillWidth: true },
+      Checkbox({
+        label: task.text,
+        checked: task.done,
+        onToggle: (done) =>
+          app.store.set(
+            "tasks",
+            tasks().map((item) => (item.id === task.id ? { ...item, done } : item)),
+          ),
+      }),
+      Spacer({ fillWidth: true }),
+      IconButton({
+        icon: "delete",
+        onClick: () =>
+          app.store.set(
+            "tasks",
+            tasks().filter((t) => t.id !== task.id),
+          ),
+      }),
+    ),
+  ),
+)
+
+app.window("main").render(() =>
+  Column(
+    { fill: true },
+    Header({
       title: "My tasks",
-      subtitle: `${tasks.filter((task) => !task.done).length} left`,
-      actions: [ui.iconButton("add", { onClick: () => app.store.set("editing", true) })],
+      subtitle: bind(() => `${tasks().filter((task) => !task.done).length} left`),
+      actions: [IconButton({ icon: "add", onClick: () => app.store.set("editing", true) })],
     }),
-    ui.list({
-      items: tasks,
-      keyOf: (task) => task.id,
-      spacing: 8,
-      padding: 12,
-      render: (task) =>
-        ui.card({ padding: 12 }, [
-          ui.row({ gap: 8, fillWidth: true }, [
-            ui.checkbox(task.text, { checked: task.done }),
-            ui.spacer({ fillWidth: true }),
-            ui.iconButton("delete"),
-          ]),
-        ]),
+    When({
+      test: tasks().length === 0,
+      then: () => Text({ size: 16 }, "Nothing here yet"),
+      else: () =>
+        For({
+          each: tasks(),
+          keyOf: (task) => task.id,
+          spacing: 8,
+          padding: 12,
+          render: (task) => TaskRow({ task }),
+        }),
     }),
-    ui.sheet({ open: app.store.get("editing") === true, title: "New task", fullscreen: true }, [
-      ui.textInput({ placeholder: "What needs doing?" }),
-      ui.button("Add task"),
-    ]),
-  ])
-})
+    Modal(
+      {
+        open: bind(() => app.store.get("editing") === true),
+        title: "New task",
+        fullscreen: true,
+        onClose: () => app.store.set("editing", false),
+      },
+      Input({ placeholder: "What needs doing?" }),
+      Button({ expand: true }, "Add task"),
+    ),
+  ),
+)
 
 app.run()
 ```
 
-`render` takes a tree or a function; the function is called again whenever
-`Store` changes, and the host updates the existing QML objects in place, so
-focus, scroll and input state survive a re-render.
+`render` takes a tree or a function; the function runs again whenever `Store`
+changes, and the host updates the existing QML objects in place, so focus,
+scroll and input state survive a re-render.
 
-| Group     | Components                                                          |
-| --------- | ------------------------------------------------------------------- |
-| Layout    | `column`, `row`, `box`, `scroll`, `spacer`, `divider`               |
-| Content   | `text`, `image`, `icon`, `button`, `iconButton`, `chip`, `progress` |
-| Input     | `textInput`, `checkbox`, `switch`, `slider`, `select`               |
-| Structure | `list`, `card`, `appBar`, `sheet`                                   |
+| Group     | Components                                                             |
+| --------- | ---------------------------------------------------------------------- |
+| Layout    | `Column`, `Row`, `Box`, `Scroll`, `Spacer`, `Divider`                  |
+| Content   | `Text`, `Image`, `Icon`, `Button`, `IconButton`, `Chip`, `Progress`    |
+| Input     | `Input` (`TextField`), `Checkbox`, `Switch`, `Slider`, `Select`        |
+| Structure | `List` / `For`, `Card`, `Header` (`AppBar`), `Modal` (`Sheet`), `When` |
 
-- `list` virtualizes rows and keeps them stable through `keyOf`.
-- `icon` and `iconButton` take [Material Icons](https://fonts.google.com/icons)
+- `bind(() => expr)` marks a value that reads from `Store`; plain functions in
+  `on*` props are event handlers.
+- `For({ each, keyOf, render })` virtualizes rows and keeps them stable by key.
+- `Modal` / `Sheet` is an in-tree overlay, so it behaves the same on desktop and
+  Android.
+- `Icon` and `IconButton` take [Material Icons](https://fonts.google.com/icons)
   names such as `add`, `delete`, `edit`, `check`, `arrow_back`, `close`.
-- Cards, bars, chips and sheets follow the system light/dark palette; every
-  component also accepts explicit `color`, `size`, `width` and `height`.
-- `sheet` is an in-tree overlay (scrim + panel), not a native popup, so taps
-  inside it work the same on desktop and Android.
+- The lower-level `ui.column(...)`, `ui.button(...)` factories remain available;
+  the components above are thin wrappers over them.
 - QML windows keep working as before — mix freely (some windows in QML, some in
-  JS).
+  TypeScript).
 
-## QML API
+## QML API (escape hatch)
+
+QML is optional. Advanced users can set `"ui": "ui/main.qml"` on a window and
+use the full QML API below; the same `Store` and capabilities are available.
 
 ```qml
 import Pulsar 1.0   // Pulsar singleton + Store
@@ -798,10 +839,13 @@ Button {
 
 `pulsar create <name> --template <t>`:
 
-- **`default`** — one window, a `Store`, one event.
+- **`default`** — a TypeScript UI with functional components, bindings, a keyed
+  list, a composer modal and an empty state. No QML files.
+- **`js`** — alias for `default`.
+- **`qml`** — the classic QML window; use it when you want raw QML (advanced).
 - **`windows`** — two windows sharing one `Store`, `app.window(label)` control,
-  lifecycle events, a tray icon and native dialogs.
-- **`tray`** — a window plus a system-tray menu.
+  lifecycle events, a tray icon and native dialogs (QML).
+- **`tray`** — a window plus a system-tray menu (QML).
 
 See [`examples/hello`](examples/hello) and [`examples/windows`](examples/windows)
 for complete apps.

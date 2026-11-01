@@ -18,7 +18,13 @@ All notable changes to this project are documented here. The format follows
   `iconButton`, `chip`, `sheet`, `progress` and `select`, a light/dark theme and
   the Material Icons font. Re-renders now reconcile existing QML objects
   instead of rebuilding the tree, preserving focus and scroll.
-- `pulsar create --template js`: a TypeScript-only starter with no QML files.
+- QML-like TypeScript components: `bind`, `For`, `When`, `defineComponent` and
+  web-named components (`Column`, `Row`, `Card`, `Header`, `Input`, `Checkbox`,
+  `Modal`, ...). Children are variadic; the existing `ui.*` factories stay
+  compatible.
+- `pulsar create` now scaffolds the TypeScript template by default. The QML
+  starter moved to `--template qml`; `--template js` is an alias for the
+  default.
 
 ### Fixed
 

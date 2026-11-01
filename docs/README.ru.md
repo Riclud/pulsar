@@ -5,15 +5,16 @@
 
 # Pulsar
 
-Фреймворк для приложений: интерфейс на **QML**, бэкенд на **Bun**. На десктопе
-поставляется одним самодостаточным исполняемым файлом, на Android собирается
-APK, где QuickJS и QML работают в одном процессе.
+Фреймворк для приложений с декларативным интерфейсом на **TypeScript** и
+бэкендом на **Bun**. На десктопе поставляется одним самодостаточным исполняемым
+файлом, на Android собирается APK, где QuickJS работает в одном процессе.
+QML доступен как escape hatch для продвинутой вёрстки.
 
-- **Интерфейс**: QML (нативный рендеринг на GPU, низкое потребление памяти —
-  без Chromium).
+- **Интерфейс**: функциональные компоненты, биндинги и `Store` на TypeScript;
+  рендерится нативно через QML (GPU, низкое потребление памяти — без Chromium).
 - **Бэкенд**: TypeScript на [Bun](https://bun.sh).
-- **Мост**: слой capabilities между QML и бэкендом плюс небольшой Qt-хост и
-  супервизор процессов на C++.
+- **Мост**: слой capabilities между интерфейсом и бэкендом плюс небольшой
+  Qt-хост и супервизор процессов на C++.
 - **Упаковка**: `pulsar build` собирает один файл со встроенным рантаймом Bun
   (а по умолчанию — и Qt); `pulsar build --target android` собирает подписанный
   APK.
@@ -95,7 +96,7 @@ bun cli/index.ts doctor   # проверка
 ## Быстрый старт
 
 ```sh
-pulsar create my-app      # скаффолд (шаблоны: default, js, windows, tray)
+pulsar create my-app      # по умолчанию UI на TypeScript (шаблоны: default, qml, windows, tray)
 cd my-app
 pulsar dev                # запуск с горячей перезагрузкой
 ```
@@ -105,8 +106,7 @@ pulsar dev                # запуск с горячей перезагруз�
 ```
 my-app/
   pulsar.json     # манифест приложения: id, окна, точка входа
-  main.ts         # бэкенд (Bun) — App, состояние, события
-  ui/main.qml     # интерфейс (QML)
+  main.ts         # интерфейс + состояние + события, всё на TypeScript
   assets/icon.png
   package.json
   tsconfig.json
@@ -115,52 +115,37 @@ my-app/
 `main.ts`:
 
 ```ts
-import { App } from "pulsar"
+import { App, bind, Button, Column, Header, Text } from "pulsar"
 
 const app = new App()
 
-app.store.set("greeting", "Hello from Pulsar")
+app.store.set("count", 0)
 
-app.on("greet", (params: { name: string }) => {
-  app.store.set("greeting", `Hello, ${params.name}!`)
-})
+app
+  .window("main")
+  .render(() =>
+    Column(
+      { fill: true },
+      Header({ title: "Hello from Pulsar" }),
+      Text({ size: 20, text: bind(() => `Count: ${app.store.get("count")}`) }),
+      Button({ onClick: () => app.store.set("count", (app.store.get("count") as number) + 1) }, "+1"),
+    ),
+  )
 
 app.run()
 ```
 
-`ui/main.qml`:
-
-```qml
-import QtQuick
-import QtQuick.Controls
-import Pulsar 1.0
-
-ApplicationWindow {
-    visible: true
-
-    Column {
-        anchors.centerIn: parent
-        spacing: 12
-
-        Label { text: Store.greeting || "" }
-
-        Button {
-            text: "Greet"
-            onClicked: Pulsar.emit("greet", { name: "World" })
-        }
-    }
-}
-```
-
-`pulsar.json` задаёт параметры окна по умолчанию, поэтому `new App()` можно
-вызывать без аргументов.
+QML-файлов нет. `pulsar.json` задаёт параметры окна по умолчанию, поэтому
+`new App()` можно вызывать без аргументов. Продвинутые пользователи могут
+переключить окно на QML через `"ui": "ui/main.qml"` и начать с
+`pulsar create my-app --template qml`.
 
 ## CLI
 
 ```
 pulsar <command>
 
-  create <name>  создать новое приложение (--template default|js|windows|tray)
+  create <name>  создать новое приложение (--template default|js|qml|windows|tray)
   install        скачать нативный toolchain для этой платформы (--android для APK)
   update         обновить CLI до последнего релиза
   dev            запуск с горячей перезагрузкой (следит за исходниками)
@@ -667,14 +652,32 @@ app.on("log", (params: { level: string; source: "qml" | "js"; message: string; f
 })
 ```
 
-## UI из JS
+## UI на TypeScript
 
-Не обязательно писать QML: окно, объявленное **без `ui`**, рендерится из дерева
-на JS, собранного хелперами `ui`. `pulsar create my-app --template js` создаёт
-ровно такое приложение — на TypeScript, без единого QML-файла.
+Окно, объявленное **без `ui`**, рендерится из дерева на TypeScript.
+`pulsar create my-app` создаёт ровно такое приложение — без единого QML-файла.
+Компоненты — обычные функции, свойства — обычные объекты, события — web-имена:
+`onClick`, `onInput`, `onToggle`, `onChange`, `onClose`.
 
 ```ts
-import { App, ui } from "pulsar"
+import {
+  App,
+  bind,
+  defineComponent,
+  Button,
+  Card,
+  Checkbox,
+  Column,
+  For,
+  Header,
+  IconButton,
+  Input,
+  Modal,
+  Row,
+  Spacer,
+  Text,
+  When,
+} from "pulsar"
 
 interface Task {
   id: string
@@ -689,35 +692,67 @@ app.store.set("tasks", [
   { id: "2", text: "Write my first app", done: false },
 ] as Task[])
 
-app.window("main").render(() => {
-  const tasks = app.store.get("tasks") as Task[]
+const tasks = (): Task[] => app.store.get("tasks") as Task[]
 
-  return ui.column({ fillWidth: true, fillHeight: true }, [
-    ui.appBar({
+const TaskRow = defineComponent<{ task: Task }>(({ task }) =>
+  Card(
+    { padding: 12 },
+    Row(
+      { gap: 8, fillWidth: true },
+      Checkbox({
+        label: task.text,
+        checked: task.done,
+        onToggle: (done) =>
+          app.store.set(
+            "tasks",
+            tasks().map((item) => (item.id === task.id ? { ...item, done } : item)),
+          ),
+      }),
+      Spacer({ fillWidth: true }),
+      IconButton({
+        icon: "delete",
+        onClick: () =>
+          app.store.set(
+            "tasks",
+            tasks().filter((item) => item.id !== task.id),
+          ),
+      }),
+    ),
+  ),
+)
+
+app.window("main").render(() =>
+  Column(
+    { fill: true },
+    Header({
       title: "My tasks",
-      subtitle: `${tasks.filter((task) => !task.done).length} left`,
-      actions: [ui.iconButton("add", { onClick: () => app.store.set("editing", true) })],
+      subtitle: bind(() => `${tasks().filter((task) => !task.done).length} left`),
+      actions: [IconButton({ icon: "add", onClick: () => app.store.set("editing", true) })],
     }),
-    ui.list({
-      items: tasks,
-      keyOf: (task) => task.id,
-      spacing: 8,
-      padding: 12,
-      render: (task) =>
-        ui.card({ padding: 12 }, [
-          ui.row({ gap: 8, fillWidth: true }, [
-            ui.checkbox(task.text, { checked: task.done }),
-            ui.spacer({ fillWidth: true }),
-            ui.iconButton("delete"),
-          ]),
-        ]),
+    When({
+      test: tasks().length === 0,
+      then: () => Text({ size: 16 }, "Nothing here yet"),
+      else: () =>
+        For({
+          each: tasks(),
+          keyOf: (task) => task.id,
+          spacing: 8,
+          padding: 12,
+          render: (task) => TaskRow({ task }),
+        }),
     }),
-    ui.sheet({ open: app.store.get("editing") === true, title: "New task", fullscreen: true }, [
-      ui.textInput({ placeholder: "What needs doing?" }),
-      ui.button("Add task"),
-    ]),
-  ])
-})
+    Modal(
+      {
+        open: bind(() => app.store.get("editing") === true),
+        title: "New task",
+        fullscreen: true,
+        onClose: () => app.store.set("editing", false),
+      },
+      Input({ placeholder: "What needs doing?" }),
+      Button({ expand: true }, "Add task"),
+    ),
+  ),
+)
 
 app.run()
 ```
@@ -726,25 +761,34 @@ app.run()
 `Store`, а хост обновляет существующие QML-объекты на месте, поэтому фокус,
 скролл и ввод переживают перерисовку.
 
-| Группа    | Компоненты                                                          |
-| --------- | ------------------------------------------------------------------- |
-| Раскладка | `column`, `row`, `box`, `scroll`, `spacer`, `divider`               |
-| Контент   | `text`, `image`, `icon`, `button`, `iconButton`, `chip`, `progress` |
-| Ввод      | `textInput`, `checkbox`, `switch`, `slider`, `select`               |
-| Структура | `list`, `card`, `appBar`, `sheet`                                   |
+| Группа    | Компоненты                                                             |
+| --------- | ---------------------------------------------------------------------- |
+| Раскладка | `Column`, `Row`, `Box`, `Scroll`, `Spacer`, `Divider`                  |
+| Контент   | `Text`, `Image`, `Icon`, `Button`, `IconButton`, `Chip`, `Progress`    |
+| Ввод      | `Input` (`TextField`), `Checkbox`, `Switch`, `Slider`, `Select`        |
+| Структура | `List` / `For`, `Card`, `Header` (`AppBar`), `Modal` (`Sheet`), `When` |
 
-- `list` виртуализирует строки и сохраняет их стабильными через `keyOf`.
-- `icon` и `iconButton` принимают имена
+- `bind(() => expr)` помечает значение, читающее `Store`; обычные функции в
+  `on*` — обработчики событий.
+- `For({ each, keyOf, render })` виртуализирует строки и сохраняет их по ключу.
+- `Modal` / `Sheet` — оверлей внутри дерева, одинаково работает на десктопе и
+  Android.
+- `Icon` и `IconButton` принимают имена
   [Material Icons](https://fonts.google.com/icons): `add`, `delete`, `edit`,
-  `check`, `arrow_back`, `close` и т.д.
-- Карточки, бары, чипы и шторки следуют системной светлой/тёмной палитре; у
-  любого компонента можно задать `color`, `size`, `width` и `height`.
-- `sheet` — это оверлей внутри дерева (затемнение + панель), а не нативный
-  popup, поэтому тапы внутри него одинаково работают на десктопе и Android.
-- QML-окна работают как раньше — можно смешивать (часть окон на QML, часть на
-  JS).
+  `check`, `arrow_back`, `close`.
+- Низкоуровневые фабрики `ui.column(...)`, `ui.button(...)` остаются доступны;
+  компоненты выше — тонкие обёртки над ними.
+- QML-окна работают как раньше — можно смешивать.
 
-## QML API
+## QML API (escape hatch)
+
+QML не обязателен. Продвинутые пользователи могут указать
+`"ui": "ui/main.qml"` и использовать полный QML API ниже; `Store` и
+capabilities те же.
+
+```qml
+import Pulsar 1.0   // синглтоны Pulsar и Store
+```
 
 ```qml
 import Pulsar 1.0   // синглтоны Pulsar и Store
@@ -803,11 +847,15 @@ Button {
 
 `pulsar create <name> --template <t>`:
 
-- **`default`** — одно окно, `Store`, одно событие.
+- **`default`** — UI на TypeScript: функциональные компоненты, биндинги, список
+  с ключами, модалка добавления и пустое состояние. Без QML-файлов.
+- **`js`** — алиас для `default`.
+- **`qml`** — классическое QML-окно; для тех, кому нужен чистый QML (продвинутый
+  вариант).
 - **`windows`** — два окна с общим `Store`, управление через
-  `app.window(label)`, события жизненного цикла, иконка трея и
-  нативные диалоги.
-- **`tray`** — окно плюс меню в системном трее.
+  `app.window(label)`, события жизненного цикла, иконка трея и нативные диалоги
+  (QML).
+- **`tray`** — окно плюс меню в системном трее (QML).
 
 Полные приложения см. в [`examples/hello`](../examples/hello) и
 [`examples/windows`](../examples/windows).
