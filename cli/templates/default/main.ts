@@ -14,7 +14,6 @@ import {
   Row,
   Spacer,
   Text,
-  When,
 } from "pulsar"
 
 interface Task {
@@ -36,6 +35,15 @@ app.store.set("composing", false)
 app.store.set("nextID", 3)
 
 const tasks = (): Task[] => app.store.get("tasks") as Task[]
+
+app.on("back-pressed", () => {
+  if (app.store.get("composing") === true) {
+    app.store.set("composing", false)
+    return
+  }
+
+  app.quit()
+})
 
 const save = (next: Task[]): void => {
   app.store.set("tasks", next)
@@ -89,17 +97,13 @@ app.window("main").render(() => {
       subtitle: bind(() => `${left} left`),
       actions: [IconButton({ icon: "add", onClick: () => app.store.set("composing", true) })],
     }),
-    When({
-      test: items.length === 0,
-      then: () => Text({ size: 16 }, "Nothing here yet"),
-      else: () =>
-        For({
-          each: items,
-          keyOf: (task) => task.id,
-          spacing: 8,
-          padding: 12,
-          render: (task) => TaskRow({ task }),
-        }),
+    Text({ visible: items.length === 0, size: 16 }, "Nothing here yet"),
+    For({
+      each: items,
+      keyOf: (task) => task.id,
+      spacing: 8,
+      padding: 12,
+      render: (task) => TaskRow({ task }),
     }),
     Modal(
       {
