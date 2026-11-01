@@ -53,3 +53,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # cross builds and installer logs
 build-*/
 aqtinstall.log
+
+# dev session marker (`pulsar dev --android`)
+.pulsar/

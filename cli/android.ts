@@ -17,7 +17,7 @@ export const ANDROID_MIN_SDK = 28
 const NODE_BUILTIN =
   /^(node:|bun:|fs(\/promises)?$|path$|os$|child_process$|worker_threads$|net$|tls$|http$|https$|crypto$|stream$|buffer$|util$|assert$|url$|zlib$|events$|dns$|dgram$|cluster$|vm$|module$|readline$|repl$|tty$|v8$|perf_hooks$|async_hooks$|inspector$|trace_events$|.*\.node$)/
 
-const SKIP = new Set(["node_modules", ".git", "dist", "build", ".cache"])
+export const SKIP = new Set(["node_modules", ".git", "dist", "build", ".cache", ".pulsar"])
 
 export interface AndroidTools {
   qt: string
@@ -244,7 +244,19 @@ const versionCode = (version: string | undefined): number => {
   return (parts[0] ?? 0) * 10000 + (parts[1] ?? 0) * 100 + (parts[2] ?? 0)
 }
 
-const appFiles = (appDir: string): string[] => {
+/** Android package id; dev builds live next to production with a `.dev` suffix. */
+export const androidPackageName = (manifest: AppManifest | null, dev = false): string => {
+  const id = manifest?.id ?? "com.pulsar.app"
+
+  return dev ? `${id}.dev` : id
+}
+
+/** The manifest as seen by a dev build: a separate app id keeps its data apart. */
+export const devManifest = (manifest: AppManifest | null): AppManifest => {
+  return { ...(manifest ?? {}), id: androidPackageName(manifest, true) }
+}
+
+export const appFiles = (appDir: string): string[] => {
   const files: string[] = []
 
   const walk = (dir: string, rel: string): void => {
@@ -277,11 +289,12 @@ const writeQrc = (
   files: string[],
   appDir: string,
   extra: { alias: string; path: string }[] = [],
+  overrides: Record<string, string> = {},
 ): string => {
   const lines = ["<RCC>", '  <qresource prefix="/app">']
 
   for (const file of files) {
-    lines.push(`    <file alias="${escapeXml(file)}">${escapeXml(join(appDir, file))}</file>`)
+    lines.push(`    <file alias="${escapeXml(file)}">${escapeXml(overrides[file] ?? join(appDir, file))}</file>`)
   }
 
   for (const item of extra) {
@@ -307,7 +320,7 @@ const hashFiles = (files: string[], appDir: string, extra: string): string => {
   return hash.digest("hex")
 }
 
-const bundleRuntime = (entry: string, assembly: string) => {
+export const bundleRuntime = (entry: string, assembly: string) => {
   const root = pulsarRoot()
   const runtimeEntry = join(assembly, "entry.ts")
   const spec = (p: string) => JSON.stringify(p.replace(/\\/g, "/"))
@@ -449,12 +462,14 @@ export interface AndroidBuildOptions {
   entry: string
   outDir: string
   abi?: string
+  dev?: boolean
 }
 
 /** Bundle the app with the QuickJS runtime, cross-compile the host and package an APK. */
 export const buildAndroid = async (options: AndroidBuildOptions): Promise<string> => {
   const { appDir, manifest, entry, outDir } = options
   const abi = options.abi ?? ANDROID_ABI
+  const dev = options.dev ?? false
 
   let tools: AndroidTools
 
@@ -470,16 +485,17 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
   }
 
   const name = manifest?.name ?? basename(appDir)
-  const packageName = manifest?.id ?? "com.pulsar.app"
+  const packageName = androidPackageName(manifest, dev)
+  const appLabel = dev ? `${name} (dev)` : name
   const versionName = manifest?.version ?? "0.1.0"
 
-  console.log(`pulsar: android ${abi} -> ${name}.apk`)
+  console.log(`pulsar: android ${abi} ${dev ? "dev " : ""}-> ${name}${dev ? "-dev" : ""}.apk`)
   console.log(`  qt:  ${tools.qt}`)
   console.log(`  host: ${tools.hostQt}`)
   console.log(`  sdk: ${tools.sdk}`)
   console.log(`  ndk: ${tools.ndk}`)
 
-  const buildDir = join(appDir, "build", `android-${abi}`)
+  const buildDir = join(appDir, "build", `android-${abi}${dev ? "-dev" : ""}`)
   const assembly = join(buildDir, "app")
 
   mkdirSync(assembly, { recursive: true })
@@ -504,13 +520,28 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
     throw new Error("failed to bundle the portable runtime")
   }
 
-  writeFileSync(join(assembly, "runtime.js"), await bundle.outputs[0]!.text())
+  const bundleText = await bundle.outputs[0]!.text()
+
+  writeFileSync(join(assembly, "runtime.js"), bundleText)
+
+  const overrides: Record<string, string> = {}
+
+  if (dev) {
+    const devPath = join(assembly, "pulsar.json")
+
+    writeFileSync(devPath, `${JSON.stringify(devManifest(manifest), null, 2)}\n`)
+    overrides["pulsar.json"] = devPath
+  }
 
   const files = appFiles(appDir)
-  const qrc = writeQrc(join(assembly, "app.qrc"), files, appDir, [
-    { alias: "runtime.js", path: join(assembly, "runtime.js") },
-  ])
-  const buildId = hashFiles(files, appDir, await bundle.outputs[0]!.text())
+  const qrc = writeQrc(
+    join(assembly, "app.qrc"),
+    files,
+    appDir,
+    [{ alias: "runtime.js", path: join(assembly, "runtime.js") }],
+    overrides,
+  )
+  const buildId = hashFiles(files, appDir, `${bundleText}${dev ? ":dev" : ""}`)
 
   const env = {
     ...process.env,
@@ -539,9 +570,10 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
       `-DPULSAR_ANDROID_BUILD_ID=${buildId}`,
       `-DPULSAR_ANDROID_APP_DIR=${appDir}`,
       `-DPULSAR_ANDROID_PACKAGE_NAME=${packageName}`,
-      `-DPULSAR_ANDROID_APP_NAME=${name}`,
+      `-DPULSAR_ANDROID_APP_NAME=${appLabel}`,
       `-DPULSAR_ANDROID_VERSION_NAME=${versionName}`,
       `-DPULSAR_ANDROID_VERSION_CODE=${versionCode(versionName)}`,
+      ...(dev ? ["-DPULSAR_ANDROID_DEV=ON"] : []),
       `-DQT_HOST_PATH=${tools.hostQt}`,
     ],
     { stdio: "inherit", env },
@@ -564,7 +596,7 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
 
   mkdirSync(outDir, { recursive: true })
 
-  const finalPath = join(outDir, `${name}.apk`)
+  const finalPath = join(outDir, `${name}${dev ? "-dev" : ""}.apk`)
 
   signApk(apk, finalPath, tools)
 

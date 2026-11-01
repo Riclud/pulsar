@@ -21,31 +21,31 @@ import {
   type AppManifest,
   type Compat,
   type RuntimeKind,
-  type Target,
 } from "../core/sdk/manifest.ts"
 import { cliVersion, findBridge, findHost, findLauncher, pulsarRoot, toolchainVersion } from "./core.ts"
 import { buildAndroid, installAndroid } from "./android.ts"
+import { launcherName, readManifest, resolveEntry, type BuildTarget } from "./app.ts"
 import { create } from "./create.ts"
+import {
+  deviceBack,
+  deviceExpect,
+  deviceSelect,
+  deviceShot,
+  deviceState,
+  deviceTap,
+  deviceToggle,
+  deviceType,
+  deviceUI,
+} from "./device.ts"
+import { devAndroid } from "./dev.ts"
 import { install } from "./install.ts"
 import { collectQt } from "./qt.ts"
 import { update } from "./update.ts"
 
 const [cmd, ...args] = process.argv.slice(2)
 
-type BuildTarget = Target | "portable"
-
 const NODE_BUILTIN =
   /^(node:|bun:|fs(\/promises)?$|path$|os$|child_process$|worker_threads$|net$|tls$|http$|https$|crypto$|stream$|buffer$|util$|assert$|url$|zlib$|events$|dns$|dgram$|cluster$|vm$|module$|readline$|repl$|tty$|v8$|perf_hooks$|async_hooks$|inspector$|trace_events$|.*\.node$)/
-
-const readManifest = (appDir: string): AppManifest | null => {
-  try {
-    const parsed = JSON.parse(readFileSync(join(appDir, "pulsar.json"), "utf8")) as unknown
-
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as AppManifest
-  } catch {}
-
-  return null
-}
 
 const buildTarget = (): BuildTarget => {
   const target = flagValue("--target") ?? "desktop"
@@ -62,30 +62,6 @@ const runtimeFor = (target: BuildTarget, manifest: AppManifest | null): RuntimeK
   if (target === "portable") return "quickjs"
 
   return manifestRuntime(manifest, target)
-}
-
-const resolveEntry = (appDir: string, manifest: AppManifest | null, target: BuildTarget): string => {
-  const base = manifest?.main ?? "main.ts"
-  const dir = dirname(base)
-  const file = basename(base)
-  const ext = file.endsWith(".ts") ? ".ts" : file.endsWith(".js") ? ".js" : ""
-  const stem = ext ? file.slice(0, -ext.length) : file
-  const suffixes =
-    target === "desktop"
-      ? [".desktop", ".bun"]
-      : target === "android"
-        ? [".android", ".quickjs"]
-        : [".portable", ".quickjs"]
-
-  const candidates = [
-    ...suffixes.map((suffix) => join(appDir, dir, `${stem}${suffix}${ext || ".ts"}`)),
-    join(appDir, base),
-  ]
-
-  for (const candidate of candidates) if (existsSync(candidate)) return candidate
-
-  console.error(`pulsar: no entry point for ${target} (looked for ${candidates.join(", ")})`)
-  process.exit(1)
 }
 
 const auditPortable = async (entry: string): Promise<string[]> => {
@@ -180,18 +156,45 @@ const flagValue = (name: string): string | undefined => {
   return undefined
 }
 
-/** Output name from the manifest, falling back to package.json. */
-const launcherName = (dir: string): string => {
-  for (const file of ["pulsar.json", "package.json"]) {
-    try {
-      const name = JSON.parse(readFileSync(join(dir, file), "utf8")).name
+const positional = (): string[] => {
+  const flagsWithValue = new Set([
+    "--path",
+    "--id",
+    "--event",
+    "--into",
+    "--out",
+    "--timeout",
+    "--device",
+    "--port",
+    "--target",
+    "--abi",
+    "--version",
+  ])
+  const out: string[] = []
 
-      if (typeof name === "string" && name.length > 0)
-        return name.replace(/^@[^/]+\//, "").replace(/[^a-zA-Z0-9._-]+/g, "-")
-    } catch {}
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!
+
+    if (flagsWithValue.has(arg)) {
+      i++
+      continue
+    }
+
+    if (arg.startsWith("--")) continue
+
+    out.push(arg)
   }
 
-  return "app"
+  return out
+}
+
+const runDevice = async (action: () => Promise<void>): Promise<void> => {
+  try {
+    await action()
+  } catch (e) {
+    console.error(`pulsar: ${e instanceof Error ? e.message : String(e)}`)
+    process.exit(1)
+  }
 }
 
 const run = () => {
@@ -206,8 +209,35 @@ const run = () => {
 }
 
 /** Run with hot reload: watch app sources and restart the runtime on change. */
-const dev = () => {
+const dev = async () => {
   const appDir = process.cwd()
+
+  if (args.includes("--android")) {
+    const portFlag = flagValue("--port")
+    const port = portFlag ? Number.parseInt(portFlag, 10) : undefined
+
+    if (portFlag && (!Number.isFinite(port) || port! <= 0)) {
+      console.error(`pulsar dev: invalid --port ${portFlag}`)
+      process.exit(1)
+    }
+
+    try {
+      await devAndroid({
+        appDir,
+        device: flagValue("--device"),
+        port,
+        install: !args.includes("--no-install"),
+        forceInstall: args.includes("--force-install"),
+        keepAwake: !args.includes("--no-keep-awake"),
+      })
+    } catch (e) {
+      console.error(`pulsar dev: ${e instanceof Error ? e.message : String(e)}`)
+      process.exit(1)
+    }
+
+    return
+  }
+
   const host = findHost()
 
   console.log("pulsar: dev mode (watching for changes)")
@@ -393,7 +423,7 @@ const build = async () => {
     const outDir = resolve(flagValue("--out") ?? flagValue("-o") ?? "dist")
 
     try {
-      await buildAndroid({ appDir, manifest, entry, outDir, abi: flagValue("--abi") })
+      await buildAndroid({ appDir, manifest, entry, outDir, abi: flagValue("--abi"), dev: args.includes("--dev") })
     } catch (e) {
       console.error(`pulsar build: ${e instanceof Error ? e.message : String(e)}`)
       process.exit(1)
@@ -511,10 +541,19 @@ const usage = () => {
       "  create <name>  scaffold a new app (--template default|js|qml|windows|tray)",
       "  install        download the native toolchain for this platform (--android for the APK toolchain)",
       "  update         update the CLI to the latest release",
-      "  dev            run with hot reload (watch sources)",
+      "  dev            run with hot reload (watch sources; --android for the dev APK)",
       "  run            run the app in the current directory",
-      "  build          build a single-file executable (--target desktop|android|portable)",
+      "  build          build a single-file executable (--target desktop|android|portable, --dev)",
       "  check          audit a target for portable imports (--target android)",
+      "  ui             dump the running dev app's UI tree (JSON)",
+      "  state          dump the running dev app's store (JSON)",
+      "  tap <text>     press a node by text (--path|--id|--event)",
+      "  type <text>    send input to a field (--into <label>)",
+      "  toggle <text>  toggle a checkbox or switch",
+      "  select <t> <v> choose a select option",
+      "  expect <text>  wait until the text appears (--timeout ms)",
+      "  shot           screenshot the device (--out, --window)",
+      "  back           send the Android back event",
       "  doctor         check the toolchain (host, bridge, Qt, Bun)",
       "  version        print the version",
       "",
@@ -545,7 +584,7 @@ switch (cmd) {
     await update()
     break
   case "dev":
-    dev()
+    await dev()
     break
   case "run":
     run()
@@ -558,6 +597,51 @@ switch (cmd) {
     break
   case "check":
     await checkTarget(process.cwd(), buildTarget())
+    break
+  case "ui":
+    await runDevice(() => deviceUI(process.cwd()))
+    break
+  case "state":
+    await runDevice(() => deviceState(process.cwd()))
+    break
+  case "tap": {
+    const [text] = positional()
+    const idFlag = flagValue("--id")
+
+    await runDevice(() =>
+      deviceTap(process.cwd(), {
+        text,
+        path: flagValue("--path"),
+        id: idFlag ? Number.parseInt(idFlag, 10) : undefined,
+        event: flagValue("--event"),
+      }),
+    )
+    break
+  }
+  case "type":
+    await runDevice(() => deviceType(process.cwd(), positional().join(" "), flagValue("--into")))
+    break
+  case "toggle": {
+    const flag = flagValue("--value")
+    const value = flag === undefined ? undefined : flag === "true"
+
+    await runDevice(() => deviceToggle(process.cwd(), positional()[0] ?? "", value))
+    break
+  }
+  case "select": {
+    const [text, value] = positional()
+
+    await runDevice(() => deviceSelect(process.cwd(), text ?? "", value ?? ""))
+    break
+  }
+  case "back":
+    await runDevice(() => deviceBack(process.cwd()))
+    break
+  case "expect":
+    await runDevice(() => deviceExpect(process.cwd(), positional().join(" "), Number(flagValue("--timeout") ?? 5000)))
+    break
+  case "shot":
+    await runDevice(() => deviceShot(process.cwd(), flagValue("--out"), args.includes("--window")))
     break
   case "doctor":
     doctor()
