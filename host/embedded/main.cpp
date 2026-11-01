@@ -128,6 +128,26 @@ static void pulsarFilesPicked(JNIEnv *env, jclass, jstring json)
         },
         Qt::QueuedConnection);
 }
+
+static void pulsarPermissionResult(JNIEnv *env, jclass, jstring name, jboolean granted)
+{
+    if (!g_backBridge)
+        return;
+
+    const char *chars = env->GetStringUTFChars(name, nullptr);
+    const QString text = QString::fromUtf8(chars);
+    const bool value = granted;
+
+    env->ReleaseStringUTFChars(name, chars);
+
+    QMetaObject::invokeMethod(
+        g_backBridge,
+        [text, value] {
+            if (g_backBridge)
+                g_backBridge->finishPermission(text, value);
+        },
+        Qt::QueuedConnection);
+}
 #endif
 
 static QString appDir()
@@ -343,11 +363,13 @@ int main(int argc, char **argv)
           reinterpret_cast<void *>(pulsarFilesPicked) },
         { const_cast<char *>("fileExported"), const_cast<char *>("(Z)V"),
           reinterpret_cast<void *>(pulsarFileExported) },
+        { const_cast<char *>("permissionResult"), const_cast<char *>("(Ljava/lang/String;Z)V"),
+          reinterpret_cast<void *>(pulsarPermissionResult) },
     };
 
     QJniEnvironment jniEnvironment;
 
-    jniEnvironment.registerNativeMethods("com/pulsar/host/PulsarActivity", methods, 3);
+    jniEnvironment.registerNativeMethods("com/pulsar/host/PulsarActivity", methods, 4);
 #endif
 
     pulsar::NetworkService network(&app);

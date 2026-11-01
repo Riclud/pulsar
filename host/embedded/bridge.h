@@ -53,6 +53,9 @@ public:
     /** Resolve the pending export with its success flag. */
     void finishFileExport(bool ok);
 
+    /** Resolve a pending OS permission request. */
+    void finishPermission(const QString &name, bool granted);
+
     /** Send a raw JSON-RPC notification to the JS runtime. */
     void notifyMethod(const QString &method, const QJsonObject &params);
 
@@ -103,4 +106,5 @@ private:
     QJSValue promiseFactory_;
     QString pendingFileToken_;
     QString pendingExportToken_;
+    QHash<QString, QString> pendingPermissionTokens_;
 };

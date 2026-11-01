@@ -286,6 +286,8 @@ try {
     QT_LOG_FILE: uiKitLog,
   })
   check(uiKitLog, "PulsarView built 1")
+  check(uiKitLog, "STORE permission = QVariant(bool, true)")
+  check(uiKitLog, "STORE permissionRequest = QVariant(bool, true)")
   checkAbsent(uiKitLog, "Error:")
   checkAbsent(uiKitLog, "qml:")
 

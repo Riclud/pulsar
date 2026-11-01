@@ -12,6 +12,7 @@ import {
   Snackbar,
   clipboard,
   device,
+  permissions,
   share,
   Tabs,
   theme,
@@ -27,6 +28,8 @@ void clipboard.read()
 void device.setKeepAwake(false)
 void device.setOrientation("auto")
 void share.text("hello from ui-kit")
+void permissions.check("camera").then((granted) => app.store.set("permission", granted))
+void permissions.request("camera").then((granted) => app.store.set("permissionRequest", granted))
 
 void theme.set({
   palette: { primary: "#ff6600", radius: 14 },

@@ -190,6 +190,9 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
   registerCapability("clipboard.read", () => hostQuery("clipboard.read"))
   registerCapability("clipboard.write", (params) => hostQuery("clipboard.write", params))
 
+  registerCapability("permissions.request", (params) => hostQuery("permissions.request", params))
+  registerCapability("permissions.check", (params) => hostQuery("permissions.check", params))
+
   registerCapability("share", (params: unknown) => {
     send({ jsonrpc: "2.0", method: "__share", params: params ?? {} })
 

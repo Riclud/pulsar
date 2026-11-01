@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
 import { join } from "path"
 import type { AppManifest } from "../core/sdk/manifest.ts"
-import { androidPackageName, appFiles, devManifest } from "./android.ts"
+import { androidPackageName, androidPermissions, appFiles, devManifest } from "./android.ts"
 
 const manifest: AppManifest = {
   id: "com.example.app",
@@ -24,6 +24,36 @@ describe("androidPackageName", () => {
 
   test("falls back to the default id", () => {
     expect(androidPackageName(null, true)).toBe("com.pulsar.app.dev")
+  })
+})
+
+describe("androidPermissions", () => {
+  test("maps logical permissions to Android names", () => {
+    expect(androidPermissions({ osPermissions: ["camera", "microphone"] })).toEqual([
+      "android.permission.CAMERA",
+      "android.permission.RECORD_AUDIO",
+    ])
+  })
+
+  test("expands location, notifications and storage and dedupes", () => {
+    const names = androidPermissions({
+      osPermissions: ["location", "notifications", "storage", "camera"],
+    })
+
+    expect(names).toContain("android.permission.ACCESS_FINE_LOCATION")
+    expect(names).toContain("android.permission.POST_NOTIFICATIONS")
+    expect(names).toContain("android.permission.READ_MEDIA_IMAGES")
+    expect(new Set(names).size).toBe(names.length)
+  })
+
+  test("passes unknown entries through verbatim", () => {
+    expect(androidPermissions({ osPermissions: ["android.permission.BLUETOOTH"] })).toEqual([
+      "android.permission.BLUETOOTH",
+    ])
+  })
+
+  test("returns an empty list without a manifest", () => {
+    expect(androidPermissions(null)).toEqual([])
   })
 })
 

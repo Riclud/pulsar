@@ -839,6 +839,9 @@ static void handleQuery(Bridge *bridge, const QVariantMap &m)
     } else if (kind == QLatin1String("clipboard.write")) {
         QGuiApplication::clipboard()->setText(m.value(QStringLiteral("text")).toString());
         params.insert(QStringLiteral("value"), true);
+    } else if (kind == QLatin1String("permissions.request") || kind == QLatin1String("permissions.check")) {
+        // Desktop has no runtime permission model.
+        params.insert(QStringLiteral("value"), true);
     } else if (kind == QLatin1String("secure.available")) {
         params.insert(QStringLiteral("value"), pulsar::secureAvailable());
     } else if (kind == QLatin1String("secure.get")) {

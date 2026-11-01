@@ -32,6 +32,7 @@ export const CAPABILITY_PERMISSIONS: Record<string, string> = {
   "dialog.toast": "dialog",
   "screen.list": "screen",
   "theme.get": "theme",
+  "theme.set": "theme",
   "system.locale": "system",
   "system.power": "system",
   "storage.get": "storage",
@@ -42,6 +43,15 @@ export const CAPABILITY_PERMISSIONS: Record<string, string> = {
   "secure.get": "secure",
   "secure.set": "secure",
   "secure.remove": "secure",
+  "clipboard.read": "clipboard",
+  "clipboard.write": "clipboard",
+  share: "share",
+  "device.orientation": "device",
+  "device.keepAwake": "device",
+  "permissions.request": "permissions",
+  "permissions.check": "permissions",
+  "fs.watch": "fs",
+  "fs.unwatch": "fs",
   tray: "tray",
 }
 

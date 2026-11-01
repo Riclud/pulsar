@@ -37,6 +37,7 @@ import java.util.List;
 
 public class PulsarActivity extends QtActivity {
     private static final int PICK_FILES_REQUEST = 0x504b;
+    private static final int PERMISSION_REQUEST = 0x504d;
 
     private static native void notifyBack();
 
@@ -44,7 +45,10 @@ public class PulsarActivity extends QtActivity {
 
     private static native void fileExported(boolean ok);
 
+    private static native void permissionResult(String name, boolean granted);
+
     private Dialog videoDialog;
+    private String pendingPermissionName;
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
@@ -233,6 +237,99 @@ public class PulsarActivity extends QtActivity {
                 getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             }
         });
+    }
+
+    public void requestPermission(String name) {
+        if (Build.VERSION.SDK_INT < 23) {
+            permissionResult(name, true);
+            return;
+        }
+
+        final String[] permissions = permissionNames(name);
+
+        if (permissions.length == 0) {
+            permissionResult(name, true);
+            return;
+        }
+
+        boolean allGranted = true;
+
+        for (String permission : permissions) {
+            if (checkSelfPermission(permission) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                allGranted = false;
+                break;
+            }
+        }
+
+        if (allGranted) {
+            permissionResult(name, true);
+            return;
+        }
+
+        pendingPermissionName = name;
+        runOnUiThread(() -> requestPermissions(permissions, PERMISSION_REQUEST));
+    }
+
+    public boolean hasPermission(String name) {
+        if (Build.VERSION.SDK_INT < 23)
+            return true;
+
+        for (String permission : permissionNames(name)) {
+            if (checkSelfPermission(permission) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+                return false;
+        }
+
+        return true;
+    }
+
+    private String[] permissionNames(String name) {
+        switch (name) {
+            case "camera":
+                return new String[] { android.Manifest.permission.CAMERA };
+            case "microphone":
+                return new String[] { android.Manifest.permission.RECORD_AUDIO };
+            case "location":
+                return new String[] {
+                        android.Manifest.permission.ACCESS_FINE_LOCATION,
+                        android.Manifest.permission.ACCESS_COARSE_LOCATION
+                };
+            case "notifications":
+                return Build.VERSION.SDK_INT >= 33
+                        ? new String[] { "android.permission.POST_NOTIFICATIONS" }
+                        : new String[0];
+            case "storage":
+                return Build.VERSION.SDK_INT >= 33
+                        ? new String[] {
+                                "android.permission.READ_MEDIA_IMAGES",
+                                "android.permission.READ_MEDIA_VIDEO",
+                                "android.permission.READ_MEDIA_AUDIO"
+                        }
+                        : new String[] { android.Manifest.permission.READ_EXTERNAL_STORAGE };
+            default:
+                return new String[0];
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        if (requestCode != PERMISSION_REQUEST) {
+            super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+            return;
+        }
+
+        boolean granted = grantResults.length > 0;
+
+        for (int result : grantResults) {
+            if (result != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                granted = false;
+                break;
+            }
+        }
+
+        permissionResult(pendingPermissionName != null ? pendingPermissionName : "", granted);
+        pendingPermissionName = null;
+
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
     }
 
     @Override

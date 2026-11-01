@@ -214,6 +214,20 @@ void EmbeddedBridge::finishFileExport(bool ok)
     reply(QStringLiteral("__export-result"), replyParams);
 }
 
+void EmbeddedBridge::finishPermission(const QString &name, bool granted)
+{
+    const QString token = pendingPermissionTokens_.take(name);
+
+    if (token.isEmpty())
+        return;
+
+    QJsonObject replyParams;
+    replyParams.insert(QStringLiteral("token"), token);
+    replyParams.insert(QStringLiteral("value"), granted);
+
+    reply(QStringLiteral("__query-result"), replyParams);
+}
+
 void EmbeddedBridge::finishFileDialog(const QJsonArray &paths)
 {
     const QString token = pendingFileToken_;
@@ -401,7 +415,32 @@ void EmbeddedBridge::handleMessage(const QJsonObject &message)
         QJsonObject replyParams;
         replyParams.insert(QStringLiteral("token"), params.value(QStringLiteral("token")));
 
-        if (kind == QLatin1String("clipboard.read")) {
+        if (kind == QLatin1String("permissions.request") || kind == QLatin1String("permissions.check")) {
+            const QString name = params.value(QStringLiteral("name")).toString();
+#ifdef Q_OS_ANDROID
+            const QJniObject activity = QNativeInterface::QAndroidApplication::context();
+
+            if (kind == QLatin1String("permissions.check")) {
+                const bool granted = activity.isValid()
+                    && activity.callMethod<jboolean>("hasPermission", "(Ljava/lang/String;)Z",
+                                                     QJniObject::fromString(name).object<jstring>());
+
+                replyParams.insert(QStringLiteral("value"), granted);
+            } else {
+                pendingPermissionTokens_.insert(name, params.value(QStringLiteral("token")).toString());
+
+                if (activity.isValid())
+                    activity.callMethod<void>("requestPermission", "(Ljava/lang/String;)V",
+                                              QJniObject::fromString(name).object<jstring>());
+                else
+                    finishPermission(name, false);
+
+                return;
+            }
+#else
+            replyParams.insert(QStringLiteral("value"), true);
+#endif
+        } else if (kind == QLatin1String("clipboard.read")) {
             replyParams.insert(QStringLiteral("value"), QGuiApplication::clipboard()->text());
         } else if (kind == QLatin1String("clipboard.write")) {
             QGuiApplication::clipboard()->setText(params.value(QStringLiteral("text")).toString());

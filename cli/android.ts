@@ -257,6 +257,33 @@ export const devManifest = (manifest: AppManifest | null): AppManifest => {
   return { ...(manifest ?? {}), id: androidPackageName(manifest, true) }
 }
 
+const ANDROID_PERMISSIONS: Record<string, string[]> = {
+  camera: ["android.permission.CAMERA"],
+  microphone: ["android.permission.RECORD_AUDIO"],
+  location: [
+    "android.permission.ACCESS_FINE_LOCATION",
+    "android.permission.ACCESS_COARSE_LOCATION",
+  ],
+  notifications: ["android.permission.POST_NOTIFICATIONS"],
+  storage: [
+    "android.permission.READ_EXTERNAL_STORAGE",
+    "android.permission.READ_MEDIA_IMAGES",
+    "android.permission.READ_MEDIA_VIDEO",
+    "android.permission.READ_MEDIA_AUDIO",
+  ],
+}
+
+/** Map logical `osPermissions` from pulsar.json to Android permission names. */
+export const androidPermissions = (manifest: AppManifest | null): string[] => {
+  const names = new Set<string>()
+
+  for (const name of manifest?.osPermissions ?? []) {
+    for (const permission of ANDROID_PERMISSIONS[name] ?? [name]) names.add(permission)
+  }
+
+  return [...names]
+}
+
 export const appFiles = (appDir: string, manifest: AppManifest | null = null): string[] => {
   const files: string[] = []
   const ignore = createIgnoreFilter(appDir, manifest)
@@ -562,6 +589,8 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
   }
 
   const qtCmake = join(tools.qt, "bin", "qt-cmake")
+  const permissions = androidPermissions(manifest)
+
   const configure = spawnSync(
     qtCmake,
     [
@@ -581,6 +610,7 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
       `-DPULSAR_ANDROID_APP_NAME=${appLabel}`,
       `-DPULSAR_ANDROID_VERSION_NAME=${versionName}`,
       `-DPULSAR_ANDROID_VERSION_CODE=${versionCode(versionName)}`,
+      ...(permissions.length > 0 ? [`-DPULSAR_ANDROID_PERMISSIONS=${permissions.join(";")}`] : []),
       ...(dev ? ["-DPULSAR_ANDROID_DEV=ON"] : []),
       `-DQT_HOST_PATH=${tools.hostQt}`,
     ],

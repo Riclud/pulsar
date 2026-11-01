@@ -299,3 +299,23 @@ export const device = {
   setKeepAwake: (enabled: boolean): Promise<boolean> =>
     callCapability("device.keepAwake", { enabled }) as Promise<boolean>,
 }
+
+export type OSPermission =
+  | "camera"
+  | "microphone"
+  | "location"
+  | "notifications"
+  | "storage"
+
+/**
+ * Runtime OS permissions (camera, microphone, location, notifications).
+ * `request` shows the system prompt on Android and resolves with the answer;
+ * on desktop both methods resolve true. Declare them in `osPermissions` in
+ * pulsar.json so they are included in the Android manifest.
+ */
+export const permissions = {
+  request: (name: OSPermission): Promise<boolean> =>
+    callCapability("permissions.request", { name }) as Promise<boolean>,
+  check: (name: OSPermission): Promise<boolean> =>
+    callCapability("permissions.check", { name }) as Promise<boolean>,
+}

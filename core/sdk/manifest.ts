@@ -50,6 +50,11 @@ export interface AppManifest {
   windows?: ManifestWindow[]
   /** Capabilities the app may use; absent means all are allowed. */
   permissions?: string[]
+  /**
+   * Runtime OS permissions to declare (and request at runtime) on Android:
+   * camera, microphone, location, notifications, storage.
+   */
+  osPermissions?: string[]
   /** Custom URL schemes the app handles. */
   protocols?: { scheme: string }[]
   /** File types the app registers as a handler for. */
