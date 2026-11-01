@@ -301,7 +301,7 @@ static QUrl resolveUi(const QString &ui)
     // A window without a QML file is rendered from the JS tree by the built-in
     // view (see PulsarView.qml and the __ui notification).
     if (ui.isEmpty())
-        return QUrl(QStringLiteral("qrc:/pulsar/PulsarView.qml"));
+        return QUrl(QStringLiteral("qrc:/runtime/PulsarView.qml"));
 
     const QFileInfo fi(ui);
     const QString path = fi.isAbsolute() ? ui : QDir(appDir()).absoluteFilePath(ui);
@@ -485,7 +485,7 @@ static void showErrorView(QQmlApplicationEngine &engine, const QString &detail)
         "}\n");
 
     QQmlComponent component(&engine);
-    component.setData(qml, QUrl(QStringLiteral("qrc:/pulsar/ErrorView.qml")));
+    component.setData(qml, QUrl(QStringLiteral("qrc:/runtime/ErrorView.qml")));
 
     QObject *view = component.create();
 

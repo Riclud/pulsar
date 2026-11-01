@@ -79,11 +79,11 @@ elseif(WIN32)
     target_link_libraries(qml-host PRIVATE crypt32 shell32)
 endif()
 
-# Built-in renderer for JS-driven windows (loaded as qrc:/pulsar/PulsarView.qml).
+# Built-in renderer for JS-driven windows (loaded as qrc:/runtime/PulsarView.qml).
 # The same resources are linked into every host that can render JS windows.
 function(pulsar_add_view_resources target resource_name)
     qt_add_resources(${target} ${resource_name}
-        PREFIX "/pulsar"
+        PREFIX "/runtime"
         BASE "${CMAKE_CURRENT_SOURCE_DIR}/host/qml"
         FILES
             "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/PulsarView.qml"

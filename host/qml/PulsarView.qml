@@ -23,7 +23,7 @@ ApplicationWindow {
 
     FontLoader {
         id: iconFont
-        source: "qrc:/pulsar/fonts/MaterialIcons.ttf"
+        source: "qrc:/runtime/fonts/MaterialIcons.ttf"
     }
 
     Item {

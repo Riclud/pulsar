@@ -396,7 +396,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    const QUrl uiUrl = jsUi ? QUrl(QStringLiteral("qrc:/pulsar/PulsarView.qml"))
+    const QUrl uiUrl = jsUi ? QUrl(QStringLiteral("qrc:/runtime/PulsarView.qml"))
                             : QUrl::fromLocalFile(dir + QLatin1Char('/') + ui);
 
     engine.load(uiUrl);
