@@ -44,8 +44,10 @@ app.store.set("segment", 0)
 app.store.set("text", "")
 
 app.window("main").render(() =>
-  Column(
-    { fill: true, padding: 8, gap: 8 },
+  ui.scroll(
+    { fill: true },
+    Column(
+    { fillWidth: true, padding: 8, gap: 8 },
     Header({
       title: "UI Kit",
       subtitle: "extended primitives",
@@ -113,6 +115,7 @@ app.window("main").render(() =>
     Zoomable({ height: 120 }, Box({ color: "#cccccc", padding: 8 }, ui.text("zoom me"))),
     Snackbar({ open: false, text: "saved", onClose: () => {} }),
     Popover({ open: false }, ui.button("action", { onClick: () => {} })),
+    ),
   ),
 )
 

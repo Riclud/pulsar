@@ -1172,7 +1172,7 @@ int main(int argc, char **argv)
     app.setOrganizationName(QStringLiteral("Pulsar"));
 
     if (qEnvironmentVariableIsEmpty("QT_QUICK_CONTROLS_STYLE"))
-        QQuickStyle::setStyle(QStringLiteral("Material"));
+        QQuickStyle::setStyle(QStringLiteral("Basic"));
     app.setApplicationName(QStringLiteral("pulsar-host"));
 
     // Single-file distribution: if this executable carries an appended payload,

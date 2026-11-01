@@ -43,6 +43,19 @@ ApplicationWindow {
         return value;
     }
 
+    function applyTabPalette(bar) {
+        const palette = bar.palette;
+
+        palette.window = view.themeBackground;
+        palette.base = view.themeBackground;
+        palette.button = view.themeSurface;
+        palette.buttonText = view.themeText;
+        palette.text = view.themeText;
+        palette.highlight = view.themePrimary;
+        palette.highlightedText = view.themeBackground;
+        palette.accent = view.themePrimary;
+    }
+
     function fontWeight(value) {
         if (typeof value === "number")
             return value;
@@ -360,6 +373,61 @@ ApplicationWindow {
     }
 
     Component {
+        id: textFieldComponent
+
+        TextField {
+            id: fieldRoot
+
+            property var pulsarMeta: null
+            property color fieldColor: view.themeSurfaceVariant
+            property color fieldBorderColor: view.themeBorder
+            property int fieldRadius: 8
+            property bool outlined: false
+
+            color: view.themeText
+            placeholderTextColor: view.themeTextSecondary
+            leftPadding: 12
+            rightPadding: 12
+
+            background: Rectangle {
+                color: fieldRoot.fieldColor
+                radius: fieldRoot.fieldRadius
+                border.width: fieldRoot.outlined ? 1 : 0
+                border.color: fieldRoot.fieldBorderColor
+            }
+        }
+    }
+
+    Component {
+        id: textAreaComponent
+
+        TextArea {
+            id: areaRoot
+
+            property var pulsarMeta: null
+            property color fieldColor: view.themeSurfaceVariant
+            property color fieldBorderColor: view.themeBorder
+            property int fieldRadius: 8
+            property bool outlined: false
+
+            color: view.themeText
+            placeholderTextColor: view.themeTextSecondary
+            leftPadding: 12
+            rightPadding: 12
+            topPadding: 8
+            bottomPadding: 8
+            wrapMode: TextEdit.Wrap
+
+            background: Rectangle {
+                color: areaRoot.fieldColor
+                radius: areaRoot.fieldRadius
+                border.width: areaRoot.outlined ? 1 : 0
+                border.color: areaRoot.fieldBorderColor
+            }
+        }
+    }
+
+    Component {
         id: sheetComponent
 
         Item {
@@ -520,11 +588,38 @@ ApplicationWindow {
 
                 Layout.fillWidth: true
 
+                background: Rectangle {
+                    color: view.themeBackground
+                }
+
                 Repeater {
                     model: tabsRoot.tabItems
 
                     TabButton {
+                        id: tabButton
+
                         text: modelData.label
+
+                        palette.window: view.themeBackground
+                        palette.windowText: view.themeText
+                        palette.brightText: view.themeTextSecondary
+                        palette.dark: view.themeSurfaceVariant
+                        palette.mid: view.themeSurface
+                        palette.highlight: view.themePrimary
+                        palette.highlightedText: view.themeBackground
+
+                        background: Rectangle {
+                            implicitHeight: 40
+                            color: tabButton.checked ? view.themeSurface : view.themeBackground
+
+                            Rectangle {
+                                anchors.bottom: parent.bottom
+                                width: parent.width
+                                height: 2
+                                visible: tabButton.checked
+                                color: view.themePrimary
+                            }
+                        }
                     }
                 }
 
@@ -557,11 +652,30 @@ ApplicationWindow {
             property var tabItems: []
             property bool syncing: false
 
+            background: Rectangle {
+                radius: view.themeRadius
+                color: view.themeSurface
+            }
+
             Repeater {
                 model: segmentedRoot.tabItems
 
                 TabButton {
+                    id: segmentButton
+
                     text: modelData.label
+
+                    palette.window: view.themeSurface
+                    palette.windowText: view.themeText
+                    palette.brightText: view.themeTextSecondary
+                    palette.dark: view.themeSurfaceVariant
+                    palette.mid: view.themeSurfaceVariant
+
+                    background: Rectangle {
+                        implicitHeight: 36
+                        radius: Math.max(0, view.themeRadius - 2)
+                        color: segmentButton.checked ? view.themeSurfaceVariant : "transparent"
+                    }
                 }
             }
 
@@ -961,8 +1075,9 @@ ApplicationWindow {
 
                         width: parent.width
                         height: parent.height
-                        color: vlist.isSelected(row.rowIndex) ? (view.darkMode ? "#2d2d38" : "#e8e0ff")
-                                : "transparent"
+                        color: vlist.isSelected(row.rowIndex)
+                                ? Qt.rgba(view.themePrimary.r, view.themePrimary.g, view.themePrimary.b, 0.18)
+                                : view.themeBackground
 
                         Column {
                             id: rowColumn
@@ -1380,9 +1495,9 @@ ApplicationWindow {
         } else if (node.type === "iconButton") {
             item = make("import QtQuick.Controls; ToolButton " + base, parent);
         } else if (node.type === "textInput") {
-            item = make("import QtQuick.Controls; TextField " + base, parent);
+            item = textFieldComponent.createObject(parent);
         } else if (node.type === "textArea") {
-            item = make("import QtQuick.Controls; TextArea " + base, parent);
+            item = textAreaComponent.createObject(parent);
         } else if (node.type === "checkbox" || node.type === "switch") {
             item = make("import QtQuick.Controls; " + (node.type === "checkbox" ? "CheckBox" : "Switch") + " " + base, parent);
         } else if (node.type === "slider") {
@@ -1716,6 +1831,16 @@ ApplicationWindow {
                 item.gridLayout.pulsarMeta = contentMeta();
 
             reconcile(item.gridLayout, node.children || [], false);
+
+            for (let i = 0; i < item.gridLayout.children.length; i++) {
+                const cell = item.gridLayout.children[i];
+                const cellNode = cell.pulsarMeta ? cell.pulsarMeta.node : null;
+                const cellProps = cellNode ? cellNode.props : ({});
+
+                if (cell.Layout !== undefined && cellProps.width === undefined
+                        && cellProps.fillWidth !== false)
+                    cell.Layout.fillWidth = true;
+            }
         } else if (node.type === "virtualList") {
             const list = item.listView;
             const items = prop(props, "items", []);
@@ -1857,6 +1982,8 @@ ApplicationWindow {
             item.tabItems = prop(props, "items", []);
             const tabIndex = prop(props, "index", 0);
 
+            applyTabPalette(item.tabBar);
+
             item.syncing = true;
             item.tabBar.currentIndex = tabIndex;
             item.syncing = false;
@@ -1877,6 +2004,9 @@ ApplicationWindow {
         } else if (node.type === "segmented") {
             item.nodeData = node;
             item.tabItems = prop(props, "items", []);
+
+            applyTabPalette(item);
+
             item.syncing = true;
             item.currentIndex = prop(props, "value", 0);
             item.syncing = false;
@@ -1960,7 +2090,8 @@ ApplicationWindow {
                 }
             }
 
-            item.Layout.preferredWidth = -1;
+            if (props.width === undefined)
+                item.Layout.preferredWidth = -1;
         } else if (node.type === "button") {
             const variant = prop(props, "variant", "solid");
             const size = prop(props, "size", "md");
@@ -2006,31 +2137,16 @@ ApplicationWindow {
             item.placeholderText = prop(props, "placeholder", "");
             item.readOnly = prop(props, "readOnly", false);
 
-            const inputVariant = prop(props, "variant", undefined);
-            const customInput = inputVariant !== undefined || props.color !== undefined
-                    || props.textColor !== undefined || props.borderColor !== undefined
-                    || props.radius !== undefined;
+            const inputVariant = prop(props, "variant", "filled");
+            const outlined = inputVariant === "outline";
 
-            if (customInput) {
-                let background = item.pulsarMeta.extra.background;
-
-                if (!background) {
-                    background = make("import QtQuick; Rectangle {}", item);
-                    item.pulsarMeta.extra.background = background;
-                    item.background = background;
-                }
-
-                const outlined = inputVariant === "outline";
-
-                background.color = outlined ? "transparent"
-                        : resolveColor(prop(props, "color", view.themeSurfaceVariant), view.themeSurfaceVariant);
-                background.radius = prop(props, "radius", 8);
-                background.border.width = outlined ? 1 : 0;
-                background.border.color = resolveColor(prop(props, "borderColor", view.themeBorder), view.themeBorder);
-            }
-
-            if (props.textColor !== undefined)
-                item.color = resolveColor(props.textColor, view.themeText);
+            item.outlined = outlined;
+            item.fieldColor = outlined ? "transparent"
+                    : resolveColor(prop(props, "color", view.themeSurfaceVariant), view.themeSurfaceVariant);
+            item.fieldRadius = prop(props, "radius", 8);
+            item.fieldBorderColor = resolveColor(prop(props, "borderColor", view.themeBorder), view.themeBorder);
+            item.color = resolveColor(prop(props, "textColor", view.themeText), view.themeText);
+            item.placeholderTextColor = view.themeTextSecondary;
 
             if (props.maxLength !== undefined)
                 item.maximumLength = props.maxLength;

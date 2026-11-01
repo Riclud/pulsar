@@ -15,6 +15,7 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQmlPropertyMap>
+#include <QQuickStyle>
 #include <QQuickWindow>
 #include <QStandardPaths>
 #include <QTimer>
@@ -274,6 +275,9 @@ static QString androidAppDir()
 int main(int argc, char **argv)
 {
     QGuiApplication app(argc, argv);
+
+    if (qEnvironmentVariableIsEmpty("QT_QUICK_CONTROLS_STYLE"))
+        QQuickStyle::setStyle(QStringLiteral("Basic"));
     app.setApplicationName(QStringLiteral("pulsar-app"));
 
 #ifdef Q_OS_ANDROID
