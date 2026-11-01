@@ -32,6 +32,7 @@ export {
   Sheet,
   Pager,
   Tabs,
+  NavigationRail,
   Segmented,
   Snackbar,
   Popover,
@@ -75,6 +76,8 @@ export type {
   ChipOptions,
   SheetOptions,
   PagerOptions,
+  NavRailItem,
+  NavRailOptions,
   TabItem,
   TabsOptions,
   SegmentedOptions,
@@ -95,7 +98,21 @@ export {
   catppuccinTheme,
 } from "./themes/catppuccin.ts"
 export type { CatppuccinFlavor, CatppuccinPalette } from "./themes/catppuccin.ts"
-export type { ColorName, ColorValue, Theme, ThemeColor, ThemeColors, ThemeMotion } from "./theme.ts"
+export type { ColorName, ColorValue, Theme, ThemeMotion } from "./theme.ts"
+
+/**
+ * Custom named colors are opt-in: augment this interface from the app to get
+ * strict typing and autocomplete for `theme.set({ colors: ... })` tokens.
+ *
+ *   declare module "pulsar" {
+ *     interface ThemeColors {
+ *       brand: string
+ *       ink: string
+ *     }
+ *   }
+ */
+export interface ThemeColors {}
+export type ThemeColor = keyof ThemeColors
 export { Router, createRouter } from "./nav.ts"
 export type { Route, RouterState, RouterScreen, RouterOptions } from "./nav.ts"
 export { Breakpoints, createBreakpoints, responsive } from "./responsive.ts"

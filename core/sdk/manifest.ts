@@ -13,6 +13,8 @@ export interface ManifestWindow {
   maxHeight?: number
   resizable?: boolean
   frameless?: boolean
+  /** Transparent window background for compositor blur/rounding. */
+  transparent?: boolean
   icon?: string
 }
 
@@ -82,6 +84,7 @@ const WINDOW_KEYS = [
   "maxHeight",
   "resizable",
   "frameless",
+  "transparent",
   "icon",
 ] as const
 

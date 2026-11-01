@@ -156,20 +156,7 @@ export const CSS_COLOR_NAMES = [
 
 export type ColorName = (typeof CSS_COLOR_NAMES)[number]
 
-/**
- * Custom named colors are opt-in: augment this interface from the app to get
- * strict typing and autocomplete for `theme.set({ colors: ... })` tokens.
- *
- *   declare module "pulsar" {
- *     interface ThemeColors {
- *       brand: string
- *       ink: string
- *     }
- *   }
- */
-export interface ThemeColors {}
-
-export type ThemeColor = keyof ThemeColors
+import type { ThemeColor } from "./index.ts"
 
 export type HexColor = `#${string}`
 export type CssFunctionColor =

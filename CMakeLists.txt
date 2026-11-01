@@ -146,6 +146,7 @@ target_link_libraries(qml-host-qjs PRIVATE
     Qt6::Gui
     Qt6::Qml
     Qt6::Quick
+    Qt6::QuickControls2
     Qt6::Network
     qjs
 )
@@ -198,6 +199,7 @@ if(ANDROID)
         Qt6::Gui
         Qt6::Qml
         Qt6::Quick
+        Qt6::QuickControls2
         Qt6::Network
         qjs
     )

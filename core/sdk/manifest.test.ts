@@ -41,6 +41,11 @@ describe("resolveWindows", () => {
     expect(wins[1]!.id).toBe("x")
   })
 
+  test("passes the transparent window flag", () => {
+    const wins = resolveWindows({ windows: [{ ui: "ui/a.qml", transparent: true }] })
+    expect(wins[0]!.transparent).toBe(true)
+  })
+
   test("collapses to one window when explicit options are given", () => {
     const wins = resolveWindows({ windows: [{ ui: "ui/a.qml" }, { ui: "ui/b.qml" }] }, { ui: "ui/c.qml" })
     expect(wins.length).toBe(1)

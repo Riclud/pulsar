@@ -273,6 +273,7 @@ JS-окна сохраняют свой view, QML-окна перезагруж�
       "minHeight": 300,
       "resizable": true,
       "frameless": false,
+      "transparent": false,
       "icon": "assets/icon.png"
     }
   ],
@@ -290,12 +291,26 @@ JS-окна сохраняют свой view, QML-окна перезагруж�
 | `version`          | Версия приложения.                                                                                                                             |
 | `main`             | Точка входа бэкенда относительно манифеста (по умолчанию `main.ts`).                                                                           |
 | `icons`            | Пути к иконкам по платформам (используются упаковкой).                                                                                         |
-| `windows[]`        | Стартовые окна: `label`, `ui`, `width`, `height`, `title`, `minWidth`, `minHeight`, `maxWidth`, `maxHeight`, `resizable`, `frameless`, `icon`. |
+| `windows[]`        | Стартовые окна: `label`, `ui`, `width`, `height`, `title`, `minWidth`, `minHeight`, `maxWidth`, `maxHeight`, `resizable`, `frameless`, `transparent`, `icon`. |
 | `permissions`      | Возможности, доступные приложению (см. [Разрешения](#разрешения)). Нет поля — все.                                                             |
 | `protocols`        | Свои URL-схемы (deep links), которые обрабатывает приложение.                                                                                  |
 | `fileAssociations` | Типы файлов, которые открывает приложение: `ext` (без точки), `mime`, `name`.                                                                  |
 | `singleInstance`   | Передавать второй запуск работающему экземпляру и выходить (по умолчанию `false`).                                                             |
 | `ignore`           | Дополнительные пути, не попадающие в сборку, в синтаксисе `.gitignore`.                                                                        |
+
+### Прозрачное окно и Hyprland
+
+`"transparent": true` у окна делает фон прозрачным, включает frameless и рисует
+скруглённую матовую подложку. Само размытие делает композитор; для Hyprland:
+
+```ini
+windowrulev2 = opacity 0.94 0.88,class:^(pulsar-host)$
+windowrulev2 = blur,class:^(pulsar-host)$
+windowrulev2 = rounding 18,class:^(pulsar-host)$
+```
+
+Класс окна проверяется через `hyprctl clients`. Без blur прозрачность тоже
+работает, но матовый эффект слабее.
 
 Сборка всегда пропускает `.git`, `node_modules`, `dist`, `build`, `.cache`,
 `.pulsar`, `.env*` и `sync.db*`, а также учитывает корневой `.gitignore`

@@ -93,6 +93,8 @@ struct WindowConfig {
     bool hasResizable = false;
     bool frameless = false;
     bool hasFrameless = false;
+    bool transparent = false;
+    bool hasTransparent = false;
     QString icon;
     bool hasIcon = false;
 };
@@ -380,6 +382,22 @@ static void applyConfig(QObject *root, const WindowConfig &cfg)
         window->setFlags(flags);
     }
 
+    if (cfg.hasTransparent) {
+        Qt::WindowFlags flags = window->flags();
+
+        if (cfg.transparent) {
+            window->setColor(Qt::transparent);
+            flags |= Qt::FramelessWindowHint;
+        } else {
+            flags &= ~Qt::FramelessWindowHint;
+        }
+
+        window->setFlags(flags);
+
+        if (root->metaObject()->indexOfProperty("windowTransparent") >= 0)
+            root->setProperty("windowTransparent", cfg.transparent);
+    }
+
     if (cfg.hasIcon && !cfg.icon.isEmpty())
         window->setIcon(QIcon(cfg.icon));
 }
@@ -427,6 +445,7 @@ static WindowConfig parseWindowConfig(const QVariantMap &m, const QString &fallb
     c.hasMaxHeight = setIfPresent(m, QStringLiteral("maxHeight"), c.maxHeight);
     c.hasResizable = setIfPresent(m, QStringLiteral("resizable"), c.resizable);
     c.hasFrameless = setIfPresent(m, QStringLiteral("frameless"), c.frameless);
+    c.hasTransparent = setIfPresent(m, QStringLiteral("transparent"), c.transparent);
 
     if (m.contains(QStringLiteral("icon"))) {
         c.icon = m.value(QStringLiteral("icon")).toString();

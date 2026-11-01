@@ -6,7 +6,8 @@ ApplicationWindow {
     id: view
 
     visible: true
-    color: themeBackground
+    color: windowTransparent ? "transparent" : themeBackground
+    property bool windowTransparent: false
     property var tree: []
     property string errorText: ""
     property bool testClicked: false
@@ -142,21 +143,25 @@ ApplicationWindow {
     }
 
     function applyElevation(item, level) {
-        const extra = item.pulsarMeta.extra;
+        const managed = item.pulsarMeta !== null && item.pulsarMeta !== undefined;
+        const extra = managed ? item.pulsarMeta.extra : null;
+        let effect = managed ? extra.shadowEffect : item.pulsarShadowEffect;
 
         if (!level || level <= 0) {
-            if (extra.shadowEffect)
+            if (effect)
                 item.layer.enabled = false;
 
             return;
         }
 
-        let effect = extra.shadowEffect;
-
         if (!effect) {
             effect = make("import QtQuick.Effects; MultiEffect { shadowEnabled: true; autoPaddingEnabled: true; shadowColor: '#000000' }", item);
 
-            extra.shadowEffect = effect;
+            if (managed)
+                extra.shadowEffect = effect;
+            else
+                item.pulsarShadowEffect = effect;
+
             item.layer.enabled = true;
             item.layer.effect = effect;
         }
@@ -172,9 +177,19 @@ ApplicationWindow {
         source: "qrc:/runtime/fonts/MaterialIcons.ttf"
     }
 
+    Rectangle {
+        anchors.fill: parent
+        radius: view.themeWindowRadius
+        color: view.withAlpha(view.themeBackground, 0.82)
+        border.width: view.windowTransparent ? 1 : 0
+        border.color: view.themeBorder
+        visible: view.windowTransparent
+    }
+
     Item {
         id: host
         anchors.fill: parent
+        anchors.margins: view.windowTransparent ? view.themeSpacing : 0
         property var pulsarMeta: null
     }
 
@@ -290,6 +305,14 @@ ApplicationWindow {
                     spacing: 0
                 }
             }
+
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                height: 1
+                color: view.themeBorder
+            }
         }
     }
 
@@ -306,11 +329,30 @@ ApplicationWindow {
             property alias removeButton: chipRemove
             property alias contentRow: chipRow
 
-            radius: 16
+            radius: view.themeRadius
             color: view.themeSurfaceVariant
 
-            MouseArea {
+            Behavior on color {
+                ColorAnimation {
+                    duration: view.motionFast
+                    easing.type: Easing.BezierSpline
+                    easing.bezierCurve: view.motionCurve
+                }
+            }
+
+            Rectangle {
                 anchors.fill: parent
+                radius: chipRoot.radius
+                color: view.withAlpha(view.themeText, 0.06)
+                visible: chipMouse.containsMouse
+            }
+
+            MouseArea {
+                id: chipMouse
+
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
                 onClicked: view.emitNodeEvent(chipRoot.nodeData, "click")
             }
 
@@ -326,6 +368,7 @@ ApplicationWindow {
                     id: chipLabel
 
                     color: view.themeText
+                    font.family: view.fontFamily
                     font.pixelSize: view.fs(13)
                 }
 
@@ -353,7 +396,7 @@ ApplicationWindow {
             property var nodeData: null
             property string variant: "solid"
             property color fillColor: view.themePrimary
-            property color labelColor: "#ffffff"
+            property color labelColor: view.themeOnPrimary
             property int radius: view.themeRadius
             property string iconName: ""
             property string iconPosition: "left"
@@ -364,16 +407,99 @@ ApplicationWindow {
             topPadding: 8
             bottomPadding: 8
             implicitHeight: 40
+            opacity: enabled ? 1 : 0.45
+            scale: down ? 0.98 : 1
+
+            Behavior on scale {
+                NumberAnimation {
+                    duration: view.motionFast
+                    easing.type: Easing.BezierSpline
+                    easing.bezierCurve: view.motionCurve
+                }
+            }
+
+            HoverHandler {
+                cursorShape: Qt.PointingHandCursor
+            }
+
+            onDownChanged: {
+                if (!down)
+                    return;
+
+                ripple.x = width / 2 - ripple.width / 2;
+                ripple.y = height / 2 - ripple.height / 2;
+                rippleAnim.restart();
+            }
+
+            ParallelAnimation {
+                id: rippleAnim
+
+                NumberAnimation {
+                    target: ripple
+                    property: "scale"
+                    from: 0.2
+                    to: 1
+                    duration: view.motionNormal
+                    easing.type: Easing.BezierSpline
+                    easing.bezierCurve: view.motionCurve
+                }
+
+                SequentialAnimation {
+                    PropertyAction {
+                        target: ripple
+                        property: "opacity"
+                        value: 0.28
+                    }
+
+                    NumberAnimation {
+                        target: ripple
+                        property: "opacity"
+                        to: 0
+                        duration: view.motionSlow
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: view.motionCurve
+                    }
+                }
+            }
 
             background: Rectangle {
+                id: buttonBackground
+
                 radius: buttonRoot.radius
-                color: buttonRoot.variant === "outline" || buttonRoot.variant === "ghost"
-                        ? "transparent"
-                        : buttonRoot.variant === "soft"
-                            ? Qt.rgba(buttonRoot.fillColor.r, buttonRoot.fillColor.g, buttonRoot.fillColor.b, 0.16)
-                            : buttonRoot.fillColor
+                clip: true
+                color: {
+                    if (!buttonRoot.enabled)
+                        return view.disabledColor(buttonRoot.fillColor);
+                    if (buttonRoot.variant === "outline" || buttonRoot.variant === "ghost")
+                        return buttonRoot.hovered ? view.withAlpha(buttonRoot.fillColor, 0.08) : "transparent";
+                    if (buttonRoot.variant === "soft")
+                        return view.withAlpha(buttonRoot.fillColor, buttonRoot.down ? 0.28 : buttonRoot.hovered ? 0.22 : 0.16);
+
+                    return buttonRoot.down ? view.activeColor(buttonRoot.fillColor)
+                            : buttonRoot.hovered ? view.hoverColor(buttonRoot.fillColor)
+                            : buttonRoot.fillColor;
+                }
                 border.width: buttonRoot.variant === "outline" ? 1 : 0
                 border.color: buttonRoot.fillColor
+
+                Behavior on color {
+                    ColorAnimation {
+                        duration: view.motionFast
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: view.motionCurve
+                    }
+                }
+
+                Rectangle {
+                    id: ripple
+
+                    width: buttonRoot.height * 1.8
+                    height: width
+                    radius: width / 2
+                    color: view.withAlpha(buttonRoot.labelColor, 0.22)
+                    opacity: 0
+                    scale: 0.2
+                }
             }
 
             contentItem: RowLayout {
@@ -391,8 +517,9 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     text: buttonRoot.text
                     color: buttonRoot.labelColor
+                    font.family: view.fontFamily
                     font.pixelSize: buttonRoot.font.pixelSize
-                    font.bold: buttonRoot.font.bold
+                    font.weight: buttonRoot.font.weight
                     horizontalAlignment: Text.AlignHCenter
                     elide: Text.ElideRight
                 }
@@ -429,8 +556,14 @@ ApplicationWindow {
             background: Rectangle {
                 color: fieldRoot.fieldColor
                 radius: fieldRoot.fieldRadius
-                border.width: fieldRoot.outlined ? 1 : 0
-                border.color: fieldRoot.fieldBorderColor
+                border.width: fieldRoot.activeFocus ? 2 : fieldRoot.outlined ? 1 : 0
+                border.color: fieldRoot.activeFocus ? view.themePrimary : fieldRoot.fieldBorderColor
+
+                Behavior on border.color {
+                    ColorAnimation {
+                        duration: view.motionFast
+                    }
+                }
             }
         }
     }
@@ -459,8 +592,99 @@ ApplicationWindow {
             background: Rectangle {
                 color: areaRoot.fieldColor
                 radius: areaRoot.fieldRadius
-                border.width: areaRoot.outlined ? 1 : 0
-                border.color: areaRoot.fieldBorderColor
+                border.width: areaRoot.activeFocus ? 2 : areaRoot.outlined ? 1 : 0
+                border.color: areaRoot.activeFocus ? view.themePrimary : areaRoot.fieldBorderColor
+
+                Behavior on border.color {
+                    ColorAnimation {
+                        duration: view.motionFast
+                    }
+                }
+            }
+        }
+    }
+
+    Component {
+        id: switchComponent
+
+        Switch {
+            id: switchRoot
+
+            property var pulsarMeta: null
+
+            padding: 0
+            implicitHeight: 30
+
+            indicator: Item {
+                implicitWidth: 52
+                implicitHeight: 28
+                x: switchRoot.text
+                        ? (switchRoot.mirrored ? switchRoot.width - width - switchRoot.rightPadding : switchRoot.leftPadding)
+                        : switchRoot.leftPadding + (switchRoot.availableWidth - width) / 2
+                y: switchRoot.topPadding + (switchRoot.availableHeight - height) / 2
+
+                Rectangle {
+                    id: switchTrack
+
+                    anchors.fill: parent
+                    radius: height / 2
+                    color: switchRoot.checked ? view.themePrimary : view.themeSurfaceVariant
+                    border.width: 1
+                    border.color: switchRoot.checked ? view.themePrimary : view.themeBorder
+
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: view.motionFast
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: view.motionCurve
+                        }
+                    }
+                }
+
+                Rectangle {
+                    id: switchThumb
+
+                    y: (parent.height - height) / 2
+                    width: switchRoot.pressed ? 24 : switchRoot.checked ? 20 : 14
+                    height: width
+                    radius: width / 2
+                    x: switchRoot.checked ? parent.width - width - 4 : 4
+                    color: switchRoot.checked ? view.themeOnPrimary : view.themeTextSecondary
+
+                    Behavior on x {
+                        NumberAnimation {
+                            duration: view.motionFast
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: view.motionCurve
+                        }
+                    }
+
+                    Behavior on width {
+                        NumberAnimation {
+                            duration: view.motionFast
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: view.motionCurve
+                        }
+                    }
+
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: view.motionFast
+                        }
+                    }
+                }
+            }
+
+            contentItem: Label {
+                leftPadding: switchRoot.indicator && !switchRoot.mirrored
+                        ? switchRoot.indicator.width + switchRoot.spacing : 0
+                rightPadding: switchRoot.indicator && switchRoot.mirrored
+                        ? switchRoot.indicator.width + switchRoot.spacing : 0
+                text: switchRoot.text
+                font.family: view.fontFamily
+                font.pixelSize: view.fs(15)
+                color: view.themeText
+                verticalAlignment: Text.AlignVCenter
             }
         }
     }
@@ -516,10 +740,24 @@ ApplicationWindow {
             Rectangle {
                 id: sheetPanel
 
+                property var pulsarShadowEffect: null
+
                 width: Math.min(parent.width - 24, 560)
                 height: Math.min(parent.height - 48, 720)
                 radius: view.themeRadius
                 color: view.themeSurface
+                border.width: 1
+                border.color: view.themeBorder
+                transformOrigin: Item.Center
+                scale: sheetRoot.open ? 1 : 0.97
+
+                Behavior on scale {
+                    NumberAnimation {
+                        duration: view.motionFast
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: view.motionCurve
+                    }
+                }
 
                 MouseArea {
                     anchors.fill: parent
@@ -646,9 +884,23 @@ ApplicationWindow {
                         palette.highlight: view.themePrimary
                         palette.highlightedText: view.themeBackground
 
+                        HoverHandler {
+                            cursorShape: Qt.PointingHandCursor
+                        }
+
                         background: Rectangle {
                             implicitHeight: 40
-                            color: tabButton.checked ? view.themeSurface : view.themeBackground
+                            color: tabButton.checked ? view.themeSurface
+                                    : tabButton.hovered ? view.hoverColor(view.themeBackground)
+                                    : view.themeBackground
+
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: view.motionFast
+                                    easing.type: Easing.BezierSpline
+                                    easing.bezierCurve: view.motionCurve
+                                }
+                            }
 
                             Rectangle {
                                 anchors.bottom: parent.bottom
@@ -709,10 +961,24 @@ ApplicationWindow {
                     palette.dark: view.themeSurfaceVariant
                     palette.mid: view.themeSurfaceVariant
 
+                    HoverHandler {
+                        cursorShape: Qt.PointingHandCursor
+                    }
+
                     background: Rectangle {
                         implicitHeight: 36
                         radius: Math.max(0, view.themeRadius - 2)
-                        color: segmentButton.checked ? view.themeSurfaceVariant : "transparent"
+                        color: segmentButton.checked ? view.themeSurfaceVariant
+                                : segmentButton.hovered ? view.withAlpha(view.themeText, 0.06)
+                                : "transparent"
+
+                        Behavior on color {
+                            ColorAnimation {
+                                duration: view.motionFast
+                                easing.type: Easing.BezierSpline
+                                easing.bezierCurve: view.motionCurve
+                            }
+                        }
                     }
                 }
             }
@@ -721,6 +987,114 @@ ApplicationWindow {
                 if (segmentedRoot.syncing)
                     return;
                 view.emitNodeEvent(segmentedRoot.nodeData, "change", currentIndex);
+            }
+        }
+    }
+
+    Component {
+        id: navRailComponent
+
+        RowLayout {
+            id: railRoot
+
+            spacing: view.themeSpacing
+            property var pulsarMeta: null
+            property var nodeData: null
+            property var navItems: []
+            property bool expanded: true
+            property bool syncing: false
+            property int currentIndex: 0
+            property alias contentLayout: railStack
+
+            Rectangle {
+                Layout.fillHeight: true
+                Layout.preferredWidth: railRoot.expanded ? 180 : 56
+                radius: view.themeRadius
+                color: view.themeSurface
+                border.width: 1
+                border.color: view.themeBorder
+
+                ColumnLayout {
+                    id: railColumn
+
+                    anchors.fill: parent
+                    anchors.margins: 6
+                    spacing: 4
+
+                    Repeater {
+                        model: railRoot.navItems
+
+                        Rectangle {
+                            id: navButton
+
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 44
+                            radius: view.themeRadius
+                            color: railRoot.currentIndex === index ? view.themeSurfaceVariant : "transparent"
+
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: view.motionFast
+                                    easing.type: Easing.BezierSpline
+                                    easing.bezierCurve: view.motionCurve
+                                }
+                            }
+
+                            HoverHandler {
+                                cursorShape: Qt.PointingHandCursor
+                            }
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 12
+                                anchors.rightMargin: 8
+                                spacing: 10
+
+                                Label {
+                                    visible: modelData.icon !== undefined && modelData.icon.length > 0
+                                    text: visible ? modelData.icon : ""
+                                    font.family: view.iconFamily
+                                    font.pixelSize: view.fs(22)
+                                    color: railRoot.currentIndex === index ? view.themePrimary : view.themeText
+                                }
+
+                                Label {
+                                    Layout.fillWidth: true
+                                    visible: railRoot.expanded
+                                    text: modelData.label
+                                    font.family: view.fontFamily
+                                    font.pixelSize: view.fs(15)
+                                    color: railRoot.currentIndex === index ? view.themePrimary : view.themeText
+                                    elide: Text.ElideRight
+                                }
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    if (railRoot.syncing)
+                                        return;
+
+                                    railRoot.currentIndex = index;
+                                    view.emitNodeEvent(railRoot.nodeData, "change", index);
+                                }
+                            }
+                        }
+                    }
+
+                    Item {
+                        Layout.fillHeight: true
+                    }
+                }
+            }
+
+            StackLayout {
+                id: railStack
+
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                currentIndex: railRoot.currentIndex
+                property var pulsarMeta: null
             }
         }
     }
@@ -855,6 +1229,8 @@ ApplicationWindow {
             Rectangle {
                 id: popPanel
 
+                property var pulsarShadowEffect: null
+
                 width: Math.min(parent.width - 32, 320)
                 radius: view.themeRadius
                 color: view.themeSurface
@@ -862,6 +1238,16 @@ ApplicationWindow {
                 border.color: view.themeBorder
                 x: 16
                 y: 16
+                transformOrigin: Item.Center
+                scale: popRoot.open ? 1 : 0.96
+
+                Behavior on scale {
+                    NumberAnimation {
+                        duration: view.motionFast
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: view.motionCurve
+                    }
+                }
 
                 ColumnLayout {
                     id: popContent
@@ -1114,7 +1500,8 @@ ApplicationWindow {
                         width: parent.width
                         height: parent.height
                         color: vlist.isSelected(row.rowIndex)
-                                ? Qt.rgba(view.themePrimary.r, view.themePrimary.g, view.themePrimary.b, 0.18)
+                                ? view.withAlpha(view.themePrimary, 0.18)
+                                : rowMouse.containsMouse ? view.hoverColor(view.themeBackground)
                                 : view.themeBackground
 
                         Column {
@@ -1222,7 +1609,11 @@ ApplicationWindow {
                         }
 
                         MouseArea {
+                            id: rowMouse
+
                             anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 if (vlist.selectable) {
                                     if (hasEvent(vlist.nodeData, "select"))
@@ -1516,6 +1907,8 @@ ApplicationWindow {
             item = tabsComponent.createObject(parent);
         } else if (node.type === "segmented") {
             item = segmentedComponent.createObject(parent);
+        } else if (node.type === "navRail") {
+            item = navRailComponent.createObject(parent);
         } else if (node.type === "snackbar") {
             item = snackbarComponent.createObject(overlay);
         } else if (node.type === "popover") {
@@ -1536,8 +1929,10 @@ ApplicationWindow {
             item = textFieldComponent.createObject(parent);
         } else if (node.type === "textArea") {
             item = textAreaComponent.createObject(parent);
-        } else if (node.type === "checkbox" || node.type === "switch") {
-            item = make("import QtQuick.Controls; " + (node.type === "checkbox" ? "CheckBox" : "Switch") + " " + base, parent);
+        } else if (node.type === "checkbox") {
+            item = make("import QtQuick.Controls; CheckBox " + base, parent);
+        } else if (node.type === "switch") {
+            item = switchComponent.createObject(parent);
         } else if (node.type === "slider") {
             item = make("import QtQuick.Controls; Slider " + base, parent);
         } else if (node.type === "select") {
@@ -1616,19 +2011,6 @@ ApplicationWindow {
                     emitEvent(item.pulsarMeta.node, "toggle", value);
             });
 
-            const area = make("import QtQuick; MouseArea { anchors.fill: parent; z: 10 }", item);
-
-            area.clicked.connect(function () {
-                if (item.pulsarMeta.syncing === true)
-                    return;
-
-                item.pulsarMeta.syncing = true;
-                item.checked = !item.checked;
-                item.pulsarMeta.syncing = false;
-
-                if (hasEvent(item.pulsarMeta.node, "toggle"))
-                    emitEvent(item.pulsarMeta.node, "toggle", item.checked);
-            });
         } else if (node.type === "slider") {
             item.moved.connect(function () {
                 if (item.pulsarMeta.syncing === true)
@@ -1699,11 +2081,12 @@ ApplicationWindow {
                 || node.type === "grid" || node.type === "virtualList"
                 || node.type === "appBar" || node.type === "divider" || node.type === "textInput"
                 || node.type === "textArea" || node.type === "pager" || node.type === "tabs"
-                || node.type === "segmented";
+                || node.type === "navRail" || node.type === "segmented";
         const fill = prop(props, "fill", undefined);
         let fillWidth = defaultFillWidth;
         let fillHeight = node.type === "list" || node.type === "scroll" || node.type === "grid"
-                || node.type === "virtualList" || node.type === "pager" || node.type === "tabs";
+                || node.type === "virtualList" || node.type === "pager" || node.type === "tabs"
+                || node.type === "navRail";
 
         if (props.expand !== undefined)
             fillWidth = props.expand;
@@ -1797,7 +2180,6 @@ ApplicationWindow {
             item.border.width = prop(props, "borderWidth", 0);
             item.border.color = resolveColor(prop(props, "borderColor", view.themeBorder), view.themeBorder);
             applyGradient(item, prop(props, "gradient", null));
-            applyElevation(item, prop(props, "elevation", 0));
 
             let inner = item.pulsarMeta.content;
             const padding = prop(props, "padding", 0);
@@ -1912,7 +2294,6 @@ ApplicationWindow {
             item.border.width = prop(props, "borderWidth", 1);
             item.border.color = resolveColor(prop(props, "borderColor", view.themeBorder), view.themeBorder);
             applyGradient(item, prop(props, "gradient", null));
-            applyElevation(item, prop(props, "elevation", 0));
 
             let inner = item.pulsarMeta.content;
             const padding = prop(props, "padding", 16);
@@ -1968,7 +2349,9 @@ ApplicationWindow {
                     : (chipVariant === "outline" ? chipFill : view.themeText);
             item.removeButton.visible = hasEvent(node, "remove");
             item.implicitWidth = Qt.binding(function () {
-                return item.contentRow.implicitWidth;
+                const removeWidth = item.removeButton.visible ? item.removeButton.implicitWidth + 2 : 0;
+
+                return item.labelItem.implicitWidth + 20 + removeWidth;
             });
         } else if (node.type === "sheet") {
             item.nodeData = node;
@@ -2004,6 +2387,7 @@ ApplicationWindow {
                 item.panel.radius = view.themeRadius;
             }
 
+
             if (!item.contentLayout.pulsarMeta)
                 item.contentLayout.pulsarMeta = contentMeta();
 
@@ -2026,6 +2410,15 @@ ApplicationWindow {
             item.tabBar.currentIndex = tabIndex;
             item.syncing = false;
 
+            Qt.callLater(function () {
+                if (!item)
+                    return;
+
+                item.syncing = true;
+                item.tabBar.currentIndex = tabIndex;
+                item.syncing = false;
+            });
+
             if (!item.contentLayout.pulsarMeta)
                 item.contentLayout.pulsarMeta = contentMeta();
 
@@ -2045,9 +2438,41 @@ ApplicationWindow {
 
             applyTabPalette(item);
 
+            const segmentIndex = prop(props, "value", 0);
+
             item.syncing = true;
-            item.currentIndex = prop(props, "value", 0);
+            item.currentIndex = segmentIndex;
             item.syncing = false;
+
+            Qt.callLater(function () {
+                if (!item)
+                    return;
+
+                item.syncing = true;
+                item.currentIndex = segmentIndex;
+                item.syncing = false;
+            });
+        } else if (node.type === "navRail") {
+            item.nodeData = node;
+            item.navItems = prop(props, "items", []);
+            item.expanded = prop(props, "expanded", true);
+            item.syncing = true;
+            item.currentIndex = prop(props, "index", 0);
+            item.syncing = false;
+
+            if (!item.contentLayout.pulsarMeta)
+                item.contentLayout.pulsarMeta = contentMeta();
+
+            reconcile(item.contentLayout, node.children || [], false);
+
+            for (let i = 0; i < item.contentLayout.children.length; i++) {
+                const page = item.contentLayout.children[i];
+
+                if (page.Layout !== undefined) {
+                    page.Layout.fillWidth = true;
+                    page.Layout.fillHeight = true;
+                }
+            }
         } else if (node.type === "snackbar") {
             item.nodeData = node;
             item.textLabel.text = prop(props, "text", "");
@@ -2070,6 +2495,7 @@ ApplicationWindow {
             item.panel.height = Qt.binding(function () {
                 return item.contentLayout.implicitHeight + 24;
             });
+
 
             if (!item.contentLayout.pulsarMeta)
                 item.contentLayout.pulsarMeta = contentMeta();
@@ -2139,11 +2565,12 @@ ApplicationWindow {
             item.enabled = prop(props, "enabled", true);
             item.variant = variant;
             item.fillColor = fill;
-            item.radius = prop(props, "radius", variant === "solid" || variant === "elevated" ? 10 : view.themeRadius);
+            item.radius = prop(props, "radius", view.themeRadius);
             item.iconName = prop(props, "icon", "");
             item.iconPosition = prop(props, "iconPosition", "left");
             item.font.pixelSize = view.fs(size === "sm" ? 13 : size === "lg" ? 17 : 15);
-            item.font.bold = size !== "sm";
+            item.font.weight = 500;
+            item.font.bold = false;
             item.leftPadding = size === "sm" ? 12 : size === "lg" ? 20 : 16;
             item.rightPadding = item.leftPadding;
             item.topPadding = size === "sm" ? 4 : size === "lg" ? 12 : 8;
@@ -2153,9 +2580,8 @@ ApplicationWindow {
                     ? resolveColor(explicitText, item.labelColor)
                     : (variant === "soft" || variant === "outline" || variant === "ghost")
                         ? fill
-                        : (view.darkMode ? "#121214" : "#ffffff");
+                        : view.themeOnPrimary;
 
-            applyElevation(item, variant === "elevated" ? prop(props, "elevation", 2) : prop(props, "elevation", 0));
         } else if (node.type === "icon") {
             item.text = prop(props, "name", "");
             item.font.family = view.iconFamily;

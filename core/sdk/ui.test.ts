@@ -26,6 +26,7 @@ import {
   iconButton,
   image,
   list,
+  navRail,
   pager,
   popover,
   progress,
@@ -251,6 +252,21 @@ describe("gestures and layers", () => {
     dispatchUiEvent(s.id, "change", 0)
 
     expect(seen).toEqual(["page:1", "tab:1", "segment:0"])
+  })
+
+  test("nav rail normalizes items and forwards changes", () => {
+    const seen: number[] = []
+    const node = navRail(
+      { items: ["One", { label: "Two", icon: "bolt" }], index: 1, onChange: (index) => seen.push(index) },
+      text("a"),
+    )
+
+    expect(node.type).toBe("navRail")
+    expect(node.props.items).toEqual([{ label: "One" }, { label: "Two", icon: "bolt" }])
+    expect(node.children?.length).toBe(1)
+
+    dispatchUiEvent(node.id, "change", 0)
+    expect(seen).toEqual([0])
   })
 
   test("snackbar, popover and zoomable forward their events", () => {

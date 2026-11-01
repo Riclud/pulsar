@@ -25,6 +25,7 @@ export type UiNodeType =
   | "sheet"
   | "pager"
   | "tabs"
+  | "navRail"
   | "segmented"
   | "snackbar"
   | "popover"
@@ -296,6 +297,18 @@ export interface SheetOptions extends CommonOptions {
   dismissible?: boolean
   duration?: number
   onClose?: () => void
+}
+
+export interface NavRailItem {
+  label: string
+  icon?: string
+}
+
+export interface NavRailOptions extends CommonOptions {
+  items: Array<string | NavRailItem>
+  index?: number
+  expanded?: boolean
+  onChange?: (index: number) => void
 }
 
 export interface PagerOptions extends CommonOptions {
@@ -734,6 +747,17 @@ const normalizeTabs = (items: Array<string | TabItem>): TabItem[] => {
   return items.map((item) => (typeof item === "string" ? { label: item } : item))
 }
 
+export const navRail = (options: NavRailOptions, ...children: UiChild[]): UiNode => {
+  const { onChange, items, ...props } = options
+  const normalized = items.map((item) => (typeof item === "string" ? { label: item } : item))
+
+  if (!onChange) return makeNode("navRail", { ...props, items: normalized }, children)
+
+  return makeNode("navRail", { ...props, items: normalized }, children, ["change"], {
+    change: (value) => onChange(Number(value)),
+  })
+}
+
 export const tabs = (options: TabsOptions, ...children: UiChild[]): UiNode => {
   const { onChange, items, ...props } = options
   const normalized = normalizeTabs(items)
@@ -872,6 +896,8 @@ export const Pager = (options: PagerOptions = {}, ...children: UiChild[]): UiNod
 
 export const Tabs = (options: TabsOptions, ...children: UiChild[]): UiNode => tabs(options, ...children)
 
+export const NavigationRail = (options: NavRailOptions, ...children: UiChild[]): UiNode => navRail(options, ...children)
+
 export const Segmented = (options: SegmentedOptions): UiNode => segmented(options)
 
 export const Snackbar = (options: SnackbarOptions): UiNode => snackbar(options)
@@ -964,6 +990,7 @@ export const ui = {
   sheet,
   pager,
   tabs,
+  navRail,
   segmented,
   snackbar,
   popover,

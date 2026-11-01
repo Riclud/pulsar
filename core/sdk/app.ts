@@ -35,6 +35,8 @@ export interface AppConfig {
   maxHeight?: number
   resizable?: boolean
   frameless?: boolean
+  /** Transparent window background (compositor blur/rounding can apply). */
+  transparent?: boolean
   /** Path to the window/app icon. */
   icon?: string
 }

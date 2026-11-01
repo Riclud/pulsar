@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { CSS_COLOR_NAMES, defineTheme, isColorName, type ColorValue } from "./theme.ts"
 
-declare module "./theme.ts" {
+declare module "./index.ts" {
   interface ThemeColors {
     brand: string
     ink: string
