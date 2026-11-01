@@ -1,7 +1,11 @@
-import { describe, expect, test } from "bun:test"
-import { fs, fsWatchInternals, registerCapability } from "./caps.ts"
+import { beforeEach, describe, expect, test } from "bun:test"
+import { fs, fsWatchInternals, registerCapability, setPermissionGate } from "./caps.ts"
 
 describe("fs.watch", () => {
+  beforeEach(() => {
+    setPermissionGate(null)
+  })
+
   test("reference-counts watches per path and forwards changes", () => {
     const calls: string[] = []
     const seen: string[] = []

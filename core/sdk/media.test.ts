@@ -1,9 +1,13 @@
-import { describe, expect, test } from "bun:test"
+import { beforeEach, describe, expect, test } from "bun:test"
 import { App } from "./app.ts"
-import { registerCapability } from "./caps.ts"
+import { registerCapability, setPermissionGate } from "./caps.ts"
 import { MediaManager, media } from "./media.ts"
 
 describe("media", () => {
+  beforeEach(() => {
+    setPermissionGate(null)
+  })
+
   test("loads a playlist and forwards controls", () => {
     const app = new App({ label: "main" })
     const actions: Array<Record<string, unknown>> = []
