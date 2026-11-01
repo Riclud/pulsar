@@ -10,18 +10,25 @@ ApplicationWindow {
     property var tree: []
     property string errorText: ""
     property bool testClicked: false
+    property var themeData: ({})
 
-
+    readonly property var themePalette: themeData && themeData.palette ? themeData.palette : ({})
+    readonly property real fontScale: themeData && themeData.fontScale !== undefined ? themeData.fontScale : 1
+    readonly property real density: themeData && themeData.density !== undefined ? themeData.density : 1
     readonly property bool darkMode: PulsarBridge.colorScheme === "dark"
-    readonly property color themeBackground: darkMode ? "#121214" : "#f7f7f8"
-    readonly property color themeSurface: darkMode ? "#1c1c20" : "#ffffff"
-    readonly property color themeSurfaceVariant: darkMode ? "#2a2a30" : "#ececf0"
-    readonly property color themePrimary: darkMode ? "#d0bcff" : "#6750a4"
-    readonly property color themeText: darkMode ? "#e6e1e5" : "#1b1b1f"
-    readonly property color themeTextSecondary: darkMode ? "#a9a9b0" : "#5f5f66"
-    readonly property color themeBorder: darkMode ? "#3a3a41" : "#d9d9de"
-    readonly property int themeRadius: 12
-    readonly property int themeSpacing: 8
+    readonly property color themeBackground: themePalette.background !== undefined ? themePalette.background : (darkMode ? "#121214" : "#f7f7f8")
+    readonly property color themeSurface: themePalette.surface !== undefined ? themePalette.surface : (darkMode ? "#1c1c20" : "#ffffff")
+    readonly property color themeSurfaceVariant: themePalette.surfaceVariant !== undefined ? themePalette.surfaceVariant : (darkMode ? "#2a2a30" : "#ececf0")
+    readonly property color themePrimary: themePalette.primary !== undefined ? themePalette.primary : (darkMode ? "#d0bcff" : "#6750a4")
+    readonly property color themeText: themePalette.text !== undefined ? themePalette.text : (darkMode ? "#e6e1e5" : "#1b1b1f")
+    readonly property color themeTextSecondary: themePalette.textSecondary !== undefined ? themePalette.textSecondary : (darkMode ? "#a9a9b0" : "#5f5f66")
+    readonly property color themeBorder: themePalette.border !== undefined ? themePalette.border : (darkMode ? "#3a3a41" : "#d9d9de")
+    readonly property int themeRadius: Math.round((themePalette.radius !== undefined ? themePalette.radius : 12) * density)
+    readonly property int themeSpacing: Math.round((themePalette.spacing !== undefined ? themePalette.spacing : 8) * density)
+
+    function fs(px) {
+        return Math.round(px * fontScale);
+    }
 
     FontLoader {
         id: iconFont
@@ -55,7 +62,7 @@ ApplicationWindow {
 
             Label {
                 text: "App error"
-                font.pixelSize: 20
+                font.pixelSize: view.fs(20)
                 font.bold: true
                 color: view.themeText
             }
@@ -110,7 +117,7 @@ ApplicationWindow {
                     text: "arrow_back"
                     visible: false
                     font.family: iconFont.name
-                    font.pixelSize: 24
+                    font.pixelSize: view.fs(24)
 
                     onClicked: view.emitNodeEvent(bar.nodeData, "back")
                 }
@@ -125,7 +132,7 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         elide: Text.ElideRight
                         color: view.themeText
-                        font.pixelSize: 18
+                        font.pixelSize: view.fs(18)
                         font.bold: true
                     }
 
@@ -136,7 +143,7 @@ ApplicationWindow {
                         visible: text.length > 0
                         elide: Text.ElideRight
                         color: view.themeTextSecondary
-                        font.pixelSize: 12
+                        font.pixelSize: view.fs(12)
                     }
                 }
 
@@ -182,7 +189,7 @@ ApplicationWindow {
                     id: chipLabel
 
                     color: view.themeText
-                    font.pixelSize: 13
+                    font.pixelSize: view.fs(13)
                 }
 
                 ToolButton {
@@ -191,7 +198,7 @@ ApplicationWindow {
                     text: "close"
                     visible: false
                     font.family: iconFont.name
-                    font.pixelSize: 16
+                    font.pixelSize: view.fs(16)
 
                     onClicked: view.emitNodeEvent(chipRoot.nodeData, "remove")
                 }
@@ -277,7 +284,7 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             elide: Text.ElideRight
                             color: view.themeText
-                            font.pixelSize: 18
+                            font.pixelSize: view.fs(18)
                             font.bold: true
                         }
 
@@ -286,7 +293,7 @@ ApplicationWindow {
 
                             text: "close"
                             font.family: iconFont.name
-                            font.pixelSize: 24
+                            font.pixelSize: view.fs(24)
 
                             onClicked: view.emitNodeEvent(sheetRoot.nodeData, "close")
                         }
@@ -770,7 +777,7 @@ ApplicationWindow {
                                         text: modelData.icon !== undefined ? modelData.icon : ""
                                         visible: text.length > 0
                                         font.family: iconFont.name
-                                        font.pixelSize: 20
+                                        font.pixelSize: view.fs(20)
                                         color: "#ffffff"
                                     }
 
@@ -778,7 +785,7 @@ ApplicationWindow {
                                         anchors.horizontalCenter: parent.horizontalCenter
                                         text: modelData.label !== undefined ? modelData.label : modelData.id
                                         color: "#ffffff"
-                                        font.pixelSize: 11
+                                        font.pixelSize: view.fs(11)
                                     }
                                 }
 
@@ -819,7 +826,7 @@ ApplicationWindow {
                                 topPadding: 6
                                 bottomPadding: 4
                                 color: view.themeTextSecondary
-                                font.pixelSize: 12
+                                font.pixelSize: view.fs(12)
                                 font.bold: true
                                 elide: Text.ElideRight
                             }
@@ -834,7 +841,7 @@ ApplicationWindow {
                                     visible: row.rowData !== undefined && row.rowData.icon !== undefined && row.rowData.icon.length > 0
                                     text: visible ? row.rowData.icon : ""
                                     font.family: iconFont.name
-                                    font.pixelSize: 22
+                                    font.pixelSize: view.fs(22)
                                     color: view.themeTextSecondary
                                 }
 
@@ -846,7 +853,7 @@ ApplicationWindow {
                                         Layout.fillWidth: true
                                         text: row.rowData !== undefined ? row.rowData.title : ""
                                         color: view.themeText
-                                        font.pixelSize: 15
+                                        font.pixelSize: view.fs(15)
                                         elide: Text.ElideRight
                                     }
 
@@ -855,7 +862,7 @@ ApplicationWindow {
                                         visible: text.length > 0
                                         text: row.rowData !== undefined && row.rowData.subtitle !== undefined ? row.rowData.subtitle : ""
                                         color: view.themeTextSecondary
-                                        font.pixelSize: 12
+                                        font.pixelSize: view.fs(12)
                                         elide: Text.ElideRight
                                     }
                                 }
@@ -864,7 +871,7 @@ ApplicationWindow {
                                     visible: vlist.selectable && vlist.isSelected(row.rowIndex)
                                     text: "check"
                                     font.family: iconFont.name
-                                    font.pixelSize: 20
+                                    font.pixelSize: view.fs(20)
                                     color: view.themePrimary
                                 }
 
@@ -873,7 +880,7 @@ ApplicationWindow {
                                     visible: row.rowData !== undefined && row.rowData.trailing !== undefined && row.rowData.trailing.length > 0
                                     text: visible ? row.rowData.trailing : ""
                                     color: view.themeTextSecondary
-                                    font.pixelSize: 13
+                                    font.pixelSize: view.fs(13)
                                 }
 
                                 Label {
@@ -881,7 +888,7 @@ ApplicationWindow {
                                     visible: vlist.reorderable
                                     text: "drag_handle"
                                     font.family: iconFont.name
-                                    font.pixelSize: 20
+                                    font.pixelSize: view.fs(20)
                                     color: view.themeTextSecondary
 
                                     DragHandler {
@@ -981,7 +988,7 @@ ApplicationWindow {
                     verticalAlignment: Text.AlignVCenter
                     text: vlist.currentSection
                     color: view.themeTextSecondary
-                    font.pixelSize: 12
+                    font.pixelSize: view.fs(12)
                     font.bold: true
                     elide: Text.ElideRight
                 }
@@ -1249,6 +1256,12 @@ ApplicationWindow {
             content: null,
             extra: ({})
         };
+
+        if (prop(node.props, "animate", 0) > 0) {
+            item.opacity = 0;
+            item.pulsarMeta.extra.animateFrom = 0;
+        }
+
         prepareItem(item, node);
         updateNode(item, node, isRoot);
 
@@ -1336,6 +1349,19 @@ ApplicationWindow {
         }
     }
 
+    function animateOpacity(item, to, duration) {
+        const anim = make("import QtQuick; NumberAnimation { property: 'opacity'; easing.type: Easing.OutCubic }", item);
+
+        anim.target = item;
+        anim.from = item.opacity;
+        anim.to = to;
+        anim.duration = duration;
+        anim.finished.connect(function () {
+            anim.destroy();
+        });
+        anim.start();
+    }
+
     function applyTooltip(item, text) {
         let tip = item.pulsarMeta.extra.tooltip;
 
@@ -1404,8 +1430,26 @@ ApplicationWindow {
 
         if (props.visible !== undefined)
             item.visible = props.visible;
-        if (props.opacity !== undefined)
-            item.opacity = props.opacity;
+
+        const animate = prop(props, "animate", 0);
+        const hasOpacity = props.opacity !== undefined || item.pulsarMeta.extra.animateFrom !== undefined;
+
+        if (hasOpacity) {
+            const target = props.opacity !== undefined ? props.opacity : 1;
+            const previous = item.pulsarMeta.extra.lastOpacity !== undefined
+                    ? item.pulsarMeta.extra.lastOpacity
+                    : (item.pulsarMeta.extra.animateFrom !== undefined ? item.pulsarMeta.extra.animateFrom : target);
+
+            if (animate > 0 && previous !== target) {
+                item.opacity = previous;
+                animateOpacity(item, target, animate);
+            } else {
+                item.opacity = target;
+            }
+
+            item.pulsarMeta.extra.lastOpacity = target;
+            delete item.pulsarMeta.extra.animateFrom;
+        }
 
         item.Layout.fillWidth = fillWidth;
         item.Layout.fillHeight = fillHeight;
@@ -1693,7 +1737,7 @@ ApplicationWindow {
 
             item.text = prop(props, "text", "");
             item.color = prop(props, "color", view.themeText);
-            item.font.pixelSize = prop(props, "size", 15);
+            item.font.pixelSize = view.fs(prop(props, "size", 15));
             item.font.bold = prop(props, "bold", false);
             item.textFormat = prop(props, "markdown", false) ? Text.MarkdownText : Text.PlainText;
             item.horizontalAlignment = align === "center" ? Text.AlignHCenter
@@ -1726,13 +1770,13 @@ ApplicationWindow {
         } else if (node.type === "icon") {
             item.text = prop(props, "name", "");
             item.font.family = iconFont.name;
-            item.font.pixelSize = prop(props, "size", 24);
+            item.font.pixelSize = view.fs(prop(props, "size", 24));
             item.color = prop(props, "color", view.themeText);
         } else if (node.type === "iconButton") {
             item.text = prop(props, "name", "");
             item.enabled = prop(props, "enabled", true);
             item.font.family = iconFont.name;
-            item.font.pixelSize = prop(props, "size", 24);
+            item.font.pixelSize = view.fs(prop(props, "size", 24));
             item.implicitWidth = 40;
             item.implicitHeight = 40;
         } else if (node.type === "textInput" || node.type === "textArea") {

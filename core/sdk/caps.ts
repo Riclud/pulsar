@@ -208,9 +208,34 @@ export const screen = {
 
 export type ColorScheme = "light" | "dark"
 
+export interface ThemePalette {
+  background?: string
+  surface?: string
+  surfaceVariant?: string
+  primary?: string
+  text?: string
+  textSecondary?: string
+  border?: string
+  radius?: number
+  spacing?: number
+}
+
+export interface ThemeOptions {
+  palette?: ThemePalette
+  /** Multiplier for every font size (default 1). */
+  fontScale?: number
+  /** Multiplier for spacing and radii (default 1). */
+  density?: number
+}
+
 /** System appearance; the app also gets a `theme-changed` event on switches. */
 export const theme = {
   current: (): Promise<{ scheme: ColorScheme }> => callCapability("theme.get") as Promise<{ scheme: ColorScheme }>,
+  /**
+   * Override the built-in palette, font scale and density for every window.
+   * Values are applied to the JS renderer and can be changed at runtime.
+   */
+  set: (options: ThemeOptions): Promise<boolean> => callCapability("theme.set", options) as Promise<boolean>,
 }
 
 export interface SystemLocale {

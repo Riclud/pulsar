@@ -11,12 +11,19 @@ import {
   Segmented,
   Snackbar,
   Tabs,
+  theme,
   VirtualList,
   ui,
   Zoomable,
 } from "../../../core/sdk/index.ts"
 
 const app = new App()
+
+void theme.set({
+  palette: { primary: "#ff6600", radius: 14 },
+  fontScale: 1.1,
+  density: 1.1,
+})
 
 app.store.set("page", 0)
 app.store.set("tab", 0)
@@ -26,7 +33,7 @@ app.store.set("text", "")
 app.window("main").render(() =>
   Column(
     { fill: true, padding: 8, gap: 8 },
-    Header({ title: "UI Kit", subtitle: "extended primitives" }),
+    Header({ title: "UI Kit", subtitle: "extended primitives", animate: 150 }),
     Tabs(
       {
         items: ["One", "Two"],

@@ -87,6 +87,8 @@ export { parseLaunchArgs } from "./launch.ts"
 export type { LaunchArgs } from "./launch.ts"
 export { Router, createRouter } from "./nav.ts"
 export type { Route, RouterState, RouterScreen, RouterOptions } from "./nav.ts"
+export { Breakpoints, createBreakpoints, responsive } from "./responsive.ts"
+export type { BreakpointPoints, BreakpointState, BreakpointsOptions, BreakpointValue } from "./responsive.ts"
 export { CAPABILITY_PERMISSIONS, capabilityPermission, createPermissionGate } from "./permissions.ts"
 export {
   dialog,
@@ -122,5 +124,7 @@ export type {
   NotifyOptions,
   ScreenInfo,
   SystemLocale,
+  ThemeOptions,
+  ThemePalette,
   TrayMenuItem,
 } from "./caps.ts"

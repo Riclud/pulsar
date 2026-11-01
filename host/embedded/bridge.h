@@ -75,6 +75,7 @@ signals:
     void appEvent(const QString &event, const QVariant &payload, const QString &target);
     void log(const QString &level, const QString &message, const QString &source);
     void config(const QVariantList &windows);
+    void themeApplied(const QVariantMap &theme);
     void uiTree(const QString &target, const QVariantList &tree);
     void windowCommand(const QVariantMap &command);
     void errorReported(const QString &scope, const QString &message, const QString &stack);

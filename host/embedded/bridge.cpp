@@ -290,6 +290,11 @@ void EmbeddedBridge::handleMessage(const QJsonObject &message)
         return;
     }
 
+    if (method == QLatin1String("__theme")) {
+        Q_EMIT themeApplied(params.toVariantMap());
+        return;
+    }
+
     if (method == QLatin1String("__config")) {
         Q_EMIT config(params.value(QStringLiteral("windows")).toArray().toVariantList());
         return;

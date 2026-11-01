@@ -53,6 +53,8 @@ interface CommonOptions {
   fillHeight?: boolean
   /** Hover tooltip text. */
   tooltip?: string
+  /** Fade opacity changes over this many milliseconds. */
+  animate?: number
 }
 
 export interface LayoutOptions extends CommonOptions {

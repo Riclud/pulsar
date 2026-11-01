@@ -181,6 +181,11 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
 
   registerCapability("screen.list", () => hostQuery("screen.list"))
   registerCapability("theme.get", () => hostQuery("theme.get"))
+  registerCapability("theme.set", (params: unknown) => {
+    send({ jsonrpc: "2.0", method: "__theme", params: params ?? {} })
+
+    return Promise.resolve(true)
+  })
 
   registerCapability("secure.available", () => hostQuery("secure.available"))
   registerCapability("secure.get", (params) => hostQuery("secure.get", params))

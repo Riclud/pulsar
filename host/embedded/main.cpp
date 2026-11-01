@@ -276,6 +276,7 @@ int main(int argc, char **argv)
     QVariantList pendingUiTree;
     bool hasPendingUiTree = false;
     QObject *uiRoot = nullptr;
+    QVariantMap currentTheme;
 
     auto applyUiTree = [&](const QVariantList &tree) {
         if (!uiRoot) {
@@ -309,6 +310,14 @@ int main(int argc, char **argv)
 
                          showError(text);
                      });
+    QObject::connect(&bridge, &EmbeddedBridge::themeApplied, &app, [&](const QVariantMap &theme) {
+        currentTheme = theme;
+
+        for (QObject *root : engine.rootObjects()) {
+            if (root->metaObject()->indexOfProperty("themeData") >= 0)
+                root->setProperty("themeData", theme);
+        }
+    });
     QObject::connect(&bridge, &EmbeddedBridge::uiTree, &app,
                      [&](const QString &target, const QVariantList &tree) {
                          if (!jsUi)
@@ -517,6 +526,9 @@ int main(int argc, char **argv)
 
             if (!pendingError.isEmpty())
                 uiRoot->setProperty("errorText", pendingError);
+
+            if (!currentTheme.isEmpty())
+                uiRoot->setProperty("themeData", currentTheme);
         }
 
         return true;

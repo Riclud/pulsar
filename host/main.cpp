@@ -95,6 +95,7 @@ static QHash<QString, QVariantList> g_uiTrees;
 static QSet<QString> g_requested;
 static QString gPrimaryLabel;
 static bool gShownAny = false;
+static QVariantMap gTheme;
 
 // Must match PROTOCOL_VERSION in core/runtime/protocol.ts.
 static constexpr int kBridgeProtocolVersion = 1;
@@ -325,6 +326,9 @@ static void applyConfig(QObject *root, const WindowConfig &cfg)
 {
     if (!root)
         return;
+
+    if (root->metaObject()->indexOfProperty("themeData") >= 0)
+        root->setProperty("themeData", gTheme);
 
     auto *window = qobject_cast<QQuickWindow *>(root);
 
@@ -1309,6 +1313,13 @@ int main(int argc, char **argv)
                                  qInfo().noquote() << "UI render" << target << "nodes=" << tree.size();
                          } else if (method == QLatin1String("__query")) {
                              handleQuery(bridge, params.toVariant().toMap());
+                         } else if (method == QLatin1String("__theme")) {
+                             gTheme = params.toVariant().toMap();
+
+                             for (QObject *root : engine.rootObjects()) {
+                                 if (root->metaObject()->indexOfProperty("themeData") >= 0)
+                                     root->setProperty("themeData", gTheme);
+                             }
                          } else if (method == QLatin1String("__notify")) {
                              const QVariantMap m = params.toVariant().toMap();
                              bridge->showNotification(m.value(QStringLiteral("title")).toString(),
