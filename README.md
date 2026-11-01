@@ -93,7 +93,7 @@ Requires CMake, a C++20 compiler and a Qt 6 development installation
 ## Quick start
 
 ```sh
-pulsar create my-app      # scaffold (templates: default, windows, tray)
+pulsar create my-app      # scaffold (templates: default, js, windows, tray)
 cd my-app
 pulsar dev                # run with hot reload
 ```
@@ -157,7 +157,7 @@ ApplicationWindow {
 ```
 pulsar <command>
 
-  create <name>  scaffold a new app (--template default|windows|tray)
+  create <name>  scaffold a new app (--template default|js|windows|tray)
   install        download the native toolchain for this platform (--android for APK)
   update         update the CLI to the latest release
   dev            run with hot reload (watch sources)
@@ -666,32 +666,78 @@ app.on("log", (params: { level: string; source: "qml" | "js"; message: string; f
 ## UI from JS
 
 You don't have to write QML: a window declared **without `ui`** is rendered from
-a JS tree built with the `ui` helpers.
+a JS tree built with the `ui` helpers. `pulsar create my-app --template js`
+scaffolds exactly this — a TypeScript app with no QML files.
 
 ```ts
 import { App, ui } from "pulsar"
 
+interface Task {
+  id: string
+  text: string
+  done: boolean
+}
+
 const app = new App()
 
-app
-  .window("main")
-  .render(() =>
-    ui.column({ gap: 8, padding: 12 }, [
-      ui.text({ text: "Count: " + (app.store.get("count") ?? 0) }),
-      ui.button("+1", { onClick: () => app.store.set("count", (app.store.get("count") as number) + 1) }),
-      ui.checkbox("Enabled", { onToggle: (v) => app.store.set("enabled", v) }),
-      ui.textInput({ placeholder: "Name", onInput: (v) => app.store.set("name", v) }),
+app.store.set("tasks", [
+  { id: "1", text: "Try the JS UI", done: true },
+  { id: "2", text: "Write my first app", done: false },
+] as Task[])
+
+app.window("main").render(() => {
+  const tasks = app.store.get("tasks") as Task[]
+
+  return ui.column({ fillWidth: true, fillHeight: true }, [
+    ui.appBar({
+      title: "My tasks",
+      subtitle: `${tasks.filter((task) => !task.done).length} left`,
+      actions: [ui.iconButton("add", { onClick: () => app.store.set("editing", true) })],
+    }),
+    ui.list({
+      items: tasks,
+      keyOf: (task) => task.id,
+      spacing: 8,
+      padding: 12,
+      render: (task) =>
+        ui.card({ padding: 12 }, [
+          ui.row({ gap: 8, fillWidth: true }, [
+            ui.checkbox(task.text, { checked: task.done }),
+            ui.spacer({ fillWidth: true }),
+            ui.iconButton("delete"),
+          ]),
+        ]),
+    }),
+    ui.sheet({ open: app.store.get("editing") === true, title: "New task", fullscreen: true }, [
+      ui.textInput({ placeholder: "What needs doing?" }),
+      ui.button("Add task"),
     ]),
-  )
+  ])
+})
 
 app.run()
 ```
 
 `render` takes a tree or a function; the function is called again whenever
-`Store` changes, so the UI stays in sync. Components: `column`, `row`, `box`,
-`text`, `button`, `textInput`, `checkbox`, `switch`, `slider`, `image`, `spacer`,
-`divider`. QML windows keep working as before — mix freely (some windows in QML,
-some in JS).
+`Store` changes, and the host updates the existing QML objects in place, so
+focus, scroll and input state survive a re-render.
+
+| Group     | Components                                                          |
+| --------- | ------------------------------------------------------------------- |
+| Layout    | `column`, `row`, `box`, `scroll`, `spacer`, `divider`               |
+| Content   | `text`, `image`, `icon`, `button`, `iconButton`, `chip`, `progress` |
+| Input     | `textInput`, `checkbox`, `switch`, `slider`, `select`               |
+| Structure | `list`, `card`, `appBar`, `sheet`                                   |
+
+- `list` virtualizes rows and keeps them stable through `keyOf`.
+- `icon` and `iconButton` take [Material Icons](https://fonts.google.com/icons)
+  names such as `add`, `delete`, `edit`, `check`, `arrow_back`, `close`.
+- Cards, bars, chips and sheets follow the system light/dark palette; every
+  component also accepts explicit `color`, `size`, `width` and `height`.
+- `sheet` is an in-tree overlay (scrim + panel), not a native popup, so taps
+  inside it work the same on desktop and Android.
+- QML windows keep working as before — mix freely (some windows in QML, some in
+  JS).
 
 ## QML API
 

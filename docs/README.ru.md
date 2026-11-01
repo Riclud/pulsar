@@ -95,7 +95,7 @@ bun cli/index.ts doctor   # проверка
 ## Быстрый старт
 
 ```sh
-pulsar create my-app      # скаффолд (шаблоны: default, windows, tray)
+pulsar create my-app      # скаффолд (шаблоны: default, js, windows, tray)
 cd my-app
 pulsar dev                # запуск с горячей перезагрузкой
 ```
@@ -160,7 +160,7 @@ ApplicationWindow {
 ```
 pulsar <command>
 
-  create <name>  создать новое приложение (--template default|windows|tray)
+  create <name>  создать новое приложение (--template default|js|windows|tray)
   install        скачать нативный toolchain для этой платформы (--android для APK)
   update         обновить CLI до последнего релиза
   dev            запуск с горячей перезагрузкой (следит за исходниками)
@@ -670,32 +670,79 @@ app.on("log", (params: { level: string; source: "qml" | "js"; message: string; f
 ## UI из JS
 
 Не обязательно писать QML: окно, объявленное **без `ui`**, рендерится из дерева
-на JS, собранного хелперами `ui`.
+на JS, собранного хелперами `ui`. `pulsar create my-app --template js` создаёт
+ровно такое приложение — на TypeScript, без единого QML-файла.
 
 ```ts
 import { App, ui } from "pulsar"
 
+interface Task {
+  id: string
+  text: string
+  done: boolean
+}
+
 const app = new App()
 
-app
-  .window("main")
-  .render(() =>
-    ui.column({ gap: 8, padding: 12 }, [
-      ui.text({ text: "Count: " + (app.store.get("count") ?? 0) }),
-      ui.button("+1", { onClick: () => app.store.set("count", (app.store.get("count") as number) + 1) }),
-      ui.checkbox("Enabled", { onToggle: (v) => app.store.set("enabled", v) }),
-      ui.textInput({ placeholder: "Name", onInput: (v) => app.store.set("name", v) }),
+app.store.set("tasks", [
+  { id: "1", text: "Try the JS UI", done: true },
+  { id: "2", text: "Write my first app", done: false },
+] as Task[])
+
+app.window("main").render(() => {
+  const tasks = app.store.get("tasks") as Task[]
+
+  return ui.column({ fillWidth: true, fillHeight: true }, [
+    ui.appBar({
+      title: "My tasks",
+      subtitle: `${tasks.filter((task) => !task.done).length} left`,
+      actions: [ui.iconButton("add", { onClick: () => app.store.set("editing", true) })],
+    }),
+    ui.list({
+      items: tasks,
+      keyOf: (task) => task.id,
+      spacing: 8,
+      padding: 12,
+      render: (task) =>
+        ui.card({ padding: 12 }, [
+          ui.row({ gap: 8, fillWidth: true }, [
+            ui.checkbox(task.text, { checked: task.done }),
+            ui.spacer({ fillWidth: true }),
+            ui.iconButton("delete"),
+          ]),
+        ]),
+    }),
+    ui.sheet({ open: app.store.get("editing") === true, title: "New task", fullscreen: true }, [
+      ui.textInput({ placeholder: "What needs doing?" }),
+      ui.button("Add task"),
     ]),
-  )
+  ])
+})
 
 app.run()
 ```
 
 `render` принимает дерево или функцию; функция вызывается заново при изменении
-`Store`, поэтому UI остаётся синхронным. Компоненты: `column`, `row`, `box`,
-`text`, `button`, `textInput`, `checkbox`, `switch`, `slider`, `image`, `spacer`,
-`divider`. QML-окна работают как раньше — можно смешивать (часть окон на QML,
-часть на JS).
+`Store`, а хост обновляет существующие QML-объекты на месте, поэтому фокус,
+скролл и ввод переживают перерисовку.
+
+| Группа    | Компоненты                                                          |
+| --------- | ------------------------------------------------------------------- |
+| Раскладка | `column`, `row`, `box`, `scroll`, `spacer`, `divider`               |
+| Контент   | `text`, `image`, `icon`, `button`, `iconButton`, `chip`, `progress` |
+| Ввод      | `textInput`, `checkbox`, `switch`, `slider`, `select`               |
+| Структура | `list`, `card`, `appBar`, `sheet`                                   |
+
+- `list` виртуализирует строки и сохраняет их стабильными через `keyOf`.
+- `icon` и `iconButton` принимают имена
+  [Material Icons](https://fonts.google.com/icons): `add`, `delete`, `edit`,
+  `check`, `arrow_back`, `close` и т.д.
+- Карточки, бары, чипы и шторки следуют системной светлой/тёмной палитре; у
+  любого компонента можно задать `color`, `size`, `width` и `height`.
+- `sheet` — это оверлей внутри дерева (затемнение + панель), а не нативный
+  popup, поэтому тапы внутри него одинаково работают на десктопе и Android.
+- QML-окна работают как раньше — можно смешивать (часть окон на QML, часть на
+  JS).
 
 ## QML API
 

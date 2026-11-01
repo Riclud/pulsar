@@ -36,6 +36,16 @@ The JavaScript/TypeScript layer depends on the packages listed in the lockfile
 (`bun.lock`). Their licenses are recorded in their respective `package.json`
 files inside `node_modules`.
 
+## Material Icons — UI icon font (Apache-2.0)
+
+The JS UI renderer bundles the Material Icons font
+(`host/qml/fonts/MaterialIcons.ttf`) for `icon` and `iconButton` nodes.
+Material Design Icons are licensed under the Apache License 2.0.
+
+- Source: https://github.com/google/material-design-icons
+- License text: `host/qml/fonts/LICENSE-MaterialIcons.txt`
+- Apache-2.0: https://www.apache.org/licenses/LICENSE-2.0
+
 ## Acknowledgements
 
 Qt is a trademark of The Qt Company Ltd. This project is not affiliated with or

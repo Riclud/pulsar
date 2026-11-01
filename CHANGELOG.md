@@ -14,6 +14,18 @@ All notable changes to this project are documented here. The format follows
   WebSockets and needs the `net` permission.
 - Qt WebSockets is now a build dependency; release toolchains and Android Qt
   bundles ship it.
+- JS UI kit for QML-free apps: `card`, `appBar`, `list`, `scroll`, `icon`,
+  `iconButton`, `chip`, `sheet`, `progress` and `select`, a light/dark theme and
+  the Material Icons font. Re-renders now reconcile existing QML objects
+  instead of rebuilding the tree, preserving focus and scroll.
+- `pulsar create --template js`: a TypeScript-only starter with no QML files.
+
+### Fixed
+
+- `Store.set` stores the new value before notifying listeners, so a UI render
+  triggered by a change sees the updated state instead of the previous one.
+- Checkboxes and switches no longer emit `toggle` when their checked state is
+  set programmatically, which could otherwise loop through the app store.
 
 ## [1.0.1] - 2026-10-31
 
