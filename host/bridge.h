@@ -12,6 +12,7 @@
 
 class QQmlPropertyMap;
 class QMenu;
+class QMenuBar;
 class QSystemTrayIcon;
 
 class Bridge : public QObject {
@@ -50,6 +51,9 @@ public:
     Q_INVOKABLE void setTrayTooltip(const QString &text);
     Q_INVOKABLE void setTrayMenu(const QVariantList &items);
     Q_INVOKABLE void hideTray();
+
+    // Replace the native application menu (macOS global bar).
+    void setAppMenu(const QVariantList &items);
 
     // Native notification; emits __event notification-click with the token and
     // notification-action with the token plus the action id.
@@ -119,6 +123,7 @@ private:
 
     QSystemTrayIcon *tray_ = nullptr;
     QMenu *trayMenu_ = nullptr;
+    QMenuBar *appMenuBar_ = nullptr;
     QString lastNotifyToken_;
 #ifdef PULSAR_HAS_DBUS
     QHash<uint, QString> dbusNotifyTokens_;

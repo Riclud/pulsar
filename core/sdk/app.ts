@@ -39,6 +39,20 @@ export interface AppConfig {
   icon?: string
 }
 
+export interface MenuItem {
+  /** Event id reported in the `menu` event when the item is chosen. */
+  id?: string
+  label?: string
+  /** Draw a separator instead of an item. */
+  separator?: boolean
+  enabled?: boolean
+  checked?: boolean
+  /** For example "Ctrl+S" or "CmdOrCtrl+S". */
+  shortcut?: string
+  /** Submenu items. A top-level item without `items` is ignored. */
+  items?: MenuItem[]
+}
+
 export type EventHandler = (payload: never) => void
 
 /** Payloads of the lifecycle/UI events the host and tray emit. */
@@ -63,6 +77,7 @@ export interface PulsarEventMap {
   "power-suspend": Record<string, never>
   "power-resume": Record<string, never>
   "power-source": { onBattery: boolean }
+  menu: { id: string }
   "notification-click": { token: string }
   "notification-action": { token: string; id: string }
   "open-file": { path: string }
@@ -328,11 +343,14 @@ export class App {
   onAddRecentDocument?: (path: string) => void
   /** Installed by the runtime; clears the OS recent list. */
   onClearRecentDocuments?: () => void
+  /** Installed by the runtime; builds the native menu bar. */
+  onSetMenu?: (items: MenuItem[]) => void
 
   private readonly renderSources = new Map<string, () => UiNode[]>()
   private readonly sentTrees = new Map<string, string>()
   private readonly sentIds = new Map<string, number[]>()
   private readonly pendingRecent: Array<{ action: "add" | "clear"; path?: string }> = []
+  private lastMenu: MenuItem[] | null = null
   private readonly pendingRender = new Set<string>()
   private uiFocusCount = 0
 
@@ -407,6 +425,21 @@ export class App {
     }
 
     this.onClearRecentDocuments()
+  }
+
+  /**
+   * Replace the application menu. Call it again after changing `checked`
+   * states; choosing an item emits the `menu` event with its id. Native menu
+   * bars are only supported on macOS; other platforms ignore the call.
+   */
+  setMenu(items: MenuItem[]): void {
+    this.lastMenu = items
+    this.onSetMenu?.(items)
+  }
+
+  /** Re-send the menu after the runtime wires its handler. */
+  flushMenu(): void {
+    if (this.lastMenu) this.onSetMenu?.(this.lastMenu)
   }
 
   /** Flush recent-document calls made before the runtime wired its handlers. */

@@ -304,6 +304,29 @@ by `.gitignore`, but never one of the built-in exclusions.
 `App` derives its config from the first manifest window; explicit options
 passed to `new App({...})` override the manifest.
 
+### Native menu bar
+
+```ts
+app.setMenu([
+  {
+    label: "File",
+    items: [
+      { id: "new", label: "New task", shortcut: "CmdOrCtrl+N" },
+      { separator: true },
+      { id: "hide", label: "Hide done", checked: app.store.get("hideDone") === true },
+    ],
+  },
+])
+
+app.on("menu", ({ id }) => {
+  if (id === "new") app.store.set("composing", true)
+})
+```
+
+The menu is built natively in the macOS global menu bar; Linux and Windows
+currently ignore it. Call `setMenu` again to refresh `checked` states. An item
+with `items` becomes a submenu; choosing a leaf emits `menu` with its `id`.
+
 ### Permissions
 
 `permissions` declares the OS-facing capabilities the app may use. When the

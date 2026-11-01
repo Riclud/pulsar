@@ -291,7 +291,9 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
       app.onSendUi = (label, tree) => send({ jsonrpc: "2.0", method: "__ui", params: { target: label, tree } })
       app.onAddRecentDocument = (path) => send({ jsonrpc: "2.0", method: "__recent", params: { action: "add", path } })
       app.onClearRecentDocuments = () => send({ jsonrpc: "2.0", method: "__recent", params: { action: "clear" } })
+      app.onSetMenu = (items) => send({ jsonrpc: "2.0", method: "__menu", params: { items } })
       app.flushRecentDocuments()
+      app.flushMenu()
 
       send({ jsonrpc: "2.0", method: "__config", params: { windows: app.windows } })
       app.flushAllUi()

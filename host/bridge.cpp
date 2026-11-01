@@ -10,6 +10,7 @@
 #include <QGuiApplication>
 #include <QIcon>
 #include <QMenu>
+#include <QMenuBar>
 #include <QMessageBox>
 #include <QSystemTrayIcon>
 #include <QStyleHints>
@@ -17,6 +18,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <functional>
 #include <QQmlPropertyMap>
 #include <QTimer>
 #ifdef PULSAR_HAS_DBUS
@@ -480,6 +482,81 @@ void Bridge::onDBusNotificationClosed(uint id, uint)
     dbusNotifyTokens_.remove(id);
 }
 #endif
+
+void Bridge::setAppMenu(const QVariantList &items)
+{
+#ifdef Q_OS_MACOS
+    if (!appMenuBar_) {
+        appMenuBar_ = new QMenuBar(nullptr);
+        appMenuBar_->setNativeMenuBar(true);
+    }
+
+    appMenuBar_->clear();
+
+    QMenu *appMenu = appMenuBar_->addMenu(QCoreApplication::applicationName());
+    QAction *quit = appMenu->addAction(QStringLiteral("Quit"), qApp, &QCoreApplication::quit);
+    quit->setShortcut(QKeySequence(QKeySequence::Quit));
+
+    std::function<void(QMenu *, const QVariantList &)> fill;
+
+    fill = [this, &fill](QMenu *menu, const QVariantList &list) {
+        for (const QVariant &entry : list) {
+            const QVariantMap item = entry.toMap();
+
+            if (item.value(QStringLiteral("separator")).toBool()) {
+                menu->addSeparator();
+                continue;
+            }
+
+            const QString label = item.value(QStringLiteral("label")).toString();
+            const QVariantList children = item.value(QStringLiteral("items")).toList();
+
+            if (!children.isEmpty()) {
+                fill(menu->addMenu(label), children);
+                continue;
+            }
+
+            QAction *action = menu->addAction(label);
+
+            action->setEnabled(item.value(QStringLiteral("enabled"), true).toBool());
+
+            if (item.contains(QStringLiteral("checked"))) {
+                action->setCheckable(true);
+                action->setChecked(item.value(QStringLiteral("checked")).toBool());
+            }
+
+            const QString shortcut = item.value(QStringLiteral("shortcut")).toString();
+
+            if (!shortcut.isEmpty())
+                action->setShortcut(QKeySequence(shortcut));
+
+            const QString id = item.value(QStringLiteral("id")).toString();
+
+            if (id.isEmpty())
+                continue;
+
+            QObject::connect(action, &QAction::triggered, menu, [this, id]() {
+                QJsonObject data;
+                data.insert(QStringLiteral("id"), id);
+
+                QJsonObject params;
+                params.insert(QStringLiteral("name"), QStringLiteral("menu"));
+                params.insert(QStringLiteral("data"), data);
+                notify(QStringLiteral("__event"), params);
+            });
+        }
+    };
+
+    for (const QVariant &entry : items) {
+        const QVariantMap item = entry.toMap();
+
+        fill(appMenuBar_->addMenu(item.value(QStringLiteral("label")).toString()),
+             item.value(QStringLiteral("items")).toList());
+    }
+#else
+    Q_UNUSED(items)
+#endif
+}
 
 QString Bridge::colorScheme() const
 {

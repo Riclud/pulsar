@@ -8,6 +8,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Native macOS menu bar from `app.setMenu([...])`: nested menus, separators,
+  shortcuts and checkable items; choosing an item emits `menu` with its id.
+  Linux and Windows ignore the call for now.
 - Desktop power monitor: `system.power()` returns the power source, battery
   state and percentage; `power-suspend`, `power-resume` and `power-source`
   events fire on sleep and on AC/battery changes. Linux uses logind and UPower

@@ -1329,6 +1329,9 @@ int main(int argc, char **argv)
                              QDesktopServices::openUrl(QUrl::fromLocalFile(path));
                          } else if (method == QLatin1String("__tray")) {
                              handleTrayCommand(params.toVariant().toMap());
+                         } else if (method == QLatin1String("__menu")) {
+                             bridge->setAppMenu(
+                                 params.toVariant().toMap().value(QStringLiteral("items")).toList());
                          } else if (method == QLatin1String("__recent")) {
                              handleRecentCommand(params.toVariant().toMap());
                          } else if (method == QLatin1String("__net")) {

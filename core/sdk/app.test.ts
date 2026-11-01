@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { App, Store, WindowHandle } from "./app.ts"
+import { App, Store, WindowHandle, type MenuItem } from "./app.ts"
 import { registerCapability } from "./caps.ts"
 
 describe("Store", () => {
@@ -85,6 +85,23 @@ describe("Store", () => {
 
     expect(notified).toBe(2)
     expect(store.takePatch().changed).toEqual({ late: null, dynamic: { ready: true } })
+  })
+})
+
+describe("App menu", () => {
+  test("sends the menu once the runtime is wired", () => {
+    const app = new App()
+    const seen: MenuItem[][] = []
+
+    app.setMenu([{ label: "File", items: [{ id: "save", label: "Save", shortcut: "Ctrl+S" }] }])
+    expect(seen).toHaveLength(0)
+
+    app.onSetMenu = (items) => seen.push(items)
+    app.flushMenu()
+
+    expect(seen).toHaveLength(1)
+    expect(seen[0]![0]!.label).toBe("File")
+    expect(seen[0]![0]!.items![0]!.id).toBe("save")
   })
 })
 
