@@ -6,12 +6,23 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `Sheet` / `Modal` take `dismissible` (default `true`) and `duration` (fade
+  time in ms, default 140). `dismissible: false` keeps the overlay open on a
+  backdrop tap.
+
 ### Changed
 
 - `Store.set` is a no-op when the new value is deeply equal to the current one
   (same JSON), so polling sync loops no longer re-render unchanged lists.
 
 ### Fixed
+
+- Taps inside a sheet panel no longer fall through to the backdrop and close
+  the overlay, and the tap that opened a sheet no longer closes it.
+- Sheets fade in and out on opacity instead of scaling, which is cheaper for
+  large trees on mobile.
 
 - Desktop file dialogs on Linux use the Qt dialog instead of the platform
   theme's native one, so the picker lists files under a KDE theme outside

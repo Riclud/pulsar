@@ -840,7 +840,9 @@ app.run()
   `on*` — обработчики событий.
 - `For({ each, keyOf, render })` строит прокручиваемый список и сохраняет строки по ключу.
 - `Modal` / `Sheet` — оверлей внутри дерева, одинаково работает на десктопе и
-  Android.
+  Android. Появляется и исчезает через opacity (`duration` в мс), не пропускает
+  тапы из панели наружу и не закрывается тем же жестом, которым открыли.
+  `dismissible: false` запрещает закрытие тапом по фону.
 - `Icon` и `IconButton` принимают имена
   [Material Icons](https://fonts.google.com/icons): `add`, `delete`, `edit`,
   `check`, `arrow_back`, `close`.

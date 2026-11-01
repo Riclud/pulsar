@@ -206,13 +206,30 @@ ApplicationWindow {
             id: sheetRoot
 
             anchors.fill: parent
-            visible: false
+            visible: open || opacity > 0
+            opacity: open ? 1 : 0
+            property bool open: false
+            property bool dismissible: true
+            property int fadeDuration: 140
+            property real openedAT: 0
             property var pulsarMeta: null
             property var nodeData: null
             property alias contentLayout: sheetContent
             property alias titleLabel: sheetTitle
             property alias panel: sheetPanel
             property alias closeButton: sheetClose
+
+            onOpenChanged: {
+                if (open)
+                    openedAT = Date.now();
+            }
+
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: sheetRoot.fadeDuration
+                    easing.type: Easing.OutCubic
+                }
+            }
 
             Rectangle {
                 anchors.fill: parent
@@ -221,7 +238,13 @@ ApplicationWindow {
 
             MouseArea {
                 anchors.fill: parent
-                onClicked: view.emitNodeEvent(sheetRoot.nodeData, "close")
+                onClicked: {
+                    if (!sheetRoot.dismissible)
+                        return;
+                    if (Date.now() - sheetRoot.openedAT < 250)
+                        return;
+                    view.emitNodeEvent(sheetRoot.nodeData, "close");
+                }
             }
 
             Rectangle {
@@ -231,6 +254,10 @@ ApplicationWindow {
                 height: Math.min(parent.height - 48, 720)
                 radius: view.themeRadius
                 color: view.themeSurface
+
+                MouseArea {
+                    anchors.fill: parent
+                }
 
                 ColumnLayout {
                     anchors.fill: parent
@@ -776,7 +803,9 @@ ApplicationWindow {
             });
         } else if (node.type === "sheet") {
             item.nodeData = node;
-            item.visible = prop(props, "open", true);
+            item.dismissible = prop(props, "dismissible", true);
+            item.fadeDuration = prop(props, "duration", 140);
+            item.open = prop(props, "open", true);
             item.titleLabel.text = prop(props, "title", "");
             item.closeButton.visible = hasEvent(node, "close");
 

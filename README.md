@@ -837,7 +837,9 @@ scroll and input state survive a re-render.
   `on*` props are event handlers.
 - `For({ each, keyOf, render })` builds a scrollable list and keeps rows stable by key.
 - `Modal` / `Sheet` is an in-tree overlay, so it behaves the same on desktop and
-  Android.
+  Android. It fades in and out (opacity only, `duration` in ms), swallows taps
+  inside the panel, and does not close from the gesture that opened it. Pass
+  `dismissible: false` to disable closing on a backdrop tap.
 - `Icon` and `IconButton` take [Material Icons](https://fonts.google.com/icons)
   names such as `add`, `delete`, `edit`, `check`, `arrow_back`, `close`.
 - The lower-level `ui.column(...)`, `ui.button(...)` factories remain available;

@@ -155,6 +155,8 @@ export interface SheetOptions extends CommonOptions {
   open?: boolean
   title?: string
   fullscreen?: boolean
+  dismissible?: boolean
+  duration?: number
   onClose?: () => void
 }
 
