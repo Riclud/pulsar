@@ -218,6 +218,10 @@ pulsar shot --out shot.png
 the app window over the dev channel. These commands need a JS UI tree, so they
 apply to JS-rendered windows, not `ui/main.qml` apps.
 
+An uncaught error shows a full-screen overlay with a Reload button. While the
+dev server runs, stack frames are mapped back to your TypeScript sources in the
+terminal and in the overlay.
+
 ## The manifest — `pulsar.json`
 
 One file drives the app config and packaging.
