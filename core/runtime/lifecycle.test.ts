@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, spyOn, test } from "bun:test"
 import type { AppPaths, Platform } from "../platform.ts"
 import { App, Button } from "../sdk/index.ts"
 import { createRuntime } from "./core.ts"
@@ -113,6 +113,7 @@ describe("lifecycle events", () => {
   test("a throwing UI handler reports __error", async () => {
     const app = harness()
     const instance = new App()
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {})
 
     app.runtime.wireApp()
 
@@ -133,6 +134,7 @@ describe("lifecycle events", () => {
 
     app.deliver({ jsonrpc: "2.0", id: 5, method: "ui-event", params: { id: button!.id, event: "click" } })
     await flush()
+    errorSpy.mockRestore()
 
     const error = app.sent.find((message) => message.method === "__error") as
       { params?: { message?: string } } | undefined
