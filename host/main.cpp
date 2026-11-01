@@ -51,6 +51,15 @@ static pulsar::NetworkService *gNet = nullptr;
 // Keychain entries are scoped to the app id; set once from pulsar.json.
 static QString gSecureService;
 
+static QFileDialog::Options dialogOptions()
+{
+#ifdef Q_OS_LINUX
+    return QFileDialog::DontUseNativeDialog;
+#else
+    return QFileDialog::Options();
+#endif
+}
+
 struct WindowConfig {
     QString label;
     QString ui;
@@ -732,7 +741,7 @@ static void handleDialogRequest(const QVariantMap &m)
     // Defer out of the response handler before opening a modal dialog.
     QTimer::singleShot(0, QCoreApplication::instance(), [bridge, token, kind, title, filter, dir, text]() {
         if (kind == QLatin1String("open-files")) {
-            const QStringList files = QFileDialog::getOpenFileNames(nullptr, title, dir, filter);
+            const QStringList files = QFileDialog::getOpenFileNames(nullptr, title, dir, filter, nullptr, dialogOptions());
 
             QJsonArray array;
             for (const QString &file : files)
@@ -748,11 +757,12 @@ static void handleDialogRequest(const QVariantMap &m)
 
         QString result;
         if (kind == QLatin1String("open"))
-            result = QFileDialog::getOpenFileName(nullptr, title, dir, filter);
+            result = QFileDialog::getOpenFileName(nullptr, title, dir, filter, nullptr, dialogOptions());
         else if (kind == QLatin1String("open-directory"))
-            result = QFileDialog::getExistingDirectory(nullptr, title, dir);
+            result = QFileDialog::getExistingDirectory(nullptr, title, dir,
+                                                       QFileDialog::ShowDirsOnly | dialogOptions());
         else if (kind == QLatin1String("save"))
-            result = QFileDialog::getSaveFileName(nullptr, title, dir, filter);
+            result = QFileDialog::getSaveFileName(nullptr, title, dir, filter, nullptr, dialogOptions());
         else if (kind == QLatin1String("message"))
             QMessageBox::information(nullptr, title, text);
 

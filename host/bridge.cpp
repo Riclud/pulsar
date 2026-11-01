@@ -26,6 +26,15 @@ constexpr quint8 kFrameControl = 0x01;
 constexpr quint8 kFrameData = 0x02;
 constexpr quint32 kMaxFrame = 64u << 20; // 64 MiB, mirrors core/runtime/protocol.ts
 
+QFileDialog::Options dialogOptions()
+{
+#ifdef Q_OS_LINUX
+    return QFileDialog::DontUseNativeDialog;
+#else
+    return QFileDialog::Options();
+#endif
+}
+
 quint32 readU32LE(const char *p)
 {
     return quint32(quint8(p[0])) | (quint32(quint8(p[1])) << 8) | (quint32(quint8(p[2])) << 16)
@@ -222,12 +231,12 @@ QString Bridge::clipboardText() const
 
 QString Bridge::openFile(const QString &title, const QString &filter, const QString &dir)
 {
-    return QFileDialog::getOpenFileName(nullptr, title, dir, filter);
+    return QFileDialog::getOpenFileName(nullptr, title, dir, filter, nullptr, dialogOptions());
 }
 
 QString Bridge::saveFile(const QString &title, const QString &filter, const QString &dir)
 {
-    return QFileDialog::getSaveFileName(nullptr, title, dir, filter);
+    return QFileDialog::getSaveFileName(nullptr, title, dir, filter, nullptr, dialogOptions());
 }
 
 void Bridge::message(const QString &title, const QString &text)

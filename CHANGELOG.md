@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Desktop file dialogs on Linux use the Qt dialog instead of the platform
+  theme's native one, so the picker lists files under a KDE theme outside
+  Plasma instead of failing with `Unknown protocol "file"`.
+
 ## [1.1.0] - 2026-11-01
 
 ### Added
