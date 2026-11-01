@@ -85,6 +85,8 @@ export { loadManifest, resolveAppConfig, resolveWindows, setManifest } from "./m
 export type { AppManifest, FileAssociation, ManifestWindow } from "./manifest.ts"
 export { parseLaunchArgs } from "./launch.ts"
 export type { LaunchArgs } from "./launch.ts"
+export { Router, createRouter } from "./nav.ts"
+export type { Route, RouterState, RouterScreen, RouterOptions } from "./nav.ts"
 export { CAPABILITY_PERMISSIONS, capabilityPermission, createPermissionGate } from "./permissions.ts"
 export {
   dialog,
