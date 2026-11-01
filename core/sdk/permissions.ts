@@ -50,6 +50,7 @@ export const CAPABILITY_PERMISSIONS: Record<string, string> = {
   "device.keepAwake": "device",
   "permissions.request": "permissions",
   "permissions.check": "permissions",
+  "notification.channel": "notify",
   "fs.watch": "fs",
   "fs.unwatch": "fs",
   tray: "tray",

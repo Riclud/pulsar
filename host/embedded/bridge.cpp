@@ -230,6 +230,14 @@ void EmbeddedBridge::finishFileExport(bool ok)
     reply(QStringLiteral("__export-result"), replyParams);
 }
 
+void EmbeddedBridge::finishNotificationClick(const QString &token)
+{
+    QJsonObject data;
+    data.insert(QStringLiteral("token"), token);
+
+    notify(QStringLiteral("notification-click"), data);
+}
+
 void EmbeddedBridge::finishPermission(const QString &name, bool granted)
 {
     const QString token = pendingPermissionTokens_.take(name);
@@ -402,6 +410,37 @@ void EmbeddedBridge::handleMessage(const QJsonObject &message)
                                ? QJsonValue(true)
                                : QJsonValue::Null);
         reply(QStringLiteral("__dialog-result"), replyParams);
+        return;
+    }
+
+    if (method == QLatin1String("__notify")) {
+#ifdef Q_OS_ANDROID
+        const QJniObject activity = QNativeInterface::QAndroidApplication::context();
+
+        if (activity.isValid())
+            activity.callMethod<void>("showNotification", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
+                                      QJniObject::fromString(params.value(QStringLiteral("token")).toString())
+                                          .object<jstring>(),
+                                      QJniObject::fromString(params.value(QStringLiteral("title")).toString())
+                                          .object<jstring>(),
+                                      QJniObject::fromString(params.value(QStringLiteral("body")).toString())
+                                          .object<jstring>());
+#endif
+        return;
+    }
+
+    if (method == QLatin1String("__notify-channel")) {
+#ifdef Q_OS_ANDROID
+        const QJniObject activity = QNativeInterface::QAndroidApplication::context();
+
+        if (activity.isValid())
+            activity.callMethod<void>("createNotificationChannel", "(Ljava/lang/String;Ljava/lang/String;I)V",
+                                      QJniObject::fromString(params.value(QStringLiteral("id")).toString())
+                                          .object<jstring>(),
+                                      QJniObject::fromString(params.value(QStringLiteral("name")).toString())
+                                          .object<jstring>(),
+                                      params.value(QStringLiteral("importance")).toInt(3));
+#endif
         return;
     }
 

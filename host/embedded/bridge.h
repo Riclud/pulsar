@@ -57,6 +57,9 @@ public:
     /** Resolve a pending OS permission request. */
     void finishPermission(const QString &name, bool granted);
 
+    /** Report a notification tap back to the app. */
+    void finishNotificationClick(const QString &token);
+
     /** Send a raw JSON-RPC notification to the JS runtime. */
     void notifyMethod(const QString &method, const QJsonObject &params);
 

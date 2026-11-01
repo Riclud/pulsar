@@ -206,6 +206,12 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
   registerCapability("permissions.request", (params) => hostQuery("permissions.request", params))
   registerCapability("permissions.check", (params) => hostQuery("permissions.check", params))
 
+  registerCapability("notification.channel", (params: unknown) => {
+    send({ jsonrpc: "2.0", method: "__notify-channel", params: params ?? {} })
+
+    return Promise.resolve(true)
+  })
+
   registerCapability("share", (params: unknown) => {
     send({ jsonrpc: "2.0", method: "__share", params: params ?? {} })
 

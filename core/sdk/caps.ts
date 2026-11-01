@@ -217,8 +217,18 @@ export interface NotifyOptions {
  * With `actions`, each button reports `notification-action` with the token and
  * the action id (Linux D-Bus only; other platforms show the plain body).
  */
+export interface NotificationChannelOptions {
+  id: string
+  name?: string
+  /** Android importance: 1 min, 2 low, 3 default, 4 high. */
+  importance?: number
+}
+
 export const notify = {
   show: (options: NotifyOptions): Promise<string> => callCapability("shell.notify", options) as Promise<string>,
+  /** Create (or reuse) an Android notification channel. */
+  channel: (options: NotificationChannelOptions): Promise<boolean> =>
+    callCapability("notification.channel", options) as Promise<boolean>,
 }
 
 export interface ScreenInfo {

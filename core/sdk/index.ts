@@ -126,6 +126,7 @@ export type {
   FileStat,
   FsEncoding,
   MessageDialogOptions,
+  NotificationChannelOptions,
   NotifyOptions,
   Orientation,
   OSPermission,

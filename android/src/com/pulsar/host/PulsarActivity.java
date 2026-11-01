@@ -1,11 +1,17 @@
 package com.pulsar.host;
 
 import android.app.Dialog;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.ContentValues;
+import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Environment;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
@@ -22,6 +28,7 @@ import android.widget.VideoView;
 import android.webkit.MimeTypeMap;
 import android.widget.Toast;
 
+import androidx.core.app.NotificationCompat;
 import androidx.core.content.FileProvider;
 
 import org.json.JSONArray;
@@ -47,8 +54,40 @@ public class PulsarActivity extends QtActivity {
 
     private static native void permissionResult(String name, boolean granted);
 
+    private static native void notificationClicked(String token);
+
+    private static final String DEFAULT_NOTIFICATION_CHANNEL = "pulsar";
+    private static final String NOTIFICATION_TOKEN_EXTRA = "pulsarNotificationToken";
+
     private Dialog videoDialog;
     private String pendingPermissionName;
+    private int nextNotificationID = 1000;
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        handleNotificationIntent(getIntent());
+    }
+
+    @Override
+    public void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleNotificationIntent(intent);
+    }
+
+    private void handleNotificationIntent(Intent intent) {
+        if (intent == null)
+            return;
+
+        String token = intent.getStringExtra(NOTIFICATION_TOKEN_EXTRA);
+
+        if (token == null || token.isEmpty())
+            return;
+
+        intent.removeExtra(NOTIFICATION_TOKEN_EXTRA);
+        notificationClicked(token);
+    }
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
@@ -226,6 +265,52 @@ public class PulsarActivity extends QtActivity {
             }
 
             setRequestedOrientation(value);
+        });
+    }
+
+    public void createNotificationChannel(String id, String name, int importance) {
+        runOnUiThread(() -> {
+            if (Build.VERSION.SDK_INT < 26)
+                return;
+
+            NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+
+            if (manager == null || manager.getNotificationChannel(id) != null)
+                return;
+
+            manager.createNotificationChannel(new NotificationChannel(id, name, importance));
+        });
+    }
+
+    public void showNotification(String token, String title, String body) {
+        runOnUiThread(() -> {
+            NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+
+            if (manager == null)
+                return;
+
+            if (Build.VERSION.SDK_INT >= 26 && manager.getNotificationChannel(DEFAULT_NOTIFICATION_CHANNEL) == null) {
+                manager.createNotificationChannel(new NotificationChannel(
+                        DEFAULT_NOTIFICATION_CHANNEL, "Pulsar", NotificationManager.IMPORTANCE_DEFAULT));
+            }
+
+            Intent intent = new Intent(this, PulsarActivity.class);
+
+            intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            intent.putExtra(NOTIFICATION_TOKEN_EXTRA, token);
+
+            PendingIntent pending = PendingIntent.getActivity(this, token.hashCode() & 0x7fffffff, intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+            Notification notification = new NotificationCompat.Builder(this, DEFAULT_NOTIFICATION_CHANNEL)
+                    .setSmallIcon(android.R.drawable.ic_dialog_info)
+                    .setContentTitle(title)
+                    .setContentText(body)
+                    .setAutoCancel(true)
+                    .setContentIntent(pending)
+                    .build();
+
+            manager.notify(nextNotificationID++, notification);
         });
     }
 
