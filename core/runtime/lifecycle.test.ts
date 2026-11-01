@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { AppPaths, Platform } from "../platform.ts"
-import { App } from "../sdk/index.ts"
+import { App, Button } from "../sdk/index.ts"
 import { createRuntime } from "./core.ts"
 import type { Transport } from "./framing.ts"
 
@@ -108,6 +108,36 @@ describe("lifecycle events", () => {
 
     expect(seen).toEqual(["back"])
     expect(app.sent.some((message) => message.method === "__quit")).toBe(false)
+  })
+
+  test("a throwing UI handler reports __error", async () => {
+    const app = harness()
+    const instance = new App()
+
+    app.runtime.wireApp()
+
+    let button: ReturnType<typeof Button> | undefined
+
+    instance.window("main").render(() => {
+      button = Button({
+        label: "Boom",
+        onClick: () => {
+          throw new Error("boom in ui")
+        },
+      })
+
+      return button
+    })
+
+    await flush()
+
+    app.deliver({ jsonrpc: "2.0", id: 5, method: "ui-event", params: { id: button!.id, event: "click" } })
+    await flush()
+
+    const error = app.sent.find((message) => message.method === "__error") as
+      { params?: { message?: string } } | undefined
+
+    expect(error?.params?.message).toContain("boom in ui")
   })
 
   test("pause and resume reach the app", async () => {

@@ -305,7 +305,11 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
 
     if (req.method === "__event") {
       if (params.name === "ui-event") {
-        handleUiEvent(params.data ?? {})
+        try {
+          handleUiEvent(params.data ?? {})
+        } catch (e) {
+          reportError("ui event", e)
+        }
 
         return
       }
@@ -380,7 +384,11 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
     inRequest = true
     try {
       if (req.method === "ui-event") {
-        handleUiEvent(req.params ?? {})
+        try {
+          handleUiEvent(req.params ?? {})
+        } catch (e) {
+          reportError("ui event", e)
+        }
 
         send({ jsonrpc: "2.0", id: req.id, result: true, ...patchState() })
 
