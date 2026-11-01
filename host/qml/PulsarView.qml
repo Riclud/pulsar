@@ -646,7 +646,7 @@ ApplicationWindow {
                     width: switchRoot.pressed ? 24 : switchRoot.checked ? 20 : 14
                     height: width
                     radius: width / 2
-                    x: switchRoot.checked ? parent.width - width - 4 : 4
+                    x: switchRoot.checked ? parent.width - 24 : 4
                     color: switchRoot.checked ? view.themeOnPrimary : view.themeTextSecondary
 
                     Behavior on x {
