@@ -72,7 +72,7 @@ export const create = (args: string[]): void => {
 
   if (!name) {
     console.error(
-      "pulsar create: missing app name\n  pulsar create <name> [--template default|windows|tray] [--dir <path>]",
+      "pulsar create: missing app name\n  pulsar create <name> [--template default|js|windows|tray] [--dir <path>]",
     )
     process.exit(1)
   }
