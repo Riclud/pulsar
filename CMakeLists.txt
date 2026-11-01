@@ -83,7 +83,9 @@ endif()
 qt_add_resources(qml-host "pulsarview"
     PREFIX "/pulsar"
     BASE "${CMAKE_CURRENT_SOURCE_DIR}/host/qml"
-    FILES "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/PulsarView.qml"
+    FILES
+        "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/PulsarView.qml"
+        "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/fonts/MaterialIcons.ttf"
 )
 
 # --- Embedded QML host (desktop test harness, Android host) ---

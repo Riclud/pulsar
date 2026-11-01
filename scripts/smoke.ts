@@ -70,6 +70,18 @@ const check = (file: string, needle: string) => {
   }
 }
 
+const checkAbsent = (file: string, needle: string) => {
+  let text = ""
+  try {
+    text = readFileSync(file, "utf8")
+  } catch {}
+
+  if (text.includes(needle)) {
+    console.error(`smoke: unexpected: ${needle}`)
+    failed = true
+  }
+}
+
 const waitFor = async (file: string, needle: string, timeoutMs = 4000): Promise<boolean> => {
   const start = Date.now()
 
@@ -259,6 +271,9 @@ try {
   check(jsUiLog, "UI render main nodes= 1")
   check(jsUiLog, "PulsarView built 1")
   check(jsUiLog, "STORE count = QVariant(qlonglong, 1)")
+  check(jsUiLog, "STORE open = QVariant(bool, true)")
+  check(jsUiLog, "STORE mutated = QVariant(bool, true)")
+  checkAbsent(jsUiLog, "Error:")
 
   // System tray: the app can configure the menu through the tray capability.
   runHost({

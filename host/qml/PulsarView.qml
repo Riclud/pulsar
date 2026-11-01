@@ -1,25 +1,315 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQml.Models
 import Pulsar 1.0
 
 ApplicationWindow {
     id: view
 
     visible: true
+    color: themeBackground
     property var tree: []
+    property bool testClicked: false
 
-    onTreeChanged: rebuild()
+    readonly property bool darkMode: Pulsar.colorScheme === "dark"
+    readonly property color themeBackground: darkMode ? "#121214" : "#f7f7f8"
+    readonly property color themeSurface: darkMode ? "#1c1c20" : "#ffffff"
+    readonly property color themeSurfaceVariant: darkMode ? "#2a2a30" : "#ececf0"
+    readonly property color themePrimary: darkMode ? "#d0bcff" : "#6750a4"
+    readonly property color themeText: darkMode ? "#e6e1e5" : "#1b1b1f"
+    readonly property color themeTextSecondary: darkMode ? "#a9a9b0" : "#5f5f66"
+    readonly property color themeBorder: darkMode ? "#3a3a41" : "#d9d9de"
+    readonly property int themeRadius: 12
+    readonly property int themeSpacing: 8
+
+    FontLoader {
+        id: iconFont
+        source: "qrc:/pulsar/fonts/MaterialIcons.ttf"
+    }
 
     Item {
         id: host
         anchors.fill: parent
+        property var pulsarMeta: null
     }
+
+    Item {
+        id: overlay
+        anchors.fill: parent
+        z: 1000
+    }
+
+    Component {
+        id: listRowDelegate
+
+        Item {
+            id: rowRoot
+
+            width: ListView.view ? ListView.view.width - ListView.view.leftMargin - ListView.view.rightMargin : 0
+            height: rowChild ? Math.max(rowChild.implicitHeight, rowChild.height) : 0
+            property var rowNode: node
+            property var rowChild: null
+
+            function rebuildRow() {
+                if (rowChild) {
+                    rowChild.destroy();
+                    rowChild = null;
+                }
+
+                if (!rowNode)
+                    return;
+
+                rowChild = view.createNode(rowNode, rowRoot, false);
+
+                if (rowChild)
+                    rowChild.width = Qt.binding(function () {
+                        return rowRoot.width;
+                    });
+            }
+
+            onRowNodeChanged: rebuildRow()
+            Component.onCompleted: rebuildRow()
+            Component.onDestruction: if (rowChild) rowChild.destroy()
+        }
+    }
+
+    Component {
+        id: listComponent
+
+        ListView {
+            id: listView
+
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            property var pulsarMeta: null
+            property ListModel pulsarModel: ListModel {}
+            model: pulsarModel
+            delegate: listRowDelegate
+            ScrollBar.vertical: ScrollBar {}
+        }
+    }
+
+    Component {
+        id: appBarComponent
+
+        Rectangle {
+            id: bar
+
+            implicitHeight: 56
+            property var pulsarMeta: null
+            property var nodeData: null
+            property alias actionsRow: actions
+            property alias titleLabel: titleText
+            property alias subtitleLabel: subtitleText
+            property alias backButton: back
+
+            color: view.themeSurface
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 8
+                anchors.rightMargin: 8
+                spacing: 4
+
+                ToolButton {
+                    id: back
+
+                    text: "arrow_back"
+                    visible: false
+                    font.family: iconFont.name
+                    font.pixelSize: 24
+
+                    onClicked: view.emitNodeEvent(bar.nodeData, "back")
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 0
+
+                    Label {
+                        id: titleText
+
+                        Layout.fillWidth: true
+                        elide: Text.ElideRight
+                        color: view.themeText
+                        font.pixelSize: 18
+                        font.bold: true
+                    }
+
+                    Label {
+                        id: subtitleText
+
+                        Layout.fillWidth: true
+                        visible: text.length > 0
+                        elide: Text.ElideRight
+                        color: view.themeTextSecondary
+                        font.pixelSize: 12
+                    }
+                }
+
+                RowLayout {
+                    id: actions
+                    property var pulsarMeta: null
+                    spacing: 0
+                }
+            }
+        }
+    }
+
+    Component {
+        id: chipComponent
+
+        Rectangle {
+            id: chipRoot
+
+            implicitHeight: 32
+            property var pulsarMeta: null
+            property var nodeData: null
+            property alias labelItem: chipLabel
+            property alias removeButton: chipRemove
+            property alias contentRow: chipRow
+
+            radius: 16
+            color: view.themeSurfaceVariant
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: view.emitNodeEvent(chipRoot.nodeData, "click")
+            }
+
+            RowLayout {
+                id: chipRow
+
+                anchors.fill: parent
+                anchors.leftMargin: 12
+                anchors.rightMargin: 4
+                spacing: 2
+
+                Label {
+                    id: chipLabel
+
+                    color: view.themeText
+                    font.pixelSize: 13
+                }
+
+                ToolButton {
+                    id: chipRemove
+
+                    text: "close"
+                    visible: false
+                    font.family: iconFont.name
+                    font.pixelSize: 16
+
+                    onClicked: view.emitNodeEvent(chipRoot.nodeData, "remove")
+                }
+            }
+        }
+    }
+
+    Component {
+        id: sheetComponent
+
+        Item {
+            id: sheetRoot
+
+            anchors.fill: parent
+            visible: false
+            property var pulsarMeta: null
+            property var nodeData: null
+            property alias contentLayout: sheetContent
+            property alias titleLabel: sheetTitle
+            property alias panel: sheetPanel
+            property alias closeButton: sheetClose
+
+            Rectangle {
+                anchors.fill: parent
+                color: "#99000000"
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: view.emitNodeEvent(sheetRoot.nodeData, "close")
+            }
+
+            Rectangle {
+                id: sheetPanel
+
+                width: Math.min(parent.width - 24, 560)
+                height: Math.min(parent.height - 48, 720)
+                radius: view.themeRadius
+                color: view.themeSurface
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 0
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 16
+                        Layout.rightMargin: 4
+                        Layout.topMargin: 4
+                        Layout.bottomMargin: 4
+                        spacing: 4
+
+                        Label {
+                            id: sheetTitle
+
+                            Layout.fillWidth: true
+                            elide: Text.ElideRight
+                            color: view.themeText
+                            font.pixelSize: 18
+                            font.bold: true
+                        }
+
+                        ToolButton {
+                            id: sheetClose
+
+                            text: "close"
+                            font.family: iconFont.name
+                            font.pixelSize: 24
+
+                            onClicked: view.emitNodeEvent(sheetRoot.nodeData, "close")
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: 1
+                        color: view.themeBorder
+                    }
+
+                    ScrollView {
+                        id: sheetScroll
+
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        clip: true
+
+                        ColumnLayout {
+                            id: sheetContent
+
+                            property var pulsarMeta: null
+                            x: 16
+                            y: 16
+                            width: sheetScroll.availableWidth - 32
+                            spacing: view.themeSpacing
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    onTreeChanged: rebuild()
 
     Timer {
         id: testClick
+
         onTriggered: {
-            const clicked = clickFirst(host);
+            const clicked = clickFirst(host) || clickFirst(overlay);
+            if (clicked)
+                view.testClicked = true;
             if (Pulsar.env("PULSAR_DEBUG"))
                 console.log("PulsarView test click " + clicked);
         }
@@ -29,6 +319,8 @@ ApplicationWindow {
         const kids = item.children;
         for (let i = 0; i < kids.length; i++) {
             const child = kids[i];
+            if (!child.visible || child.enabled === false)
+                continue;
             if (child.clicked !== undefined) {
                 child.clicked();
                 return true;
@@ -40,6 +332,8 @@ ApplicationWindow {
     }
 
     function maybeTestClick() {
+        if (view.testClicked)
+            return;
         const ms = parseInt(Pulsar.env("PULSAR_UI_AUTOCLICK_MS") || "0");
         if (ms <= 0)
             return;
@@ -51,7 +345,13 @@ ApplicationWindow {
         return obj[key] !== undefined ? obj[key] : fallback;
     }
 
+    function hasEvent(node, event) {
+        return node !== null && node !== undefined && node.events !== undefined && node.events.indexOf(event) >= 0;
+    }
+
     function emitEvent(node, event, value) {
+        if (!node)
+            return;
         Pulsar.emit("ui-event", {
             id: node.id,
             event: event,
@@ -59,155 +359,596 @@ ApplicationWindow {
         });
     }
 
-    function hasEvent(node, event) {
-        return node.events !== undefined && node.events.indexOf(event) >= 0;
+    function emitNodeEvent(node, event, value) {
+        if (!hasEvent(node, event))
+            return;
+        emitEvent(node, event, value);
     }
 
-    function applyCommon(item, node, props, isRoot) {
-        if (props.width !== undefined)
-            item.width = props.width;
-        else if (isRoot && (node.type === "column" || node.type === "row" || node.type === "box"))
-            item.width = host.width;
+    function make(code, parent) {
+        return Qt.createQmlObject(code, parent, "pulsar-ui");
+    }
 
-        if (props.height !== undefined)
+    function contentMeta() {
+        return {
+            type: "content",
+            node: null,
+            index: ({}),
+            order: [],
+            content: null,
+            extra: ({})
+        };
+    }
+
+    function makeContent(parent) {
+        const inner = make("import QtQuick.Layouts; ColumnLayout { property var pulsarMeta: null }", parent);
+
+        inner.pulsarMeta = contentMeta();
+
+        return inner;
+    }
+
+    function makeWrapper(parent) {
+        const wrapper = make("import QtQuick; Item { property var pulsarMeta: null }", parent);
+
+        wrapper.pulsarMeta = contentMeta();
+
+        return wrapper;
+    }
+
+    function clearContainer(parent) {
+        const meta = parent.pulsarMeta;
+
+        if (!meta)
+            return;
+
+        for (const key in meta.index) {
+            if (meta.index[key])
+                meta.index[key].destroy();
+        }
+
+        meta.index = ({});
+        meta.order = [];
+    }
+
+    function reconcile(parent, nodes, isRoot) {
+        const meta = parent.pulsarMeta;
+
+        if (!meta)
+            return;
+
+        let index = meta.index;
+        let oldOrder = meta.order;
+        const paths = [];
+        let compatible = true;
+        let seenNew = false;
+        let lastOld = -1;
+
+        for (let i = 0; i < nodes.length; i++) {
+            const node = nodes[i];
+            const item = index[node.path];
+            paths.push(node.path);
+
+            if (item && item.pulsarMeta.type !== node.type) {
+                compatible = false;
+                break;
+            }
+
+            const oldIndex = oldOrder.indexOf(node.path);
+            const existed = oldIndex >= 0;
+
+            if (!existed)
+                seenNew = true;
+            else if (seenNew) {
+                compatible = false;
+                break;
+            }
+
+            if (existed) {
+                if (oldIndex < lastOld) {
+                    compatible = false;
+                    break;
+                }
+
+                lastOld = oldIndex;
+            }
+        }
+
+        if (!compatible) {
+            clearContainer(parent);
+            index = meta.index;
+            oldOrder = meta.order;
+        }
+
+        for (const key in index) {
+            if (paths.indexOf(key) < 0) {
+                if (index[key])
+                    index[key].destroy();
+                delete index[key];
+            }
+        }
+
+        for (let i = 0; i < nodes.length; i++) {
+            const node = nodes[i];
+            let item = index[node.path];
+
+            if (item) {
+                updateNode(item, node, isRoot);
+                continue;
+            }
+
+            item = createNode(node, parent, isRoot);
+            index[node.path] = item;
+        }
+
+        meta.order = paths;
+    }
+
+    function createNode(node, parent, isRoot) {
+        let item = null;
+        const base = "{ property var pulsarMeta: null }";
+
+        if (node.type === "column" || node.type === "row") {
+            item = make("import QtQuick.Layouts; " + (node.type === "column" ? "ColumnLayout" : "RowLayout") + " " + base, parent);
+        } else if (node.type === "box") {
+            item = make("import QtQuick; Rectangle " + base, parent);
+        } else if (node.type === "scroll") {
+            item = make("import QtQuick.Controls; ScrollView " + "{ clip: true; property var pulsarMeta: null }", parent);
+        } else if (node.type === "card") {
+            item = make("import QtQuick; Rectangle { border.width: 1; property var pulsarMeta: null }", parent);
+        } else if (node.type === "appBar") {
+            item = appBarComponent.createObject(parent);
+        } else if (node.type === "list") {
+            item = listComponent.createObject(parent);
+        } else if (node.type === "chip") {
+            item = chipComponent.createObject(parent);
+        } else if (node.type === "sheet") {
+            item = sheetComponent.createObject(overlay);
+        } else if (node.type === "text") {
+            item = make("import QtQuick.Controls; Label " + base, parent);
+        } else if (node.type === "button") {
+            item = make("import QtQuick.Controls; Button " + base, parent);
+        } else if (node.type === "icon") {
+            item = make("import QtQuick; Text " + base, parent);
+        } else if (node.type === "iconButton") {
+            item = make("import QtQuick.Controls; ToolButton " + base, parent);
+        } else if (node.type === "textInput") {
+            item = make("import QtQuick.Controls; TextField " + base, parent);
+        } else if (node.type === "checkbox" || node.type === "switch") {
+            item = make("import QtQuick.Controls; " + (node.type === "checkbox" ? "CheckBox" : "Switch") + " " + base, parent);
+        } else if (node.type === "slider") {
+            item = make("import QtQuick.Controls; Slider " + base, parent);
+        } else if (node.type === "select") {
+            item = make("import QtQuick.Controls; ComboBox " + base, parent);
+        } else if (node.type === "progress") {
+            item = make("import QtQuick.Controls; ProgressBar " + base, parent);
+        } else if (node.type === "image") {
+            item = make("import QtQuick; Image " + base, parent);
+        } else if (node.type === "spacer") {
+            item = make("import QtQuick; Item " + base, parent);
+        } else if (node.type === "divider") {
+            item = make("import QtQuick; Rectangle " + base, parent);
+        } else {
+            item = make("import QtQuick; Rectangle " + base, parent);
+        }
+
+        item.pulsarMeta = {
+            type: node.type,
+            node: node,
+            index: ({}),
+            order: [],
+            content: null,
+            extra: ({})
+        };
+        prepareItem(item, node);
+        updateNode(item, node, isRoot);
+
+        return item;
+    }
+
+    function prepareItem(item, node) {
+        if (node.type === "button") {
+            item.clicked.connect(function () {
+                if (hasEvent(item.pulsarMeta.node, "click"))
+                    emitEvent(item.pulsarMeta.node, "click");
+            });
+        } else if (node.type === "iconButton") {
+            item.clicked.connect(function () {
+                if (hasEvent(item.pulsarMeta.node, "click"))
+                    emitEvent(item.pulsarMeta.node, "click");
+            });
+        } else if (node.type === "textInput") {
+            item.textEdited.connect(function (value) {
+                if (hasEvent(item.pulsarMeta.node, "input"))
+                    emitEvent(item.pulsarMeta.node, "input", value);
+            });
+            item.activeFocusChanged.connect(function () {
+                emitEvent(item.pulsarMeta.node, item.activeFocus ? "focus" : "blur");
+            });
+            if (Qt.platform.os === "android") {
+                const tap = make("import QtQuick; TapHandler {}", item);
+                tap.tapped.connect(function () {
+                    item.forceActiveFocus();
+                    Qt.inputMethod.show();
+                });
+            }
+        } else if (node.type === "checkbox" || node.type === "switch") {
+            item.toggled.connect(function (value) {
+                if (item.pulsarMeta.syncing === true)
+                    return;
+                if (hasEvent(item.pulsarMeta.node, "toggle"))
+                    emitEvent(item.pulsarMeta.node, "toggle", value);
+            });
+        } else if (node.type === "slider") {
+            item.moved.connect(function () {
+                if (item.pulsarMeta.syncing === true)
+                    return;
+                if (hasEvent(item.pulsarMeta.node, "change"))
+                    emitEvent(item.pulsarMeta.node, "change", item.value);
+            });
+        } else if (node.type === "select") {
+            item.activated.connect(function (index) {
+                const options = item.pulsarMeta.node ? item.pulsarMeta.node.props.options : [];
+
+                if (index >= 0 && index < options.length)
+                    emitEvent(item.pulsarMeta.node, "change", options[index].value);
+            });
+        }
+    }
+
+    function applyCommon(item, node, isRoot) {
+        const props = node.props;
+        const defaultFillWidth = node.type === "card" || node.type === "list" || node.type === "scroll"
+                || node.type === "appBar" || node.type === "divider" || node.type === "textInput";
+        const fillWidth = prop(props, "fillWidth", prop(props, "expand", defaultFillWidth));
+        const fillHeight = prop(props, "fillHeight", node.type === "list" || node.type === "scroll");
+
+        if (node.type === "sheet")
+            return;
+
+        if (props.width !== undefined) {
+            item.width = props.width;
+            item.Layout.preferredWidth = props.width;
+        }
+
+        if (props.height !== undefined) {
             item.height = props.height;
+            item.Layout.preferredHeight = props.height;
+        }
+
         if (props.visible !== undefined)
             item.visible = props.visible;
         if (props.opacity !== undefined)
             item.opacity = props.opacity;
-        if (props.expand)
-            item.Layout.fillWidth = true;
+
+        item.Layout.fillWidth = fillWidth;
+        item.Layout.fillHeight = fillHeight;
+
+        if (!isRoot)
+            return;
+
+        item.width = Qt.binding(function () {
+            return host.width;
+        });
+
+        if (fillHeight)
+            item.height = Qt.binding(function () {
+                return host.height;
+            });
     }
 
-    function createNode(node, parent, isRoot) {
-        const props = node.props || {};
+    function updateNode(item, node, isRoot) {
+        item.pulsarMeta.node = node;
+
+        applyCommon(item, node, isRoot);
+
+        const props = node.props;
 
         if (node.type === "column" || node.type === "row") {
-            const layout = node.type === "column" ? "ColumnLayout" : "RowLayout";
-            const item = Qt.createQmlObject("import QtQuick.Layouts; " + layout + " {}", parent, "pulsar-ui");
             item.spacing = prop(props, "gap", 0);
-            applyCommon(item, node, props, isRoot);
-            for (const child of node.children || [])
-                createNode(child, item, false);
-            return item;
-        }
-
-        if (node.type === "box") {
-            const item = Qt.createQmlObject("import QtQuick; Rectangle {}", parent, "pulsar-ui");
+            reconcile(item, node.children || [], false);
+        } else if (node.type === "box") {
             item.color = prop(props, "color", "transparent");
             item.radius = prop(props, "radius", 0);
-            const inner = Qt.createQmlObject("import QtQuick.Layouts; ColumnLayout {}", item, "pulsar-ui");
-            inner.anchors.fill = item;
-            inner.anchors.margins = prop(props, "padding", 0);
-            applyCommon(item, node, props, isRoot);
-            for (const child of node.children || [])
-                createNode(child, inner, false);
-            return item;
-        }
 
-        if (node.type === "text") {
-            const item = Qt.createQmlObject("import QtQuick.Controls; Label {}", parent, "pulsar-ui");
-            item.text = prop(props, "text", "");
-            if (props.color !== undefined)
-                item.color = props.color;
-            if (props.size !== undefined)
-                item.font.pixelSize = props.size;
-            if (props.bold)
-                item.font.bold = true;
-            if (props.wrap)
-                item.wrapMode = Text.WordWrap;
-            applyCommon(item, node, props, isRoot);
-            return item;
-        }
+            let inner = item.pulsarMeta.content;
+            const padding = prop(props, "padding", 0);
 
-        if (node.type === "button") {
-            const item = Qt.createQmlObject("import QtQuick.Controls; Button {}", parent, "pulsar-ui");
-            item.text = prop(props, "label", "");
-            if (props.enabled !== undefined)
-                item.enabled = props.enabled;
-            if (hasEvent(node, "click"))
-                item.clicked.connect(function () {
-                    emitEvent(node, "click");
-                });
-            applyCommon(item, node, props, isRoot);
-            return item;
-        }
+            if (!inner) {
+                inner = makeContent(item);
+                inner.anchors.fill = item;
+                item.pulsarMeta.content = inner;
+            }
 
-        if (node.type === "textInput") {
-            const item = Qt.createQmlObject("import QtQuick.Controls; TextField {}", parent, "pulsar-ui");
-            item.text = prop(props, "value", "");
-            item.placeholderText = prop(props, "placeholder", "");
-            if (hasEvent(node, "input"))
-                item.textEdited.connect(function (value) {
-                    emitEvent(node, "input", value);
-                });
-            item.activeFocusChanged.connect(function () {
-                emitEvent(node, item.activeFocus ? "focus" : "blur");
+            inner.anchors.margins = padding;
+            inner.spacing = 0;
+            item.implicitWidth = Qt.binding(function () {
+                return inner.implicitWidth + 2 * padding;
             });
-            applyCommon(item, node, props, isRoot);
-            return item;
-        }
+            item.implicitHeight = Qt.binding(function () {
+                return inner.implicitHeight + 2 * padding;
+            });
+            reconcile(inner, node.children || [], false);
+        } else if (node.type === "scroll") {
+            let wrapper = item.pulsarMeta.content;
 
-        if (node.type === "checkbox" || node.type === "switch") {
-            const control = node.type === "checkbox" ? "CheckBox" : "Switch";
-            const item = Qt.createQmlObject("import QtQuick.Controls; " + control + " {}", parent, "pulsar-ui");
+            if (!wrapper) {
+                wrapper = makeWrapper(item);
+                wrapper.width = Qt.binding(function () {
+                    return item.availableWidth;
+                });
+                wrapper.implicitWidth = Qt.binding(function () {
+                    return item.availableWidth;
+                });
+                item.pulsarMeta.content = wrapper;
+
+                const inner = makeContent(wrapper);
+
+                wrapper.pulsarMeta.content = inner;
+                wrapper.implicitHeight = Qt.binding(function () {
+                    return inner.implicitHeight + 2 * prop(item.pulsarMeta.node.props, "padding", 0);
+                });
+                inner.x = Qt.binding(function () {
+                    return prop(item.pulsarMeta.node.props, "padding", 0);
+                });
+                inner.y = Qt.binding(function () {
+                    return prop(item.pulsarMeta.node.props, "padding", 0);
+                });
+                inner.width = Qt.binding(function () {
+                    return Math.max(0, wrapper.width - 2 * prop(item.pulsarMeta.node.props, "padding", 0));
+                });
+            }
+
+            const inner = wrapper.pulsarMeta.content;
+            inner.spacing = prop(props, "gap", view.themeSpacing);
+            reconcile(inner, node.children || [], false);
+        } else if (node.type === "card") {
+            item.color = prop(props, "color", view.themeSurface);
+            item.radius = prop(props, "radius", view.themeRadius);
+            item.border.color = view.themeBorder;
+
+            let inner = item.pulsarMeta.content;
+            const padding = prop(props, "padding", 16);
+
+            if (!inner) {
+                inner = makeContent(item);
+                inner.anchors.fill = item;
+                item.pulsarMeta.content = inner;
+                item.implicitWidth = Qt.binding(function () {
+                    return inner.implicitWidth + 2 * prop(item.pulsarMeta.node.props, "padding", 16);
+                });
+                item.implicitHeight = Qt.binding(function () {
+                    return inner.implicitHeight + 2 * prop(item.pulsarMeta.node.props, "padding", 16);
+                });
+            }
+
+            inner.anchors.margins = padding;
+            inner.spacing = view.themeSpacing;
+            reconcile(inner, node.children || [], false);
+        } else if (node.type === "appBar") {
+            item.nodeData = node;
+            item.titleLabel.text = prop(props, "title", "");
+            item.subtitleLabel.text = prop(props, "subtitle", "");
+            item.subtitleLabel.visible = item.subtitleLabel.text.length > 0;
+            item.backButton.visible = hasEvent(node, "back");
+            item.implicitHeight = prop(props, "height", 56);
+
+            if (!item.actionsRow.pulsarMeta)
+                item.actionsRow.pulsarMeta = contentMeta();
+
+            reconcile(item.actionsRow, node.children || [], false);
+        } else if (node.type === "list") {
+            item.spacing = prop(props, "spacing", 0);
+            item.Layout.margins = 0;
+            updateList(item, node);
+        } else if (node.type === "chip") {
+            item.nodeData = node;
+            item.labelItem.text = prop(props, "label", "");
+            item.color = prop(props, "color", view.themeSurfaceVariant);
+            item.removeButton.visible = hasEvent(node, "remove");
+            item.implicitWidth = Qt.binding(function () {
+                return item.contentRow.implicitWidth;
+            });
+        } else if (node.type === "sheet") {
+            item.nodeData = node;
+            item.visible = prop(props, "open", true);
+            item.titleLabel.text = prop(props, "title", "");
+            item.closeButton.visible = hasEvent(node, "close");
+
+            if (props.fullscreen) {
+                item.panel.x = 0;
+                item.panel.y = 0;
+                item.panel.width = Qt.binding(function () {
+                    return item.width;
+                });
+                item.panel.height = Qt.binding(function () {
+                    return item.height;
+                });
+                item.panel.radius = 0;
+            } else {
+                item.panel.width = Qt.binding(function () {
+                    return Math.min(item.width - 24, 560);
+                });
+                item.panel.height = Qt.binding(function () {
+                    return Math.min(item.height - 48, 720);
+                });
+                item.panel.x = Qt.binding(function () {
+                    return (item.width - item.panel.width) / 2;
+                });
+                item.panel.y = Qt.binding(function () {
+                    return (item.height - item.panel.height) / 2;
+                });
+                item.panel.radius = view.themeRadius;
+            }
+
+            if (!item.contentLayout.pulsarMeta)
+                item.contentLayout.pulsarMeta = contentMeta();
+
+            reconcile(item.contentLayout, node.children || [], false);
+        } else if (node.type === "text") {
+            item.text = prop(props, "text", "");
+            item.color = prop(props, "color", view.themeText);
+            item.font.pixelSize = prop(props, "size", 15);
+            item.font.bold = prop(props, "bold", false);
+            item.wrapMode = prop(props, "wrap", false) ? Text.WordWrap : Text.NoWrap;
+            item.Layout.preferredWidth = -1;
+        } else if (node.type === "button") {
             item.text = prop(props, "label", "");
-            if (props.checked !== undefined)
-                item.checked = props.checked;
-            if (hasEvent(node, "toggle"))
-                item.toggled.connect(function (value) {
-                    emitEvent(node, "toggle", value);
-                });
-            applyCommon(item, node, props, isRoot);
-            return item;
-        }
+            item.enabled = prop(props, "enabled", true);
+        } else if (node.type === "icon") {
+            item.text = prop(props, "name", "");
+            item.font.family = iconFont.name;
+            item.font.pixelSize = prop(props, "size", 24);
+            item.color = prop(props, "color", view.themeText);
+        } else if (node.type === "iconButton") {
+            item.text = prop(props, "name", "");
+            item.enabled = prop(props, "enabled", true);
+            item.font.family = iconFont.name;
+            item.font.pixelSize = prop(props, "size", 24);
+            item.implicitWidth = 40;
+            item.implicitHeight = 40;
+        } else if (node.type === "textInput") {
+            item.placeholderText = prop(props, "placeholder", "");
 
-        if (node.type === "slider") {
-            const item = Qt.createQmlObject("import QtQuick.Controls; Slider {}", parent, "pulsar-ui");
-            if (props.value !== undefined)
-                item.value = props.value;
-            if (props.min !== undefined)
-                item.from = props.min;
-            if (props.max !== undefined)
-                item.to = props.max;
-            if (hasEvent(node, "change"))
-                item.moved.connect(function () {
-                    emitEvent(node, "change", item.value);
-                });
-            applyCommon(item, node, props, isRoot);
-            return item;
-        }
+            if (!item.activeFocus)
+                item.text = prop(props, "value", "");
+        } else if (node.type === "checkbox" || node.type === "switch") {
+            item.text = prop(props, "label", "");
+            item.pulsarMeta.syncing = true;
+            item.checked = prop(props, "checked", false);
+            item.pulsarMeta.syncing = false;
+        } else if (node.type === "slider") {
+            item.pulsarMeta.syncing = true;
+            item.value = prop(props, "value", 0);
+            item.from = prop(props, "min", 0);
+            item.to = prop(props, "max", 100);
+            item.pulsarMeta.syncing = false;
+        } else if (node.type === "select") {
+            const options = prop(props, "options", []);
+            const labels = [];
 
-        if (node.type === "image") {
-            const item = Qt.createQmlObject("import QtQuick; Image {}", parent, "pulsar-ui");
+            for (let i = 0; i < options.length; i++)
+                labels.push(options[i].label);
+
+            const key = JSON.stringify(labels);
+
+            if (item.pulsarMeta.extra.optionsKey !== key) {
+                item.model = labels;
+                item.pulsarMeta.extra.optionsKey = key;
+            }
+
+            let current = 0;
+
+            for (let i = 0; i < options.length; i++) {
+                if (options[i].value === prop(props, "value", undefined)) {
+                    current = i;
+                    break;
+                }
+            }
+
+            item.currentIndex = current;
+            item.Layout.preferredWidth = prop(props, "expand", false) ? -1 : prop(props, "width", 200);
+        } else if (node.type === "progress") {
+            item.indeterminate = prop(props, "indeterminate", false);
+            item.value = Math.max(0, Math.min(1, prop(props, "value", 0)));
+            item.Layout.preferredWidth = prop(props, "expand", false) ? -1 : prop(props, "width", 160);
+        } else if (node.type === "image") {
             item.source = prop(props, "src", "");
+
             if (props.fillMode !== undefined)
                 item.fillMode = props.fillMode;
-            applyCommon(item, node, props, isRoot);
-            return item;
+        } else if (node.type === "spacer") {
+            const size = prop(props, "size", 0);
+            item.Layout.preferredWidth = prop(props, "width", size);
+            item.Layout.preferredHeight = prop(props, "height", size);
+        } else if (node.type === "divider") {
+            item.color = prop(props, "color", view.themeBorder);
+            item.implicitHeight = 1;
+        }
+    }
+
+    function sameNode(a, b) {
+        if (a === b)
+            return true;
+        if (!a || !b)
+            return false;
+        if (a.type !== b.type || a.path !== b.path)
+            return false;
+        if (JSON.stringify(a.props || {}) !== JSON.stringify(b.props || {}))
+            return false;
+        if ((a.events || []).join(",") !== (b.events || []).join(","))
+            return false;
+
+        const left = a.children || [];
+        const right = b.children || [];
+
+        if (left.length !== right.length)
+            return false;
+
+        for (let i = 0; i < left.length; i++) {
+            if (!sameNode(left[i], right[i]))
+                return false;
         }
 
-        if (node.type === "spacer") {
-            const item = Qt.createQmlObject("import QtQuick; Item {}", parent, "pulsar-ui");
-            item.Layout.preferredWidth = prop(props, "width", prop(props, "size", 0));
-            item.Layout.preferredHeight = prop(props, "height", prop(props, "size", 0));
-            return item;
+        return true;
+    }
+
+    function updateList(item, node) {
+        const model = item.pulsarModel;
+        const rows = node.children || [];
+        const rawKeys = prop(node.props, "itemKeys", []);
+        const keys = [];
+        const padding = prop(node.props, "padding", 0);
+
+        item.leftMargin = padding;
+        item.rightMargin = padding;
+        item.topMargin = padding;
+        item.bottomMargin = padding;
+
+        for (let i = 0; i < rows.length; i++)
+            keys.push(String(prop(rawKeys, i, i)));
+
+        let i = 0;
+
+        while (i < keys.length) {
+            if (i < model.count && String(model.get(i).key) === keys[i]) {
+                if (!sameNode(model.get(i).node, rows[i]))
+                    model.setProperty(i, "node", rows[i]);
+                i++;
+                continue;
+            }
+
+            let found = -1;
+
+            for (let k = i + 1; k < model.count; k++) {
+                if (String(model.get(k).key) === keys[i]) {
+                    found = k;
+                    break;
+                }
+            }
+
+            if (found >= 0) {
+                model.move(found, i, 1);
+                model.setProperty(i, "node", rows[i]);
+            } else {
+                model.insert(i, {
+                    key: keys[i],
+                    node: rows[i]
+                });
+            }
+
+            i++;
         }
 
-        const item = Qt.createQmlObject("import QtQuick; Rectangle {}", parent, "pulsar-ui");
-        item.color = prop(props, "color", "#888888");
-        item.Layout.fillWidth = true;
-        item.Layout.preferredHeight = prop(props, "height", 1);
-        return item;
+        while (model.count > keys.length)
+            model.remove(model.count - 1);
     }
 
     function rebuild() {
-        const kids = host.children;
-        for (let i = kids.length - 1; i >= 0; i--)
-            kids[i].destroy();
+        if (!host.pulsarMeta)
+            host.pulsarMeta = contentMeta();
 
-        for (const node of tree)
-            createNode(node, host, true);
+        reconcile(host, tree || [], true);
 
         if (Pulsar.env("PULSAR_DEBUG"))
             console.log("PulsarView built " + host.children.length);
