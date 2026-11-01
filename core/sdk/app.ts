@@ -61,6 +61,7 @@ export interface PulsarEventMap {
   "tray-activated": { reason?: number }
   "theme-changed": { scheme: "light" | "dark" }
   "notification-click": { token: string }
+  "notification-action": { token: string; id: string }
   "open-file": { path: string }
   "open-url": { url: string }
   "second-instance": { argv: string[]; cwd: string }

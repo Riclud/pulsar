@@ -19,6 +19,11 @@
 #include <QJsonObject>
 #include <QQmlPropertyMap>
 #include <QTimer>
+#ifdef PULSAR_HAS_DBUS
+#include <QDBusConnection>
+#include <QDBusMessage>
+#include <QDBusReply>
+#endif
 
 namespace {
 
@@ -102,6 +107,23 @@ Bridge::Bridge(QJSEngine *engine, QQmlPropertyMap *store, QObject *parent)
     startTimer->setSingleShot(true);
     QObject::connect(startTimer, &QTimer::timeout, this, &Bridge::startBridge);
     startTimer->start(0);
+
+#ifdef PULSAR_HAS_DBUS
+    QDBusConnection bus = QDBusConnection::sessionBus();
+
+    if (bus.isConnected()) {
+        bus.connect(QStringLiteral("org.freedesktop.Notifications"),
+                    QStringLiteral("/org/freedesktop/Notifications"),
+                    QStringLiteral("org.freedesktop.Notifications"),
+                    QStringLiteral("ActionInvoked"),
+                    this, SLOT(onDBusActionInvoked(uint, QString)));
+        bus.connect(QStringLiteral("org.freedesktop.Notifications"),
+                    QStringLiteral("/org/freedesktop/Notifications"),
+                    QStringLiteral("org.freedesktop.Notifications"),
+                    QStringLiteral("NotificationClosed"),
+                    this, SLOT(onDBusNotificationClosed(uint, uint)));
+    }
+#endif
 }
 
 Bridge::~Bridge()
@@ -364,19 +386,100 @@ QString Bridge::env(const QString &name) const
     return qEnvironmentVariable(name.toUtf8().constData());
 }
 
-bool Bridge::showNotification(const QString &title, const QString &body, const QString &token)
+bool Bridge::showNotification(const QString &title,
+                              const QString &body,
+                              const QString &token,
+                              const QVariantList &actions)
 {
+    lastNotifyToken_ = token;
+
+#ifdef PULSAR_HAS_DBUS
+    if (showDBusNotification(title, body, token, actions))
+        return true;
+#endif
+
     ensureTray();
 
     if (!tray_)
         return false;
 
-    lastNotifyToken_ = token;
-
     tray_->showMessage(title, body, QSystemTrayIcon::Information, 8000);
 
     return true;
 }
+
+#ifdef PULSAR_HAS_DBUS
+bool Bridge::showDBusNotification(const QString &title,
+                                  const QString &body,
+                                  const QString &token,
+                                  const QVariantList &actions)
+{
+    QDBusConnection bus = QDBusConnection::sessionBus();
+
+    if (!bus.isConnected())
+        return false;
+
+    QStringList actionList;
+
+    for (const QVariant &entry : actions) {
+        const QVariantMap action = entry.toMap();
+        const QString id = action.value(QStringLiteral("id")).toString();
+        const QString label = action.value(QStringLiteral("title")).toString();
+
+        if (id.isEmpty() || label.isEmpty())
+            continue;
+
+        actionList << id << label;
+    }
+
+    if (!actionList.isEmpty())
+        actionList = QStringList{QStringLiteral("default"), QStringLiteral("Open")} + actionList;
+
+    QDBusMessage message = QDBusMessage::createMethodCall(QStringLiteral("org.freedesktop.Notifications"),
+                                                         QStringLiteral("/org/freedesktop/Notifications"),
+                                                         QStringLiteral("org.freedesktop.Notifications"),
+                                                         QStringLiteral("Notify"));
+
+    message.setArguments({QStringLiteral("Pulsar"), uint(0), QString(), title, body, actionList, QVariantMap(),
+                          int(8000)});
+
+    const QDBusReply<uint> reply = bus.call(message);
+
+    if (!reply.isValid())
+        return false;
+
+    dbusNotifyTokens_.insert(reply.value(), token);
+
+    return true;
+}
+
+void Bridge::onDBusActionInvoked(uint id, const QString &key)
+{
+    const QString token = dbusNotifyTokens_.value(id);
+
+    if (token.isEmpty())
+        return;
+
+    QJsonObject data;
+    data.insert(QStringLiteral("token"), token);
+
+    if (key != QLatin1String("default"))
+        data.insert(QStringLiteral("id"), key);
+
+    QJsonObject params;
+    params.insert(QStringLiteral("name"),
+                  key == QLatin1String("default") ? QStringLiteral("notification-click")
+                                                   : QStringLiteral("notification-action"));
+    params.insert(QStringLiteral("data"), data);
+
+    notify(QStringLiteral("__event"), params);
+}
+
+void Bridge::onDBusNotificationClosed(uint id, uint)
+{
+    dbusNotifyTokens_.remove(id);
+}
+#endif
 
 QString Bridge::colorScheme() const
 {

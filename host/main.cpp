@@ -1280,7 +1280,8 @@ int main(int argc, char **argv)
                              const QVariantMap m = params.toVariant().toMap();
                              bridge->showNotification(m.value(QStringLiteral("title")).toString(),
                                                       m.value(QStringLiteral("body")).toString(),
-                                                      m.value(QStringLiteral("token")).toString());
+                                                      m.value(QStringLiteral("token")).toString(),
+                                                      m.value(QStringLiteral("actions")).toList());
                          } else if (method == QLatin1String("__dialog")) {
                              handleDialogRequest(params.toVariant().toMap());
                          } else if (method == QLatin1String("__export")) {

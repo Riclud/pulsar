@@ -667,6 +667,15 @@ app.on("notification-click", (data) => {
   if (data.token === token) app.window().focus()
 })
 
+await notify.show({
+  title: "Task due",
+  body: "Buy milk",
+  actions: [{ id: "snooze", title: "Snooze" }],
+})
+app.on("notification-action", (data) => {
+  if (data.id === "snooze") app.store.set("snoozed", data.token)
+})
+
 const screens = await screen.list() // [{ name, x, y, width, height, workArea, scale, primary }]
 const mainScreen = await screen.primary()
 
@@ -675,6 +684,10 @@ app.on("theme-changed", (data) => console.log("now", data.scheme))
 
 const { locale, language, timezone } = await system.locale()
 ```
+
+Notification action buttons use the freedesktop notification daemon on Linux;
+on macOS and Windows the notification is shown without buttons and
+`notification-action` never fires.
 
 Storage persists JSON-safe values to `storage.json` in the per-app data
 directory. `paths` returns the standard per-OS directories:

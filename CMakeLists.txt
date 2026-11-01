@@ -27,7 +27,7 @@ endforeach()
 # Pulsar requires Qt 6.8+. The host is a Qt app, so use Qt's CMake package.
 # WebSockets is optional: the Android Qt bundle ships without it.
 find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Qml Quick Network QuickControls2)
-find_package(Qt6 6.8 QUIET OPTIONAL_COMPONENTS WebSockets Multimedia)
+find_package(Qt6 6.8 QUIET OPTIONAL_COMPONENTS WebSockets Multimedia DBus)
 
 function(pulsar_link_websockets target)
     if(TARGET Qt6::WebSockets)
@@ -85,6 +85,12 @@ pulsar_link_websockets(qml-host)
 if(TARGET Qt6::Multimedia)
     target_link_libraries(qml-host PRIVATE Qt6::Multimedia)
     target_compile_definitions(qml-host PRIVATE PULSAR_HAS_MULTIMEDIA=1)
+endif()
+
+# Notification action buttons use the freedesktop notification daemon.
+if(TARGET Qt6::DBus)
+    target_link_libraries(qml-host PRIVATE Qt6::DBus)
+    target_compile_definitions(qml-host PRIVATE PULSAR_HAS_DBUS=1)
 endif()
 
 # OS secret storage: Keychain on macOS, DPAPI on Windows, libsecret on Linux.

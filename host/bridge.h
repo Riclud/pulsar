@@ -51,8 +51,12 @@ public:
     Q_INVOKABLE void setTrayMenu(const QVariantList &items);
     Q_INVOKABLE void hideTray();
 
-    // Native notification; emits __event notification-click with the token.
-    bool showNotification(const QString &title, const QString &body, const QString &token);
+    // Native notification; emits __event notification-click with the token and
+    // notification-action with the token plus the action id.
+    bool showNotification(const QString &title,
+                          const QString &body,
+                          const QString &token,
+                          const QVariantList &actions = {});
 
     // System color scheme ("light"/"dark"), reactive to QML.
     QString colorScheme() const;
@@ -81,6 +85,10 @@ private slots:
     void onReadyReadStandardOutput();
     void onReadyReadStandardError();
     void onProcessFinished(int exitCode, QProcess::ExitStatus status);
+#ifdef PULSAR_HAS_DBUS
+    void onDBusActionInvoked(uint id, const QString &key);
+    void onDBusNotificationClosed(uint id, uint reason);
+#endif
 
 private:
     struct PendingCall {
@@ -112,6 +120,15 @@ private:
     QSystemTrayIcon *tray_ = nullptr;
     QMenu *trayMenu_ = nullptr;
     QString lastNotifyToken_;
+#ifdef PULSAR_HAS_DBUS
+    QHash<uint, QString> dbusNotifyTokens_;
+#endif
 
     void ensureTray();
+#ifdef PULSAR_HAS_DBUS
+    bool showDBusNotification(const QString &title,
+                              const QString &body,
+                              const QString &token,
+                              const QVariantList &actions);
+#endif
 };

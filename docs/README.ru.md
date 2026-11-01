@@ -670,6 +670,15 @@ app.on("notification-click", (data) => {
   if (data.token === token) app.window().focus()
 })
 
+await notify.show({
+  title: "Задача",
+  body: "Купить молоко",
+  actions: [{ id: "snooze", title: "Отложить" }],
+})
+app.on("notification-action", (data) => {
+  if (data.id === "snooze") app.store.set("snoozed", data.token)
+})
+
 const screens = await screen.list() // [{ name, x, y, width, height, workArea, scale, primary }]
 const mainScreen = await screen.primary()
 
@@ -678,6 +687,10 @@ app.on("theme-changed", (data) => console.log("теперь", data.scheme))
 
 const { locale, language, timezone } = await system.locale()
 ```
+
+Кнопки в уведомлениях работают через freedesktop-демон уведомлений на Linux;
+на macOS и Windows уведомление показывается без кнопок, и
+`notification-action` не приходит.
 
 Хранилище сохраняет JSON-безопасные значения в `storage.json` в каталоге
 данных приложения. `paths` возвращает стандартные каталоги по ОС:

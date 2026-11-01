@@ -8,6 +8,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `notify.show` takes `actions: [{ id, title }]`; a button press emits
+  `notification-action` with the token and id. Uses the freedesktop
+  notification daemon on Linux (D-Bus); other platforms show the plain body.
 - Desktop video playback in a built-in full-screen player: `fs.open` on a
   video file plays it in-app when QtMultimedia is available instead of handing
   it to the OS. The release toolchains now bundle QtMultimedia. Tap or Space

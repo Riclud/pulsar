@@ -164,14 +164,22 @@ export const secureStorage = {
   remove: (key: string): Promise<boolean> => callCapability("secure.remove", { key }) as Promise<boolean>,
 }
 
+export interface NotifyAction {
+  id: string
+  title: string
+}
+
 export interface NotifyOptions {
   title: string
   body?: string
+  actions?: NotifyAction[]
 }
 
 /**
  * Native desktop notifications. Returns a token; when the user clicks the
  * notification the app gets a `notification-click` event carrying that token.
+ * With `actions`, each button reports `notification-action` with the token and
+ * the action id (Linux D-Bus only; other platforms show the plain body).
  */
 export const notify = {
   show: (options: NotifyOptions): Promise<string> => callCapability("shell.notify", options) as Promise<string>,
