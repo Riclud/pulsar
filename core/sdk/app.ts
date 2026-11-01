@@ -184,13 +184,12 @@ export class Store {
 
     const existed = this.data.has(key)
 
-    if (!existed || !Object.is(this.data.get(key), value)) {
-      this.dirty.add(key)
-      this.removed.delete(key)
-      this.notify()
-    }
+    if (existed && Object.is(this.data.get(key), value)) return this
 
     this.data.set(key, value)
+    this.dirty.add(key)
+    this.removed.delete(key)
+    this.notify()
 
     return this
   }

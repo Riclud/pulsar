@@ -14,6 +14,18 @@ describe("Store", () => {
     expect(store.get("e")).toEqual([1, 2, { f: "g" }])
   })
 
+  test("notifies after the new value is visible", () => {
+    const store = new Store()
+    const seen: unknown[] = []
+
+    store.subscribe(() => seen.push(store.get("count")))
+    store.set("count", 1)
+    store.set("count", 2)
+    store.set("count", 2)
+
+    expect(seen).toEqual([1, 2])
+  })
+
   test("rejects non-serializable values", () => {
     const store = new Store()
     expect(() => store.set("fn", () => {})).toThrow(/function/)
