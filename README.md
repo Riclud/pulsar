@@ -673,7 +673,6 @@ import {
   Row,
   Spacer,
   Text,
-  When,
 } from "pulsar"
 
 interface Task {
@@ -726,17 +725,13 @@ app.window("main").render(() =>
       subtitle: bind(() => `${tasks().filter((task) => !task.done).length} left`),
       actions: [IconButton({ icon: "add", onClick: () => app.store.set("editing", true) })],
     }),
-    When({
-      test: tasks().length === 0,
-      then: () => Text({ size: 16 }, "Nothing here yet"),
-      else: () =>
-        For({
-          each: tasks(),
-          keyOf: (task) => task.id,
-          spacing: 8,
-          padding: 12,
-          render: (task) => TaskRow({ task }),
-        }),
+    Text({ visible: tasks().length === 0, size: 16 }, "Nothing here yet"),
+    For({
+      each: tasks(),
+      keyOf: (task) => task.id,
+      spacing: 8,
+      padding: 12,
+      render: (task) => TaskRow({ task }),
     }),
     Modal(
       {
@@ -767,7 +762,7 @@ scroll and input state survive a re-render.
 
 - `bind(() => expr)` marks a value that reads from `Store`; plain functions in
   `on*` props are event handlers.
-- `For({ each, keyOf, render })` virtualizes rows and keeps them stable by key.
+- `For({ each, keyOf, render })` builds a scrollable list and keeps rows stable by key.
 - `Modal` / `Sheet` is an in-tree overlay, so it behaves the same on desktop and
   Android.
 - `Icon` and `IconButton` take [Material Icons](https://fonts.google.com/icons)

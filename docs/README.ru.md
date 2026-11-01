@@ -676,7 +676,6 @@ import {
   Row,
   Spacer,
   Text,
-  When,
 } from "pulsar"
 
 interface Task {
@@ -729,17 +728,13 @@ app.window("main").render(() =>
       subtitle: bind(() => `${tasks().filter((task) => !task.done).length} left`),
       actions: [IconButton({ icon: "add", onClick: () => app.store.set("editing", true) })],
     }),
-    When({
-      test: tasks().length === 0,
-      then: () => Text({ size: 16 }, "Nothing here yet"),
-      else: () =>
-        For({
-          each: tasks(),
-          keyOf: (task) => task.id,
-          spacing: 8,
-          padding: 12,
-          render: (task) => TaskRow({ task }),
-        }),
+    Text({ visible: tasks().length === 0, size: 16 }, "Nothing here yet"),
+    For({
+      each: tasks(),
+      keyOf: (task) => task.id,
+      spacing: 8,
+      padding: 12,
+      render: (task) => TaskRow({ task }),
     }),
     Modal(
       {
@@ -770,7 +765,7 @@ app.run()
 
 - `bind(() => expr)` помечает значение, читающее `Store`; обычные функции в
   `on*` — обработчики событий.
-- `For({ each, keyOf, render })` виртуализирует строки и сохраняет их по ключу.
+- `For({ each, keyOf, render })` строит прокручиваемый список и сохраняет строки по ключу.
 - `Modal` / `Sheet` — оверлей внутри дерева, одинаково работает на десктопе и
   Android.
 - `Icon` и `IconButton` принимают имена

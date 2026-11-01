@@ -26,8 +26,19 @@ All notable changes to this project are documented here. The format follows
   starter moved to `--template qml`; `--template js` is an alias for the
   default.
 
+### Changed
+
+- `For` / `List` render a scrollable column instead of a `ListView` for now, so
+  rows keep correct hit areas on Android. Row paths stay keyed; virtualization
+  returns later.
+
 ### Fixed
 
+- TypeScript UI windows now render on Android: the embedded host bundles
+  `PulsarView`, applies `__ui` trees to the window and exposes the bridge as a
+  context property.
+- Android text input and checkbox taps now reach the app store (`textChanged`
+  plus a tap overlay), so typing, toggling and adding tasks work on device.
 - `Store.set` stores the new value before notifying listeners, so a UI render
   triggered by a change sees the updated state instead of the previous one.
 - Checkboxes and switches no longer emit `toggle` when their checked state is
