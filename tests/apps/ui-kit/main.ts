@@ -43,6 +43,7 @@ app.store.set("tab", 0)
 app.store.set("page", 0)
 app.store.set("segment", 0)
 app.store.set("text", "")
+app.store.set("sheet", false)
 app.store.set("dark", true)
 app.store.set("blur", true)
 
@@ -159,6 +160,45 @@ const interfacePage = page(
 const kitPage = page(
   ui.text({ text: "Component kit", size: 26, weight: "semibold", color: "text" }),
   Section(
+    "Avatars",
+    "account_circle",
+    Row(
+      { gap: 12, fillWidth: true },
+      ui.avatar({ name: "Иван Майор", size: 44, status: "online", badge: 3 }),
+      ui.avatar({ name: "Макс", size: 36, status: "away" }),
+      ui.avatar({ src: "file:///home/user/pulsar/examples/windows/icon.png", name: "Pulsar", size: 44 }),
+      ui.avatar({ name: "AI", size: 36, status: "busy", radius: 12 }),
+    ),
+  ),
+  Section(
+    "Badges",
+    "notifications",
+    Row(
+      { gap: 12, fillWidth: true },
+      ui.badge({ count: 12 }),
+      ui.badge({ dot: true }),
+      ui.iconButton("notifications", { badge: 5 }),
+      ui.iconButton("mail", { badge: "dot" }),
+    ),
+  ),
+  Section(
+    "Loading",
+    "hourglass",
+    Row(
+      { gap: 16, fillWidth: true },
+      ui.spinner({ size: 24 }),
+      ui.spinner({ size: 40, value: 0.6, color: "teal" }),
+      ui.skeleton({ variant: "circle", width: 40, height: 40 }),
+      ui.skeleton({ variant: "text", width: 180 }),
+      ui.skeleton({ variant: "rect", width: 120, height: 48 }),
+    ),
+  ),
+  Section(
+    "Bottom sheet",
+    "vertical_align_bottom",
+    ui.button("Open sheet", { onClick: () => app.store.set("sheet", true) }),
+  ),
+  Section(
     "Virtual list",
     "list",
     VirtualList({
@@ -190,6 +230,17 @@ const kitPage = page(
       Switch({ label: "Enabled", checked: true }),
       Switch({ label: "Disabled", checked: false }),
     ),
+  ),
+  ui.bottomSheet(
+    {
+      open: app.store.get("sheet") === true,
+      title: "Actions",
+      placement: "bottom",
+      onClose: () => app.store.set("sheet", false),
+    },
+    ui.text({ text: "Pick an action", color: "subtext" }),
+    ui.button("Share", { variant: "soft", color: "blue", onClick: () => app.store.set("sheet", false) }),
+    ui.button("Delete", { variant: "soft", color: "red", onClick: () => app.store.set("sheet", false) }),
   ),
   Section(
     "Text",

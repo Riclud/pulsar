@@ -17,6 +17,10 @@ export type UiNodeType =
   | "iconButton"
   | "textInput"
   | "textArea"
+  | "avatar"
+  | "badge"
+  | "skeleton"
+  | "spinner"
   | "checkbox"
   | "switch"
   | "slider"
@@ -190,6 +194,41 @@ export interface ImageOptions extends CommonOptions {
   onLongPress?: () => void
 }
 
+export interface AvatarOptions extends CommonOptions {
+  src?: string
+  name?: string
+  size?: number
+  radius?: number
+  status?: "online" | "away" | "busy" | "offline"
+  statusColor?: ColorValue
+  badge?: number | "dot"
+  badgeColor?: ColorValue
+}
+
+export interface BadgeOptions extends CommonOptions {
+  label?: string
+  count?: number
+  dot?: boolean
+  color?: ColorValue
+  textColor?: ColorValue
+}
+
+export interface SkeletonOptions extends CommonOptions {
+  variant?: "text" | "rect" | "circle"
+  width?: number
+  height?: number
+  radius?: number
+  animated?: boolean
+}
+
+export interface SpinnerOptions extends CommonOptions {
+  size?: number
+  color?: ColorValue
+  thickness?: number
+  /** 0..1 for determinate progress; omit or negative for indeterminate. */
+  value?: number
+}
+
 export interface ButtonOptions extends CommonOptions {
   variant?: "solid" | "soft" | "outline" | "ghost" | "elevated"
   size?: "sm" | "md" | "lg"
@@ -198,6 +237,8 @@ export interface ButtonOptions extends CommonOptions {
   radius?: number
   icon?: string
   iconPosition?: "left" | "right"
+  badge?: number | "dot"
+  badgeColor?: ColorValue
   elevation?: number
   expand?: boolean
   enabled?: boolean
@@ -208,12 +249,16 @@ export interface ButtonOptions extends CommonOptions {
 export interface IconOptions extends CommonOptions {
   size?: number
   color?: ColorValue
+  badge?: number | "dot"
+  badgeColor?: ColorValue
 }
 
 export interface IconButtonOptions extends CommonOptions {
   enabled?: boolean
   color?: ColorValue
   size?: number
+  badge?: number | "dot"
+  badgeColor?: ColorValue
   onClick?: () => void
 }
 
@@ -295,6 +340,10 @@ export interface SheetOptions extends CommonOptions {
   title?: string
   fullscreen?: boolean
   dismissible?: boolean
+  /** "center" (default) or "bottom" bottom sheet. */
+  placement?: "center" | "bottom"
+  /** Show a drag handle on bottom sheets. */
+  handle?: boolean
   duration?: number
   onClose?: () => void
 }
@@ -584,6 +633,22 @@ export const image = (options: ImageOptions): UiNode => {
   return withLongPress("image", options)
 }
 
+export const avatar = (options: AvatarOptions = {}): UiNode => {
+  return makeNode("avatar", options)
+}
+
+export const badge = (options: BadgeOptions = {}): UiNode => {
+  return makeNode("badge", options)
+}
+
+export const skeleton = (options: SkeletonOptions = {}): UiNode => {
+  return makeNode("skeleton", options)
+}
+
+export const spinner = (options: SpinnerOptions = {}): UiNode => {
+  return makeNode("spinner", { ...options, value: options.value ?? -1 })
+}
+
 export const spacer = (
   options: { size?: number; width?: number; height?: number; fillWidth?: boolean; fillHeight?: boolean } = {},
 ): UiNode => {
@@ -731,6 +796,10 @@ export const sheet = (options: SheetOptions = {}, ...children: UiChild[]): UiNod
   if (!onClose) return makeNode("sheet", props, children)
 
   return makeNode("sheet", props, children, ["close"], { close: () => onClose() })
+}
+
+export const bottomSheet = (options: SheetOptions = {}, ...children: UiChild[]): UiNode => {
+  return sheet({ ...options, placement: "bottom" }, ...children)
 }
 
 export const pager = (options: PagerOptions = {}, ...children: UiChild[]): UiNode => {
@@ -926,6 +995,11 @@ export const List = <T>(
 export const Spacer = spacer
 export const Divider = divider
 export const Image = image
+export const Avatar = (options: AvatarOptions = {}): UiNode => avatar(options)
+export const Badge = (options: BadgeOptions = {}): UiNode => badge(options)
+export const Skeleton = (options: SkeletonOptions = {}): UiNode => skeleton(options)
+export const Spinner = (options: SpinnerOptions = {}): UiNode => spinner(options)
+export const BottomSheet = (options: SheetOptions = {}, ...children: UiChild[]): UiNode => bottomSheet(options, ...children)
 
 const nodeSegment = (node: UiNode, index: number, keys?: Array<string | number>): string => {
   const explicit = node.props.key
@@ -975,6 +1049,10 @@ export const ui = {
   text,
   icon,
   image,
+  avatar,
+  badge,
+  skeleton,
+  spinner,
   spacer,
   divider,
   button,
@@ -988,6 +1066,7 @@ export const ui = {
   select,
   progress,
   sheet,
+  bottomSheet,
   pager,
   tabs,
   navRail,

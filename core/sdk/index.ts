@@ -42,6 +42,11 @@ export {
   Spacer,
   Divider,
   Image,
+  Avatar,
+  Badge,
+  Skeleton,
+  Spinner,
+  BottomSheet,
 } from "./ui.ts"
 export type {
   UiChild,
@@ -64,6 +69,10 @@ export type {
   BoxOptions,
   TextOptions,
   ImageOptions,
+  AvatarOptions,
+  BadgeOptions,
+  SkeletonOptions,
+  SpinnerOptions,
   ButtonOptions,
   IconOptions,
   IconButtonOptions,

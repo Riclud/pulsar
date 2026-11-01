@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Effects
 
 ApplicationWindow {
     id: view
@@ -690,6 +691,255 @@ ApplicationWindow {
     }
 
     Component {
+        id: avatarComponent
+
+        Item {
+            id: avatarRoot
+
+            property var pulsarMeta: null
+            property string src: ""
+            property string initials: "?"
+            property int avatarSize: 40
+            property int avatarRadius: 9999
+            property color fallbackColor: view.themeSurfaceVariant
+            property color fallbackTextColor: view.themeText
+            property string status: ""
+            property color statusColor: view.themePrimary
+
+            width: avatarSize
+            height: avatarSize
+            implicitWidth: avatarSize
+            implicitHeight: avatarSize
+
+            onAvatarRadiusChanged: avatarCanvas.requestPaint()
+            onSrcChanged: avatarCanvas.requestPaint()
+            onAvatarSizeChanged: avatarCanvas.requestPaint()
+
+            Rectangle {
+                id: avatarFallback
+
+                anchors.fill: parent
+                radius: avatarRoot.avatarRadius
+                color: avatarRoot.fallbackColor
+                visible: avatarRoot.src.length === 0 || avatarImage.status === Image.Error
+
+                Label {
+                    anchors.centerIn: parent
+                    text: avatarRoot.initials
+                    color: avatarRoot.fallbackTextColor
+                    font.family: view.fontFamily
+                    font.pixelSize: view.fs(Math.max(10, avatarRoot.avatarSize * 0.36))
+                    font.weight: 600
+                }
+            }
+
+            Image {
+                id: avatarImage
+
+                anchors.fill: parent
+                source: avatarRoot.src
+                fillMode: Image.PreserveAspectCrop
+                visible: false
+
+                onStatusChanged: avatarCanvas.requestPaint()
+            }
+
+            Canvas {
+                id: avatarCanvas
+
+                anchors.fill: parent
+                visible: avatarImage.status === Image.Ready
+
+                onImageLoaded: requestPaint()
+                onWidthChanged: requestPaint()
+                onHeightChanged: requestPaint()
+
+                onPaint: {
+                    const ctx = getContext("2d");
+
+                    if (avatarImage.status !== Image.Ready)
+                        return;
+
+                    const w = width;
+                    const h = height;
+                    const r = Math.min(avatarRoot.avatarRadius, Math.min(w, h) / 2);
+                    const iw = avatarImage.sourceSize.width || avatarImage.implicitWidth || w;
+                    const ih = avatarImage.sourceSize.height || avatarImage.implicitHeight || h;
+                    const scale = Math.max(w / iw, h / ih);
+                    const dw = iw * scale;
+                    const dh = ih * scale;
+
+                    ctx.clearRect(0, 0, w, h);
+                    ctx.save();
+                    avatarRoot.roundedPath(ctx, 0, 0, w, h, r);
+                    ctx.clip();
+                    ctx.drawImage(avatarRoot.src, (w - dw) / 2, (h - dh) / 2, dw, dh);
+                    ctx.restore();
+                }
+            }
+
+            function roundedPath(ctx, x, y, w, h, r) {
+                ctx.beginPath();
+                ctx.moveTo(x + r, y);
+                ctx.lineTo(x + w - r, y);
+                ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+                ctx.lineTo(x + w, y + h - r);
+                ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+                ctx.lineTo(x + r, y + h);
+                ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+                ctx.lineTo(x, y + r);
+                ctx.quadraticCurveTo(x, y, x + r, y);
+                ctx.closePath();
+            }
+
+            Rectangle {
+                visible: avatarRoot.status.length > 0
+                width: Math.max(8, avatarRoot.avatarSize * 0.28)
+                height: width
+                radius: width / 2
+                color: avatarRoot.statusColor
+                border.width: 2
+                border.color: view.themeBackground
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.rightMargin: -1
+                anchors.bottomMargin: -1
+            }
+        }
+    }
+
+    Component {
+        id: badgeComponent
+
+        Rectangle {
+            id: badgeRoot
+
+            property var pulsarMeta: null
+            property string label: ""
+            property bool dot: false
+            property color badgeColor: view.themePrimary
+            property color badgeTextColor: view.themeOnPrimary
+
+            implicitHeight: dot ? 8 : 18
+            implicitWidth: dot ? 8 : Math.max(18, badgeLabel.implicitWidth + 10)
+            height: implicitHeight
+            width: implicitWidth
+            radius: height / 2
+            color: badgeColor
+
+            Label {
+                id: badgeLabel
+
+                anchors.centerIn: parent
+                text: badgeRoot.dot ? "" : badgeRoot.label
+                visible: !badgeRoot.dot
+                color: badgeRoot.badgeTextColor
+                font.family: view.fontFamily
+                font.pixelSize: view.fs(10)
+                font.weight: 600
+            }
+        }
+    }
+
+    Component {
+        id: skeletonComponent
+
+        Rectangle {
+            id: skeletonRoot
+
+            property var pulsarMeta: null
+            property string variant: "rect"
+            property bool animated: true
+            property int baseRadius: 8
+
+            color: view.themeSurfaceVariant
+            radius: variant === "circle" ? height / 2 : baseRadius
+
+            SequentialAnimation on opacity {
+                running: skeletonRoot.animated
+                loops: Animation.Infinite
+
+                NumberAnimation {
+                    to: 0.45
+                    duration: view.motionSlow
+                    easing.type: Easing.InOutSine
+                }
+
+                NumberAnimation {
+                    to: 1
+                    duration: view.motionSlow
+                    easing.type: Easing.InOutSine
+                }
+            }
+        }
+    }
+
+    Component {
+        id: spinnerComponent
+
+        Item {
+            id: spinnerRoot
+
+            property var pulsarMeta: null
+            property color spinnerColor: view.themePrimary
+            property real spinnerValue: -1
+            property real thickness: Math.max(2, width * 0.1)
+            property int spinnerSize: 24
+
+            width: spinnerSize
+            height: spinnerSize
+            implicitWidth: spinnerSize
+            implicitHeight: spinnerSize
+
+            Canvas {
+                id: spinnerCanvas
+
+                anchors.fill: parent
+                rotation: 0
+                onPaint: {
+                    const ctx = getContext("2d");
+                    const w = width;
+                    const h = height;
+                    const line = Math.min(Math.max(1, spinnerRoot.thickness), Math.min(w, h) / 2);
+                    const cx = w / 2;
+                    const cy = h / 2;
+                    const radius = Math.max(1, Math.min(w, h) / 2 - line);
+                    const start = -Math.PI / 2;
+                    const sweep = spinnerRoot.spinnerValue < 0
+                            ? Math.PI * 1.5
+                            : Math.PI * 2 * Math.max(0, Math.min(1, spinnerRoot.spinnerValue));
+
+                    ctx.clearRect(0, 0, w, h);
+                    ctx.beginPath();
+                    ctx.strokeStyle = spinnerRoot.spinnerColor;
+                    ctx.lineWidth = line;
+                    ctx.lineCap = "round";
+                    ctx.arc(cx, cy, radius, start, start + sweep);
+                    ctx.stroke();
+                }
+
+                onWidthChanged: requestPaint()
+                onHeightChanged: requestPaint()
+
+                RotationAnimation on rotation {
+                    running: spinnerRoot.spinnerValue < 0
+                    from: 0
+                    to: 360
+                    duration: 900
+                    loops: Animation.Infinite
+                }
+            }
+
+            onSpinnerValueChanged: spinnerCanvas.requestPaint()
+            onSpinnerColorChanged: spinnerCanvas.requestPaint()
+            onThicknessChanged: spinnerCanvas.requestPaint()
+            onSpinnerSizeChanged: spinnerCanvas.requestPaint()
+
+            Component.onCompleted: spinnerCanvas.requestPaint()
+        }
+    }
+
+    Component {
         id: sheetComponent
 
         Item {
@@ -700,6 +950,9 @@ ApplicationWindow {
             opacity: open ? 1 : 0
             property bool open: false
             property bool dismissible: true
+            property bool isBottom: false
+            property bool showHandle: true
+            property real dragStart: 0
             property int fadeDuration: 140
             property real openedAT: 0
             property var pulsarMeta: null
@@ -745,13 +998,26 @@ ApplicationWindow {
                 width: Math.min(parent.width - 24, 560)
                 height: Math.min(parent.height - 48, 720)
                 radius: view.themeRadius
+                topLeftRadius: view.themeRadius
+                topRightRadius: view.themeRadius
+                bottomLeftRadius: sheetRoot.isBottom ? 0 : view.themeRadius
+                bottomRightRadius: sheetRoot.isBottom ? 0 : view.themeRadius
                 color: view.themeSurface
                 border.width: 1
                 border.color: view.themeBorder
                 transformOrigin: Item.Center
-                scale: sheetRoot.open ? 1 : 0.97
+                scale: sheetRoot.isBottom ? 1 : (sheetRoot.open ? 1 : 0.97)
 
                 Behavior on scale {
+                    NumberAnimation {
+                        duration: view.motionFast
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: view.motionCurve
+                    }
+                }
+
+                Behavior on y {
+                    enabled: !sheetDrag.active
                     NumberAnimation {
                         duration: view.motionFast
                         easing.type: Easing.BezierSpline
@@ -763,6 +1029,51 @@ ApplicationWindow {
                     anchors.fill: parent
                 }
 
+                Item {
+                    id: sheetGrabber
+
+                    anchors.top: parent.top
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: 96
+                    height: 24
+                    visible: sheetRoot.isBottom && sheetRoot.showHandle
+
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: 36
+                        height: 4
+                        radius: 2
+                        color: view.themeBorder
+                    }
+
+                    DragHandler {
+                        id: sheetDrag
+
+                        target: null
+
+                        yAxis.minimum: 0
+
+                        onActiveChanged: {
+                            if (active) {
+                                sheetRoot.dragStart = sheetPanel.y;
+                                return;
+                            }
+
+                            if (sheetPanel.y > sheetRoot.dragStart + 80) {
+                                view.emitNodeEvent(sheetRoot.nodeData, "close");
+                                return;
+                            }
+
+                            sheetPanel.y = sheetRoot.dragStart;
+                        }
+
+                        onActiveTranslationChanged: {
+                            if (active)
+                                sheetPanel.y = sheetRoot.dragStart + activeTranslation.y;
+                        }
+                    }
+                }
+
                 ColumnLayout {
                     anchors.fill: parent
                     spacing: 0
@@ -771,7 +1082,7 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         Layout.leftMargin: 16
                         Layout.rightMargin: 4
-                        Layout.topMargin: 4
+                        Layout.topMargin: sheetRoot.isBottom ? 18 : 4
                         Layout.bottomMargin: 4
                         spacing: 4
 
@@ -1941,6 +2252,14 @@ ApplicationWindow {
             item = make("import QtQuick.Controls; ProgressBar " + base, parent);
         } else if (node.type === "image") {
             item = make("import QtQuick; Image " + base, parent);
+        } else if (node.type === "avatar") {
+            item = avatarComponent.createObject(parent);
+        } else if (node.type === "badge") {
+            item = badgeComponent.createObject(parent);
+        } else if (node.type === "skeleton") {
+            item = skeletonComponent.createObject(parent);
+        } else if (node.type === "spinner") {
+            item = spinnerComponent.createObject(parent);
         } else if (node.type === "spacer") {
             item = make("import QtQuick; Item " + base, parent);
         } else if (node.type === "divider") {
@@ -2048,6 +2367,56 @@ ApplicationWindow {
             anim.destroy();
         });
         anim.start();
+    }
+
+    function applyBadge(item, props) {
+        if (!item.pulsarMeta)
+            return;
+
+        const value = prop(props, "badge", undefined);
+        let badge = item.pulsarMeta.extra.badge;
+
+        if (value === undefined) {
+            if (badge)
+                badge.visible = false;
+
+            return;
+        }
+
+        if (!badge) {
+            badge = make("import QtQuick; import QtQuick.Controls; Rectangle { property alias label: badgeLabel; z: 20; Label { id: badgeLabel; anchors.centerIn: parent } }", item);
+            badge.label.font.family = view.fontFamily;
+            badge.label.font.pixelSize = view.fs(10);
+            badge.label.font.weight = 600;
+            badge.label.color = "#ffffff";
+            item.pulsarMeta.extra.badge = badge;
+        }
+
+        const dot = value === "dot";
+
+        badge.visible = true;
+        badge.color = resolveColor(prop(props, "badgeColor", "red"), "#e78284");
+        badge.anchors.right = item.right;
+        badge.anchors.top = item.top;
+        badge.anchors.rightMargin = -4;
+        badge.anchors.topMargin = -4;
+
+        if (dot) {
+            badge.width = 8;
+            badge.height = 8;
+            badge.radius = 4;
+            badge.label.visible = false;
+            badge.label.text = "";
+            return;
+        }
+
+        const count = Number(value);
+
+        badge.label.visible = true;
+        badge.label.text = count > 99 ? "99+" : String(count);
+        badge.width = Math.max(18, badge.label.implicitWidth + 8);
+        badge.height = 18;
+        badge.radius = 9;
     }
 
     function applyTooltip(item, text) {
@@ -2354,14 +2723,31 @@ ApplicationWindow {
                 return item.labelItem.implicitWidth + 20 + removeWidth;
             });
         } else if (node.type === "sheet") {
+            const placement = prop(props, "placement", "center");
+
             item.nodeData = node;
             item.dismissible = prop(props, "dismissible", true);
             item.fadeDuration = prop(props, "duration", 140);
+            item.isBottom = placement === "bottom";
+            item.showHandle = prop(props, "handle", true);
             item.open = prop(props, "open", true);
             item.titleLabel.text = prop(props, "title", "");
             item.closeButton.visible = hasEvent(node, "close");
 
-            if (props.fullscreen) {
+            if (item.isBottom) {
+                item.panel.width = Qt.binding(function () {
+                    return Math.max(240, Math.min(item.width - 16, 640));
+                });
+                item.panel.height = Qt.binding(function () {
+                    return Math.min(item.height * 0.75, 560);
+                });
+                item.panel.x = Qt.binding(function () {
+                    return (item.width - item.panel.width) / 2;
+                });
+                item.panel.y = Qt.binding(function () {
+                    return item.height - item.panel.height - 8;
+                });
+            } else if (props.fullscreen) {
                 item.panel.x = 0;
                 item.panel.y = 0;
                 item.panel.width = Qt.binding(function () {
@@ -2707,6 +3093,62 @@ ApplicationWindow {
 
             if (props.fillMode !== undefined)
                 item.fillMode = props.fillMode;
+        } else if (node.type === "avatar") {
+            const name = prop(props, "name", "");
+            const parts = name.trim().length > 0 ? name.trim().split(/\s+/) : [];
+            const size = prop(props, "size", 40);
+            const status = prop(props, "status", "");
+            const statusColors = { online: "green", away: "yellow", busy: "red", offline: "overlay" };
+            const accents = ["mauve", "blue", "teal", "peach", "green", "lavender"];
+
+            let hash = 0;
+
+            for (let i = 0; i < name.length; i++)
+                hash = (hash * 31 + name.charCodeAt(i)) % 100000;
+
+            item.src = prop(props, "src", "");
+            item.initials = parts.length > 0
+                    ? parts.slice(0, 2).map(function (part) { return part.charAt(0); }).join("").toUpperCase()
+                    : "?";
+            item.avatarSize = size;
+            item.avatarRadius = prop(props, "radius", size / 2);
+            item.fallbackColor = resolveColor(accents[hash % accents.length], view.themeSurfaceVariant);
+            item.fallbackTextColor = view.themeOnPrimary;
+            item.status = status;
+            item.statusColor = props.statusColor !== undefined
+                    ? resolveColor(props.statusColor, view.themePrimary)
+                    : resolveColor(statusColors[status] ?? "", view.themePrimary);
+        } else if (node.type === "badge") {
+            const count = prop(props, "count", undefined);
+            const dot = prop(props, "dot", false);
+
+            item.dot = dot;
+            item.label = prop(props, "label", count !== undefined ? (Number(count) > 99 ? "99+" : String(count)) : "");
+            item.badgeColor = resolveColor(prop(props, "color", view.themePrimary), view.themePrimary);
+            item.badgeTextColor = resolveColor(prop(props, "textColor", view.themeOnPrimary), view.themeOnPrimary);
+        } else if (node.type === "skeleton") {
+            const skeletonVariant = prop(props, "variant", "rect");
+            const skeletonWidth = props.width !== undefined
+                    ? props.width : (skeletonVariant === "circle" ? 40 : 120);
+            const skeletonHeight = props.height !== undefined
+                    ? props.height : (skeletonVariant === "circle" ? skeletonWidth : skeletonVariant === "text" ? 12 : 80);
+
+            item.variant = skeletonVariant;
+            item.baseRadius = prop(props, "radius", skeletonVariant === "text" ? 6 : 8);
+            item.animated = prop(props, "animated", true);
+            item.width = skeletonWidth;
+            item.height = skeletonHeight;
+            item.Layout.preferredWidth = skeletonWidth;
+            item.Layout.preferredHeight = skeletonHeight;
+        } else if (node.type === "spinner") {
+            const spinnerSize = prop(props, "size", 24);
+
+            item.spinnerSize = spinnerSize;
+            item.spinnerColor = resolveColor(prop(props, "color", view.themePrimary), view.themePrimary);
+            item.spinnerValue = prop(props, "value", -1);
+            item.thickness = prop(props, "thickness", Math.max(2, spinnerSize * 0.1));
+            item.Layout.preferredWidth = spinnerSize;
+            item.Layout.preferredHeight = spinnerSize;
         } else if (node.type === "spacer") {
             const size = prop(props, "size", 0);
             item.Layout.preferredWidth = prop(props, "width", size);
@@ -2715,6 +3157,8 @@ ApplicationWindow {
             item.color = resolveColor(prop(props, "color", view.themeBorder), view.themeBorder);
             item.implicitHeight = 1;
         }
+
+        applyBadge(item, props);
     }
 
     function rebuild() {

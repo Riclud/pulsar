@@ -12,6 +12,8 @@ import {
   TextField,
   When,
   appBar,
+  avatar,
+  badge,
   bind,
   box,
   button,
@@ -33,7 +35,10 @@ import {
   segmented,
   serialize,
   sheet,
+  bottomSheet,
+  skeleton,
   snackbar,
+  spinner,
   tabs,
   text,
   textInput,
@@ -232,6 +237,40 @@ describe("styling", () => {
     const out = serialize([tag]) as Array<{ props: Record<string, unknown> }>
     expect(out[0]!.props.color).toBeUndefined()
     expect(out[0]!.props.selected).toBe(true)
+  })
+})
+
+describe("small components", () => {
+  test("avatar carries source, initials inputs and badge", () => {
+    const node = avatar({ src: "file:///me.png", name: "Ivan Mayor", size: 48, status: "online", badge: 3 })
+
+    expect(node.type).toBe("avatar")
+    expect(node.props).toMatchObject({
+      src: "file:///me.png",
+      name: "Ivan Mayor",
+      size: 48,
+      status: "online",
+      badge: 3,
+    })
+  })
+
+  test("badge pill and dot variants", () => {
+    expect(badge({ count: 12 }).props).toEqual({ count: 12 })
+    expect(badge({ dot: true }).props).toEqual({ dot: true })
+  })
+
+  test("skeleton and spinner defaults", () => {
+    expect(skeleton({ variant: "text" }).props).toEqual({ variant: "text" })
+    expect(spinner().props.value).toBe(-1)
+    expect(spinner({ value: 0.4 }).props.value).toBe(0.4)
+  })
+
+  test("bottom sheet sets bottom placement", () => {
+    const node = bottomSheet({ open: true, title: "Actions" })
+
+    expect(node.type).toBe("sheet")
+    expect(node.props.placement).toBe("bottom")
+    expect(node.props.title).toBe("Actions")
   })
 })
 
