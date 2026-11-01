@@ -22,8 +22,15 @@
 #include <QWindow>
 #include <QtQml/qqml.h>
 
+#include <memory>
+
 #ifdef Q_OS_ANDROID
 #include <QJniEnvironment>
+#endif
+
+#ifdef PULSAR_DEV
+#include "devchannel.h"
+#include "devfetch.h"
 #endif
 
 #ifdef Q_OS_ANDROID
@@ -195,11 +202,27 @@ int main(int argc, char **argv)
     app.setQuitOnLastWindowClosed(false);
 #endif
 
-    const QString dir =
+#ifdef PULSAR_DEV
+    QString devUrl = qEnvironmentVariable("PULSAR_DEV_URL");
+
+    if (devUrl.isEmpty())
+        devUrl = pulsar::devUrlFromIntent();
+#endif
+
+    QString dir =
 #ifdef Q_OS_ANDROID
         androidAppDir();
 #else
         appDir();
+#endif
+
+#ifdef PULSAR_DEV
+    if (!devUrl.isEmpty()) {
+        const pulsar::DevFetchResult fetched = pulsar::fetchDevApp(devUrl);
+
+        if (fetched.ok)
+            dir = fetched.dir;
+    }
 #endif
 
     QFile manifestFile(dir + QStringLiteral("/pulsar.json"));
@@ -230,6 +253,15 @@ int main(int argc, char **argv)
     pulsar::QuickJsRuntime runtime;
     EmbeddedBridge bridge(&runtime, &engine, &store);
 
+#ifdef PULSAR_DEV
+    std::unique_ptr<DevChannel> devChannel;
+
+    if (!devUrl.isEmpty()) {
+        devChannel = std::make_unique<DevChannel>(&bridge, &store, QUrl(devUrl));
+        devChannel->start();
+    }
+#endif
+
     QVariantList pendingUiTree;
     bool hasPendingUiTree = false;
     QObject *uiRoot = nullptr;
@@ -249,8 +281,14 @@ int main(int argc, char **argv)
                          if (!jsUi)
                              return;
 
-                         if (target == QLatin1String("main") || target == QLatin1String("*") || target.isEmpty())
+                         if (target == QLatin1String("main") || target == QLatin1String("*") || target.isEmpty()) {
                              applyUiTree(tree);
+
+#ifdef PULSAR_DEV
+                             if (devChannel)
+                                 devChannel->setTree(tree);
+#endif
+                         }
                      });
 
 #ifdef Q_OS_ANDROID
@@ -351,15 +389,34 @@ int main(int argc, char **argv)
     engine.rootContext()->setContextProperty(QStringLiteral("PulsarWindowLabel"), QStringLiteral("main"));
 
     QObject::connect(&runtime, &pulsar::QuickJsRuntime::message, &bridge, &EmbeddedBridge::handleMessage);
-    QObject::connect(&runtime, &pulsar::QuickJsRuntime::failed, [](const QString &message) {
+    QObject::connect(&runtime, &pulsar::QuickJsRuntime::failed, [&](const QString &message) {
         qWarning().noquote() << "pulsar: runtime failed:" << message;
+
+#ifdef PULSAR_DEV
+        if (devChannel)
+            devChannel->sendLog(QStringLiteral("error"), message, QStringLiteral("runtime"));
+#endif
     });
-    QObject::connect(&bridge, &EmbeddedBridge::log, [](const QString &level, const QString &message, const QString &source) {
+    QObject::connect(&bridge, &EmbeddedBridge::log, [&](const QString &level, const QString &message,
+                                                        const QString &source) {
         qInfo().noquote() << QStringLiteral("LOG[%1/%2]").arg(source, level) << message;
+
+#ifdef PULSAR_DEV
+        if (devChannel)
+            devChannel->sendLog(level, message, source);
+#endif
     });
-    QObject::connect(&engine, &QQmlEngine::warnings, [](const QList<QQmlError> &warnings) {
-        for (const QQmlError &warning : warnings)
-            qWarning().noquote() << "QML:" << warning.toString();
+    QObject::connect(&engine, &QQmlEngine::warnings, [&](const QList<QQmlError> &warnings) {
+        for (const QQmlError &warning : warnings) {
+            const QString text = warning.toString();
+
+            qWarning().noquote() << "QML:" << text;
+
+#ifdef PULSAR_DEV
+            if (devChannel)
+                devChannel->sendLog(QStringLiteral("warn"), text, QStringLiteral("qml"));
+#endif
+        }
     });
 
     qInfo().noquote() << "pulsar: app dir" << dir;

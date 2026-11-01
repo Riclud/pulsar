@@ -25,7 +25,16 @@ foreach(config IN ITEMS DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
 endforeach()
 
 # Pulsar requires Qt 6.8+. The host is a Qt app, so use Qt's CMake package.
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Qml Quick Network WebSockets QuickControls2)
+# WebSockets is optional: the Android Qt bundle ships without it.
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Qml Quick Network QuickControls2)
+find_package(Qt6 6.8 QUIET OPTIONAL_COMPONENTS WebSockets)
+
+function(pulsar_link_websockets target)
+    if(TARGET Qt6::WebSockets)
+        target_link_libraries(${target} PRIVATE Qt6::WebSockets)
+        target_compile_definitions(${target} PRIVATE PULSAR_HAS_WEBSOCKETS=1)
+    endif()
+endfunction()
 
 set(CMAKE_AUTOMOC ON)
 
@@ -66,9 +75,10 @@ target_link_libraries(qml-host PRIVATE
     Qt6::Qml
     Qt6::Quick
     Qt6::Network
-    Qt6::WebSockets
     Qt6::QuickControls2
 )
+
+pulsar_link_websockets(qml-host)
 
 # OS secret storage: Keychain on macOS, DPAPI on Windows, libsecret on Linux.
 # Recent documents use Security/AppKit on macOS and the shell API on Windows.
@@ -111,9 +121,10 @@ target_link_libraries(qml-host-qjs PRIVATE
     Qt6::Qml
     Qt6::Quick
     Qt6::Network
-    Qt6::WebSockets
     qjs
 )
+
+pulsar_link_websockets(qml-host-qjs)
 
 pulsar_add_view_resources(qml-host-qjs "pulsarview_qjs")
 
@@ -139,23 +150,32 @@ if(ANDROID)
     qt_add_executable(pulsar-android
         host/embedded/main.cpp
         host/embedded/bridge.cpp
+        host/embedded/devchannel.cpp
+        host/embedded/devfetch.cpp
         host/quickjs_runtime.cpp
         host/net.cpp
         host/embedded/bridge.h
+        host/embedded/devchannel.h
+        host/embedded/devfetch.h
         host/quickjs_runtime.h
         host/net.h
     )
     target_include_directories(pulsar-android PRIVATE host host/embedded)
     target_compile_definitions(pulsar-android PRIVATE QT_NO_EMIT)
+
+    if(PULSAR_ANDROID_DEV)
+        target_compile_definitions(pulsar-android PRIVATE PULSAR_DEV=1)
+    endif()
     target_link_libraries(pulsar-android PRIVATE
         Qt6::Core
         Qt6::Gui
         Qt6::Qml
         Qt6::Quick
         Qt6::Network
-        Qt6::WebSockets
         qjs
     )
+
+    pulsar_link_websockets(pulsar-android)
 
     pulsar_add_view_resources(pulsar-android "pulsarview_android")
 

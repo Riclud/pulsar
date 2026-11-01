@@ -13,7 +13,9 @@
 class QNetworkAccessManager;
 class QNetworkReply;
 class QTimer;
+#ifdef PULSAR_HAS_WEBSOCKETS
 class QWebSocket;
+#endif
 
 namespace pulsar {
 
@@ -126,7 +128,9 @@ private:
     void closeSocket(const QVariantMap &params);
 
     NativeHttpEngine *native_;
+#ifdef PULSAR_HAS_WEBSOCKETS
     QHash<quint32, QWebSocket *> sockets_;
+#endif
 };
 
 } // namespace pulsar

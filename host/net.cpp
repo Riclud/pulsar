@@ -5,8 +5,11 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QTimer>
+
+#ifdef PULSAR_HAS_WEBSOCKETS
 #include <QWebSocket>
 #include <QWebSocketHandshakeOptions>
+#endif
 
 #include <utility>
 
@@ -397,6 +400,7 @@ HttpEngine *NetworkService::engineFor(const NetRequestSpec &spec)
 
 void NetworkService::abort(quint32 id)
 {
+#ifdef PULSAR_HAS_WEBSOCKETS
     QWebSocket *socket = sockets_.take(id);
 
     if (socket) {
@@ -406,6 +410,7 @@ void NetworkService::abort(quint32 id)
 
         return;
     }
+#endif
 
     native_->abort(id);
 }
@@ -414,7 +419,14 @@ void NetworkService::openSocket(const QVariantMap &params)
 {
     const quint32 id = params.value(QStringLiteral("id")).toUInt();
 
-    if (id == 0 || sockets_.contains(id))
+    if (id == 0)
+        return;
+
+#ifndef PULSAR_HAS_WEBSOCKETS
+    Q_EMIT failed(id, QStringLiteral("ERR_UNSUPPORTED"), QStringLiteral("websockets are not available in this build"));
+    return;
+#else
+    if (sockets_.contains(id))
         return;
 
     const QUrl url(params.value(QStringLiteral("url")).toString());
@@ -502,10 +514,12 @@ void NetworkService::openSocket(const QVariantMap &params)
     timer->start(timeout > 0 ? timeout : kDefaultTimeoutMs);
 
     socket->open(request, handshake);
+#endif
 }
 
 void NetworkService::sendSocket(const QVariantMap &params)
 {
+#ifdef PULSAR_HAS_WEBSOCKETS
     const quint32 id = params.value(QStringLiteral("id")).toUInt();
     QWebSocket *socket = sockets_.value(id);
 
@@ -522,10 +536,14 @@ void NetworkService::sendSocket(const QVariantMap &params)
     }
 
     socket->sendTextMessage(params.value(QStringLiteral("text")).toString());
+#else
+    Q_UNUSED(params)
+#endif
 }
 
 void NetworkService::closeSocket(const QVariantMap &params)
 {
+#ifdef PULSAR_HAS_WEBSOCKETS
     const quint32 id = params.value(QStringLiteral("id")).toUInt();
     QWebSocket *socket = sockets_.value(id);
 
@@ -537,6 +555,9 @@ void NetworkService::closeSocket(const QVariantMap &params)
                                     : QWebSocketProtocol::CloseCodeNormal;
 
     socket->close(closeCode, params.value(QStringLiteral("reason")).toString());
+#else
+    Q_UNUSED(params)
+#endif
 }
 
 void NetworkService::handle(const QVariantMap &params)
