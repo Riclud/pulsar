@@ -25,6 +25,28 @@ export interface TapQuery {
 
 const sessionPath = (appDir: string): string => join(appDir, ".pulsar", "dev.json")
 
+const retryable = (error: unknown): boolean => {
+  return error instanceof Error && /node not found|no ui tree/i.test(error.message)
+}
+
+const waitForNode = async <T>(action: () => Promise<T>, attempts = 10): Promise<T> => {
+  let last: unknown
+
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      return await action()
+    } catch (e) {
+      last = e
+
+      if (!retryable(e)) throw e
+
+      await new Promise((done) => setTimeout(done, 150))
+    }
+  }
+
+  throw last
+}
+
 export const readSession = (appDir: string): DevSession => {
   const path = sessionPath(appDir)
 
@@ -93,23 +115,27 @@ export const deviceTap = async (appDir: string, query: TapQuery): Promise<void> 
 
   if (query.event) body.event = query.event
 
-  const value = await control(appDir, body)
+  const value = await waitForNode(() => control(appDir, body))
 
   console.log(JSON.stringify(value))
 }
 
 export const deviceType = async (appDir: string, text: string, into?: string): Promise<void> => {
-  const value = await control(appDir, { cmd: "type", value: text, ...(into ? { into } : {}) })
+  const value = await waitForNode(() => control(appDir, { cmd: "type", value: text, ...(into ? { into } : {}) }))
 
   console.log(JSON.stringify(value))
 }
 
 export const deviceToggle = async (appDir: string, text: string, value?: boolean): Promise<void> => {
-  console.log(JSON.stringify(await control(appDir, { cmd: "toggle", text, ...(value === undefined ? {} : { value }) })))
+  console.log(
+    JSON.stringify(
+      await waitForNode(() => control(appDir, { cmd: "toggle", text, ...(value === undefined ? {} : { value }) })),
+    ),
+  )
 }
 
 export const deviceSelect = async (appDir: string, text: string, value: string): Promise<void> => {
-  console.log(JSON.stringify(await control(appDir, { cmd: "select", text, value })))
+  console.log(JSON.stringify(await waitForNode(() => control(appDir, { cmd: "select", text, value }))))
 }
 
 export const deviceBack = async (appDir: string): Promise<void> => {
