@@ -41,6 +41,7 @@ export type UiNodeType =
   | "accordion"
   | "accordionSection"
   | "fab"
+  | "neon"
   | "zoomable"
   | "progress"
   | "image"
@@ -56,6 +57,21 @@ export interface UiNode {
 }
 
 export type UiChild = UiNode | string | number | null | false | undefined | UiChild[]
+
+export interface NeonOptions {
+  /** Glow color; defaults to the theme primary. */
+  color?: ColorValue
+  /** Overall multiplier for glow and bloom. */
+  intensity?: number
+  /** Outer halo strength (0..1). */
+  glow?: number
+  /** Bright-core spill strength (0..1). */
+  bloom?: number
+  /** Luminance above this starts blooming (0..1). */
+  threshold?: number
+  /** Transparent margin that the glow can occupy, in px. */
+  padding?: number
+}
 
 interface CommonOptions {
   key?: string | number
@@ -76,6 +92,8 @@ interface CommonOptions {
   align?: "start" | "center" | "end" | "left" | "right"
   /** Fade opacity changes over this many milliseconds. */
   animate?: number
+  /** Neon glow and bloom around the node; `true` uses the theme primary. */
+  neon?: boolean | NeonOptions
 }
 
 export interface LayoutOptions extends CommonOptions {
@@ -618,6 +636,8 @@ const resolveProps = (props: Record<string, unknown>): Record<string, unknown> =
 const handlers = new Map<number, Record<string, UiHandler>>()
 let nextId = 1
 
+const NEON_LAYOUT_KEYS = ["key", "fill", "fillWidth", "fillHeight", "expand", "align", "visible"] as const
+
 const makeNode = <P extends object>(
   type: UiNodeType,
   props: P,
@@ -625,17 +645,26 @@ const makeNode = <P extends object>(
   events: string[] = [],
   callbacks?: Record<string, UiHandler>,
 ): UiNode => {
+  const { neon, ...rest } = props as P & { neon?: boolean | NeonOptions }
   const id = nextId++
 
   if (callbacks) handlers.set(id, callbacks)
 
-  const node: UiNode = { id, type, props: props as Record<string, unknown> }
+  const node: UiNode = { id, type, props: rest as Record<string, unknown> }
   const nodes = flatten(children)
 
   if (nodes.length > 0) node.children = nodes
   if (events.length > 0) node.events = events
 
-  return node
+  if (neon === undefined || neon === false) return node
+
+  const neonProps: Record<string, unknown> = { ...(neon === true ? {} : neon) }
+
+  for (const key of NEON_LAYOUT_KEYS) {
+    if (node.props[key] !== undefined) neonProps[key] = node.props[key]
+  }
+
+  return { id: nextId++, type: "neon", props: neonProps, children: [node] }
 }
 
 const withLongPress = <P extends { onLongPress?: () => void }>(
@@ -1147,6 +1176,10 @@ export const emptyState = (options: EmptyStateOptions = {}): UiNode => {
   )
 }
 
+export const neon = (options: NeonOptions = {}, ...children: UiChild[]): UiNode => {
+  return makeNode("neon", options, children)
+}
+
 export const For = <T>(options: ForOptions<T>): UiNode => {
   const { each, keyOf, render, ...props } = options
 
@@ -1260,6 +1293,8 @@ export const Toolbar = (options: ToolbarOptions = {}, ...children: UiChild[]): U
 
 export const EmptyState = (options: EmptyStateOptions = {}): UiNode => emptyState(options)
 
+export const Neon = (options: NeonOptions = {}, ...children: UiChild[]): UiNode => neon(options, ...children)
+
 export const Modal = (options: SheetOptions = {}, ...children: UiChild[]): UiNode => {
   return sheet({ ...options, fullscreen: options.fullscreen ?? false }, ...children)
 }
@@ -1361,6 +1396,7 @@ export const ui = {
   fab,
   toolbar,
   emptyState,
+  neon,
   sheet,
   bottomSheet,
   pager,

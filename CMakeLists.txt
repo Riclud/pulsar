@@ -104,6 +104,40 @@ elseif(WIN32)
     target_link_libraries(qml-host PRIVATE crypt32 shell32)
 endif()
 
+# Neon bloom shader: baked with the qsb that ships with the build Qt so the
+# .qsb binary always matches the runtime. Qt Shader Tools is part of the SDKs.
+get_target_property(_pulsar_qmake Qt6::qmake IMPORTED_LOCATION)
+if(_pulsar_qmake)
+    get_filename_component(_pulsar_qt_bin "${_pulsar_qmake}" DIRECTORY)
+endif()
+find_program(PULSAR_QSB_EXECUTABLE NAMES qsb
+    HINTS "${_pulsar_qt_bin}" "${_pulsar_qt_bin}/../libexec" "${_pulsar_qt_bin}/../bin")
+if(NOT PULSAR_QSB_EXECUTABLE)
+    message(FATAL_ERROR "qsb (Qt Shader Baker) was not found. Install Qt Shader Tools for the Qt used to build Pulsar.")
+endif()
+
+set(PULSAR_NEON_SHADER "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/shaders/neon.frag")
+set(PULSAR_NEON_QSB "${CMAKE_CURRENT_BINARY_DIR}/shaders/neon.frag.qsb")
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/shaders")
+execute_process(
+    COMMAND "${PULSAR_QSB_EXECUTABLE}" --qt6 -o "${PULSAR_NEON_QSB}" "${PULSAR_NEON_SHADER}"
+    RESULT_VARIABLE _pulsar_qsb_result
+    OUTPUT_VARIABLE _pulsar_qsb_output
+    ERROR_VARIABLE _pulsar_qsb_error
+)
+if(NOT _pulsar_qsb_result EQUAL 0)
+    message(FATAL_ERROR "Failed to bake the neon shader: ${_pulsar_qsb_error}")
+endif()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${PULSAR_NEON_SHADER}")
+
+function(pulsar_add_neon_shader target)
+    qt_add_resources(${target} "${target}_neon_shader"
+        PREFIX "/runtime/shaders"
+        BASE "${CMAKE_CURRENT_BINARY_DIR}/shaders"
+        FILES "${PULSAR_NEON_QSB}"
+    )
+endfunction()
+
 # Built-in renderer for JS-driven windows (loaded as qrc:/runtime/PulsarView.qml).
 # The same resources are linked into every host that can render JS windows.
 function(pulsar_add_view_resources target resource_name)
@@ -120,6 +154,7 @@ function(pulsar_add_view_resources target resource_name)
 endfunction()
 
 pulsar_add_view_resources(qml-host "pulsarview")
+pulsar_add_neon_shader(qml-host)
 
 if(TARGET Qt6::Multimedia)
     qt_add_resources(qml-host "pulsarvideo"
@@ -154,6 +189,7 @@ target_link_libraries(qml-host-qjs PRIVATE
 pulsar_link_websockets(qml-host-qjs)
 
 pulsar_add_view_resources(qml-host-qjs "pulsarview_qjs")
+pulsar_add_neon_shader(qml-host-qjs)
 
 # --- Android host: the same embedded QuickJS/QML engine packaged as an APK ---
 if(ANDROID)
@@ -207,6 +243,7 @@ if(ANDROID)
     pulsar_link_websockets(pulsar-android)
 
     pulsar_add_view_resources(pulsar-android "pulsarview_android")
+    pulsar_add_neon_shader(pulsar-android)
 
     if(PULSAR_ANDROID_APP_QRC)
         set_target_properties(pulsar-android PROPERTIES AUTORCC ON)

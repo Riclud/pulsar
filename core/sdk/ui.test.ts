@@ -34,6 +34,7 @@ import {
   list,
   menu,
   navRail,
+  neon,
   pager,
   popover,
   progress,
@@ -593,6 +594,27 @@ describe("qml-like components", () => {
     expect(node.type).toBe("column")
     expect(node.props).toMatchObject({ align: "center", fillWidth: true })
     expect(node.children?.map((child) => child.type)).toEqual(["box", "text", "text", "button"])
+  })
+
+  test("neon wraps a node and keeps its layout props", () => {
+    const node = card({ neon: { color: "cyan", glow: 1 }, fillWidth: true }, Text({}, "Inside"))
+
+    expect(node.type).toBe("neon")
+    expect(node.props).toMatchObject({ color: "cyan", glow: 1, fillWidth: true })
+    expect(node.children?.[0]?.type).toBe("card")
+    expect(node.children?.[0]?.props.neon).toBeUndefined()
+  })
+
+  test("neon true uses defaults and an explicit wrapper works", () => {
+    const wrapped = button("Go", { neon: true })
+    const explicit = neon({ color: "pink" }, Text({}, "hi"))
+
+    expect(wrapped.type).toBe("neon")
+    expect(wrapped.props.color).toBeUndefined()
+    expect(wrapped.children?.[0]?.type).toBe("button")
+    expect(explicit.type).toBe("neon")
+    expect(explicit.props.color).toBe("pink")
+    expect(explicit.children?.[0]?.type).toBe("text")
   })
 
   test("elevation keeps shadow color alongside the level", () => {

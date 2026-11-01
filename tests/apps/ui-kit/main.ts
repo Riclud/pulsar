@@ -345,6 +345,51 @@ const kitPage = page(
     }),
   ),
   Section(
+    "Neon",
+    "auto_awesome",
+    Row(
+      { gap: 16, fillWidth: true },
+      Box(
+        {
+          color: "mauve",
+          radius: 14,
+          padding: 16,
+          width: 190,
+          neon: { color: "mauve", intensity: 1.05, glow: 0.9, bloom: 0.55, padding: 26 },
+        },
+        Column(
+          { gap: 4 },
+          ui.text({ text: "Neon card", size: 16, weight: "semibold", color: "crust" }),
+          ui.text({ text: "glow + bloom", size: 12, color: "crust" }),
+        ),
+      ),
+      Column(
+        { gap: 14, fillWidth: true },
+        ui.text({
+          text: "Neon text",
+          size: 24,
+          weight: "bold",
+          color: "cyan",
+          neon: { color: "cyan", intensity: 1.1, glow: 0.9, bloom: 0.9, padding: 20 },
+        }),
+        Row(
+          { gap: 10, fillWidth: true },
+          ui.button("Glow", {
+            variant: "solid",
+            color: "teal",
+            textColor: "crust",
+            neon: { color: "teal", intensity: 1.15, bloom: 0.8, padding: 22 },
+          }),
+          ui.icon("bolt", {
+            size: 28,
+            color: "pink",
+            neon: { color: "pink", intensity: 1.2, glow: 1, bloom: 0.9, padding: 18 },
+          }),
+        ),
+      ),
+    ),
+  ),
+  Section(
     "Switches",
     "toggle_on",
     Row(

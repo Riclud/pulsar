@@ -2387,6 +2387,63 @@ ApplicationWindow {
     }
 
     Component {
+        id: neonComponent
+
+        Item {
+            id: neonRoot
+
+            property var pulsarMeta: null
+            property var nodeData: null
+            property alias contentLayout: neonContent
+            property int pad: 24
+            property color neonColor: view.themePrimary
+            property real neonIntensity: 1
+            property real neonGlow: 0.8
+            property real neonBloom: 0.55
+            property real neonThreshold: 0.6
+            readonly property bool shaderSupported: GraphicsInfo.api !== GraphicsInfo.Software
+
+            implicitWidth: neonContent.implicitWidth + pad * 2
+            implicitHeight: neonContent.implicitHeight + pad * 2
+
+            ColumnLayout {
+                id: neonContent
+
+                anchors.fill: parent
+                anchors.margins: neonRoot.pad
+                spacing: 0
+                property var pulsarMeta: null
+            }
+
+            ShaderEffectSource {
+                id: neonSource
+
+                sourceItem: neonContent
+                live: true
+                hideSource: neonRoot.shaderSupported
+                sourceRect: Qt.rect(-neonRoot.pad, -neonRoot.pad,
+                                    neonContent.width + neonRoot.pad * 2,
+                                    neonContent.height + neonRoot.pad * 2)
+            }
+
+            Loader {
+                anchors.fill: parent
+                active: neonRoot.shaderSupported
+                sourceComponent: ShaderEffect {
+                    property variant source: neonSource
+                    fragmentShader: "qrc:/runtime/shaders/neon.frag.qsb"
+                    property real intensity: neonRoot.neonIntensity
+                    property real glow: neonRoot.neonGlow
+                    property real bloom: neonRoot.neonBloom
+                    property real threshold: neonRoot.neonThreshold
+                    property vector2d texel: Qt.vector2d(1.0 / Math.max(1, width), 1.0 / Math.max(1, height))
+                    property color neonColor: neonRoot.neonColor
+                }
+            }
+        }
+    }
+
+    Component {
         id: zoomableComponent
 
         Item {
@@ -3055,6 +3112,8 @@ ApplicationWindow {
             item = searchFieldComponent.createObject(parent);
         } else if (node.type === "rangeSlider") {
             item = rangeSliderComponent.createObject(parent);
+        } else if (node.type === "neon") {
+            item = neonComponent.createObject(parent);
         } else if (node.type === "zoomable") {
             item = zoomableComponent.createObject(parent);
         } else if (node.type === "text") {
@@ -4161,6 +4220,19 @@ ApplicationWindow {
             item.palette.highlight = rangeColor;
             item.palette.accent = rangeColor;
             item.Layout.preferredWidth = prop(props, "expand", false) ? -1 : prop(props, "width", 200);
+        } else if (node.type === "neon") {
+            item.nodeData = node;
+            item.pad = prop(props, "padding", 24);
+            item.neonColor = resolveColor(prop(props, "color", view.themePrimary), view.themePrimary);
+            item.neonIntensity = prop(props, "intensity", 1);
+            item.neonGlow = prop(props, "glow", 0.8);
+            item.neonBloom = prop(props, "bloom", 0.55);
+            item.neonThreshold = prop(props, "threshold", 0.6);
+
+            if (!item.contentLayout.pulsarMeta)
+                item.contentLayout.pulsarMeta = contentMeta();
+
+            reconcile(item.contentLayout, node.children || [], false);
         } else if (node.type === "divider") {
             item.color = resolveColor(prop(props, "color", view.themeBorder), view.themeBorder);
             item.implicitHeight = 1;

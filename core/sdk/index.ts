@@ -39,6 +39,7 @@ export {
   Fab,
   Toolbar,
   EmptyState,
+  Neon,
   Sheet,
   Pager,
   Tabs,
@@ -114,6 +115,7 @@ export type {
   FabOptions,
   ToolbarOptions,
   EmptyStateOptions,
+  NeonOptions,
   ZoomableOptions,
   ProgressOptions,
 } from "./ui.ts"
