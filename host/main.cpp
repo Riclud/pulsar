@@ -22,6 +22,8 @@
 #include <QStandardPaths>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFont>
+#include <QFontDatabase>
 #include <QFileSystemWatcher>
 #include <QLocalServer>
 #include <QLocalSocket>
@@ -1170,6 +1172,14 @@ int main(int argc, char **argv)
     // with it as well.
     QApplication app(argc, argv);
     app.setOrganizationName(QStringLiteral("Pulsar"));
+
+    QFontDatabase::addApplicationFont(QStringLiteral(":/runtime/fonts/PaperMono-Regular.ttf"));
+    QFontDatabase::addApplicationFont(QStringLiteral(":/runtime/fonts/PaperMono-Medium.ttf"));
+    QFontDatabase::addApplicationFont(QStringLiteral(":/runtime/fonts/PaperMono-Bold.ttf"));
+
+    QFont appFont = QApplication::font();
+    appFont.setFamily(QStringLiteral("Paper Mono"));
+    QApplication::setFont(appFont);
 
     if (qEnvironmentVariableIsEmpty("QT_QUICK_CONTROLS_STYLE"))
         QQuickStyle::setStyle(QStringLiteral("Basic"));

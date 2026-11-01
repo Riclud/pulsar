@@ -262,6 +262,9 @@ export interface ThemePalette {
   text?: string
   textSecondary?: string
   border?: string
+  /** Higher surface layers, used by cards, popups and dialogs. */
+  layer3?: string
+  layer4?: string
   radius?: number
   spacing?: number
 }
@@ -274,6 +277,12 @@ export interface ThemeOptions {
   fontScale?: number
   /** Multiplier for spacing and radii (default 1). */
   density?: number
+  /** Icon font family; defaults to Material Symbols Rounded when installed. */
+  iconFamily?: string
+  /** UI font family; defaults to the bundled Paper Mono. */
+  fontFamily?: string
+  /** Motion durations in milliseconds. */
+  motion?: { fast?: number; normal?: number; slow?: number }
 }
 
 /** System appearance; the app also gets a `theme-changed` event on switches. */

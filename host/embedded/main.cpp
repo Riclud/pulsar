@@ -6,6 +6,8 @@
 #include <QElapsedTimer>
 #include <QDirIterator>
 #include <QFile>
+#include <QFont>
+#include <QFontDatabase>
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QJsonArray>
@@ -275,6 +277,14 @@ static QString androidAppDir()
 int main(int argc, char **argv)
 {
     QGuiApplication app(argc, argv);
+
+    QFontDatabase::addApplicationFont(QStringLiteral(":/runtime/fonts/PaperMono-Regular.ttf"));
+    QFontDatabase::addApplicationFont(QStringLiteral(":/runtime/fonts/PaperMono-Medium.ttf"));
+    QFontDatabase::addApplicationFont(QStringLiteral(":/runtime/fonts/PaperMono-Bold.ttf"));
+
+    QFont appFont = QGuiApplication::font();
+    appFont.setFamily(QStringLiteral("Paper Mono"));
+    QGuiApplication::setFont(appFont);
 
     if (qEnvironmentVariableIsEmpty("QT_QUICK_CONTROLS_STYLE"))
         QQuickStyle::setStyle(QStringLiteral("Basic"));

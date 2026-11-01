@@ -15,6 +15,7 @@ import {
   permissions,
   share,
   Tabs,
+  catppuccinTheme,
   theme,
   VirtualList,
   ui,
@@ -31,9 +32,11 @@ void share.text("hello from ui-kit")
 void permissions.check("camera").then((granted) => app.store.set("permission", granted))
 void permissions.request("camera").then((granted) => app.store.set("permissionRequest", granted))
 
+const catppuccinOptions = catppuccinTheme("frappe")
+
 void theme.set({
-  palette: { primary: "#ff6600", radius: 14 },
-  colors: { brand: "deepskyblue", ink: "#101014" },
+  ...catppuccinOptions,
+  colors: { ...catppuccinOptions.colors, brand: "deepskyblue", ink: "#101014" },
   fontScale: 1.1,
   density: 1.1,
 })

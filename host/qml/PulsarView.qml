@@ -17,15 +17,31 @@ ApplicationWindow {
     readonly property real fontScale: themeData && themeData.fontScale !== undefined ? themeData.fontScale : 1
     readonly property real density: themeData && themeData.density !== undefined ? themeData.density : 1
     readonly property bool darkMode: PulsarBridge.colorScheme === "dark"
-    readonly property color themeBackground: themePalette.background !== undefined ? themePalette.background : (darkMode ? "#121214" : "#f7f7f8")
-    readonly property color themeSurface: themePalette.surface !== undefined ? themePalette.surface : (darkMode ? "#1c1c20" : "#ffffff")
-    readonly property color themeSurfaceVariant: themePalette.surfaceVariant !== undefined ? themePalette.surfaceVariant : (darkMode ? "#2a2a30" : "#ececf0")
-    readonly property color themePrimary: themePalette.primary !== undefined ? themePalette.primary : (darkMode ? "#d0bcff" : "#6750a4")
-    readonly property color themeText: themePalette.text !== undefined ? themePalette.text : (darkMode ? "#e6e1e5" : "#1b1b1f")
-    readonly property color themeTextSecondary: themePalette.textSecondary !== undefined ? themePalette.textSecondary : (darkMode ? "#a9a9b0" : "#5f5f66")
-    readonly property color themeBorder: themePalette.border !== undefined ? themePalette.border : (darkMode ? "#3a3a41" : "#d9d9de")
-    readonly property int themeRadius: Math.round((themePalette.radius !== undefined ? themePalette.radius : 12) * density)
+    readonly property color themeLayer0: themePalette.background !== undefined ? themePalette.background : (darkMode ? "#303446" : "#eff1f5")
+    readonly property color themeLayer1: themePalette.surface !== undefined ? themePalette.surface : (darkMode ? "#414559" : "#ccd0da")
+    readonly property color themeLayer2: themePalette.surfaceVariant !== undefined ? themePalette.surfaceVariant : (darkMode ? "#51576d" : "#bcc0cc")
+    readonly property color themeLayer3: themePalette.layer3 !== undefined ? themePalette.layer3 : (darkMode ? "#626880" : "#acb0be")
+    readonly property color themeLayer4: themePalette.layer4 !== undefined ? themePalette.layer4 : (darkMode ? "#737994" : "#9ca0b0")
+    readonly property color themeBackground: themeLayer0
+    readonly property color themeSurface: themeLayer1
+    readonly property color themeSurfaceVariant: themeLayer2
+    readonly property color themePrimary: themePalette.primary !== undefined ? themePalette.primary : (darkMode ? "#ca9ee6" : "#8839ef")
+    readonly property color themeText: themePalette.text !== undefined ? themePalette.text : (darkMode ? "#c6d0f5" : "#4c4f69")
+    readonly property color themeTextSecondary: themePalette.textSecondary !== undefined ? themePalette.textSecondary : (darkMode ? "#a5adce" : "#6c6f85")
+    readonly property color themeBorder: themePalette.border !== undefined ? themePalette.border : (darkMode ? "#626880" : "#acb0be")
+    readonly property color themeOnPrimary: darkMode ? "#232634" : "#ffffff"
+    readonly property color themeShadow: "#000000"
+    readonly property int themeRadius: Math.round((themePalette.radius !== undefined ? themePalette.radius : 17) * density)
+    readonly property int themeWindowRadius: 18
     readonly property int themeSpacing: Math.round((themePalette.spacing !== undefined ? themePalette.spacing : 8) * density)
+    readonly property int motionFast: themeData && themeData.motion && themeData.motion.fast !== undefined ? themeData.motion.fast : 300
+    readonly property int motionNormal: themeData && themeData.motion && themeData.motion.normal !== undefined ? themeData.motion.normal : 450
+    readonly property int motionSlow: themeData && themeData.motion && themeData.motion.slow !== undefined ? themeData.motion.slow : 600
+    readonly property var motionCurve: [0.38, 1.21, 0.22, 1.00, 1, 1]
+    readonly property string iconFamily: themeData && themeData.iconFamily !== undefined
+            ? themeData.iconFamily
+            : (Qt.fontFamilies().indexOf("Material Symbols Rounded") >= 0 ? "Material Symbols Rounded" : iconFont.name)
+    readonly property string fontFamily: themeData && themeData.fontFamily !== undefined ? themeData.fontFamily : "Paper Mono"
 
     function fs(px) {
         return Math.round(px * fontScale);
@@ -41,6 +57,26 @@ ApplicationWindow {
             return colors[value];
 
         return value;
+    }
+
+    function mixColor(a, b, t) {
+        return Qt.rgba(a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t, a.b + (b.b - a.b) * t, a.a + (b.a - a.a) * t);
+    }
+
+    function withAlpha(c, alpha) {
+        return Qt.rgba(c.r, c.g, c.b, alpha);
+    }
+
+    function hoverColor(base) {
+        return mixColor(base, themeText, 0.08);
+    }
+
+    function activeColor(base) {
+        return mixColor(base, themeText, 0.14);
+    }
+
+    function disabledColor(base) {
+        return withAlpha(mixColor(base, themeBackground, 0.6), 0.5);
     }
 
     function applyTabPalette(bar) {
@@ -217,7 +253,7 @@ ApplicationWindow {
 
                     text: "arrow_back"
                     visible: false
-                    font.family: iconFont.name
+                    font.family: view.iconFamily
                     font.pixelSize: view.fs(24)
 
                     onClicked: view.emitNodeEvent(bar.nodeData, "back")
@@ -298,7 +334,7 @@ ApplicationWindow {
 
                     text: "close"
                     visible: false
-                    font.family: iconFont.name
+                    font.family: view.iconFamily
                     font.pixelSize: view.fs(16)
 
                     onClicked: view.emitNodeEvent(chipRoot.nodeData, "remove")
@@ -346,7 +382,7 @@ ApplicationWindow {
                 Label {
                     visible: text.length > 0 && buttonRoot.iconPosition === "left"
                     text: buttonRoot.iconName
-                    font.family: iconFont.name
+                    font.family: view.iconFamily
                     font.pixelSize: view.fs(18)
                     color: buttonRoot.labelColor
                 }
@@ -364,7 +400,7 @@ ApplicationWindow {
                 Label {
                     visible: text.length > 0 && buttonRoot.iconPosition === "right"
                     text: buttonRoot.iconName
-                    font.family: iconFont.name
+                    font.family: view.iconFamily
                     font.pixelSize: view.fs(18)
                     color: buttonRoot.labelColor
                 }
@@ -386,6 +422,7 @@ ApplicationWindow {
 
             color: view.themeText
             placeholderTextColor: view.themeTextSecondary
+            font.family: view.fontFamily
             leftPadding: 12
             rightPadding: 12
 
@@ -412,6 +449,7 @@ ApplicationWindow {
 
             color: view.themeText
             placeholderTextColor: view.themeTextSecondary
+            font.family: view.fontFamily
             leftPadding: 12
             rightPadding: 12
             topPadding: 8
@@ -513,7 +551,7 @@ ApplicationWindow {
                             id: sheetClose
 
                             text: "close"
-                            font.family: iconFont.name
+                            font.family: view.iconFamily
                             font.pixelSize: view.fs(24)
 
                             onClicked: view.emitNodeEvent(sheetRoot.nodeData, "close")
@@ -1043,7 +1081,7 @@ ApplicationWindow {
                                         anchors.horizontalCenter: parent.horizontalCenter
                                         text: modelData.icon !== undefined ? modelData.icon : ""
                                         visible: text.length > 0
-                                        font.family: iconFont.name
+                                        font.family: view.iconFamily
                                         font.pixelSize: view.fs(20)
                                         color: "#ffffff"
                                     }
@@ -1108,7 +1146,7 @@ ApplicationWindow {
                                     Layout.leftMargin: 16
                                     visible: row.rowData !== undefined && row.rowData.icon !== undefined && row.rowData.icon.length > 0
                                     text: visible ? row.rowData.icon : ""
-                                    font.family: iconFont.name
+                                    font.family: view.iconFamily
                                     font.pixelSize: view.fs(22)
                                     color: view.themeTextSecondary
                                 }
@@ -1138,7 +1176,7 @@ ApplicationWindow {
                                 Label {
                                     visible: vlist.selectable && vlist.isSelected(row.rowIndex)
                                     text: "check"
-                                    font.family: iconFont.name
+                                    font.family: view.iconFamily
                                     font.pixelSize: view.fs(20)
                                     color: view.themePrimary
                                 }
@@ -1155,7 +1193,7 @@ ApplicationWindow {
                                     Layout.rightMargin: 12
                                     visible: vlist.reorderable
                                     text: "drag_handle"
-                                    font.family: iconFont.name
+                                    font.family: view.iconFamily
                                     font.pixelSize: view.fs(20)
                                     color: view.themeTextSecondary
 
@@ -2068,8 +2106,7 @@ ApplicationWindow {
                 item.font.letterSpacing = props.letterSpacing;
             if (props.lineHeight !== undefined && node.type === "text")
                 item.lineHeight = props.lineHeight;
-            if (props.family !== undefined)
-                item.font.family = props.family;
+            item.font.family = prop(props, "family", view.fontFamily);
 
             if (node.type === "text") {
                 const elide = prop(props, "elide", false);
@@ -2121,13 +2158,13 @@ ApplicationWindow {
             applyElevation(item, variant === "elevated" ? prop(props, "elevation", 2) : prop(props, "elevation", 0));
         } else if (node.type === "icon") {
             item.text = prop(props, "name", "");
-            item.font.family = iconFont.name;
+            item.font.family = view.iconFamily;
             item.font.pixelSize = view.fs(prop(props, "size", 24));
             item.color = resolveColor(prop(props, "color", view.themeText), view.themeText);
         } else if (node.type === "iconButton") {
             item.text = prop(props, "name", "");
             item.enabled = prop(props, "enabled", true);
-            item.font.family = iconFont.name;
+            item.font.family = view.iconFamily;
             item.font.pixelSize = view.fs(prop(props, "size", 24));
             item.implicitWidth = 40;
             item.implicitHeight = 40;

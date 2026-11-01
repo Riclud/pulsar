@@ -88,6 +88,13 @@ export type { AppManifest, FileAssociation, ManifestWindow } from "./manifest.ts
 export { parseLaunchArgs } from "./launch.ts"
 export type { LaunchArgs } from "./launch.ts"
 export { CSS_COLOR_NAMES, defineTheme, isColorName } from "./theme.ts"
+export {
+  catppuccin,
+  catppuccinFrappe,
+  catppuccinLatte,
+  catppuccinTheme,
+} from "./themes/catppuccin.ts"
+export type { CatppuccinFlavor, CatppuccinPalette } from "./themes/catppuccin.ts"
 export type { ColorName, ColorValue, Theme, ThemeColor, ThemeColors, ThemeMotion } from "./theme.ts"
 export { Router, createRouter } from "./nav.ts"
 export type { Route, RouterState, RouterScreen, RouterOptions } from "./nav.ts"
