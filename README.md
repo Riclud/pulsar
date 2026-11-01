@@ -873,12 +873,12 @@ app.run()
 changes, and the host updates the existing QML objects in place, so focus,
 scroll and input state survive a re-render.
 
-| Group     | Components                                                             |
-| --------- | ---------------------------------------------------------------------- |
-| Layout    | `Column`, `Row`, `Box`, `Scroll`, `Spacer`, `Divider`                  |
-| Content   | `Text`, `Image`, `Icon`, `Button`, `IconButton`, `Chip`, `Progress`    |
-| Input     | `Input` (`TextField`), `Checkbox`, `Switch`, `Slider`, `Select`        |
-| Structure | `List` / `For`, `Card`, `Header` (`AppBar`), `Modal` (`Sheet`), `When` |
+| Group     | Components                                                                                        |
+| --------- | ------------------------------------------------------------------------------------------------- |
+| Layout    | `Column`, `Row`, `Box`, `Scroll`, `Spacer`, `Divider`                                             |
+| Content   | `Text`, `Image`, `Icon`, `Button`, `IconButton`, `Fab`, `Chip`, `Progress`, `EmptyState`          |
+| Input     | `Input` (`TextField`), `SearchField`, `Checkbox`, `Switch`, `RadioGroup`, `Slider`, `RangeSlider`, `Select` |
+| Structure | `List` / `For`, `Card`, `Header` (`AppBar`), `Toolbar`, `Modal` (`Sheet`), `Menu`, `Accordion`, `When` |
 
 - `bind(() => expr)` marks a value that reads from `Store`; plain functions in
   `on*` props are event handlers.
@@ -889,6 +889,24 @@ scroll and input state survive a re-render.
   `dismissible: false` to disable closing on a backdrop tap.
 - `Icon` and `IconButton` take [Material Icons](https://fonts.google.com/icons)
   names such as `add`, `delete`, `edit`, `check`, `arrow_back`, `close`.
+- `Card`, `Box`, `Button`, `Fab`, `Menu` and `Popover` accept `elevation` (a
+  shadow level) and `shadowColor`. Shadows use `MultiEffect` and work on every
+  platform Qt supports.
+- `SearchField` adds a search icon, a clear button and optional `debounce` (ms)
+  before `onInput` fires. `onSubmit` fires on Enter.
+- `RadioGroup({ options, value, onChange })` handles exclusive selection;
+  `Radio` is the standalone control.
+- `RangeSlider({ min, max, from, to, onChange })` reports both handles;
+  `Slider` keeps the single-value API.
+- `Menu({ open, items, onSelect, onClose })` is a floating overlay: `items`
+  supports `icon`, `shortcut`, `disabled`, `separator` and `danger`. Esc and a
+  click outside close it. `Accordion(...)` with `AccordionSection({ title,
+  icon, defaultOpen })` sections keeps the open state locally and reports
+  toggles through `onChange`.
+- `Toolbar(...)` is a surface row for a title and actions. `Fab({ icon,
+  placement: "bottom-end" })` floats above the content; use `placement:
+  "inline"` to keep it in the layout.
+- `EmptyState({ icon, title, text, action })` is the standard empty placeholder.
 - The lower-level `ui.column(...)`, `ui.button(...)` factories remain available;
   the components above are thin wrappers over them.
 - QML windows keep working as before — mix freely (some windows in QML, some in

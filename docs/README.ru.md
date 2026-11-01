@@ -891,12 +891,12 @@ app.run()
 `Store`, а хост обновляет существующие QML-объекты на месте, поэтому фокус,
 скролл и ввод переживают перерисовку.
 
-| Группа    | Компоненты                                                             |
-| --------- | ---------------------------------------------------------------------- |
-| Раскладка | `Column`, `Row`, `Box`, `Scroll`, `Spacer`, `Divider`                  |
-| Контент   | `Text`, `Image`, `Icon`, `Button`, `IconButton`, `Chip`, `Progress`    |
-| Ввод      | `Input` (`TextField`), `Checkbox`, `Switch`, `Slider`, `Select`        |
-| Структура | `List` / `For`, `Card`, `Header` (`AppBar`), `Modal` (`Sheet`), `When` |
+| Группа    | Компоненты                                                                                        |
+| --------- | ------------------------------------------------------------------------------------------------- |
+| Раскладка | `Column`, `Row`, `Box`, `Scroll`, `Spacer`, `Divider`                                             |
+| Контент   | `Text`, `Image`, `Icon`, `Button`, `IconButton`, `Fab`, `Chip`, `Progress`, `EmptyState`          |
+| Ввод      | `Input` (`TextField`), `SearchField`, `Checkbox`, `Switch`, `RadioGroup`, `Slider`, `RangeSlider`, `Select` |
+| Структура | `List` / `For`, `Card`, `Header` (`AppBar`), `Toolbar`, `Modal` (`Sheet`), `Menu`, `Accordion`, `When` |
 
 - `bind(() => expr)` помечает значение, читающее `Store`; обычные функции в
   `on*` — обработчики событий.
@@ -908,6 +908,25 @@ app.run()
 - `Icon` и `IconButton` принимают имена
   [Material Icons](https://fonts.google.com/icons): `add`, `delete`, `edit`,
   `check`, `arrow_back`, `close`.
+- `Card`, `Box`, `Button`, `Fab`, `Menu` и `Popover` принимают `elevation`
+  (уровень тени) и `shadowColor`. Тени рисуются через `MultiEffect` на всех
+  платформах Qt.
+- `SearchField` добавляет иконку поиска, кнопку очистки и необязательный
+  `debounce` (мс) перед `onInput`. `onSubmit` срабатывает по Enter.
+- `RadioGroup({ options, value, onChange })` ведёт исключающий выбор;
+  `Radio` — одиночный переключатель.
+- `RangeSlider({ min, max, from, to, onChange })` отдаёт обе ручки;
+  `Slider` остаётся для одного значения.
+- `Menu({ open, items, onSelect, onClose })` — плавающий оверлей: у `items`
+  есть `icon`, `shortcut`, `disabled`, `separator` и `danger`. Esc и клик вне
+  закрывают его. `Accordion(...)` с секциями `AccordionSection({ title, icon,
+  defaultOpen })` хранит состояние раскрытия локально и сообщает о переключении
+  через `onChange`.
+- `Toolbar(...)` — поверхность-строка для заголовка и действий. `Fab({ icon,
+  placement: "bottom-end" })` плавает над контентом; `placement: "inline"`
+  оставляет его в раскладке.
+- `EmptyState({ icon, title, text, action })` — стандартная заглушка пустого
+  экрана.
 - Низкоуровневые фабрики `ui.column(...)`, `ui.button(...)` остаются доступны;
   компоненты выше — тонкие обёртки над ними.
 - QML-окна работают как раньше — можно смешивать.
