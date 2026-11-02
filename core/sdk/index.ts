@@ -134,8 +134,8 @@ export type { CatppuccinFlavor, CatppuccinPalette } from "./themes/catppuccin.ts
 export type { ColorName, ColorValue, Theme, ThemeMotion } from "./theme.ts"
 
 /**
- * Custom named colors are opt-in: augment this interface from the app to get
- * strict typing and autocomplete for `theme.set({ colors: ... })` tokens.
+ * Built-in token names come from the Catppuccin presets. Augment this interface
+ * from the app to add custom tokens with strict typing and autocomplete.
  *
  *   declare module "pulsar" {
  *     interface ThemeColors {
@@ -144,7 +144,29 @@ export type { ColorName, ColorValue, Theme, ThemeMotion } from "./theme.ts"
  *     }
  *   }
  */
-export interface ThemeColors {}
+export interface ThemeColors {
+  rosewater: string
+  flamingo: string
+  pink: string
+  mauve: string
+  red: string
+  maroon: string
+  peach: string
+  yellow: string
+  green: string
+  teal: string
+  sky: string
+  sapphire: string
+  blue: string
+  lavender: string
+  text: string
+  subtext: string
+  overlay: string
+  surface: string
+  base: string
+  mantle: string
+  crust: string
+}
 export type ThemeColor = keyof ThemeColors
 export { Router, createRouter } from "./nav.ts"
 export type { Route, RouterState, RouterScreen, RouterOptions } from "./nav.ts"
