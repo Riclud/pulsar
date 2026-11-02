@@ -2957,6 +2957,10 @@ ApplicationWindow {
                                 maximum: 0
                             }
 
+                            yAxis {
+                                enabled: false
+                            }
+
                             onActiveChanged: {
                                 if (active) {
                                     startX = rowContent.x;
