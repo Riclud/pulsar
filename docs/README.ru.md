@@ -934,8 +934,9 @@ app.run()
   доступной ширине вместо фиксированного.
 - Адаптив строится на `createBreakpoints(app)`: `const bp = createBreakpoints(app)`,
   затем `bp.current()` / `bp.atLeast("medium")` и выбор `NavigationRail` или
-  `NavBar`. Состояние публикуется в `Store.breakpoint`, а размер окна (включая
-  поворот и split screen на Android) приходит событием `window-resize`.
+  `NavBar`. У `NavigationRail` есть `padding` для внешнего отступа. Состояние
+  публикуется в `Store.breakpoint`, а размер окна (включая поворот и split
+  screen на Android) приходит событием `window-resize`.
 - `neon` работает на любом компоненте: `Card({ neon: { color: "cyan",
   intensity: 1.2 } })` или `Text({ neon: true })`. Компонент оборачивается в
   слой с цветным свечением (`MultiEffect`): `color` (по умолчанию цвет темы),

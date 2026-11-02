@@ -914,9 +914,9 @@ scroll and input state survive a re-render.
   the available width instead of a fixed number.
 - Responsive layouts use `createBreakpoints(app)`:
   `const bp = createBreakpoints(app)`, then read `bp.current()` / `bp.atLeast("medium")`
-  and pick `NavigationRail` or `NavBar`. The state is also published to
-  `Store.breakpoint`, and window sizes (including Android rotation and split
-  screen) arrive as `window-resize` events.
+  and pick `NavigationRail` or `NavBar`. `NavigationRail` accepts a `padding`
+  gutter. The state is also published to `Store.breakpoint`, and window sizes
+  (including Android rotation and split screen) arrive as `window-resize` events.
 - `neon` works on any component: `Card({ neon: { color: "cyan", intensity: 1.2 } })`
   or `Text({ neon: true })`. It wraps the node in a padded colored glow drawn
   with `MultiEffect`: `color` (defaults to the theme primary), `intensity`,
