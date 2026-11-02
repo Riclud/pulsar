@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-11-02
+
+### Fixed
+
+- The Linux Qt bundle includes the libraries QML modules link to
+  (`libQt6QuickControls2Impl`, `libQt6QuickLayouts`, `libQt6QuickEffects` and
+  the rest), so Qt Quick Controls plugins no longer load system copies and
+  fail with a Qt version mismatch. `pulsar run` and `pulsar build` work again
+  from the released toolchain.
+- The CLI archive ships `CMakeLists.txt`, `host/`, `bridge/`, `launcher/` and
+  `android/`, so `pulsar build --target android` works from an installed
+  release instead of failing on a missing `CMakeLists.txt`.
+
 ## [1.2.1] - 2026-11-02
 
 ### Fixed
