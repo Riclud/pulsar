@@ -272,29 +272,32 @@ One file drives the app config and packaging.
       "minHeight": 300,
       "resizable": true,
       "frameless": false,
+      "transparent": false,
       "icon": "assets/icon.png"
     }
   ],
   "permissions": [],
+  "osPermissions": ["camera", "microphone"],
   "fileAssociations": [{ "ext": "md", "mime": "text/markdown", "name": "Markdown document" }],
   "protocols": [{ "scheme": "myapp" }],
   "singleInstance": true
 }
 ```
 
-| Field              | Meaning                                                                                                                                         |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`               | Reverse-DNS id; used for per-app data/config/cache directories.                                                                                 |
-| `name`             | Display/output name (also the `dist/<name>` file name).                                                                                         |
-| `version`          | App version.                                                                                                                                    |
-| `main`             | Backend entry point relative to the manifest (default `main.ts`).                                                                               |
-| `icons`            | Per-platform icon paths (used by packaging).                                                                                                    |
-| `windows[]`        | Initial windows: `label`, `ui`, `width`, `height`, `title`, `minWidth`, `minHeight`, `maxWidth`, `maxHeight`, `resizable`, `frameless`, `icon`. |
-| `permissions`      | Capabilities the app may use (see [Permissions](#permissions)). Absent = all.                                                                   |
-| `protocols`        | Custom URL schemes (deep links) the app handles.                                                                                                |
-| `fileAssociations` | File types the app opens: `ext` (without the dot), `mime`, `name`.                                                                              |
-| `singleInstance`   | Forward a second launch to the running instance and exit (default `false`).                                                                     |
-| `ignore`           | Extra paths left out of builds, in `.gitignore` syntax.                                                                                         |
+| Field              | Meaning                                                                                                                                                        |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`               | Reverse-DNS id; used for per-app data/config/cache directories.                                                                                                |
+| `name`             | Display/output name (also the `dist/<name>` file name).                                                                                                        |
+| `version`          | App version.                                                                                                                                                   |
+| `main`             | Backend entry point relative to the manifest (default `main.ts`).                                                                                              |
+| `icons`            | Per-platform icon paths (used by packaging).                                                                                                                   |
+| `windows[]`        | Initial windows: `label`, `ui`, `width`, `height`, `title`, `minWidth`, `minHeight`, `maxWidth`, `maxHeight`, `resizable`, `frameless`, `transparent`, `icon`. |
+| `permissions`      | Capabilities the app may use (see [Permissions](#permissions)). Absent = all.                                                                                  |
+| `osPermissions`    | Runtime OS permissions to declare in the Android manifest: `camera`, `microphone`, `location`, `notifications`, `storage`.                                     |
+| `protocols`        | Custom URL schemes (deep links) the app handles.                                                                                                               |
+| `fileAssociations` | File types the app opens: `ext` (without the dot), `mime`, `name`.                                                                                             |
+| `singleInstance`   | Forward a second launch to the running instance and exit (default `false`).                                                                                    |
+| `ignore`           | Extra paths left out of builds, in `.gitignore` syntax.                                                                                                        |
 
 Builds always skip `.git`, `node_modules`, `dist`, `build`, `.cache`,
 `.pulsar`, `.env*` and `sync.db*`, and honour the app's root `.gitignore`.
@@ -303,6 +306,21 @@ by `.gitignore`, but never one of the built-in exclusions.
 
 `App` derives its config from the first manifest window; explicit options
 passed to `new App({...})` override the manifest.
+
+### Transparent windows
+
+`"transparent": true` on a window clears its background, forces frameless and
+draws a rounded translucent surface. The blur itself is done by the compositor;
+for Hyprland:
+
+```ini
+windowrulev2 = opacity 0.94 0.88,class:^(pulsar-host)$
+windowrulev2 = blur,class:^(pulsar-host)$
+windowrulev2 = rounding 18,class:^(pulsar-host)$
+```
+
+Check the class with `hyprctl clients`. Without blur transparency still works,
+but the frosted look is weaker.
 
 ### Native menu bar
 
@@ -338,23 +356,42 @@ error.
 { "permissions": ["fs", "net", "dialog"] }
 ```
 
-| Permission | Grants                                       |
-| ---------- | -------------------------------------------- |
-| `fs`       | filesystem reads/writes, stat, rename, trash |
-| `net`      | `net.fetch`, `net.request`, `net.websocket`  |
-| `paths`    | standard per-app directories                 |
-| `shell`    | open URLs in the default application         |
-| `notify`   | native notifications                         |
-| `dialog`   | native file/message dialogs                  |
-| `screen`   | monitor list                                 |
-| `theme`    | system color scheme                          |
-| `system`   | locale/language/timezone                     |
-| `storage`  | the app's JSON storage file                  |
-| `secure`   | OS keychain / secret storage                 |
-| `tray`     | system tray icon and menu                    |
+| Permission    | Grants                                       |
+| ------------- | -------------------------------------------- |
+| `fs`          | filesystem reads/writes, stat, rename, trash |
+| `net`         | `net.fetch`, `net.request`, `net.websocket`  |
+| `paths`       | standard per-app directories                 |
+| `shell`       | open URLs in the default application         |
+| `notify`      | native notifications                         |
+| `dialog`      | native file/message dialogs                  |
+| `screen`      | monitor list                                 |
+| `theme`       | system color scheme                          |
+| `system`      | locale/language/timezone                     |
+| `storage`     | the app's JSON storage file                  |
+| `secure`      | OS keychain / secret storage                 |
+| `tray`        | system tray icon and menu                    |
+| `clipboard`   | system clipboard read/write                  |
+| `share`       | OS share sheet                               |
+| `device`      | orientation lock and keep-awake              |
+| `permissions` | runtime OS permission prompts                |
+| `media`       | host-backed media playback                   |
 
 Window management is core and is not gated. Custom capabilities registered by
 the app are never gated either.
+
+Runtime permission prompts are separate from capabilities. List what the app
+may ask for in `osPermissions` and request it at runtime:
+
+```ts
+import { permissions } from "pulsar"
+
+if (await permissions.request("camera")) startScanner()
+const granted = await permissions.check("microphone")
+```
+
+Names: `camera`, `microphone`, `location`, `notifications`, `storage`. On
+Android they are mapped into the manifest and `request` shows the system
+prompt; on desktop both calls resolve `true`.
 
 ## App API (backend / TypeScript)
 
@@ -375,6 +412,11 @@ import {
   system,
   theme,
   tray,
+  clipboard,
+  device,
+  media,
+  permissions,
+  share,
   callCapability,
   registerCapability,
 } from "pulsar"
@@ -475,6 +517,36 @@ app.on("back-pressed", () => closeDialog()) // no listener: back quits the app
 shade, so persist durable state there (or on `app-stop`): Android can kill a
 background process without further callbacks. While the software keyboard is
 open, the first back press only hides it. These events never fire on desktop.
+
+### Screens and the router
+
+`createRouter(app)` keeps a screen stack for TypeScript-rendered apps. Push and
+pop publish the current route to `Store` (under `route` by default), so the UI
+re-renders, and the system back button pops the stack:
+
+```ts
+import { createRouter } from "pulsar"
+
+const router = createRouter(app)
+
+router.push("settings", { tab: "general" })
+router.replace("settings")
+router.pop() // false at the root
+
+app.window("main").render(() =>
+  router.view({
+    home: () => HomeScreen(),
+    settings: (params) => SettingsScreen({ tab: params.tab as string }),
+  }),
+)
+```
+
+`Router` methods: `current()`, `entries()`, `canGoBack()`, `depth()`,
+`push(name, params?)`, `replace(name, params?)`, `pop()`,
+`reset(name?, params?)`, `subscribe(fn)` and `view(screens)`. Back pops the
+stack and quits the app when the stack is empty; pass `handleBack: false` to
+disable that. `storeKey` renames the published store key, and `initial` sets the
+first route (default `"home"`).
 
 ### Launch arguments & deep links
 
@@ -581,6 +653,36 @@ app.on("tray-menu", (data: { event?: string }) => {
 Tray emits `tray-menu` (`{ event }`) when an item is clicked and
 `tray-activated` (`{ reason }`) when the icon is activated.
 
+### Media player
+
+`media` drives one host-backed player with a JS playlist. On Android it runs a
+foreground service with a MediaSession and lockscreen controls.
+
+```ts
+import { media } from "pulsar"
+
+media.load([
+  { source: "/path/first.mp3", title: "First", artist: "Demo" },
+  { source: "https://example.com/second.mp3", title: "Second" },
+])
+media.play()
+
+const unsubscribe = media.on((snapshot) => {
+  app.store.set("player", snapshot)
+})
+
+media.seek(42) // seconds
+media.setRate(1.25)
+media.setVolume(0.8)
+media.next()
+```
+
+The snapshot carries `state` (`idle`, `loading`, `playing`, `paused`, `stopped`,
+`ended` or `error`), `position`, `duration`, `rate`, `volume`, `index`,
+`source`, `title`, `artist` and `playing`. Other methods: `pause()`, `toggle()`,
+`stop()`, `previous()`, `setMetadata(title, artist?)`, `state()` and
+`playlist()`.
+
 ### File system, paths, network, shell, storage
 
 ```ts
@@ -598,6 +700,9 @@ await fs.rename("a.txt", "b.txt")
 await fs.copy("b.txt", "copy.txt")
 await fs.remove("copy.txt") // recursive: fs.remove(path, true)
 await fs.moveToTrash("b.txt")
+
+const stop = fs.watch("notes.txt", (path) => console.log("changed", path))
+stop() // unsubscribe; watches are reference-counted per path
 
 await fs.open("report.pdf") // open with the OS default app
 await fs.exportTo("report.pdf", "report.pdf") // copy out to Downloads
@@ -658,6 +763,21 @@ socket.send(new Uint8Array([1, 2, 3]))
 socket.close(1000, "bye")
 ```
 
+`net.download(url, path, options)` writes a response straight to disk:
+`headers`, `timeoutMs`, `resume` (continue a partial file with a Range request
+when the server allows it) and `onProgress(received, total)`. It resolves with
+`{ path, bytes, resumed, status, statusText, url, headers }`.
+
+```ts
+const file = await net.download("https://example.com/big.zip", "big.zip", {
+  resume: true,
+  onProgress: (received, total) => console.log(received, total),
+})
+```
+
+`fs.watch(path, listener)` reports changes to a file or directory and returns an
+unsubscribe function; watches are reference-counted per path.
+
 `fs.open(path)` hands a file to the OS. Videos play in a full-screen built-in
 player: on Android always, on desktop when the Qt install has QtMultimedia
 (the bundled toolchains do). Other files go to the default application on
@@ -679,6 +799,25 @@ const saveTo = await dialog.saveFile({ title: "Save as" })
 await dialog.message({ title: "Pulsar", text: "Done!" })
 await dialog.toast("Saved")
 ```
+
+### Clipboard, sharing, device
+
+```ts
+import { clipboard, device, share } from "pulsar"
+
+await clipboard.write("copied text")
+const text = await clipboard.read()
+
+await share.text("Look at this") // share sheet on Android, clipboard on desktop
+await share.url("https://github.com/riclud/pulsar")
+await share.file("/path/to/photo.jpg", { mime: "image/jpeg" })
+
+await device.setOrientation("landscape") // "auto" unlocks; Android only
+await device.setKeepAwake(true) // keep the screen on while foregrounded
+```
+
+`share.*` resolves `true` once the content was handed off. `device` calls only
+have an effect on Android.
 
 ### Notifications, screens, theme, locale
 
@@ -717,9 +856,45 @@ Power events and state come from logind and UPower on Linux (system D-Bus), with
 a `/sys/class/power_supply` fallback for the source. On other platforms
 `system.power()` reports `source: "unknown"` and the events do not fire.
 
+`theme.set(options)` overrides the palette, custom color tokens, density, fonts
+and motion at runtime:
+
+```ts
+import { catppuccinTheme, defineTheme, theme } from "pulsar"
+
+declare module "pulsar" {
+  interface ThemeColors {
+    brand: string
+  }
+}
+
+const brand = defineTheme({ colors: { brand: "#ff5c8a" } })
+
+await theme.set({
+  palette: { primary: "#7c5cff", surface: "#16161a", text: "#f5f5f7" },
+  colors: brand.colors, // now `color: "brand"` is type-checked
+  density: 0.9, // spacing and radii multiplier
+  fontScale: 1.1,
+  fontFamily: "Inter",
+  iconFamily: "Material Symbols Rounded",
+  motion: { fast: 90, normal: 160, slow: 260 },
+})
+
+await theme.set(catppuccinTheme("latte")) // "frappe" is the default
+```
+
+`palette` keys: `background`, `surface`, `surfaceVariant`, `primary`, `text`,
+`textSecondary`, `border`, `layer3`, `layer4`, `radius` and `spacing`. Colors
+accept named CSS colors, hex and `rgb()`/`hsl()` strings. Catppuccin presets
+are exported as `catppuccin.frappe`, `catppuccin.latte` and
+`catppuccinTheme(flavor)`. The bundled UI font is Paper Mono; icons default to
+Material Symbols Rounded when installed.
+
 Notification action buttons use the freedesktop notification daemon on Linux;
 on macOS and Windows the notification is shown without buttons and
-`notification-action` never fires.
+`notification-action` never fires. On Android, create a channel once with
+`notify.channel({ id, name, importance })`; text shared into the app from other
+apps arrives as a `share` event (`{ text?, url?, files? }`).
 
 Storage persists JSON-safe values to `storage.json` in the per-app data
 directory. `paths` returns the standard per-OS directories:
@@ -873,12 +1048,13 @@ app.run()
 changes, and the host updates the existing QML objects in place, so focus,
 scroll and input state survive a re-render.
 
-| Group     | Components                                                                                        |
-| --------- | ------------------------------------------------------------------------------------------------- |
-| Layout    | `Column`, `Row`, `Box`, `Scroll`, `Spacer`, `Divider`                                             |
-| Content   | `Text`, `Image`, `Icon`, `Button`, `IconButton`, `Fab`, `Chip`, `Progress`, `EmptyState`          |
-| Input     | `Input` (`TextField`), `SearchField`, `Checkbox`, `Switch`, `RadioGroup`, `Slider`, `RangeSlider`, `Select` |
-| Structure | `List` / `For`, `Card`, `Header` (`AppBar`), `Toolbar`, `NavigationRail`, `NavBar`, `Container`, `Modal` (`Sheet`), `Menu`, `Accordion`, `When` |
+| Group                  | Components                                                                                                                                                                                |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Layout                 | `Column`, `Row`, `Box`, `Scroll`, `Spacer`, `Divider`, `Container`, `Grid`, `VirtualList`, `Zoomable`                                                                                     |
+| Content                | `Text` (Markdown too), `Image`, `Icon`, `Avatar`, `Badge`, `Chip`, `Progress`, `Spinner`, `Skeleton`, `EmptyState`                                                                        |
+| Actions                | `Button`, `IconButton`, `Fab`                                                                                                                                                             |
+| Input                  | `Input` (`TextField`), `TextArea`, `SearchField`, `Checkbox`, `Switch`, `RadioGroup`, `Slider`, `RangeSlider`, `Select`, `Segmented`                                                      |
+| Navigation & structure | `List` / `For`, `Card`, `Header` (`AppBar`), `Toolbar`, `NavigationRail`, `NavBar`, `Tabs`, `Pager`, `Modal` (`Sheet`, `BottomSheet`), `Popover`, `Snackbar`, `Menu`, `Accordion`, `When` |
 
 - `bind(() => expr)` marks a value that reads from `Store`; plain functions in
   `on*` props are event handlers.
@@ -891,7 +1067,8 @@ scroll and input state survive a re-render.
   names such as `add`, `delete`, `edit`, `check`, `arrow_back`, `close`.
 - `Card`, `Box`, `Button`, `Fab`, `Menu` and `Popover` accept `elevation` (a
   shadow level) and `shadowColor`. Shadows use `MultiEffect` and work on every
-  platform Qt supports.
+  platform Qt supports. `Card` and `Box` also take `gradient: { from, to,
+direction }`, `borderColor`, `borderWidth` and `radius`.
 - `SearchField` adds a search icon, a clear button and optional `debounce` (ms)
   before `onInput` fires. `onSubmit` fires on Enter.
 - `RadioGroup({ options, value, onChange })` handles exclusive selection;
@@ -901,17 +1078,39 @@ scroll and input state survive a re-render.
 - `Menu({ open, items, onSelect, onClose })` is a floating overlay: `items`
   supports `icon`, `shortcut`, `disabled`, `separator` and `danger`. Esc and a
   click outside close it. `Accordion(...)` with `AccordionSection({ title,
-  icon, defaultOpen })` sections keeps the open state locally and reports
+icon, defaultOpen })` sections keeps the open state locally and reports
   toggles through `onChange`.
 - `Toolbar(...)` is a surface row for a title and actions. `Fab({ icon,
-  placement: "bottom-end" })` floats above the content; use `placement:
-  "inline"` to keep it in the layout.
+placement: "bottom-end" })` floats above the content; use `placement:
+"inline"` to keep it in the layout.
 - `EmptyState({ icon, title, text, action })` is the standard empty placeholder.
 - `NavBar({ items, value, onChange })` is the bottom navigation bar for narrow
   screens; `NavigationRail` stays the wide-screen sidebar. `Container({ maxWidth,
-  padding })` caps and centers content on large windows.
+padding })` caps and centers content on large windows.
 - `Grid({ columns: "auto", minColumnWidth: 180 })` derives the column count from
   the available width instead of a fixed number.
+- `Avatar({ src, name, size, status, badge })` falls back to initials;
+  `Badge({ count | dot, label })` is also available standalone. Icons, icon
+  buttons and buttons accept `badge` (a count or `"dot"`) as well.
+- `Skeleton({ variant: "text" | "rect" | "circle", width, height })` is a pulsing
+  placeholder. `Spinner({ size, value })` spins when `value` is omitted and shows
+  determinate progress for `0..1`.
+- `TextArea` (or `Input({ multiline: true })`) is a multiline field. Inputs also
+  take `password`, `keyboardType`, `autoFocus`, `maxLength`, `readOnly` and
+  `onSubmitted`/`onFocus`/`onBlur`. `Text({ markdown: true })` renders Markdown;
+  `selectable`, `elide`, `maxLines` and `align` control plain text.
+- `Tabs({ items, index })` is a tab strip; `Segmented` is the compact
+  alternative. `Pager({ index, interactive })` swipes between children and
+  reports `onPageChange`.
+- `BottomSheet` is `Sheet` with `placement: "bottom"`; set `handle: true` to show
+  a drag handle. `Popover` anchors a floating panel at `x`/`y`;
+  `Snackbar({ open, text, actionLabel })` is a transient bar with an optional
+  action.
+- Every node accepts `tooltip`, `a11yLabel` and `a11yHint`; buttons, cards, images
+  and chips also take `onLongPress`.
+- `VirtualList({ items })` virtualises long lists and supports `selectable`,
+  `reorderable`, `refreshable`, sticky sections and swipe actions; `Zoomable`
+  adds pinch zoom around its child.
 - Responsive layouts use `createBreakpoints(app)`:
   `const bp = createBreakpoints(app)`, then read `bp.current()` / `bp.atLeast("medium")`
   and pick `NavigationRail` or `NavBar`. `NavigationRail` accepts a `padding`

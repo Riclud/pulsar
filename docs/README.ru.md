@@ -278,25 +278,27 @@ JS-окна сохраняют свой view, QML-окна перезагруж�
     }
   ],
   "permissions": [],
+  "osPermissions": ["camera", "microphone"],
   "fileAssociations": [{ "ext": "md", "mime": "text/markdown", "name": "Markdown document" }],
   "protocols": [{ "scheme": "myapp" }],
   "singleInstance": true
 }
 ```
 
-| Поле               | Значение                                                                                                                                       |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`               | Reverse-DNS идентификатор; используется для каталогов data/config/cache приложения.                                                            |
-| `name`             | Отображаемое имя/имя вывода (оно же имя файла `dist/<name>`).                                                                                  |
-| `version`          | Версия приложения.                                                                                                                             |
-| `main`             | Точка входа бэкенда относительно манифеста (по умолчанию `main.ts`).                                                                           |
-| `icons`            | Пути к иконкам по платформам (используются упаковкой).                                                                                         |
+| Поле               | Значение                                                                                                                                                      |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`               | Reverse-DNS идентификатор; используется для каталогов data/config/cache приложения.                                                                           |
+| `name`             | Отображаемое имя/имя вывода (оно же имя файла `dist/<name>`).                                                                                                 |
+| `version`          | Версия приложения.                                                                                                                                            |
+| `main`             | Точка входа бэкенда относительно манифеста (по умолчанию `main.ts`).                                                                                          |
+| `icons`            | Пути к иконкам по платформам (используются упаковкой).                                                                                                        |
 | `windows[]`        | Стартовые окна: `label`, `ui`, `width`, `height`, `title`, `minWidth`, `minHeight`, `maxWidth`, `maxHeight`, `resizable`, `frameless`, `transparent`, `icon`. |
-| `permissions`      | Возможности, доступные приложению (см. [Разрешения](#разрешения)). Нет поля — все.                                                             |
-| `protocols`        | Свои URL-схемы (deep links), которые обрабатывает приложение.                                                                                  |
-| `fileAssociations` | Типы файлов, которые открывает приложение: `ext` (без точки), `mime`, `name`.                                                                  |
-| `singleInstance`   | Передавать второй запуск работающему экземпляру и выходить (по умолчанию `false`).                                                             |
-| `ignore`           | Дополнительные пути, не попадающие в сборку, в синтаксисе `.gitignore`.                                                                        |
+| `permissions`      | Возможности, доступные приложению (см. [Разрешения](#разрешения)). Нет поля — все.                                                                            |
+| `osPermissions`    | Runtime-разрешения ОС, которые попадут в манифест Android: `camera`, `microphone`, `location`, `notifications`, `storage`.                                    |
+| `protocols`        | Свои URL-схемы (deep links), которые обрабатывает приложение.                                                                                                 |
+| `fileAssociations` | Типы файлов, которые открывает приложение: `ext` (без точки), `mime`, `name`.                                                                                 |
+| `singleInstance`   | Передавать второй запуск работающему экземпляру и выходить (по умолчанию `false`).                                                                            |
+| `ignore`           | Дополнительные пути, не попадающие в сборку, в синтаксисе `.gitignore`.                                                                                       |
 
 ### Прозрачное окно и Hyprland
 
@@ -353,23 +355,42 @@ app.on("menu", ({ id }) => {
 { "permissions": ["fs", "net", "dialog"] }
 ```
 
-| Разрешение | Что даёт                                    |
-| ---------- | ------------------------------------------- |
-| `fs`       | чтение/запись файлов, stat, rename, корзина |
-| `net`      | `net.fetch`, `net.request`, `net.websocket` |
-| `paths`    | стандартные каталоги приложения             |
-| `shell`    | открытие URL в приложении по умолчанию      |
-| `notify`   | системные уведомления                       |
-| `dialog`   | системные файловые/сообщающие диалоги       |
-| `screen`   | список мониторов                            |
-| `theme`    | системная цветовая схема                    |
-| `system`   | локаль/язык/часовой пояс                    |
-| `storage`  | JSON-файл хранилища приложения              |
-| `secure`   | системный keychain / хранилище секретов     |
-| `tray`     | иконка и меню трея                          |
+| Разрешение    | Что даёт                                    |
+| ------------- | ------------------------------------------- |
+| `fs`          | чтение/запись файлов, stat, rename, корзина |
+| `net`         | `net.fetch`, `net.request`, `net.websocket` |
+| `paths`       | стандартные каталоги приложения             |
+| `shell`       | открытие URL в приложении по умолчанию      |
+| `notify`      | системные уведомления                       |
+| `dialog`      | системные файловые/сообщающие диалоги       |
+| `screen`      | список мониторов                            |
+| `theme`       | системная цветовая схема                    |
+| `system`      | локаль/язык/часовой пояс                    |
+| `storage`     | JSON-файл хранилища приложения              |
+| `secure`      | системный keychain / хранилище секретов     |
+| `tray`        | иконка и меню трея                          |
+| `clipboard`   | системный буфер обмена (чтение/запись)      |
+| `share`       | системный share sheet                       |
+| `device`      | блокировка ориентации и keep-awake          |
+| `permissions` | запросы runtime-разрешений ОС               |
+| `media`       | воспроизведение медиа через хост            |
 
 Управление окнами — ядро и не ограничивается. Пользовательские возможности,
 зарегистрированные приложением, тоже не ограничиваются.
+
+Запросы runtime-разрешений ОС не связаны с capabilities. Перечислите, что
+приложение может запрашивать, в `osPermissions`, и запрашивайте в рантайме:
+
+```ts
+import { permissions } from "pulsar"
+
+if (await permissions.request("camera")) startScanner()
+const granted = await permissions.check("microphone")
+```
+
+Имена: `camera`, `microphone`, `location`, `notifications`, `storage`. На
+Android они попадают в манифест, а `request` показывает системный диалог; на
+десктопе оба вызова резолвятся в `true`.
 
 ## App API (бэкенд / TypeScript)
 
@@ -390,6 +411,11 @@ import {
   system,
   theme,
   tray,
+  clipboard,
+  device,
+  media,
+  permissions,
+  share,
   callCapability,
   registerCapability,
 } from "pulsar"
@@ -492,6 +518,37 @@ app.on("back-pressed", () => closeDialog()) // без слушателя back з
 поэтому сохраняйте состояние там (или на `app-stop`): Android может убить
 процесс в фоне без дальнейших колбэков. Пока открыта экранная клавиатура,
 первый back только прячет её. На desktop эти события не приходят.
+
+### Экраны и роутер
+
+`createRouter(app)` хранит стек экранов для приложений, которые рендерятся из
+TypeScript. `push`/`pop` публикуют текущий маршрут в `Store` (по умолчанию под
+ключом `route`), поэтому UI перерисовывается, а системная кнопка «назад»
+снимает экран со стека:
+
+```ts
+import { createRouter } from "pulsar"
+
+const router = createRouter(app)
+
+router.push("settings", { tab: "general" })
+router.replace("settings")
+router.pop() // false в корне
+
+app.window("main").render(() =>
+  router.view({
+    home: () => HomeScreen(),
+    settings: (params) => SettingsScreen({ tab: params.tab as string }),
+  }),
+)
+```
+
+Методы `Router`: `current()`, `entries()`, `canGoBack()`, `depth()`,
+`push(name, params?)`, `replace(name, params?)`, `pop()`,
+`reset(name?, params?)`, `subscribe(fn)` и `view(screens)`. Back снимает
+экран, а на пустом стеке закрывает приложение; `handleBack: false` отключает
+это поведение. `storeKey` переименовывает ключ в `Store`, `initial` задаёт
+первый маршрут (по умолчанию `"home"`).
 
 ### Аргументы запуска и deep links
 
@@ -598,6 +655,37 @@ app.on("tray-menu", (data: { event?: string }) => {
 Трей шлёт `tray-menu` (`{ event }`) при клике по пункту и `tray-activated`
 (`{ reason }`) при активации иконки.
 
+### Медиаплеер
+
+`media` управляет одним плеером в нативном хосте с плейлистом на JS. На Android
+он работает как foreground service с MediaSession и управлением с экрана
+блокировки.
+
+```ts
+import { media } from "pulsar"
+
+media.load([
+  { source: "/path/first.mp3", title: "First", artist: "Demo" },
+  { source: "https://example.com/second.mp3", title: "Second" },
+])
+media.play()
+
+const unsubscribe = media.on((snapshot) => {
+  app.store.set("player", snapshot)
+})
+
+media.seek(42) // секунды
+media.setRate(1.25)
+media.setVolume(0.8)
+media.next()
+```
+
+В снимке есть `state` (`idle`, `loading`, `playing`, `paused`, `stopped`,
+`ended` или `error`), `position`, `duration`, `rate`, `volume`, `index`,
+`source`, `title`, `artist` и `playing`. Другие методы: `pause()`, `toggle()`,
+`stop()`, `previous()`, `setMetadata(title, artist?)`, `state()` и
+`playlist()`.
+
 ### Файловая система, пути, сеть, shell, хранилище
 
 ```ts
@@ -615,6 +703,9 @@ await fs.rename("a.txt", "b.txt")
 await fs.copy("b.txt", "copy.txt")
 await fs.remove("copy.txt") // рекурсивно: fs.remove(path, true)
 await fs.moveToTrash("b.txt")
+
+const stop = fs.watch("notes.txt", (path) => console.log("changed", path))
+stop() // отписка; счётчик наблюдателей ведётся по пути
 
 await fs.open("report.pdf") // открыть приложением по умолчанию
 await fs.exportTo("report.pdf", "report.pdf") // скопировать в Downloads
@@ -675,6 +766,21 @@ socket.send(new Uint8Array([1, 2, 3]))
 socket.close(1000, "bye")
 ```
 
+`net.download(url, path, options)` пишет ответ сразу на диск: `headers`,
+`timeoutMs`, `resume` (продолжить частично скачанный файл Range-запросом, если
+сервер разрешает) и `onProgress(received, total)`. Возвращает `{ path, bytes,
+resumed, status, statusText, url, headers }`.
+
+```ts
+const file = await net.download("https://example.com/big.zip", "big.zip", {
+  resume: true,
+  onProgress: (received, total) => console.log(received, total),
+})
+```
+
+`fs.watch(path, listener)` сообщает об изменениях файла или каталога и
+возвращает функцию отписки; наблюдатели считаются по пути.
+
 `fs.open(path)` отдаёт файл ОС. Видео открывается во встроенном полноэкранном
 плеере: на Android всегда, на десктопе — если в установленном Qt есть
 QtMultimedia (в бандлах toolchain он есть). Остальные файлы уходят приложению
@@ -697,6 +803,25 @@ const saveTo = await dialog.saveFile({ title: "Сохранить как" })
 await dialog.message({ title: "Pulsar", text: "Готово!" })
 await dialog.toast("Сохранено")
 ```
+
+### Буфер обмена, шеринг, устройство
+
+```ts
+import { clipboard, device, share } from "pulsar"
+
+await clipboard.write("скопированный текст")
+const text = await clipboard.read()
+
+await share.text("Посмотри") // share sheet на Android, буфер обмена на десктопе
+await share.url("https://github.com/riclud/pulsar")
+await share.file("/path/to/photo.jpg", { mime: "image/jpeg" })
+
+await device.setOrientation("landscape") // "auto" снимает блокировку; только Android
+await device.setKeepAwake(true) // не гасить экран, пока приложение на переднем плане
+```
+
+`share.*` резолвится в `true`, когда контент передан ОС. Вызовы `device` имеют
+эффект только на Android.
 
 ### Уведомления, экраны, тема, локаль
 
@@ -735,9 +860,46 @@ app.on("power-source", ({ onBattery }) => console.log(onBattery ? "battery" : "a
 D-Bus), с запасным чтением `/sys/class/power_supply`. На других платформах
 `system.power()` возвращает `source: "unknown"`, а события не приходят.
 
+`theme.set(options)` переопределяет палитру, свои цветовые токены, плотность,
+шрифты и анимации в рантайме:
+
+```ts
+import { catppuccinTheme, defineTheme, theme } from "pulsar"
+
+declare module "pulsar" {
+  interface ThemeColors {
+    brand: string
+  }
+}
+
+const brand = defineTheme({ colors: { brand: "#ff5c8a" } })
+
+await theme.set({
+  palette: { primary: "#7c5cff", surface: "#16161a", text: "#f5f5f7" },
+  colors: brand.colors, // теперь `color: "brand"` проверяется типами
+  density: 0.9, // множитель отступов и радиусов
+  fontScale: 1.1,
+  fontFamily: "Inter",
+  iconFamily: "Material Symbols Rounded",
+  motion: { fast: 90, normal: 160, slow: 260 },
+})
+
+await theme.set(catppuccinTheme("latte")) // по умолчанию "frappe"
+```
+
+Ключи `palette`: `background`, `surface`, `surfaceVariant`, `primary`, `text`,
+`textSecondary`, `border`, `layer3`, `layer4`, `radius` и `spacing`. Цвета
+принимают именованные CSS-цвета, hex и строки `rgb()`/`hsl()`. Пресеты
+Catppuccin экспортируются как `catppuccin.frappe`, `catppuccin.latte` и
+`catppuccinTheme(flavor)`. Встроенный UI-шрифт — Paper Mono; иконки по
+умолчанию используют Material Symbols Rounded, если шрифт установлен.
+
 Кнопки в уведомлениях работают через freedesktop-демон уведомлений на Linux;
 на macOS и Windows уведомление показывается без кнопок, и
-`notification-action` не приходит.
+`notification-action` не приходит. На Android канал создаётся один раз через
+`notify.channel({ id, name, importance })`; текст, которым с приложением
+поделились другие приложения, приходит событием `share` (`{ text?, url?,
+files? }`).
 
 Хранилище сохраняет JSON-безопасные значения в `storage.json` в каталоге
 данных приложения. `paths` возвращает стандартные каталоги по ОС:
@@ -891,12 +1053,13 @@ app.run()
 `Store`, а хост обновляет существующие QML-объекты на месте, поэтому фокус,
 скролл и ввод переживают перерисовку.
 
-| Группа    | Компоненты                                                                                        |
-| --------- | ------------------------------------------------------------------------------------------------- |
-| Раскладка | `Column`, `Row`, `Box`, `Scroll`, `Spacer`, `Divider`                                             |
-| Контент   | `Text`, `Image`, `Icon`, `Button`, `IconButton`, `Fab`, `Chip`, `Progress`, `EmptyState`          |
-| Ввод      | `Input` (`TextField`), `SearchField`, `Checkbox`, `Switch`, `RadioGroup`, `Slider`, `RangeSlider`, `Select` |
-| Структура | `List` / `For`, `Card`, `Header` (`AppBar`), `Toolbar`, `NavigationRail`, `NavBar`, `Container`, `Modal` (`Sheet`), `Menu`, `Accordion`, `When` |
+| Группа                | Компоненты                                                                                                                                                                                |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Раскладка             | `Column`, `Row`, `Box`, `Scroll`, `Spacer`, `Divider`, `Container`, `Grid`, `VirtualList`, `Zoomable`                                                                                     |
+| Контент               | `Text` (включая Markdown), `Image`, `Icon`, `Avatar`, `Badge`, `Chip`, `Progress`, `Spinner`, `Skeleton`, `EmptyState`                                                                    |
+| Действия              | `Button`, `IconButton`, `Fab`                                                                                                                                                             |
+| Ввод                  | `Input` (`TextField`), `TextArea`, `SearchField`, `Checkbox`, `Switch`, `RadioGroup`, `Slider`, `RangeSlider`, `Select`, `Segmented`                                                      |
+| Навигация и структура | `List` / `For`, `Card`, `Header` (`AppBar`), `Toolbar`, `NavigationRail`, `NavBar`, `Tabs`, `Pager`, `Modal` (`Sheet`, `BottomSheet`), `Popover`, `Snackbar`, `Menu`, `Accordion`, `When` |
 
 - `bind(() => expr)` помечает значение, читающее `Store`; обычные функции в
   `on*` — обработчики событий.
@@ -910,7 +1073,8 @@ app.run()
   `check`, `arrow_back`, `close`.
 - `Card`, `Box`, `Button`, `Fab`, `Menu` и `Popover` принимают `elevation`
   (уровень тени) и `shadowColor`. Тени рисуются через `MultiEffect` на всех
-  платформах Qt.
+  платформах Qt. `Card` и `Box` ещё принимают `gradient: { from, to, direction }`,
+  `borderColor`, `borderWidth` и `radius`.
 - `SearchField` добавляет иконку поиска, кнопку очистки и необязательный
   `debounce` (мс) перед `onInput`. `onSubmit` срабатывает по Enter.
 - `RadioGroup({ options, value, onChange })` ведёт исключающий выбор;
@@ -920,25 +1084,48 @@ app.run()
 - `Menu({ open, items, onSelect, onClose })` — плавающий оверлей: у `items`
   есть `icon`, `shortcut`, `disabled`, `separator` и `danger`. Esc и клик вне
   закрывают его. `Accordion(...)` с секциями `AccordionSection({ title, icon,
-  defaultOpen })` хранит состояние раскрытия локально и сообщает о переключении
+defaultOpen })` хранит состояние раскрытия локально и сообщает о переключении
   через `onChange`.
 - `Toolbar(...)` — поверхность-строка для заголовка и действий. `Fab({ icon,
-  placement: "bottom-end" })` плавает над контентом; `placement: "inline"`
+placement: "bottom-end" })` плавает над контентом; `placement: "inline"`
   оставляет его в раскладке.
 - `EmptyState({ icon, title, text, action })` — стандартная заглушка пустого
   экрана.
 - `NavBar({ items, value, onChange })` — нижняя навигация для узких экранов;
   `NavigationRail` остаётся боковым рельсом для широких. `Container({ maxWidth,
-  padding })` ограничивает ширину и центрирует контент на больших окнах.
+padding })` ограничивает ширину и центрирует контент на больших окнах.
 - `Grid({ columns: "auto", minColumnWidth: 180 })` сам считает число колонок по
   доступной ширине вместо фиксированного.
+- `Avatar({ src, name, size, status, badge })` показывает инициалы, если нет
+  картинки; `Badge({ count | dot, label })` доступен и отдельно. Иконки,
+  icon-кнопки и кнопки тоже принимают `badge` (число или `"dot"`).
+- `Skeleton({ variant: "text" | "rect" | "circle", width, height })` — пульсирующая
+  заглушка. `Spinner({ size, value })` вращается без `value` и показывает
+  определённый прогресс для `0..1`.
+- `TextArea` (или `Input({ multiline: true })`) — многострочное поле. У полей
+  ввода также есть `password`, `keyboardType`, `autoFocus`, `maxLength`,
+  `readOnly` и `onSubmitted`/`onFocus`/`onBlur`. `Text({ markdown: true })`
+  рендерит Markdown; `selectable`, `elide`, `maxLines` и `align` управляют
+  обычным текстом.
+- `Tabs({ items, index })` — полоса вкладок; `Segmented` — компактная
+  альтернатива. `Pager({ index, interactive })` листает дочерние элементы
+  свайпом и сообщает `onPageChange`.
+- `BottomSheet` — это `Sheet` с `placement: "bottom"`; `handle: true` показывает
+  ручку для перетаскивания. `Popover` привязывает плавающую панель к `x`/`y`;
+  `Snackbar({ open, text, actionLabel })` — временная плашка с необязательным
+  действием.
+- Любой узел принимает `tooltip`, `a11yLabel` и `a11yHint`; у кнопок, карточек,
+  картинок и чипов есть ещё `onLongPress`.
+- `VirtualList({ items })` виртуализирует длинные списки и поддерживает
+  `selectable`, `reorderable`, `refreshable`, залипающие секции и свайп-действия;
+  `Zoomable` добавляет pinch-zoom вокруг дочернего элемента.
 - Адаптив строится на `createBreakpoints(app)`: `const bp = createBreakpoints(app)`,
   затем `bp.current()` / `bp.atLeast("medium")` и выбор `NavigationRail` или
   `NavBar`. У `NavigationRail` есть `padding` для внешнего отступа. Состояние
   публикуется в `Store.breakpoint`, а размер окна (включая поворот и split
   screen на Android) приходит событием `window-resize`.
 - `neon` работает на любом компоненте: `Card({ neon: { color: "cyan",
-  intensity: 1.2 } })` или `Text({ neon: true })`. Компонент оборачивается в
+intensity: 1.2 } })` или `Text({ neon: true })`. Компонент оборачивается в
   слой с цветным свечением (`MultiEffect`): `color` (по умолчанию цвет темы),
   `intensity`, `glow` (сила), `padding` (место под ореол) и `effects`
   (`false` — обычный контур вместо свечения). Контент остаётся резким.
