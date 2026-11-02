@@ -359,7 +359,9 @@ const ui = {
     next: "Next",
     edit: "Edit on GitHub",
     language: "Русский",
-    languageShort: "RU",
+    languageName: "English",
+    languageShort: "EN",
+    switchLanguage: "Switch to Русский",
     skip: "Skip to content",
     dark: "Switch to light theme",
     light: "Switch to dark theme",
@@ -385,7 +387,9 @@ const ui = {
     next: "Далее",
     edit: "Редактировать на GitHub",
     language: "English",
-    languageShort: "EN",
+    languageName: "Русский",
+    languageShort: "RU",
+    switchLanguage: "Переключить на English",
     skip: "Перейти к содержимому",
     dark: "Светлая тема",
     light: "Тёмная тема",
@@ -410,13 +414,14 @@ const homePage = (lang: Lang): Page => {
 
   const content =
     lang === "en"
-      ? `<div class="hero">
+      ? `<canvas class="starfield" aria-hidden="true"></canvas>
+<div class="hero">
   <p class="eyebrow">Documentation · ${version}</p>
   <h1>TypeScript UI.<br>Native rendering.<br>One binary.</h1>
   <p class="lead">Pulsar is an app framework with a declarative TypeScript UI and a Bun backend. It renders through QML, packages into a single executable, and builds Android APKs from the same code.</p>
   <div class="install">
-    <div class="install-head"><span>${t.install}</span><button class="copy" data-copy="curl -fsSL https://raw.githubusercontent.com/riclud/pulsar/main/install.sh | sh&#10;pulsar install">${t.copy}</button></div>
-    <pre><code>curl -fsSL https://raw.githubusercontent.com/riclud/pulsar/main/install.sh | sh
+    <div class="install-head"><span>${t.install}</span><button class="copy" data-copy="curl -fsSL https://get.pulsarjs.org | sh&#10;pulsar install">${t.copy}</button></div>
+    <pre><code>curl -fsSL https://get.pulsarjs.org | sh
 pulsar install</code></pre>
   </div>
   <div class="hero-actions">
@@ -431,13 +436,14 @@ pulsar install</code></pre>
   <a class="home-link" href="${api}"><span class="home-title">App API</span><span class="home-desc">Windows, store, files, network, dialogs, media and device capabilities.</span></a>
 </div>
 <p class="home-platforms">Linux · macOS · Windows · Android</p>`
-      : `<div class="hero">
+      : `<canvas class="starfield" aria-hidden="true"></canvas>
+<div class="hero">
   <p class="eyebrow">Документация · ${version}</p>
   <h1>TypeScript UI.<br>Нативный рендер.<br>Один бинарник.</h1>
   <p class="lead">Pulsar — фреймворк приложений с декларативным интерфейсом на TypeScript и бэкендом на Bun. Он рендерит через QML, собирается в один исполняемый файл и в APK для Android из одного и того же кода.</p>
   <div class="install">
-    <div class="install-head"><span>${t.install}</span><button class="copy" data-copy="curl -fsSL https://raw.githubusercontent.com/riclud/pulsar/main/install.sh | sh&#10;pulsar install">${t.copy}</button></div>
-    <pre><code>curl -fsSL https://raw.githubusercontent.com/riclud/pulsar/main/install.sh | sh
+    <div class="install-head"><span>${t.install}</span><button class="copy" data-copy="curl -fsSL https://get.pulsarjs.org | sh&#10;pulsar install">${t.copy}</button></div>
+    <pre><code>curl -fsSL https://get.pulsarjs.org | sh
 pulsar install</code></pre>
   </div>
   <div class="hero-actions">
@@ -536,7 +542,7 @@ const sidebar = (
     </div>
   </nav>
   <div class="sidebar-foot">
-    <a class="lang-switch" href="${current.alt}" hreflang="${current.lang === "en" ? "ru" : "en"}">${t.language}</a>
+    <a class="lang-switch" href="${current.alt}" hreflang="${current.lang === "en" ? "ru" : "en"}" title="${escapeHTML(t.switchLanguage)}">${t.languageName}</a>
     <span class="sidebar-version">${escapeHTML(`v${VERSION}`)}</span>
   </div>
 </aside>`
@@ -618,7 +624,7 @@ const shell = (current: Page, bodyClass: string, main: string, nav: string, tocH
       </button>
       <div id="theme-root"></div>
       <a class="icon-button github-link" href="https://github.com/riclud/pulsar" rel="noopener" aria-label="GitHub">${icon.github}</a>
-      <a class="lang-link" href="${current.alt}" hreflang="${altLang}">${escapeHTML(t.languageShort)}</a>
+      <a class="lang-link" href="${current.alt}" hreflang="${altLang}" title="${escapeHTML(t.switchLanguage)}" aria-label="${escapeHTML(t.switchLanguage)}">${escapeHTML(t.languageShort)}</a>
     </div>
   </header>
   <div class="scrim" id="scrim"></div>

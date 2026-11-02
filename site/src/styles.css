@@ -708,6 +708,31 @@ kbd {
   font-size: 11px;
 }
 
+.is-home .main {
+  position: relative;
+}
+
+.starfield {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.8;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 58%, transparent 94%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 58%, transparent 94%);
+}
+
+[data-theme="light"] .starfield {
+  opacity: 0.45;
+}
+
+.is-home .main > :not(.starfield) {
+  position: relative;
+  z-index: 1;
+}
+
 .hero {
   max-width: 860px;
   padding: 54px 0 12px;
@@ -1128,12 +1153,6 @@ kbd {
   }
 }
 
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation-duration: 140ms;
-  animation-timing-function: ease;
-}
-
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -1143,10 +1162,5 @@ kbd {
   *::before,
   *::after {
     transition-duration: 0.01ms !important;
-  }
-
-  ::view-transition-old(root),
-  ::view-transition-new(root) {
-    animation: none !important;
   }
 }

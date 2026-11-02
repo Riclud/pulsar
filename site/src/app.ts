@@ -110,6 +110,7 @@ const toggleTheme = () => {
   } catch (error) {}
 
   renderTheme()
+  initStarfield()
 }
 
 renderTheme()
@@ -397,6 +398,120 @@ const copyText = async (text: string) => {
   }
 }
 
+interface Star {
+  x: number
+  y: number
+  depth: number
+  radius: number
+  phase: number
+  twinkle: number
+  accent: boolean
+}
+
+let stopStarfield: (() => void) | null = null
+
+const initStarfield = () => {
+  stopStarfield?.()
+  stopStarfield = null
+
+  const canvas = document.querySelector<HTMLCanvasElement>("canvas.starfield")
+  const context = canvas?.getContext("2d")
+  if (!canvas || !context) return
+
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+
+  let stars: Star[] = []
+  let width = 0
+  let height = 0
+  let frame = 0
+  let last = 0
+
+  const seed = () => {
+    const count = Math.min(130, Math.max(28, Math.round((width * height) / 17000)))
+
+    stars = Array.from({ length: count }, () => ({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      depth: Math.random(),
+      radius: 0.5 + Math.random() * 1.35,
+      phase: Math.random() * Math.PI * 2,
+      twinkle: 0.5 + Math.random() * 1.4,
+      accent: Math.random() < 0.12,
+    }))
+  }
+
+  const resize = () => {
+    const rect = canvas.getBoundingClientRect()
+    const dpr = Math.min(2, window.devicePixelRatio || 1)
+
+    width = Math.max(1, rect.width)
+    height = Math.max(1, rect.height)
+    canvas.width = Math.round(width * dpr)
+    canvas.height = Math.round(height * dpr)
+    context.setTransform(dpr, 0, 0, dpr, 0, 0)
+
+    seed()
+
+    if (reduced) draw(0, false)
+  }
+
+  const draw = (delta: number, animate: boolean) => {
+    context.clearRect(0, 0, width, height)
+
+    const dark = document.documentElement.dataset.theme !== "light"
+    const base = dark ? "253, 252, 252" : "32, 29, 29"
+    const accent = dark ? "51, 105, 255" : "47, 91, 255"
+
+    for (const star of stars) {
+      if (animate) {
+        const speed = 5 + star.depth * 16
+
+        star.x -= speed * delta
+        star.y += speed * 0.22 * delta
+        star.phase += star.twinkle * delta
+
+        if (star.x < -4) {
+          star.x = width + 4
+          star.y = Math.random() * height
+        }
+
+        if (star.y > height + 4) {
+          star.y = -4
+          star.x = Math.random() * width
+        }
+      }
+
+      const pulse = 0.55 + 0.45 * Math.sin(star.phase)
+      const alpha = (0.16 + star.depth * 0.5) * pulse
+
+      context.beginPath()
+      context.arc(star.x, star.y, star.radius, 0, Math.PI * 2)
+      context.fillStyle = `rgba(${star.accent ? accent : base}, ${alpha.toFixed(3)})`
+      context.fill()
+    }
+  }
+
+  const loop = (time: number) => {
+    const delta = Math.min(0.05, last ? (time - last) / 1000 : 0.016)
+    last = time
+
+    draw(delta, true)
+    frame = requestAnimationFrame(loop)
+  }
+
+  const observer = new ResizeObserver(resize)
+  observer.observe(canvas.parentElement ?? canvas)
+  resize()
+
+  if (!reduced) frame = requestAnimationFrame(loop)
+
+  stopStarfield = () => {
+    cancelAnimationFrame(frame)
+    observer.disconnect()
+    stopStarfield = null
+  }
+}
+
 const initCopyButtons = (root: ParentNode = document) => {
   root.querySelectorAll<HTMLButtonElement>("[data-copy]").forEach((button) => {
     if (button.dataset.bound === "1") return
@@ -477,6 +592,7 @@ const setupToc = () => {
 }
 
 setupToc()
+initStarfield()
 
 const pageCache = new Map<string, string>()
 
@@ -551,6 +667,7 @@ const swapPage = (next: Document) => {
 
   initCopyButtons()
   setupToc()
+  initStarfield()
 }
 
 const scrollToTarget = (hash: string, fallback: number) => {
@@ -598,16 +715,7 @@ const navigate = async (url: URL, options: { push?: boolean; scrollY?: number } 
     history.pushState({ scrollY: 0 }, "", url.href)
   }
 
-  const transitionDocument = document as Document & {
-    startViewTransition?: (update: () => void) => { finished: Promise<void> }
-  }
-  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-
-  if (transitionDocument.startViewTransition && !reduced) {
-    await transitionDocument.startViewTransition(update).finished
-  } else {
-    update()
-  }
+  update()
 
   scrollToTarget(url.hash, push ? 0 : (options.scrollY ?? 0))
 }
