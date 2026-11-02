@@ -6,8 +6,43 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-02
+
 ### Added
 
+- Responsive shell: `createBreakpoints(app)` plus window width/height as
+  `window-resize` (desktop and Android rotation/split screen), `NavBar`,
+  `NavigationRail` (with a `padding` gutter), `Container` (`maxWidth`),
+  `maxWidth`/`align` on layout nodes and `Grid` with `columns: "auto"`.
+- `Column` and `Row` now honour `padding` as an outer gutter.
+- Components: Avatar (initials/status/badge), Badge (count or dot pill, and a
+  `badge` prop on icons/buttons/avatars), Skeleton, Spinner, BottomSheet,
+  EmptyState, Toolbar, Fab, Menu, Accordion, Segmented, SearchField,
+  RangeSlider, Radio/RadioGroup, Tabs, Pager, Snackbar and Popover.
+- Elevation and shadows render through `MultiEffect`; panels support gradients,
+  border colours and rounded corners.
+- Neon glow on any component (`neon: true` or `NeonOptions`) with
+  `MultiEffect`, now on Android too. `effects: false` keeps a plain outline and
+  software rendering falls back to it automatically.
+- Grid and virtualised list primitives: auto columns, end-reached paging,
+  pull-to-refresh, multi-select, sticky sections, swipe actions and drag
+  reorder.
+- Gestures and layers: long press, tooltips, pinch zoom, pager and overlays.
+- Rich text and input: TextArea, password fields, keyboard hints, submit/focus
+  callbacks, autofocus, max length, read-only, selectable text, markdown,
+  elide, alignment and max lines.
+- Screen router (`createRouter`) with a navigation stack and system back
+  handling.
+- Host-backed media player: playlists, play/pause/seek/rate/volume,
+  state/position/duration events, and an Android foreground service with
+  MediaSession and lockscreen controls.
+- Clipboard, OS share, Android orientation lock and keep-awake, and
+  accessibility labels on common nodes.
+- Runtime OS permissions (`permissions.request/check`) with `osPermissions` in
+  `pulsar.json` mapped into the Android manifest.
+- `fs.watch` and `net.download` with progress and Range resume.
+- Android notification channels and tap routing; shared text and opened files
+  arrive as app events.
 - Native macOS menu bar from `app.setMenu([...])`: nested menus, separators,
   shortcuts and checkable items; choosing an item emits `menu` with its id.
   Linux and Windows ignore the call for now.
@@ -22,6 +57,9 @@ All notable changes to this project are documented here. The format follows
   video file plays it in-app when QtMultimedia is available instead of handing
   it to the OS. The release toolchains now bundle QtMultimedia. Tap or Space
   pauses, Escape or the close button exits, with a seek bar and timer.
+- Theme work: Catppuccin Frappe/Latte presets, Paper Mono and Material Symbols,
+  typed named/CSS colours and custom theme tokens, theme overrides, density and
+  font scale, motion tokens and transparent frameless windows.
 - `Sheet` / `Modal` take `dismissible` (default `true`) and `duration` (fade
   time in ms, default 140). `dismissible: false` keeps the overlay open on a
   backdrop tap.
@@ -30,20 +68,44 @@ All notable changes to this project are documented here. The format follows
 
 - `Store.set` is a no-op when the new value is deeply equal to the current one
   (same JSON), so polling sync loops no longer re-render unchanged lists.
+- The neon effect is drawn with `MultiEffect` instead of a custom shader.
+- Controls default to the neutral Qt Quick Controls Basic style before the
+  theme styles them.
 
 ### Fixed
 
+- Page scroll now moves its content: the wrapper is parented to the Flickable
+  `contentItem` instead of the Flickable itself.
+- A `VirtualList` scrolls its own rows again; row swipe gestures are limited to
+  the x axis, and a non-interactive list passes drags to the page.
+- Column/row and navigation rail padding is applied to the first and last
+  visible children, so content stays off card and window edges.
+- Neon on Android renders a real glow again; the outline fallback anchors to
+  the right item and the demo stacks it vertically on a phone.
+- The switch thumb no longer lags when turning on.
 - Taps inside a sheet panel no longer fall through to the backdrop and close
   the overlay, and the tap that opened a sheet no longer closes it.
 - Sheets fade in and out on opacity instead of scaling, which is cheaper for
   large trees on mobile.
-
+- Text width/elide, grid column stretching, virtual-list row opacity and input
+  backgrounds are corrected.
 - Desktop file dialogs on Linux use the Qt dialog instead of the platform
   theme's native one, so the picker lists files under a KDE theme outside
   Plasma instead of failing with `Unknown protocol "file"`.
 - Builds honour the app's root `.gitignore` and a new manifest `ignore` list,
   and always skip `.env*` and `sync.db*`, so secrets and local databases no
   longer end up in executables, APKs or the Android dev payload.
+
+### Docs
+
+- README (English and Russian) covers the responsive shell, the new components,
+  breakpoints, navigation rail padding and neon.
+
+### Tests
+
+- Unit tests for `fs.open`, `fs.exportTo`, `dialog.toast` and the
+  `__export-result` reply; media and `fs.watch` tests are isolated from the
+  global permission gate.
 
 ## [1.1.0] - 2026-11-01
 
