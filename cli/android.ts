@@ -497,6 +497,21 @@ export interface AndroidBuildOptions {
   dev?: boolean
 }
 
+export const clearStaleBuildDir = (buildDir: string, sourceDir: string): boolean => {
+  const cache = join(buildDir, "CMakeCache.txt")
+
+  if (!existsSync(cache)) return false
+
+  const match = readFileSync(cache, "utf8").match(/^CMAKE_HOME_DIRECTORY:INTERNAL=(.+)$/m)
+  const previous = match?.[1]?.trim()
+
+  if (!previous || resolve(previous) === resolve(sourceDir)) return false
+
+  rmSync(buildDir, { recursive: true, force: true })
+
+  return true
+}
+
 /** Bundle the app with the QuickJS runtime, cross-compile the host and package an APK. */
 export const buildAndroid = async (options: AndroidBuildOptions): Promise<string> => {
   const { appDir, manifest, entry, outDir } = options
@@ -527,7 +542,13 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
   console.log(`  sdk: ${tools.sdk}`)
   console.log(`  ndk: ${tools.ndk}`)
 
+  const sourceDir = pulsarRoot()
   const buildDir = join(appDir, "build", `android-${abi}${dev ? "-dev" : ""}`)
+
+  if (clearStaleBuildDir(buildDir, sourceDir)) {
+    console.log("pulsar: cleared the Android build cache from another Pulsar version")
+  }
+
   const assembly = join(buildDir, "app")
 
   mkdirSync(assembly, { recursive: true })
@@ -592,7 +613,7 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
     qtCmake,
     [
       "-S",
-      pulsarRoot(),
+      sourceDir,
       "-B",
       buildDir,
       "-G",
