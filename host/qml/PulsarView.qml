@@ -3653,7 +3653,10 @@ ApplicationWindow {
             let wrapper = item.pulsarMeta.content;
 
             if (!wrapper) {
-                wrapper = makeWrapper(item);
+                const contentParent = item.contentItem !== null && item.contentItem !== undefined
+                        ? item.contentItem : item;
+
+                wrapper = makeWrapper(contentParent);
                 wrapper.width = Qt.binding(function () {
                     return item.width;
                 });
