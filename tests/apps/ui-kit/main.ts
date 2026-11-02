@@ -372,7 +372,7 @@ const kitPage = page(
   Section(
     "Neon",
     "auto_awesome",
-    Row(
+    Column(
       { gap: 16, fillWidth: true },
       Box(
         {
