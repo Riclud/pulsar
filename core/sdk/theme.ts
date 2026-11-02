@@ -159,11 +159,7 @@ export type ColorName = (typeof CSS_COLOR_NAMES)[number]
 import type { ThemeColor } from "./index.ts"
 
 export type HexColor = `#${string}`
-export type CssFunctionColor =
-  | `rgb(${string})`
-  | `rgba(${string})`
-  | `hsl(${string})`
-  | `hsla(${string})`
+export type CssFunctionColor = `rgb(${string})` | `rgba(${string})` | `hsl(${string})` | `hsla(${string})`
 
 /** Any value a color prop accepts: a named color, a theme token, or a CSS color. */
 export type ColorValue = ColorName | ThemeColor | HexColor | CssFunctionColor

@@ -453,61 +453,64 @@ class NetClient {
           })
         : fs.writeFile(path, "", "utf8").then(() => undefined)
 
-      prepare.then(() => {
-        const request = this.request(url, {
-          method: "GET",
-          headers,
-          timeoutMs: options.timeoutMs,
-          responseType: "binary",
-        })
-
-        const track = (work: Promise<unknown>): void => {
-          chain = chain.then(() => work).catch((error) => {
-            failure ??= error instanceof Error ? error : new Error(String(error))
+      prepare
+        .then(() => {
+          const request = this.request(url, {
+            method: "GET",
+            headers,
+            timeoutMs: options.timeoutMs,
+            responseType: "binary",
           })
-        }
 
-        request.on("response", (value) => {
-          info = value
-
-          const length = Number(value.headers["content-length"] ?? value.headers["Content-Length"])
-          const offset = value.status === 206 ? received : 0
-
-          total = Number.isFinite(length) ? length + offset : null
-
-          if (resumed && value.status !== 206) {
-            received = 0
-            resumed = false
+          const track = (work: Promise<unknown>): void => {
+            chain = chain
+              .then(() => work)
+              .catch((error) => {
+                failure ??= error instanceof Error ? error : new Error(String(error))
+              })
           }
 
-          if (options.resume && value.status !== 206)
-            track(fs.writeFile(path, "", "utf8"))
+          request.on("response", (value) => {
+            info = value
 
-          options.onProgress?.(received, total)
-        })
+            const length = Number(value.headers["content-length"] ?? value.headers["Content-Length"])
+            const offset = value.status === 206 ? received : 0
 
-        request.on("data", (chunk) => {
-          const bytes = typeof chunk === "string" ? textBytes(chunk) : chunk
+            total = Number.isFinite(length) ? length + offset : null
 
-          received += bytes.byteLength
-
-          track(fs.appendFile(path, bytesToBase64(bytes), "base64"))
-          options.onProgress?.(received, total)
-        })
-
-        request.on("end", () => {
-          void chain.then(() => {
-            if (failure) {
-              reject(failure)
-              return
+            if (resumed && value.status !== 206) {
+              received = 0
+              resumed = false
             }
 
-            resolve({ ...info, path, bytes: received, resumed })
-          })
-        })
+            if (options.resume && value.status !== 206) track(fs.writeFile(path, "", "utf8"))
 
-        request.on("error", (error) => reject(new NetError(error.code, error.message)))
-      }).catch((error) => reject(error instanceof Error ? error : new Error(String(error))))
+            options.onProgress?.(received, total)
+          })
+
+          request.on("data", (chunk) => {
+            const bytes = typeof chunk === "string" ? textBytes(chunk) : chunk
+
+            received += bytes.byteLength
+
+            track(fs.appendFile(path, bytesToBase64(bytes), "base64"))
+            options.onProgress?.(received, total)
+          })
+
+          request.on("end", () => {
+            void chain.then(() => {
+              if (failure) {
+                reject(failure)
+                return
+              }
+
+              resolve({ ...info, path, bytes: received, resumed })
+            })
+          })
+
+          request.on("error", (error) => reject(new NetError(error.code, error.message)))
+        })
+        .catch((error) => reject(error instanceof Error ? error : new Error(String(error))))
     })
   }
 

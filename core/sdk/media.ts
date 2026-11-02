@@ -1,14 +1,7 @@
 import { App } from "./app.ts"
 import { callCapability } from "./caps.ts"
 
-export type MediaState =
-  | "idle"
-  | "loading"
-  | "playing"
-  | "paused"
-  | "stopped"
-  | "ended"
-  | "error"
+export type MediaState = "idle" | "loading" | "playing" | "paused" | "stopped" | "ended" | "error"
 
 export interface MediaTrack {
   source: string

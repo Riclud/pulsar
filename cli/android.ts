@@ -260,10 +260,7 @@ export const devManifest = (manifest: AppManifest | null): AppManifest => {
 const ANDROID_PERMISSIONS: Record<string, string[]> = {
   camera: ["android.permission.CAMERA"],
   microphone: ["android.permission.RECORD_AUDIO"],
-  location: [
-    "android.permission.ACCESS_FINE_LOCATION",
-    "android.permission.ACCESS_COARSE_LOCATION",
-  ],
+  location: ["android.permission.ACCESS_FINE_LOCATION", "android.permission.ACCESS_COARSE_LOCATION"],
   notifications: ["android.permission.POST_NOTIFICATIONS"],
   storage: [
     "android.permission.READ_EXTERNAL_STORAGE",

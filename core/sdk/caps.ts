@@ -119,7 +119,6 @@ export const fs = {
   },
 }
 
-
 /** Standard per-OS directories the app is allowed to write to. */
 export const paths = {
   get: (): Promise<AppPaths> => callCapability("paths.get", {}) as Promise<AppPaths>,
@@ -339,13 +338,7 @@ export const share = {
 }
 
 export type Orientation =
-  | "auto"
-  | "portrait"
-  | "landscape"
-  | "portrait-up"
-  | "portrait-down"
-  | "landscape-left"
-  | "landscape-right"
+  "auto" | "portrait" | "landscape" | "portrait-up" | "portrait-down" | "landscape-left" | "landscape-right"
 
 /** Device controls that only have an effect on Android. */
 export const device = {
@@ -357,12 +350,7 @@ export const device = {
     callCapability("device.keepAwake", { enabled }) as Promise<boolean>,
 }
 
-export type OSPermission =
-  | "camera"
-  | "microphone"
-  | "location"
-  | "notifications"
-  | "storage"
+export type OSPermission = "camera" | "microphone" | "location" | "notifications" | "storage"
 
 /**
  * Runtime OS permissions (camera, microphone, location, notifications).
@@ -373,6 +361,5 @@ export type OSPermission =
 export const permissions = {
   request: (name: OSPermission): Promise<boolean> =>
     callCapability("permissions.request", { name }) as Promise<boolean>,
-  check: (name: OSPermission): Promise<boolean> =>
-    callCapability("permissions.check", { name }) as Promise<boolean>,
+  check: (name: OSPermission): Promise<boolean> => callCapability("permissions.check", { name }) as Promise<boolean>,
 }
