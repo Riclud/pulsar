@@ -1069,6 +1069,10 @@ kbd {
     display: none;
   }
 
+  .prose pre {
+    padding-top: 36px;
+  }
+
   .prose pre .code-copy {
     opacity: 1;
   }
@@ -1124,6 +1128,12 @@ kbd {
   }
 }
 
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 140ms;
+  animation-timing-function: ease;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -1133,5 +1143,10 @@ kbd {
   *::before,
   *::after {
     transition-duration: 0.01ms !important;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
   }
 }

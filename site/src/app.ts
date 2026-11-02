@@ -397,44 +397,62 @@ const copyText = async (text: string) => {
   }
 }
 
-document.querySelectorAll<HTMLButtonElement>("[data-copy]").forEach((button) => {
-  button.addEventListener("click", async () => {
-    await copyText(button.dataset.copy ?? "")
+const initCopyButtons = (root: ParentNode = document) => {
+  root.querySelectorAll<HTMLButtonElement>("[data-copy]").forEach((button) => {
+    if (button.dataset.bound === "1") return
+    button.dataset.bound = "1"
 
-    const label = button.textContent
-    button.textContent = strings.copied
-    window.setTimeout(() => {
-      button.textContent = label
-    }, 1400)
-  })
-})
+    button.addEventListener("click", async () => {
+      await copyText(button.dataset.copy ?? "")
 
-document.querySelectorAll<HTMLElement>(".prose pre").forEach((pre) => {
-  const button = document.createElement("button")
-  button.className = "code-copy"
-  button.type = "button"
-  button.textContent = strings.copy
-
-  button.addEventListener("click", async () => {
-    await copyText(pre.querySelector("code")?.textContent ?? pre.textContent ?? "")
-    button.textContent = strings.copied
-    window.setTimeout(() => {
-      button.textContent = strings.copy
-    }, 1400)
+      const label = button.textContent
+      button.textContent = strings.copied
+      window.setTimeout(() => {
+        button.textContent = label
+      }, 1400)
+    })
   })
 
-  pre.appendChild(button)
-})
+  root.querySelectorAll<HTMLElement>(".prose pre").forEach((pre) => {
+    if (pre.querySelector(".code-copy")) return
 
-const headings = Array.from(document.querySelectorAll<HTMLElement>(".prose h2[id], .prose h3[id], .prose h4[id]"))
-const tocLinks = new Map(
-  Array.from(document.querySelectorAll<HTMLAnchorElement>(".toc-link")).map((link) => [
-    link.getAttribute("href")?.slice(1) ?? "",
-    link,
-  ]),
-)
+    const button = document.createElement("button")
+    button.className = "code-copy"
+    button.type = "button"
+    button.textContent = strings.copy
 
-if (headings.length > 0 && tocLinks.size > 0) {
+    button.addEventListener("click", async () => {
+      await copyText(pre.querySelector("code")?.textContent ?? pre.textContent ?? "")
+      button.textContent = strings.copied
+      window.setTimeout(() => {
+        button.textContent = strings.copy
+      }, 1400)
+    })
+
+    pre.appendChild(button)
+  })
+}
+
+initCopyButtons()
+
+let tocHandler: (() => void) | null = null
+
+const setupToc = () => {
+  if (tocHandler) {
+    window.removeEventListener("scroll", tocHandler)
+    tocHandler = null
+  }
+
+  const headings = Array.from(document.querySelectorAll<HTMLElement>(".prose h2[id], .prose h3[id], .prose h4[id]"))
+  const tocLinks = new Map(
+    Array.from(document.querySelectorAll<HTMLAnchorElement>(".toc-link")).map((link) => [
+      link.getAttribute("href")?.slice(1) ?? "",
+      link,
+    ]),
+  )
+
+  if (headings.length === 0 || tocLinks.size === 0) return
+
   let ticking = false
 
   const updateToc = () => {
@@ -448,18 +466,197 @@ if (headings.length > 0 && tocLinks.size > 0) {
     for (const [id, link] of tocLinks) link.classList.toggle("active", id === current?.id)
   }
 
-  window.addEventListener(
-    "scroll",
-    () => {
-      if (ticking) return
-      ticking = true
-      requestAnimationFrame(updateToc)
-    },
-    { passive: true },
-  )
+  tocHandler = () => {
+    if (ticking) return
+    ticking = true
+    requestAnimationFrame(updateToc)
+  }
 
+  window.addEventListener("scroll", tocHandler, { passive: true })
   updateToc()
 }
+
+setupToc()
+
+const pageCache = new Map<string, string>()
+
+const isPageURL = (url: URL): boolean => {
+  return !/\.(png|jpe?g|gif|svg|webp|ico|pdf|zip|gz|tar|sh|ps1|txt|json|xml|woff2?|ttf)$/i.test(url.pathname)
+}
+
+const prefetch = (url: URL) => {
+  if (pageCache.has(url.href)) return
+
+  void fetch(url.href, { headers: { Accept: "text/html" } })
+    .then((response) => (response.ok ? response.text() : null))
+    .then((html) => {
+      if (!html) return
+      if (pageCache.size >= 20) pageCache.delete(pageCache.keys().next().value ?? "")
+      pageCache.set(url.href, html)
+    })
+    .catch(() => {})
+}
+
+const parsePage = (html: string): Document => {
+  return new DOMParser().parseFromString(html, "text/html")
+}
+
+const copyHead = (next: Document) => {
+  const description = next.querySelector('meta[name="description"]')?.getAttribute("content")
+  document.querySelector<HTMLMetaElement>('meta[name="description"]')?.setAttribute("content", description ?? "")
+  document.title = next.title
+
+  const currentCanonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]')
+  const nextCanonical = next.querySelector<HTMLLinkElement>('link[rel="canonical"]')
+
+  if (nextCanonical) {
+    if (currentCanonical) currentCanonical.href = nextCanonical.href
+    else document.head.appendChild(document.importNode(nextCanonical, true))
+  } else {
+    currentCanonical?.remove()
+  }
+
+  const currentAlternate = document.querySelector<HTMLLinkElement>('link[rel="alternate"][hreflang]')
+  const nextAlternate = next.querySelector<HTMLLinkElement>('link[rel="alternate"][hreflang]')
+
+  if (currentAlternate && nextAlternate) {
+    currentAlternate.href = nextAlternate.href
+    currentAlternate.setAttribute("hreflang", nextAlternate.getAttribute("hreflang") ?? "")
+  }
+}
+
+const swapPage = (next: Document) => {
+  closeSearch()
+  setNav(false)
+
+  document.documentElement.lang = next.documentElement.lang
+  copyHead(next)
+
+  document.body.classList.toggle("is-home", next.body.classList.contains("is-home"))
+  document.body.classList.toggle("is-doc", next.body.classList.contains("is-doc"))
+
+  const nextShell = next.querySelector(".shell")
+  const currentShell = document.querySelector(".shell")
+
+  if (nextShell && currentShell) currentShell.replaceWith(document.importNode(nextShell, true))
+
+  const nextLang = next.querySelector<HTMLAnchorElement>(".lang-link")
+  const currentLang = document.querySelector<HTMLAnchorElement>(".lang-link")
+
+  if (nextLang && currentLang) {
+    currentLang.href = nextLang.href
+    currentLang.textContent = nextLang.textContent
+    currentLang.setAttribute("hreflang", nextLang.getAttribute("hreflang") ?? "")
+  }
+
+  initCopyButtons()
+  setupToc()
+}
+
+const scrollToTarget = (hash: string, fallback: number) => {
+  const id = decodeURIComponent(hash.replace(/^#/, ""))
+
+  requestAnimationFrame(() => {
+    const previous = document.documentElement.style.scrollBehavior
+    document.documentElement.style.scrollBehavior = "auto"
+
+    if (id) {
+      const target = document.getElementById(id)
+      if (target) {
+        target.scrollIntoView()
+        document.documentElement.style.scrollBehavior = previous
+        return
+      }
+    }
+
+    window.scrollTo(0, fallback)
+    document.documentElement.style.scrollBehavior = previous
+  })
+}
+
+const navigate = async (url: URL, options: { push?: boolean; scrollY?: number } = {}) => {
+  const push = options.push ?? true
+
+  let html = pageCache.get(url.href)
+
+  if (!html) {
+    const response = await fetch(url.href, { headers: { Accept: "text/html" } })
+    if (!response.ok) throw new Error(`navigation failed: ${response.status}`)
+    html = await response.text()
+  }
+
+  const next = parsePage(html)
+  const update = () => swapPage(next)
+
+  if (push) {
+    history.replaceState({ ...history.state, scrollY: window.scrollY }, "", location.href)
+    history.pushState({ scrollY: 0 }, "", url.href)
+  }
+
+  const transitionDocument = document as Document & {
+    startViewTransition?: (update: () => void) => { finished: Promise<void> }
+  }
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+
+  if (transitionDocument.startViewTransition && !reduced) {
+    await transitionDocument.startViewTransition(update).finished
+  } else {
+    update()
+  }
+
+  scrollToTarget(url.hash, push ? 0 : (options.scrollY ?? 0))
+}
+
+const isInternalPageLink = (anchor: HTMLAnchorElement, event: MouseEvent): boolean => {
+  if (event.defaultPrevented || event.button !== 0) return false
+  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false
+  if (anchor.hasAttribute("download") || anchor.hasAttribute("hreflang")) return false
+  if (anchor.target && anchor.target !== "_self") return false
+
+  const url = new URL(anchor.href, location.href)
+
+  if (url.origin !== location.origin) return false
+  if (!isPageURL(url)) return false
+  if (url.pathname === location.pathname && url.search === location.search) return false
+
+  return true
+}
+
+document.addEventListener("click", (event) => {
+  const anchor = (event.target as Element | null)?.closest<HTMLAnchorElement>("a[href]")
+  if (!anchor || !isInternalPageLink(anchor, event)) return
+
+  const url = new URL(anchor.href, location.href)
+  event.preventDefault()
+  void navigate(url).catch(() => window.location.assign(url.href))
+})
+
+document.addEventListener("pointerover", (event) => {
+  const anchor = (event.target as Element | null)?.closest<HTMLAnchorElement>("a[href]")
+  if (!anchor) return
+
+  const url = new URL(anchor.href, location.href)
+  if (url.pathname === location.pathname && url.search === location.search) return
+  if (url.origin === location.origin && isPageURL(url) && url.href !== location.href) prefetch(url)
+})
+
+document.addEventListener("focusin", (event) => {
+  const anchor = (event.target as Element | null)?.closest<HTMLAnchorElement>("a[href]")
+  if (!anchor) return
+
+  const url = new URL(anchor.href, location.href)
+  if (url.pathname === location.pathname && url.search === location.search) return
+  if (url.origin === location.origin && isPageURL(url) && url.href !== location.href) prefetch(url)
+})
+
+window.addEventListener("popstate", (event) => {
+  const state = event.state as { scrollY?: number } | null
+  void navigate(new URL(location.href), { push: false, scrollY: state?.scrollY ?? 0 }).catch(() =>
+    window.location.reload(),
+  )
+})
+
+history.scrollRestoration = "manual"
 
 window.addEventListener(
   "scroll",
