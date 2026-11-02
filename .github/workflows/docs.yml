@@ -35,6 +35,7 @@ jobs:
           BASE_PATH: ${{ vars.DOCS_BASE_PATH }}
         run: |
           bun install --frozen-lockfile
+          bun run typecheck
           bun run build
 
       - uses: actions/configure-pages@v5

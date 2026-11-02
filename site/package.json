@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "bun run src/build.ts",
-    "dev": "bun run src/build.ts --serve"
+    "dev": "bun run src/build.ts --serve",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "lit-html": "^3.3.3",

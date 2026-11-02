@@ -35,6 +35,8 @@
     ".cache",
     "examples/*/dist",
     "examples/*/build",
-    "tests/apps/*/build"
+    "tests/apps/*/build",
+    "site",
+    "edge"
   ]
 }
