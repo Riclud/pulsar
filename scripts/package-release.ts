@@ -31,7 +31,7 @@ rmSync(out, { recursive: true, force: true })
 mkdirSync(out, { recursive: true })
 
 // --- CLI distribution ---
-tar(`pulsar-cli-${platform}.tar.gz`, root, ["cli", "core"])
+tar(`pulsar-cli-${platform}.tar.gz`, root, ["cli", "core", "CMakeLists.txt", "host", "bridge", "launcher", "android"])
 
 // --- Toolchain ---
 const qmlHost = join(root, "build", "bin", `qml-host${exe}`)
