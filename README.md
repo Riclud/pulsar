@@ -920,9 +920,9 @@ scroll and input state survive a re-render.
 - `neon` works on any component: `Card({ neon: { color: "cyan", intensity: 1.2 } })`
   or `Text({ neon: true })`. It wraps the node in a padded colored glow drawn
   with `MultiEffect`: `color` (defaults to the theme primary), `intensity`,
-  `glow` (strength) and `padding` (room for the halo). Content stays crisp.
-  On Android and under software rendering the GPU glow is replaced by a plain
-  colored outline, because Qt Quick effects can stall the embedded renderer.
+  `glow` (strength), `padding` (room for the halo) and `effects` (set `false`
+  for a plain outline instead of the glow). Content stays crisp. Under software
+  rendering the GPU glow is replaced by the outline automatically.
 - The lower-level `ui.column(...)`, `ui.button(...)` factories remain available;
   the components above are thin wrappers over them.
 - QML windows keep working as before — mix freely (some windows in QML, some in

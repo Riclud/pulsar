@@ -68,6 +68,8 @@ export interface NeonOptions {
   glow?: number
   /** Transparent margin that the glow can occupy, in px. */
   padding?: number
+  /** Draw the real glow; disable to keep only a plain outline. */
+  effects?: boolean
 }
 
 interface CommonOptions {

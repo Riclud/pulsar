@@ -2425,7 +2425,9 @@ ApplicationWindow {
             property color neonColor: view.themePrimary
             property real neonIntensity: 1
             property real neonGlow: 0.8
-            readonly property bool effectsSupported: Qt.platform.os !== "android"
+            property bool effectsRequested: true
+            readonly property bool effectsSupported: neonRoot.effectsRequested
+                    && GraphicsInfo.api !== GraphicsInfo.Software
 
             implicitWidth: neonContent.implicitWidth + pad * 2
             implicitHeight: neonContent.implicitHeight + pad * 2
@@ -4394,6 +4396,7 @@ ApplicationWindow {
             item.neonColor = resolveColor(prop(props, "color", view.themePrimary), view.themePrimary);
             item.neonIntensity = prop(props, "intensity", 1);
             item.neonGlow = prop(props, "glow", 0.8);
+            item.effectsRequested = prop(props, "effects", true);
 
             if (!item.contentLayout.pulsarMeta)
                 item.contentLayout.pulsarMeta = contentMeta();
