@@ -201,7 +201,7 @@ ApplicationWindow {
     Item {
         id: host
         anchors.fill: parent
-        anchors.margins: view.windowTransparent ? view.themeSpacing : 0
+        anchors.margins: view.themeSpacing
         property var pulsarMeta: null
     }
 
