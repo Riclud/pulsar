@@ -57,14 +57,14 @@ iOS пока не поддерживается. «Собрано в CI» зна�
 Linux / macOS:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/riclud/pulsar/main/install.sh | sh
+curl -fsSL https://get.pulsarjs.org | sh
 pulsar install          # скачивает нативный toolchain (host + bridge + Qt)
 ```
 
 Windows:
 
 ```powershell
-iwr https://raw.githubusercontent.com/riclud/pulsar/main/install.ps1 -UseBasicParsing | iex
+iwr https://get.pulsarjs.org/install.ps1 -UseBasicParsing | iex
 pulsar install
 ```
 
