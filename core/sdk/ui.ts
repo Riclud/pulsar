@@ -514,6 +514,7 @@ export interface NavRailOptions extends CommonOptions {
   items: Array<string | NavRailItem>
   index?: number
   expanded?: boolean
+  padding?: number
   onChange?: (index: number) => void
 }
 

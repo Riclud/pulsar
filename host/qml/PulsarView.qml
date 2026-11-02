@@ -3987,6 +3987,8 @@ ApplicationWindow {
                     page.Layout.fillHeight = true;
                 }
             }
+
+            applyPadding(item, prop(props, "padding", 0), true);
         } else if (node.type === "snackbar") {
             item.nodeData = node;
             item.textLabel.text = prop(props, "text", "");

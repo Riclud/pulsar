@@ -466,6 +466,7 @@ app.window("main").render(() => {
       items: navItems,
       index,
       expanded: breakpoint?.name === "expanded",
+      padding: 8,
       onChange,
     },
     ...pages.map((page) => Container({ maxWidth: 980, padding: 0, fillHeight: true }, page)),
