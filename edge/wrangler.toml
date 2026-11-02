@@ -1,0 +1,7 @@
+name = "pulsar-install"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+
+routes = [
+  { pattern = "get.pulsarjs.org", custom_domain = true }
+]
