@@ -23,7 +23,9 @@
     "fmt:check": "prettier --check . && bun run version:check",
     "test:portable": "bun scripts/portable.ts",
     "test:embedded": "bun scripts/embedded.ts",
-    "test:embedded:qml": "bun scripts/embedded-qml.ts"
+    "test:embedded:qml": "bun scripts/embedded-qml.ts",
+    "docs": "cd site && bun run build",
+    "docs:dev": "cd site && bun run dev"
   },
   "workspaces": [
     "core/sdk",
