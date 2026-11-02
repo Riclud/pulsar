@@ -344,6 +344,7 @@ const kitPage = page(
     "Virtual list",
     "list",
     VirtualList({
+      interactive: false,
       items: [
         { key: "a", title: "Alpha", subtitle: "section A", section: "A" },
         { key: "b", title: "Beta", subtitle: "section A", trailing: "2", section: "A" },

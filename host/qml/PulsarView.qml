@@ -2811,7 +2811,7 @@ ApplicationWindow {
                         height: parent.height
                         color: vlist.isSelected(row.rowIndex)
                                 ? view.withAlpha(view.themePrimary, 0.18)
-                                : rowMouse.containsMouse ? view.hoverColor(view.themeBackground)
+                                : rowHover.hovered ? view.hoverColor(view.themeBackground)
                                 : view.themeBackground
 
                         Column {
@@ -2898,6 +2898,7 @@ ApplicationWindow {
                                         id: reorderDrag
 
                                         target: null
+                                        enabled: vlist.interactive && vlist.reorderable
 
                                         onActiveChanged: {
                                             if (active)
@@ -2918,13 +2919,14 @@ ApplicationWindow {
                             }
                         }
 
-                        MouseArea {
-                            id: rowMouse
+                        HoverHandler {
+                            id: rowHover
 
-                            anchors.fill: parent
-                            hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: {
+                        }
+
+                        TapHandler {
+                            onTapped: {
                                 if (vlist.selectable) {
                                     if (hasEvent(vlist.nodeData, "select"))
                                         view.emitNodeEvent(vlist.nodeData, "select", {
@@ -2943,11 +2945,12 @@ ApplicationWindow {
                             id: swipeDrag
 
                             target: null
+                            enabled: vlist.interactive && vlist.swipeActions.length > 0
 
                             property real startX: 0
 
                             xAxis {
-                                enabled: vlist.swipeActions.length > 0
+                                enabled: vlist.interactive && vlist.swipeActions.length > 0
                                 minimum: -vlist.actionWidth
                                 maximum: 0
                             }
@@ -3741,6 +3744,7 @@ ApplicationWindow {
             list.swipeActions = prop(props, "swipeActions", []);
             list.spacing = prop(props, "spacing", 0);
             list.padding = prop(props, "padding", 0);
+            list.interactive = prop(props, "interactive", true);
 
             const sections = [];
             let current = "";

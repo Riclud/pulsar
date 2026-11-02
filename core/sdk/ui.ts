@@ -147,6 +147,8 @@ export interface VirtualSwipeAction {
 
 export interface VirtualListOptions extends CommonOptions {
   items: VirtualListItem[]
+  /** Allow the list itself to scroll; disable to let a parent page scroll instead. */
+  interactive?: boolean
   spacing?: number
   padding?: number
   selectable?: boolean
