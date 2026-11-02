@@ -73,10 +73,26 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
+
+      - name: Extract release notes
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v ver="$version" '
+            index($0, "## [" ver "]") == 1 { capture = 1; next }
+            capture && /^## \[/ { exit }
+            capture { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "no changelog section for $version" >&2
+            exit 1
+          fi
 
       - name: Regenerate checksums
         run: |
@@ -86,4 +102,5 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
+          body_path: release-notes.md
           files: dist/*
