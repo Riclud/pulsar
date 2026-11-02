@@ -344,11 +344,15 @@ const kitPage = page(
     "Virtual list",
     "list",
     VirtualList({
-      interactive: false,
       items: [
         { key: "a", title: "Alpha", subtitle: "section A", section: "A" },
         { key: "b", title: "Beta", subtitle: "section A", trailing: "2", section: "A" },
         { key: "c", title: "Gamma", subtitle: "section B", section: "B" },
+        { key: "d", title: "Delta", subtitle: "section B", section: "B" },
+        { key: "e", title: "Epsilon", subtitle: "section B", section: "B" },
+        { key: "f", title: "Zeta", subtitle: "section C", section: "C" },
+        { key: "g", title: "Eta", subtitle: "section C", section: "C" },
+        { key: "h", title: "Theta", subtitle: "section C", section: "C" },
       ],
       height: 210,
       fillHeight: false,
