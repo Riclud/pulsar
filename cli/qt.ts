@@ -194,6 +194,8 @@ const linuxQtFiles = (hostPath: string, libsDir: string, pluginsDir: string, qml
 
     seen.add(name)
     files.push({ rel: `lib/Qt/lib/${name}`, src: realpathSync(lib) })
+
+    for (const dep of neededLibs(lib)) addLib(dep)
   }
 
   for (const lib of neededLibs(hostPath)) addLib(lib)
@@ -209,7 +211,14 @@ const linuxQtFiles = (hostPath: string, libsDir: string, pluginsDir: string, qml
     }
   }
 
-  for (const module of ["QtQuick", "QtQml"]) addTree(files, join(qmlDir, module), `lib/Qt/qml/${module}`)
+  const qmlFiles: QtFile[] = []
+
+  for (const module of ["QtQuick", "QtQml"]) addTree(qmlFiles, join(qmlDir, module), `lib/Qt/qml/${module}`)
+  files.push(...qmlFiles)
+
+  for (const file of qmlFiles) {
+    if (file.src.endsWith(".so")) for (const dep of neededLibs(file.src)) addLib(dep)
+  }
 
   return files
 }
