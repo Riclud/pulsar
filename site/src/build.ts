@@ -24,6 +24,7 @@ interface Page {
   text: string
   alt: string
   source?: string
+  sourcePath?: string
   isHome?: boolean
 }
 
@@ -319,9 +320,25 @@ const slugs = [
   "license",
 ]
 
-const groupLabels = {
-  en: ["Getting started", "Reference", "Project"],
-  ru: ["Начало работы", "Справочник", "Проект"],
+const navGroups: Record<Lang, Array<{ label: string; slugs: string[] }>> = {
+  en: [
+    { label: "Guide", slugs: ["guide", "guide/ui", "guide/api"] },
+    { label: "Setup", slugs: ["platforms", "requirements", "install", "quick-start"] },
+    { label: "Reference", slugs: ["cli", "manifest", "app-api", "ui", "qml"] },
+    {
+      label: "Project",
+      slugs: ["templates", "building", "protocol", "protocol-internals", "repository", "testing", "license"],
+    },
+  ],
+  ru: [
+    { label: "Руководство", slugs: ["guide", "guide/ui", "guide/api"] },
+    { label: "Установка", slugs: ["platforms", "requirements", "install", "quick-start"] },
+    { label: "Справочник", slugs: ["cli", "manifest", "app-api", "ui", "qml"] },
+    {
+      label: "Проект",
+      slugs: ["templates", "building", "protocol", "protocol-internals", "repository", "testing", "license"],
+    },
+  ],
 }
 
 const ui = {
@@ -347,6 +364,7 @@ const ui = {
     install: "Install",
     copy: "Copy",
     copied: "Copied",
+    guide: "Guide",
     changelogNote: "",
     protocolNote: "",
   },
@@ -372,6 +390,7 @@ const ui = {
     install: "Установка",
     copy: "Копировать",
     copied: "Скопировано",
+    guide: "Руководство",
     changelogNote: "История изменений ведётся на английском языке.",
     protocolNote: "Внутренний протокол описан на английском языке.",
   },
@@ -382,8 +401,9 @@ const homePage = (lang: Lang): Page => {
   const version = `v${VERSION}`
   const quickStart = sitePath("quick-start/")
   const cli = sitePath("cli/")
-  const api = sitePath("app-api/")
-  const components = sitePath("ui/")
+  const api = sitePath("guide/api/")
+  const components = sitePath("guide/ui/")
+  const guide = sitePath("guide/")
 
   const content =
     lang === "en"
@@ -397,12 +417,12 @@ const homePage = (lang: Lang): Page => {
 pulsar install</code></pre>
   </div>
   <div class="hero-actions">
-    <a href="${quickStart}">Quick start <span aria-hidden="true">→</span></a>
+    <a href="${guide}">Read the guide <span aria-hidden="true">→</span></a>
     <a href="https://github.com/riclud/pulsar" rel="noopener">GitHub <span aria-hidden="true">↗</span></a>
   </div>
 </div>
 <div class="home-links">
-  <a class="home-link" href="${quickStart}"><span class="home-title">Build an app</span><span class="home-desc">Scaffold a project, run with hot reload and package for desktop or Android.</span></a>
+  <a class="home-link" href="${guide}"><span class="home-title">Build an app</span><span class="home-desc">A guided path from the project skeleton to a shipped desktop or Android app.</span></a>
   <a class="home-link" href="${components}"><span class="home-title">UI components</span><span class="home-desc">Layout, inputs, overlays, lists, navigation and theming in TypeScript.</span></a>
   <a class="home-link" href="${cli}"><span class="home-title">CLI reference</span><span class="home-desc">Create, run, build and inspect apps from the command line.</span></a>
   <a class="home-link" href="${api}"><span class="home-title">App API</span><span class="home-desc">Windows, store, files, network, dialogs, media and device capabilities.</span></a>
@@ -418,12 +438,12 @@ pulsar install</code></pre>
 pulsar install</code></pre>
   </div>
   <div class="hero-actions">
-    <a href="${quickStart}">Быстрый старт <span aria-hidden="true">→</span></a>
+    <a href="${guide}">Читать руководство <span aria-hidden="true">→</span></a>
     <a href="https://github.com/riclud/pulsar" rel="noopener">GitHub <span aria-hidden="true">↗</span></a>
   </div>
 </div>
 <div class="home-links">
-  <a class="home-link" href="${quickStart}"><span class="home-title">Собрать приложение</span><span class="home-desc">Создайте проект, запустите с hot reload и упакуйте для десктопа или Android.</span></a>
+  <a class="home-link" href="${guide}"><span class="home-title">Собрать приложение</span><span class="home-desc">Пошаговый путь от скелета проекта до готового приложения для десктопа или Android.</span></a>
   <a class="home-link" href="${components}"><span class="home-title">UI-компоненты</span><span class="home-desc">Раскладка, ввод, оверлеи, списки, навигация и темы на TypeScript.</span></a>
   <a class="home-link" href="${cli}"><span class="home-title">CLI</span><span class="home-desc">Создание, запуск, сборка и инспекция приложений из командной строки.</span></a>
   <a class="home-link" href="${api}"><span class="home-title">App API</span><span class="home-desc">Окна, Store, файлы, сеть, диалоги, медиа и возможности устройства.</span></a>
@@ -490,9 +510,13 @@ const navLink = (page: Page, current: Page, label = page.navTitle ?? page.title)
   return `<a class="nav-link" href="${page.path}"${active ? ' aria-current="page"' : ""}>${escapeHTML(label)}</a>`
 }
 
-const sidebar = (current: Page, home: Page, sections: Page[], protocolPage: Page, changelogPage: Page): string => {
+const sidebar = (
+  current: Page,
+  home: Page,
+  groups: Array<{ label: string; pages: Page[] }>,
+  changelogPage: Page,
+): string => {
   const t = ui[current.lang]
-  const labels = groupLabels[current.lang]
 
   const group = (label: string, pages: Page[]) => {
     return `<div class="nav-group"><p class="nav-title">${escapeHTML(label)}</p>${pages
@@ -500,16 +524,10 @@ const sidebar = (current: Page, home: Page, sections: Page[], protocolPage: Page
       .join("")}</div>`
   }
 
-  const guide = sections.slice(0, 4)
-  const reference = sections.slice(4, 9)
-  const project = [...sections.slice(9, 12), protocolPage, ...sections.slice(12)]
-
   return `<aside class="sidebar" id="sidebar">
   <nav class="sidebar-nav" aria-label="${escapeHTML(t.docs)}">
     ${navLink(home, current, t.overview)}
-    ${group(labels[0]!, guide)}
-    ${group(labels[1]!, reference)}
-    ${group(labels[2]!, project)}
+    ${groups.map((item) => group(item.label, item.pages)).join("\n    ")}
     <div class="nav-group nav-group-end">
       ${navLink(changelogPage, current, t.changelog)}
     </div>
@@ -586,6 +604,7 @@ const shell = (current: Page, bodyClass: string, main: string, nav: string, tocH
     <a class="brand" href="${sitePath("")}"><span class="brand-mark">${icon.brand}</span><span>pulsar</span></a>
     <nav class="topnav" aria-label="${escapeHTML(t.docs)}">
       <a href="${sitePath("")}">${escapeHTML(t.docs)}</a>
+      <a href="${sitePath("guide/")}">${escapeHTML(t.guide)}</a>
       <a href="${sitePath("changelog/")}">${escapeHTML(t.changelog)}</a>
     </nav>
     <div class="top-actions">
@@ -619,7 +638,7 @@ const pageMain = (current: Page, sections: Page[]): string => {
   if (current.isHome) return current.html
 
   const editURL = `https://github.com/riclud/pulsar/edit/main/${
-    current.lang === "en" ? "README.md" : "docs/README.ru.md"
+    current.sourcePath ?? (current.lang === "en" ? "README.md" : "docs/README.ru.md")
   }`
 
   return `<article class="prose">
@@ -729,8 +748,47 @@ const build = async () => {
   )
   protocolRU.path = sitePath("ru/protocol-internals/")
 
-  const enPages = [homePage("en"), ...enSections, protocolEN, changelogEN]
-  const ruPages = [homePage("ru"), ...ruSections, protocolRU, changelogRU]
+  const guideSource = (lang: Lang, file: string, title: string, slug: string): Page => {
+    const page = markdownPage(lang, slug, title, stripH1(readFileSync(join(ROOT, "docs", file), "utf8")), md, "")
+
+    page.sourcePath = `docs/${file}`
+
+    return page
+  }
+
+  const guideEN = [
+    guideSource("en", "guide.md", "Build an app", "guide"),
+    guideSource("en", "guide-ui.md", "UI building blocks", "guide/ui"),
+    guideSource("en", "guide-api.md", "API tour", "guide/api"),
+  ]
+  const guideRU = [
+    guideSource("ru", "guide.ru.md", "Соберите приложение", "guide"),
+    guideSource("ru", "guide-ui.ru.md", "UI-блоки", "guide/ui"),
+    guideSource("ru", "guide-api.ru.md", "Тур по API", "guide/api"),
+  ]
+
+  for (const [index, page] of guideEN.entries()) {
+    const other = guideRU[index]
+    if (other) {
+      page.alt = other.path
+      other.alt = page.path
+    }
+  }
+
+  const enPages = [homePage("en"), ...guideEN, ...enSections, protocolEN, changelogEN]
+  const ruPages = [homePage("ru"), ...guideRU, ...ruSections, protocolRU, changelogRU]
+
+  const groupsFor = (lang: Lang, pages: Page[]) => {
+    const bySlug = new Map(pages.map((page) => [page.slug, page]))
+
+    return navGroups[lang].map((group) => ({
+      label: group.label,
+      pages: group.slugs.map((slug) => bySlug.get(slug)).filter((page): page is Page => page !== undefined),
+    }))
+  }
+
+  const enGroups = groupsFor("en", enPages)
+  const ruGroups = groupsFor("ru", ruPages)
 
   const anchors = new Map<string, { page: Page; id: string }>()
 
@@ -748,6 +806,13 @@ const build = async () => {
   for (const page of ruPages) page.html = rewriteLinks(page.html, page, anchors)
 
   const allPages = [...enPages, ...ruPages]
+
+  for (const page of allPages) {
+    if (page.isHome) continue
+
+    page.text = stripTags(page.html)
+    page.description = page.text.slice(0, 180)
+  }
 
   rmSync(DIST, { recursive: true, force: true })
   mkdirSync(join(DIST, "assets"), { recursive: true })
@@ -770,8 +835,7 @@ const build = async () => {
     const nav = sidebar(
       page,
       siblings[0]!,
-      page.lang === "en" ? enSections : ruSections,
-      page.lang === "en" ? protocolEN : protocolRU,
+      page.lang === "en" ? enGroups : ruGroups,
       page.lang === "en" ? changelogEN : changelogRU,
     )
     const tocHTML = toc(page)
@@ -790,6 +854,7 @@ const build = async () => {
     outdir: join(DIST, "assets"),
     target: "browser",
     minify: true,
+    define: { "process.env.NODE_ENV": '"production"' },
     naming: "[name].[ext]",
   })
 
