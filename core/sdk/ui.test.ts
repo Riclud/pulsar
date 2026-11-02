@@ -8,7 +8,10 @@ import {
   Header,
   Input,
   Modal,
+  Page,
+  Stack,
   Text,
+  Wrap,
   TextField,
   When,
   appBar,
@@ -658,5 +661,48 @@ describe("qml-like components", () => {
     expect(cardNode.props).toMatchObject({ elevation: 4, shadowColor: "black" })
     expect(boxNode.props).toMatchObject({ elevation: 2, shadowColor: "navy" })
     expect(buttonNode.props).toMatchObject({ elevation: 3, shadowColor: "gray" })
+  })
+})
+
+
+describe("layout additions", () => {
+  test("page keeps the header and footer outside the scroll body", () => {
+    const out = serialize([
+      Page(
+        { header: text("header"), footer: text("footer") },
+        text("body"),
+      ),
+    ]) as Array<{ type: string; children: Array<{ type: string; children?: Array<{ props: Record<string, unknown> }> }> }>
+
+    const page = out[0]!
+    const children = page.children as Array<{ type: string; props: Record<string, unknown> }>
+    const header = children[0]!
+    const scroll = children[1]!
+    const footer = children[2]!
+
+    expect(page.type).toBe("column")
+    expect(header.props.text).toBe("header")
+    expect(scroll.type).toBe("scroll")
+    expect(footer.props.text).toBe("footer")
+  })
+
+  test("wrap and stack serialize as layout nodes", () => {
+    const out = serialize([
+      Wrap({ gap: 6 }, text("one"), text("two")),
+      Stack({ width: 20, height: 20 }, text("overlay")),
+    ]) as Array<{ type: string; props: Record<string, unknown>; children: unknown[] }>
+
+    expect(out[0]!.type).toBe("wrap")
+    expect(out[0]!.children).toHaveLength(2)
+    expect(out[1]!.type).toBe("stack")
+    expect(out[1]!.props.width).toBe(20)
+  })
+
+  test("card hoverColor is serialized", () => {
+    const out = serialize([Card({ hoverColor: "#123456" }, text("row"))]) as Array<{
+      props: Record<string, unknown>
+    }>
+
+    expect(out[0]!.props.hoverColor).toBe("#123456")
   })
 })

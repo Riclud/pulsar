@@ -3234,6 +3234,8 @@ ApplicationWindow {
 
         if (node.type === "column" || node.type === "row") {
             item = make("import QtQuick.Layouts; " + (node.type === "column" ? "ColumnLayout" : "RowLayout") + " " + base, parent);
+        } else if (node.type === "wrap" || node.type === "stack") {
+            item = make("import QtQuick; Item " + base, parent);
         } else if (node.type === "box") {
             item = make("import QtQuick; import QtQuick.Effects; Rectangle { id: shadowHost; property var pulsarMeta: null; " + shadowItemCode + " }", parent);
         } else if (node.type === "scroll" || node.type === "list") {
@@ -3539,10 +3541,42 @@ ApplicationWindow {
         tip.text = text;
     }
 
+    function applyHover(item, props, base) {
+        const hover = prop(props, "hoverColor", undefined);
+
+        if (hover === undefined)
+            return;
+
+        item.pulsarMeta.extra.baseColor = base;
+
+        let handler = item.pulsarMeta.extra.hover;
+
+        if (!handler) {
+            handler = make("import QtQuick; HoverHandler {}", item);
+            item.pulsarMeta.extra.hover = handler;
+            handler.cursorShape = Qt.PointingHandCursor;
+            handler.hoveredChanged.connect(function () {
+                const node = item.pulsarMeta.node;
+
+                if (!node)
+                    return;
+
+                const current = prop(node.props, "hoverColor", undefined);
+
+                if (current === undefined)
+                    return;
+
+                item.color = handler.hovered
+                        ? resolveColor(current, item.pulsarMeta.extra.baseColor)
+                        : item.pulsarMeta.extra.baseColor;
+            });
+        }
+    }
+
     function applyCommon(item, node, isRoot) {
         const props = node.props;
         const defaultFillWidth = node.type === "card" || node.type === "list" || node.type === "scroll"
-                || node.type === "grid" || node.type === "virtualList"
+                || node.type === "wrap" || node.type === "grid" || node.type === "virtualList"
                 || node.type === "appBar" || node.type === "divider" || node.type === "textInput"
                 || node.type === "textArea" || node.type === "pager" || node.type === "tabs"
                 || node.type === "navRail" || node.type === "segmented"
@@ -3664,8 +3698,55 @@ ApplicationWindow {
             item.spacing = prop(props, "gap", 0);
             reconcile(item, node.children || [], false);
             applyPadding(item, prop(props, "padding", 0), node.type === "row");
+        } else if (node.type === "wrap") {
+            const gap = prop(props, "gap", view.themeSpacing);
+            const padding = prop(props, "padding", 0);
+
+            let flow = item.pulsarMeta.content;
+
+            if (!flow) {
+                flow = make("import QtQuick; Flow { property var pulsarMeta: null }", item);
+                item.pulsarMeta.content = flow;
+                flow.x = Qt.binding(function () {
+                    return prop(item.pulsarMeta.node.props, "padding", 0);
+                });
+                flow.y = Qt.binding(function () {
+                    return prop(item.pulsarMeta.node.props, "padding", 0);
+                });
+                flow.width = Qt.binding(function () {
+                    return Math.max(0, item.width - 2 * prop(item.pulsarMeta.node.props, "padding", 0));
+                });
+                item.implicitHeight = Qt.binding(function () {
+                    return flow.implicitHeight + 2 * prop(item.pulsarMeta.node.props, "padding", 0);
+                });
+            }
+
+            flow.spacing = gap;
+            flow.flow = Flow.LeftToRight;
+            reconcile(flow, node.children || [], false);
+        } else if (node.type === "stack") {
+            reconcile(item, node.children || [], false);
+
+            for (let i = 0; i < item.children.length; i++) {
+                const child = item.children[i];
+                const childNode = child.pulsarMeta ? child.pulsarMeta.node : null;
+                const childProps = childNode ? childNode.props : ({});
+
+                if (child.pulsarMeta && child.pulsarMeta.extra.stackAnchored)
+                    continue;
+
+                if (childProps.width !== undefined || childProps.height !== undefined || childProps.align !== undefined) {
+                    child.anchors.centerIn = item;
+                } else {
+                    child.anchors.fill = item;
+                }
+
+                if (child.pulsarMeta)
+                    child.pulsarMeta.extra.stackAnchored = true;
+            }
         } else if (node.type === "box") {
             item.color = resolveColor(prop(props, "color", "transparent"), "transparent");
+            applyHover(item, props, item.color);
             item.radius = prop(props, "radius", 0);
             item.border.width = prop(props, "borderWidth", 0);
             item.border.color = resolveColor(prop(props, "borderColor", view.themeBorder), view.themeBorder);
@@ -3797,6 +3878,7 @@ ApplicationWindow {
             list.updateSticky();
         } else if (node.type === "card") {
             item.color = resolveColor(prop(props, "color", view.themeSurface), view.themeSurface);
+            applyHover(item, props, item.color);
             item.radius = prop(props, "radius", view.themeRadius);
             item.border.width = prop(props, "borderWidth", 1);
             item.border.color = resolveColor(prop(props, "borderColor", view.themeBorder), view.themeBorder);

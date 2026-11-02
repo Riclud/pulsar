@@ -3,6 +3,8 @@ import type { ColorValue } from "./theme.ts"
 export type UiNodeType =
   | "column"
   | "row"
+  | "wrap"
+  | "stack"
   | "box"
   | "scroll"
   | "list"
@@ -109,6 +111,21 @@ export interface ContainerOptions extends CommonOptions {
   padding?: number
 }
 
+export interface PageOptions extends CommonOptions {
+  gap?: number
+  padding?: number
+  header?: UiChild
+  footer?: UiChild
+}
+
+export interface WrapOptions extends LayoutOptions {
+  align?: "start" | "center" | "end"
+}
+
+export interface StackOptions extends CommonOptions {
+  align?: "start" | "center" | "end"
+}
+
 export interface ScrollOptions extends CommonOptions {
   gap?: number
   padding?: number
@@ -175,6 +192,7 @@ export interface GradientOptions {
 
 export interface CardOptions extends CommonOptions {
   color?: ColorValue
+  hoverColor?: ColorValue
   radius?: number
   padding?: number
   borderColor?: ColorValue
@@ -196,6 +214,7 @@ export interface AppBarOptions extends CommonOptions {
 
 export interface BoxOptions extends CommonOptions {
   color?: ColorValue
+  hoverColor?: ColorValue
   radius?: number
   padding?: number
   borderColor?: ColorValue
@@ -714,6 +733,14 @@ export const row = (options: LayoutOptions = {}, ...children: UiChild[]): UiNode
   return makeNode("row", options, children)
 }
 
+export const wrap = (options: WrapOptions = {}, ...children: UiChild[]): UiNode => {
+  return makeNode("wrap", options, children)
+}
+
+export const stack = (options: StackOptions = {}, ...children: UiChild[]): UiNode => {
+  return makeNode("stack", options, children)
+}
+
 export const box = (options: BoxOptions = {}, ...children: UiChild[]): UiNode => {
   return withLongPress("box", options, children)
 }
@@ -1227,6 +1254,17 @@ export const container = (options: ContainerOptions = {}, ...children: UiChild[]
   )
 }
 
+export const page = (options: PageOptions = {}, ...children: UiChild[]): UiNode => {
+  const { gap = 12, padding = 16, header, footer, ...props } = options
+
+  return column(
+    { ...props, fill: true, gap, padding },
+    header ?? null,
+    scroll({ fill: true }, column({ gap, fillWidth: true }, ...children)),
+    footer ?? null,
+  )
+}
+
 export const For = <T>(options: ForOptions<T>): UiNode => {
   const { each, keyOf, render, ...props } = options
 
@@ -1246,6 +1284,8 @@ export const defineComponent = <P>(component: DefinedComponent<P>): DefinedCompo
 export const Column = (options: LayoutOptions = {}, ...children: UiChild[]): UiNode => column(options, ...children)
 
 export const Row = (options: LayoutOptions = {}, ...children: UiChild[]): UiNode => row(options, ...children)
+export const Wrap = (options: WrapOptions = {}, ...children: UiChild[]): UiNode => wrap(options, ...children)
+export const Stack = (options: StackOptions = {}, ...children: UiChild[]): UiNode => stack(options, ...children)
 
 export const Box = (options: BoxOptions = {}, ...children: UiChild[]): UiNode => box(options, ...children)
 
@@ -1346,6 +1386,7 @@ export const NavBar = (options: NavBarOptions): UiNode => navBar(options)
 
 export const Container = (options: ContainerOptions = {}, ...children: UiChild[]): UiNode =>
   container(options, ...children)
+export const Page = (options: PageOptions = {}, ...children: UiChild[]): UiNode => page(options, ...children)
 
 export const Modal = (options: SheetOptions = {}, ...children: UiChild[]): UiNode => {
   return sheet({ ...options, fullscreen: options.fullscreen ?? false }, ...children)
@@ -1412,6 +1453,9 @@ export const forgetHandlers = (ids: number[]): void => {
 export const ui = {
   column,
   row,
+  wrap,
+  stack,
+  page,
   box,
   scroll,
   list,
