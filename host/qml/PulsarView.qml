@@ -3108,7 +3108,15 @@ ApplicationWindow {
 
     function applyPadding(layout, padding, horizontal) {
         const kids = layout.children;
-        const last = kids.length - 1;
+        const active = [];
+
+        for (let i = 0; i < kids.length; i++) {
+            if (kids[i].visible !== false)
+                active.push(i);
+        }
+
+        const first = active.length > 0 ? active[0] : -1;
+        const last = active.length > 0 ? active[active.length - 1] : -1;
 
         for (let i = 0; i < kids.length; i++) {
             const kid = kids[i];
@@ -3116,14 +3124,14 @@ ApplicationWindow {
             if (horizontal) {
                 kid.Layout.topMargin = padding;
                 kid.Layout.bottomMargin = padding;
-                kid.Layout.leftMargin = i === 0 ? padding : 0;
+                kid.Layout.leftMargin = i === first ? padding : 0;
                 kid.Layout.rightMargin = i === last ? padding : 0;
                 continue;
             }
 
             kid.Layout.leftMargin = padding;
             kid.Layout.rightMargin = padding;
-            kid.Layout.topMargin = i === 0 ? padding : 0;
+            kid.Layout.topMargin = i === first ? padding : 0;
             kid.Layout.bottomMargin = i === last ? padding : 0;
         }
     }
