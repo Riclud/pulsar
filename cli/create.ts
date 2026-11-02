@@ -1,7 +1,7 @@
 import { spawnSync } from "child_process"
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "fs"
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "fs"
 import { join, relative, resolve } from "path"
-import { flag, pulsarRoot } from "./core.ts"
+import { flag, linkSdk, pulsarRoot } from "./core.ts"
 
 const TEXT_EXT = new Set([".ts", ".js", ".json", ".qml", ".md", ".txt", ".html", ".css", ".yml", ".yaml"])
 
@@ -46,24 +46,6 @@ const listTemplates = (dir: string): string[] => {
       .map((e) => e.name)
   } catch {
     return []
-  }
-}
-
-/** Link the bundled SDK so `import { App } from "pulsar"` resolves. */
-const linkSdk = (target: string): void => {
-  const sdk = join(pulsarRoot(), "core", "sdk")
-  const nodeModules = join(target, "node_modules")
-
-  mkdirSync(nodeModules, { recursive: true })
-
-  const link = join(nodeModules, "pulsar")
-
-  rmSync(link, { recursive: true, force: true })
-
-  try {
-    symlinkSync(relative(nodeModules, sdk) || sdk, link, "dir")
-  } catch {
-    cpSync(sdk, link, { recursive: true })
   }
 }
 

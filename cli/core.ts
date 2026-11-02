@@ -1,6 +1,6 @@
 import { createHash } from "crypto"
-import { existsSync, readFileSync, realpathSync } from "fs"
-import { basename, join, resolve } from "path"
+import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync } from "fs"
+import { basename, join, relative, resolve, sep } from "path"
 
 /** GitHub repository that hosts the releases. */
 export const REPO = process.env.PULSAR_REPO ?? "riclud/pulsar"
@@ -8,6 +8,32 @@ export const REPO = process.env.PULSAR_REPO ?? "riclud/pulsar"
 /** Root of the installed pulsar distribution (cli/ + core/ + templates/). */
 export const pulsarRoot = (): string => {
   return resolve(import.meta.dir, "..")
+}
+
+/** Directory of the SDK shipped with the active distribution. */
+export const sdkDir = (): string => {
+  const current = join(pulsarHome(), "current", "core", "sdk")
+  const home = resolve(pulsarHome())
+  const root = resolve(pulsarRoot())
+
+  if (existsSync(current) && (root === home || root.startsWith(home + sep))) return current
+
+  return join(pulsarRoot(), "core", "sdk")
+}
+
+/** Link (or copy) the SDK into an app's node_modules as `pulsar`. */
+export const linkSdk = (target: string, sdk = sdkDir()): void => {
+  const nodeModules = join(target, "node_modules")
+  const link = join(nodeModules, "pulsar")
+
+  mkdirSync(nodeModules, { recursive: true })
+  rmSync(link, { recursive: true, force: true })
+
+  try {
+    symlinkSync(relative(nodeModules, sdk) || sdk, link, "dir")
+  } catch {
+    cpSync(sdk, link, { recursive: true })
+  }
 }
 
 /** Version of the running CLI. */

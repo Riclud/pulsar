@@ -552,7 +552,7 @@ const usage = () => {
       "",
       "  create <name>  scaffold a new app (--template default|js|qml|windows|tray)",
       "  install        download the native toolchain for this platform (--android for the APK toolchain)",
-      "  update         update the CLI to the latest release",
+      "  update         update the CLI to the latest release (--version <v>)",
       "  dev            run with hot reload (watch sources; --android for the dev APK)",
       "  run            run the app in the current directory",
       "  build          build a single-file executable (--target desktop|android|portable, --dev)",
@@ -597,7 +597,7 @@ switch (cmd) {
     }
     break
   case "update":
-    await update()
+    await update(args)
     break
   case "dev":
     await dev()
