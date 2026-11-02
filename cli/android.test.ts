@@ -3,7 +3,14 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
 import { join } from "path"
 import type { AppManifest } from "../core/sdk/manifest.ts"
-import { androidPackageName, androidPermissions, appFiles, clearStaleBuildDir, devManifest } from "./android.ts"
+import {
+  androidPackageName,
+  androidPermissions,
+  androidQtComplete,
+  appFiles,
+  clearStaleBuildDir,
+  devManifest,
+} from "./android.ts"
 
 const manifest: AppManifest = {
   id: "com.example.app",
@@ -129,6 +136,41 @@ describe("clearStaleBuildDir", () => {
 
     try {
       expect(clearStaleBuildDir(dir, "/new/pulsar")).toBe(false)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe("androidQtComplete", () => {
+  test("accepts a Qt bundle with multimedia", () => {
+    const dir = mkdtempSync(join(tmpdir(), "pulsar-android-qt-"))
+
+    try {
+      for (const path of [
+        "bin/qt-cmake",
+        "qml/QtMultimedia",
+        "lib/libQt6Multimedia_arm64-v8a.so",
+        "plugins/multimedia",
+      ]) {
+        mkdirSync(join(dir, path, ".."), { recursive: true })
+        writeFileSync(join(dir, path), "")
+      }
+
+      expect(androidQtComplete(dir)).toBe(true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test("rejects a bundle from an older release", () => {
+    const dir = mkdtempSync(join(tmpdir(), "pulsar-old-android-qt-"))
+
+    try {
+      mkdirSync(join(dir, "bin"), { recursive: true })
+      writeFileSync(join(dir, "bin", "qt-cmake"), "")
+
+      expect(androidQtComplete(dir)).toBe(false)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

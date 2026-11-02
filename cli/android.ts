@@ -57,6 +57,15 @@ export const androidBase = (): string => join(pulsarHome(), "android")
 export const installedQt = (abi = ANDROID_ABI): string =>
   join(androidBase(), "qt", ANDROID_QT_VERSION, `android_${abi.replace(/-/g, "_")}`)
 
+export const androidQtComplete = (qt: string, abi = ANDROID_ABI): boolean => {
+  return (
+    existsSync(join(qt, "bin", "qt-cmake")) &&
+    existsSync(join(qt, "qml", "QtMultimedia")) &&
+    existsSync(join(qt, "lib", `libQt6Multimedia_${abi}.so`)) &&
+    existsSync(join(qt, "plugins", "multimedia"))
+  )
+}
+
 export const installedJdk = (): string => join(androidBase(), "jdk", "17")
 
 export const installedSdk = (): string => join(androidBase(), "sdk")
@@ -129,7 +138,7 @@ export const findAndroidTools = (): AndroidTools => {
 
   const missing: string[] = []
 
-  if (!qt || !existsSync(join(qt, "bin", "qt-cmake"))) missing.push("Qt for Android (PULSAR_ANDROID_QT)")
+  if (!qt || !androidQtComplete(qt)) missing.push("Qt for Android with multimedia (PULSAR_ANDROID_QT)")
   if (!sdk) missing.push("Android SDK (PULSAR_ANDROID_SDK)")
   if (!ndk) missing.push(`Android NDK ${ANDROID_NDK_VERSION} (PULSAR_ANDROID_NDK)`)
   if (!javaHome) missing.push("JDK 17 (PULSAR_JAVA_HOME)")
@@ -223,7 +232,7 @@ export const installAndroid = async (version?: string): Promise<AndroidTools> =>
 
   const qt = installedQt()
 
-  if (!existsSync(join(qt, "bin", "qt-cmake"))) {
+  if (!androidQtComplete(qt)) {
     console.log(`pulsar: installing Qt ${ANDROID_QT_VERSION} for Android`)
 
     const asset = `pulsar-android-qt-${ANDROID_QT_VERSION}-${platform}.tar.gz`
