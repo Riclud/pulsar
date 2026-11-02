@@ -586,6 +586,11 @@ const navigate = async (url: URL, options: { push?: boolean; scrollY?: number } 
   }
 
   const next = parsePage(html)
+  if (!next.querySelector(".shell")) {
+    window.location.assign(url.href)
+    return
+  }
+
   const update = () => swapPage(next)
 
   if (push) {

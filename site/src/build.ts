@@ -178,7 +178,10 @@ const rewriteLinks = (html: string, page: Page, anchors: Map<string, { page: Pag
     if (/^(https?:|mailto:|tel:|data:)/.test(href)) return match
 
     if (href.startsWith("#")) {
-      const key = decodeURIComponent(href.slice(1)).toLowerCase()
+      const local = decodeURIComponent(href.slice(1))
+      if (html.includes(`id="${local}"`)) return match
+
+      const key = local.toLowerCase()
       const target = anchors.get(key) ?? anchors.get(href.slice(1).toLowerCase())
 
       if (!target) return match
@@ -322,7 +325,7 @@ const slugs = [
 
 const navGroups: Record<Lang, Array<{ label: string; slugs: string[] }>> = {
   en: [
-    { label: "Guide", slugs: ["guide", "guide/ui", "guide/api"] },
+    { label: "Guide", slugs: ["guide", "guide/api"] },
     { label: "Setup", slugs: ["platforms", "requirements", "install", "quick-start"] },
     { label: "Reference", slugs: ["cli", "manifest", "app-api", "ui", "qml"] },
     {
@@ -331,7 +334,7 @@ const navGroups: Record<Lang, Array<{ label: string; slugs: string[] }>> = {
     },
   ],
   ru: [
-    { label: "Руководство", slugs: ["guide", "guide/ui", "guide/api"] },
+    { label: "Руководство", slugs: ["guide", "guide/api"] },
     { label: "Установка", slugs: ["platforms", "requirements", "install", "quick-start"] },
     { label: "Справочник", slugs: ["cli", "manifest", "app-api", "ui", "qml"] },
     {
@@ -402,7 +405,7 @@ const homePage = (lang: Lang): Page => {
   const quickStart = sitePath("quick-start/")
   const cli = sitePath("cli/")
   const api = sitePath("guide/api/")
-  const components = sitePath("guide/ui/")
+  const components = sitePath("ui/")
   const guide = sitePath("guide/")
 
   const content =
@@ -709,6 +712,21 @@ const build = async () => {
     page.description = page.text.slice(0, 180)
   }
 
+  const detailPage = (sections: Page[], file: string, title: string) => {
+    const page = sections.find((item) => item.slug === "ui")
+    if (!page) return
+
+    page.title = title
+    page.navTitle = title
+    page.sourcePath = `docs/${file}`
+    page.html = md.render(stripH1(readFileSync(join(ROOT, "docs", file), "utf8")))
+    page.text = stripTags(page.html)
+    page.description = page.text.slice(0, 180)
+  }
+
+  detailPage(enSections, "guide-ui.md", "UI building blocks")
+  detailPage(ruSections, "guide-ui.ru.md", "UI-блоки")
+
   const changelogSource = stripH1(readFileSync(join(ROOT, "CHANGELOG.md"), "utf8"))
 
   const changelogEN = markdownPage("en", "changelog", ui.en.changelog, changelogSource, md, sitePath("ru/changelog/"))
@@ -758,12 +776,10 @@ const build = async () => {
 
   const guideEN = [
     guideSource("en", "guide.md", "Build an app", "guide"),
-    guideSource("en", "guide-ui.md", "UI building blocks", "guide/ui"),
     guideSource("en", "guide-api.md", "API tour", "guide/api"),
   ]
   const guideRU = [
     guideSource("ru", "guide.ru.md", "Соберите приложение", "guide"),
-    guideSource("ru", "guide-ui.ru.md", "UI-блоки", "guide/ui"),
     guideSource("ru", "guide-api.ru.md", "Тур по API", "guide/api"),
   ]
 
@@ -790,20 +806,21 @@ const build = async () => {
   const enGroups = groupsFor("en", enPages)
   const ruGroups = groupsFor("ru", ruPages)
 
-  const anchors = new Map<string, { page: Page; id: string }>()
+  const enAnchors = new Map<string, { page: Page; id: string }>()
+  const ruAnchors = new Map<string, { page: Page; id: string }>()
 
   for (const page of enPages) {
     page.toc = extractToc(page.html)
-    extractAnchors(page.html, page, anchors)
+    extractAnchors(page.html, page, enAnchors)
   }
 
   for (const page of ruPages) {
     page.toc = extractToc(page.html)
-    extractAnchors(page.html, page, anchors)
+    extractAnchors(page.html, page, ruAnchors)
   }
 
-  for (const page of enPages) page.html = rewriteLinks(page.html, page, anchors)
-  for (const page of ruPages) page.html = rewriteLinks(page.html, page, anchors)
+  for (const page of enPages) page.html = rewriteLinks(page.html, page, enAnchors)
+  for (const page of ruPages) page.html = rewriteLinks(page.html, page, ruAnchors)
 
   const allPages = [...enPages, ...ruPages]
 
@@ -843,6 +860,32 @@ const build = async () => {
 
     writeFileSync(join(dir, "index.html"), html)
   }
+
+  const redirect = (dir: string, target: string, lang: Lang) => {
+    const canonical = DOMAIN ? `https://${DOMAIN}${target}` : target
+    const label = lang === "en" ? "Redirecting to the UI guide…" : "Переход к документации UI…"
+
+    mkdirSync(join(DIST, dir), { recursive: true })
+    writeFileSync(
+      join(DIST, dir, "index.html"),
+      `<!doctype html>
+<html lang="${lang}">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex">
+  <meta http-equiv="refresh" content="0; url=${target}">
+  <link rel="canonical" href="${canonical}">
+  <title>${label}</title>
+  <script>location.replace(${JSON.stringify(target)})</script>
+</head>
+<body><a href="${target}">${label}</a></body>
+</html>
+`,
+    )
+  }
+
+  redirect("guide/ui", sitePath("ui/"), "en")
+  redirect("ru/guide/ui", sitePath("ru/ui/"), "ru")
 
   writeFileSync(join(DIST, "search-index.json"), JSON.stringify(searchEntries(allPages)))
 

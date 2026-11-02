@@ -2,7 +2,7 @@
 
 Pulsar's UI is a tree of function calls. This page is the catalogue: what each
 block is for, the props that matter, and the patterns that keep a screen
-readable. Start with [Build an app](../) if you want a guided path.
+readable. Start with [Build an app](../guide/) if you want a guided path.
 
 ## How a component call works
 

@@ -6,7 +6,7 @@ question: **which building block do I reach for now?**
 
 If you only need a command, use [Quick start](../quick-start/). If you already
 know what you want to build and need an option name, use
-[UI building blocks](ui/) and the [API tour](api/).
+[UI building blocks](../ui/) and the [API tour](api/).
 
 ## The mental model
 
@@ -117,7 +117,7 @@ function in an `on*` prop is an event handler, not a binding.
 | Transient confirmation      | `Snackbar`                                         |
 | A badge or avatar           | `Badge`, `Avatar`                                  |
 
-The detailed props for each one are in [UI building blocks](ui/).
+The detailed props for each one are in [UI building blocks](../ui/).
 
 ## Layout that does not fight you
 
@@ -413,7 +413,7 @@ Before shipping:
 
 ## Next
 
-- [UI building blocks](ui/) — every component, prop and pattern.
+- [UI building blocks](../ui/) — every component, prop and pattern.
 - [API tour](api/) — windows, store, files, network and devices.
 - [The manifest](../manifest/) — every `pulsar.json` field.
 - [CLI](../cli/) — create, run, build and inspect.
