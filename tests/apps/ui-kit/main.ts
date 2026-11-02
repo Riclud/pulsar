@@ -119,7 +119,7 @@ const quickPage = page(
   ),
   Section(
     "Accent",
-    "colors",
+    "color_lens",
     Row(
       { gap: 8, fillWidth: true },
       Chip({ label: "Mauve", selected: true, selectedColor: "mauve", textColor: "crust" }),

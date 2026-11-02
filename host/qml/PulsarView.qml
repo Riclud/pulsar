@@ -3106,6 +3106,28 @@ ApplicationWindow {
         return wrapper;
     }
 
+    function applyPadding(layout, padding, horizontal) {
+        const kids = layout.children;
+        const last = kids.length - 1;
+
+        for (let i = 0; i < kids.length; i++) {
+            const kid = kids[i];
+
+            if (horizontal) {
+                kid.Layout.topMargin = padding;
+                kid.Layout.bottomMargin = padding;
+                kid.Layout.leftMargin = i === 0 ? padding : 0;
+                kid.Layout.rightMargin = i === last ? padding : 0;
+                continue;
+            }
+
+            kid.Layout.leftMargin = padding;
+            kid.Layout.rightMargin = padding;
+            kid.Layout.topMargin = i === 0 ? padding : 0;
+            kid.Layout.bottomMargin = i === last ? padding : 0;
+        }
+    }
+
     function clearContainer(parent) {
         const meta = parent.pulsarMeta;
 
@@ -3629,6 +3651,7 @@ ApplicationWindow {
         if (node.type === "column" || node.type === "row") {
             item.spacing = prop(props, "gap", 0);
             reconcile(item, node.children || [], false);
+            applyPadding(item, prop(props, "padding", 0), node.type === "row");
         } else if (node.type === "box") {
             item.color = resolveColor(prop(props, "color", "transparent"), "transparent");
             item.radius = prop(props, "radius", 0);
