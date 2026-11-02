@@ -43,7 +43,8 @@ const needed = (file: string): string[] => {
 const linux = process.platform === "linux"
 const qmlDir = linux ? qmakeQuery("QT_INSTALL_QML") : undefined
 const libsDir = linux ? qmakeQuery("QT_INSTALL_LIBS") : undefined
-const hasQt = Boolean(qmlDir && libsDir && existsSync(qmlDir) && existsSync(libsDir))
+const pluginsDir = linux ? qmakeQuery("QT_INSTALL_PLUGINS") : undefined
+const hasQt = Boolean(qmlDir && libsDir && pluginsDir && existsSync(qmlDir) && existsSync(libsDir))
 
 describe("linux Qt bundle", () => {
   test.skipIf(!hasQt)("includes the Qt libraries needed by QML modules", () => {
@@ -53,7 +54,7 @@ describe("linux Qt bundle", () => {
 
     const bundled = new Set(files!.map((file) => file.rel.split("/").pop()))
 
-    for (const module of ["QtQuick", "QtQml"]) {
+    for (const module of ["QtQuick", "QtQml", "QtMultimedia"]) {
       const dir = join(qmlDir!, module)
 
       if (!existsSync(dir)) continue
@@ -65,6 +66,22 @@ describe("linux Qt bundle", () => {
           expect(bundled.has(lib)).toBe(true)
         }
       }
+    }
+  })
+
+  test.skipIf(!hasQt)("includes the QML modules and plugins used by the runtime", () => {
+    const rels = qtFiles("/nonexistent/qml-host")!.map((file) => file.rel)
+
+    for (const module of ["QtMultimedia"]) {
+      if (!existsSync(join(qmlDir!, module))) continue
+
+      expect(rels.some((rel) => rel.startsWith(`lib/Qt/qml/${module}/`))).toBe(true)
+    }
+
+    for (const group of ["multimedia", "tls"]) {
+      if (!existsSync(join(pluginsDir!, group))) continue
+
+      expect(rels.some((rel) => rel.startsWith(`lib/Qt/plugins/${group}/`))).toBe(true)
     }
   })
 })

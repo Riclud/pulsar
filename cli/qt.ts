@@ -26,7 +26,12 @@ const PLUGIN_GROUPS = [
   "wayland-shell-integration",
   "wayland-graphics-integration-client",
   "wayland-decoration-client",
+  "multimedia",
+  "networkinformation",
+  "tls",
 ]
+
+const QML_MODULES = ["QtQuick", "QtQml", "QtMultimedia"]
 
 const EXCLUDED_LIB_PREFIXES = [
   "ld-linux",
@@ -213,7 +218,7 @@ const linuxQtFiles = (hostPath: string, libsDir: string, pluginsDir: string, qml
 
   const qmlFiles: QtFile[] = []
 
-  for (const module of ["QtQuick", "QtQml"]) addTree(qmlFiles, join(qmlDir, module), `lib/Qt/qml/${module}`)
+  for (const module of QML_MODULES) addTree(qmlFiles, join(qmlDir, module), `lib/Qt/qml/${module}`)
   files.push(...qmlFiles)
 
   for (const file of qmlFiles) {
@@ -287,7 +292,7 @@ const appleQtFiles = (hostPath: string, libsDir: string, pluginsDir: string, qml
 
   const qmlFiles: QtFile[] = []
 
-  for (const module of ["QtQuick", "QtQml"]) addTree(qmlFiles, join(qmlDir, module), `lib/Qt/qml/${module}`)
+  for (const module of QML_MODULES) addTree(qmlFiles, join(qmlDir, module), `lib/Qt/qml/${module}`)
   files.push(...qmlFiles)
 
   for (const file of qmlFiles) {
@@ -301,12 +306,13 @@ const windowsQtFiles = (hostPath: string): QtFile[] | null => {
   const binsDir = qmakeQuery("QT_INSTALL_BINS")
   const windeployqt = binsDir ? join(binsDir, "windeployqt.exe") : "windeployqt"
   const stage = mkdtempSync(join(tmpdir(), "pulsar-qt-"))
+  const qmlRoot = join(dirname(import.meta.dir), "host", "qml")
+  const args = ["--release", "--no-translations", "--no-compiler-runtime", "--dir", stage]
 
-  const r = spawnSync(
-    windeployqt,
-    ["--release", "--no-translations", "--no-compiler-runtime", "--dir", stage, hostPath],
-    { stdio: "inherit" },
-  )
+  if (existsSync(qmlRoot)) args.push("--qmldir", qmlRoot)
+  args.push(hostPath)
+
+  const r = spawnSync(windeployqt, args, { stdio: "inherit" })
 
   if (r.status !== 0) return null
 

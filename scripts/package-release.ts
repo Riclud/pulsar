@@ -42,6 +42,37 @@ for (const bin of [qmlHost, bridge, launcher]) {
   if (!existsSync(bin)) throw new Error(`missing build artifact: ${bin} (run the CMake build first)`)
 }
 
+const hostQmlImports = (): string[] => {
+  const dir = join(root, "host", "qml")
+  const imports = new Set<string>()
+
+  for (const entry of readdirSync(dir)) {
+    if (!entry.endsWith(".qml")) continue
+
+    for (const line of readFileSync(join(dir, entry), "utf8").split("\n")) {
+      const match = line.match(/^import\s+(Qt[\w.]*)/)
+
+      if (match?.[1]) imports.add(match[1])
+    }
+  }
+
+  return [...imports]
+}
+
+const validateToolchain = (stage: string): void => {
+  const qmlRoots = [join(stage, "lib", "Qt", "qml"), join(stage, "bin", "qml"), join(stage, "qml")]
+  const pluginRoots = [join(stage, "lib", "Qt", "plugins"), join(stage, "bin", "plugins"), join(stage, "plugins")]
+  const imports = hostQmlImports()
+  const hasModule = (name: string) => qmlRoots.some((root) => existsSync(join(root, ...name.split("."))))
+  const missing = imports.filter((name) => !hasModule(name))
+
+  if (missing.length > 0) throw new Error(`toolchain is missing QML modules: ${missing.join(", ")}`)
+
+  if (imports.includes("QtMultimedia") && !pluginRoots.some((root) => existsSync(join(root, "multimedia")))) {
+    throw new Error("toolchain is missing the multimedia plugins")
+  }
+}
+
 const stageToolchain = (withQt: boolean, name: string): string => {
   const stage = join(out, `.stage-${withQt ? "fat" : "slim"}`)
 
@@ -64,6 +95,8 @@ const stageToolchain = (withQt: boolean, name: string): string => {
     }
 
     writeFileSync(join(stage, "bin", "qt.conf"), qtConfText())
+
+    validateToolchain(stage)
   }
 
   return tar(name, stage, ["."])
