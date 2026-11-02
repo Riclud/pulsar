@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-11-02
+
+### Fixed
+
+- Built-in Catppuccin theme tokens (`mauve`, `text`, `subtext`, `surface` and
+  the rest) are typed by default, so `EmptyState` and other SDK defaults
+  typecheck in apps that do not augment `ThemeColors`.
+- `pulsar update` verifies `SHA256SUMS`, accepts `--version <v>`, and relinks
+  the current app's `node_modules/pulsar` to the new SDK. Apps created by newer
+  CLIs link through `$PULSAR_HOME/current`, so they follow later updates.
+
 ## [1.2.0] - 2026-11-02
 
 ### Added
