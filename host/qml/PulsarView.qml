@@ -2425,6 +2425,7 @@ ApplicationWindow {
             property color neonColor: view.themePrimary
             property real neonIntensity: 1
             property real neonGlow: 0.8
+            readonly property bool effectsSupported: Qt.platform.os !== "android"
 
             implicitWidth: neonContent.implicitWidth + pad * 2
             implicitHeight: neonContent.implicitHeight + pad * 2
@@ -2444,18 +2445,31 @@ ApplicationWindow {
                 }
             }
 
-            MultiEffect {
+            Loader {
                 anchors.fill: parent
                 z: -1
-                source: neonSurface
-                autoPaddingEnabled: true
-                shadowEnabled: true
-                shadowColor: neonRoot.neonColor
-                shadowBlur: 1
-                shadowOpacity: Math.min(1, Math.max(0, neonRoot.neonGlow * neonRoot.neonIntensity))
-                shadowHorizontalOffset: 0
-                shadowVerticalOffset: 0
+                active: neonRoot.effectsSupported
+                sourceComponent: MultiEffect {
+                    source: neonSurface
+                    autoPaddingEnabled: true
+                    shadowEnabled: true
+                    shadowColor: neonRoot.neonColor
+                    shadowBlur: 1
+                    shadowOpacity: Math.min(1, Math.max(0, neonRoot.neonGlow * neonRoot.neonIntensity))
+                    shadowHorizontalOffset: 0
+                    shadowVerticalOffset: 0
+                }
             }
+
+            Rectangle {
+                anchors.fill: neonSurface
+                anchors.margins: neonRoot.pad - 2
+                radius: view.themeRadius + 2
+                color: "transparent"
+                border.width: neonRoot.effectsSupported ? 0 : 2
+                border.color: view.withAlpha(neonRoot.neonColor, Math.min(1, neonRoot.neonGlow * neonRoot.neonIntensity))
+            }
+
         }
     }
 
