@@ -326,17 +326,26 @@ const windowsQtFiles = (hostPath: string): QtFile[] | null => {
     files.push(file)
   }
 
-  for (const entry of readdirSync(stage, { withFileTypes: true })) {
-    if (entry.name === "plugins" || entry.name === "qml") continue
-    if (entry.isFile()) push({ rel: `bin/${entry.name}`, src: join(stage, entry.name) })
+  const stageTree = (from: string, prefix: string) => {
+    const tree: QtFile[] = []
+
+    addTree(tree, from, prefix)
+
+    for (const file of tree) push(file)
   }
 
-  const tree: QtFile[] = []
+  for (const entry of readdirSync(stage, { withFileTypes: true })) {
+    if (entry.isFile()) {
+      push({ rel: `bin/${entry.name}`, src: join(stage, entry.name) })
+      continue
+    }
 
-  addTree(tree, join(stage, "plugins"), "bin/plugins")
-  addTree(tree, join(stage, "qml"), "bin/qml")
+    if (!entry.isDirectory()) continue
 
-  for (const file of tree) push(file)
+    if (entry.name === "qml") stageTree(join(stage, "qml"), "bin/qml")
+    else if (entry.name === "plugins") stageTree(join(stage, "plugins"), "bin/plugins")
+    else stageTree(join(stage, entry.name), `bin/plugins/${entry.name}`)
+  }
 
   return files
 }
