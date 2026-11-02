@@ -1,0 +1,21 @@
+{
+  "name": "pulsar-docs",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun run src/build.ts",
+    "dev": "bun run src/build.ts --serve"
+  },
+  "dependencies": {
+    "lit-html": "^3.3.3",
+    "markdown-it": "^15.0.3",
+    "markdown-it-anchor": "^10.0.0",
+    "shiki": "^4.6.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.4",
+    "@types/markdown-it": "^14.2.0",
+    "typescript": "^7.0.2"
+  }
+}
