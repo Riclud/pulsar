@@ -753,6 +753,8 @@ const build = async () => {
 
   cpSync(PUBLIC, DIST, { recursive: true })
 
+  for (const page of [changelogEN, changelogRU]) page.toc = page.toc.filter((item) => item.depth === 2)
+
   for (const page of allPages) {
     const dir =
       page.slug === ""

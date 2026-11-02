@@ -1035,7 +1035,7 @@ kbd {
 
   .scrim {
     position: fixed;
-    inset: var(--topbar) 0 0;
+    inset: var(--topbar) 0 0 var(--sidebar);
     z-index: 80;
     display: none;
     background: rgba(0, 0, 0, 0.45);
