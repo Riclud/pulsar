@@ -32,7 +32,7 @@ jobs:
         working-directory: site
         env:
           DOCS_DOMAIN: ${{ vars.DOCS_DOMAIN }}
-          BASE_PATH: ${{ vars.DOCS_BASE_PATH || (vars.DOCS_DOMAIN && '' || format('/{0}', github.event.repository.name)) }}
+          BASE_PATH: ${{ vars.DOCS_BASE_PATH }}
         run: |
           bun install --frozen-lockfile
           bun run build

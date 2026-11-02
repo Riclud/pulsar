@@ -34,7 +34,8 @@ hatch for advanced UI work.
 iOS is not supported yet. "Built in CI" means the toolchain and release assets
 are produced and packaged, but nobody has run them on real hardware.
 
-See [CHANGELOG.md](CHANGELOG.md) for the release history.
+Documentation lives at [pulsarjs.org](https://pulsarjs.org). See
+[CHANGELOG.md](CHANGELOG.md) for the release history.
 
 ## Requirements
 
