@@ -3838,13 +3838,24 @@ ApplicationWindow {
             item.second.moved.connect(emitRange);
         }
 
-        if (hasEvent(node, "longPress")) {
+        const clickableSurface = node.type === "box" || node.type === "card" || node.type === "image";
+
+        if (hasEvent(node, "longPress") || (clickableSurface && hasEvent(node, "click"))) {
             const press = make("import QtQuick; TapHandler { longPressThreshold: 0.5 }", item);
+
+            press.tapped.connect(function () {
+                if (clickableSurface && hasEvent(item.pulsarMeta.node, "click"))
+                    emitEvent(item.pulsarMeta.node, "click");
+            });
 
             press.longPressed.connect(function () {
                 if (hasEvent(item.pulsarMeta.node, "longPress"))
                     emitEvent(item.pulsarMeta.node, "longPress");
             });
+
+            if (clickableSurface) {
+                const hover = make("import QtQuick; HoverHandler { cursorShape: Qt.PointingHandCursor }", item);
+            }
         }
     }
 

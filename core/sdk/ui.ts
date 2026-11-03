@@ -200,6 +200,7 @@ export interface CardOptions extends CommonOptions {
   gradient?: GradientOptions
   elevation?: number
   shadowColor?: ColorValue
+  onClick?: () => void
   onLongPress?: () => void
 }
 
@@ -223,6 +224,7 @@ export interface BoxOptions extends CommonOptions {
   elevation?: number
   shadowColor?: ColorValue
   expand?: boolean
+  onClick?: () => void
   onLongPress?: () => void
 }
 
@@ -252,6 +254,7 @@ export interface TextOptions extends CommonOptions {
 export interface ImageOptions extends CommonOptions {
   src: string
   fillMode?: string
+  onClick?: () => void
   onLongPress?: () => void
 }
 
@@ -713,16 +716,28 @@ const makeNode = <P extends object>(
   return { id: nextId++, type: "neon", props: neonProps, children: [node] }
 }
 
-const withLongPress = <P extends { onLongPress?: () => void }>(
+const withLongPress = <P extends { onClick?: () => void; onLongPress?: () => void }>(
   type: UiNodeType,
   options: P,
   children: UiChild[] = [],
 ): UiNode => {
-  const { onLongPress, ...props } = options
+  const { onClick, onLongPress, ...props } = options
+  const events: string[] = []
+  const callbacks: Record<string, UiHandler> = {}
 
-  if (!onLongPress) return makeNode(type, props, children)
+  if (onClick) {
+    events.push("click")
+    callbacks.click = () => onClick()
+  }
 
-  return makeNode(type, props, children, ["longPress"], { longPress: () => onLongPress() })
+  if (onLongPress) {
+    events.push("longPress")
+    callbacks.longPress = () => onLongPress()
+  }
+
+  if (events.length === 0) return makeNode(type, props, children)
+
+  return makeNode(type, props, children, events, callbacks)
 }
 
 export const column = (options: LayoutOptions = {}, ...children: UiChild[]): UiNode => {
