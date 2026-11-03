@@ -432,6 +432,14 @@ ApplicationWindow {
                     font.family: view.iconFamily
                     font.pixelSize: view.fs(24)
 
+                    contentItem: Label {
+                        text: back.text
+                        font: back.font
+                        color: back.hovered ? view.themeText : view.themeTextSecondary
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+
                     onClicked: view.emitNodeEvent(bar.nodeData, "back")
                 }
 
@@ -545,9 +553,14 @@ ApplicationWindow {
                     padding: 0
                     font.family: view.iconFamily
                     font.pixelSize: view.fs(16)
-                    palette.buttonText: view.themeTextSecondary
-                    palette.windowText: view.themeTextSecondary
-                    palette.text: view.themeTextSecondary
+
+                    contentItem: Label {
+                        text: chipRemove.text
+                        font: chipRemove.font
+                        color: chipRemove.hovered ? view.themeText : view.themeTextSecondary
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
 
                     onClicked: view.emitNodeEvent(chipRoot.nodeData, "remove")
                 }
@@ -1408,9 +1421,14 @@ ApplicationWindow {
                             text: "close"
                             font.family: view.iconFamily
                             font.pixelSize: view.fs(24)
-                            palette.buttonText: view.themeTextSecondary
-                            palette.windowText: view.themeTextSecondary
-                            palette.text: view.themeTextSecondary
+
+                            contentItem: Label {
+                                text: sheetClose.text
+                                font: sheetClose.font
+                                color: sheetClose.hovered ? view.themeText : view.themeTextSecondary
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
 
                             onClicked: view.emitNodeEvent(sheetRoot.nodeData, "close")
                         }
