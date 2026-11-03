@@ -683,7 +683,7 @@ ApplicationWindow {
             }
 
             contentItem: RowLayout {
-                spacing: 6
+                spacing: buttonRoot.text.length > 0 ? 6 : 0
 
                 Item {
                     Layout.fillWidth: true
