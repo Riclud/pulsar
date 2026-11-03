@@ -726,6 +726,28 @@ ApplicationWindow {
     }
 
     Component {
+        id: textCursorComponent
+
+        Rectangle {
+            id: textCursor
+
+            width: 2
+            color: view.themePrimary
+            visible: parent.activeFocus && !parent.readOnly
+                    && parent.selectionStart === parent.selectionEnd
+            opacity: 1
+
+            Timer {
+                running: textCursor.visible
+                interval: Math.max(1, Application.styleHints.cursorFlashTime / 2)
+                repeat: true
+                onTriggered: textCursor.opacity = textCursor.opacity > 0 ? 0 : 1
+                onRunningChanged: textCursor.opacity = 1
+            }
+        }
+    }
+
+    Component {
         id: textFieldComponent
 
         TextField {
@@ -740,6 +762,9 @@ ApplicationWindow {
 
             color: view.themeText
             placeholderTextColor: view.themeTextSecondary
+            selectionColor: view.themePrimary
+            selectedTextColor: view.themeOnPrimary
+            cursorDelegate: textCursorComponent
             font.family: view.fontFamily
             leftPadding: 12
             rightPadding: 12
@@ -771,6 +796,9 @@ ApplicationWindow {
 
             color: view.themeText
             placeholderTextColor: view.themeTextSecondary
+            selectionColor: view.themePrimary
+            selectedTextColor: view.themeOnPrimary
+            cursorDelegate: textCursorComponent
             font.family: view.fontFamily
             leftPadding: 12
             rightPadding: 12
