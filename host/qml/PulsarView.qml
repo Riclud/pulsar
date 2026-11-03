@@ -4173,6 +4173,13 @@ ApplicationWindow {
             });
             reconcile(inner, node.children || [], false);
         } else if (node.type === "scroll" || node.type === "list") {
+            const contentColumn = (node.children || [])[0];
+            const firstChild = contentColumn && contentColumn.children ? contentColumn.children[0] : null;
+
+            item.pulsarMeta.extra.topInset =
+                    firstChild && (firstChild.type === "textInput" || firstChild.type === "textArea")
+                        ? Math.round(view.fs(8)) : 0;
+
             let wrapper = item.pulsarMeta.content;
 
             if (!wrapper) {
@@ -4198,13 +4205,16 @@ ApplicationWindow {
 
                 wrapper.pulsarMeta.content = inner;
                 wrapper.implicitHeight = Qt.binding(function () {
-                    return inner.implicitHeight + 2 * prop(item.pulsarMeta.node.props, "padding", 0);
+                    return inner.implicitHeight
+                            + 2 * prop(item.pulsarMeta.node.props, "padding", 0)
+                            + (item.pulsarMeta.extra.topInset || 0);
                 });
                 inner.x = Qt.binding(function () {
                     return prop(item.pulsarMeta.node.props, "padding", 0);
                 });
                 inner.y = Qt.binding(function () {
-                    return prop(item.pulsarMeta.node.props, "padding", 0);
+                    return prop(item.pulsarMeta.node.props, "padding", 0)
+                            + (item.pulsarMeta.extra.topInset || 0);
                 });
                 inner.width = Qt.binding(function () {
                     return Math.max(0, wrapper.width - 2 * prop(item.pulsarMeta.node.props, "padding", 0));
