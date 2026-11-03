@@ -6,8 +6,10 @@
 #include <QQmlContext>
 #include <QQmlError>
 #include <QQmlPropertyMap>
+#include <QQuickItem>
 #include <QQuickStyle>
 #include <QQuickWindow>
+#include <QMouseEvent>
 #include <QPointer>
 #include <QIcon>
 #include <QDir>
@@ -334,6 +336,62 @@ static QUrl resolveUi(const QString &ui)
     return QUrl::fromLocalFile(path);
 }
 
+class FocusDismissFilter : public QObject
+{
+public:
+    explicit FocusDismissFilter(QObject *parent) : QObject(parent) {}
+
+protected:
+    bool eventFilter(QObject *object, QEvent *event) override
+    {
+        auto *window = qobject_cast<QQuickWindow *>(object);
+
+        if (!window)
+            return false;
+
+        if (event->type() == QEvent::MouseButtonPress) {
+            auto *mouse = static_cast<QMouseEvent *>(event);
+
+            if (mouse->button() != Qt::LeftButton)
+                return false;
+
+            pressFocus_ = window->activeFocusItem();
+            pressInside_ = false;
+
+            if (pressFocus_) {
+                const QPointF local = pressFocus_->mapFromScene(mouse->position());
+
+                pressInside_ = local.x() >= 0 && local.y() >= 0
+                        && local.x() <= pressFocus_->width()
+                        && local.y() <= pressFocus_->height();
+            }
+
+            return false;
+        }
+
+        if (event->type() == QEvent::MouseButtonRelease) {
+            auto *mouse = static_cast<QMouseEvent *>(event);
+
+            if (mouse->button() != Qt::LeftButton)
+                return false;
+
+            QQuickItem *focused = window->activeFocusItem();
+
+            if (focused && focused == pressFocus_ && !pressInside_)
+                focused->setFocus(false);
+
+            pressFocus_ = nullptr;
+            pressInside_ = false;
+        }
+
+        return false;
+    }
+
+private:
+    QPointer<QQuickItem> pressFocus_;
+    bool pressInside_ = false;
+};
+
 static void applyConfig(QObject *root, const WindowConfig &cfg)
 {
     if (!root)
@@ -615,6 +673,10 @@ static void showWindow(QQmlApplicationEngine &engine, const WindowConfig &cfg)
     }
 
     applyConfig(root, cfg);
+
+    if (auto *window = qobject_cast<QQuickWindow *>(root))
+        window->installEventFilter(new FocusDismissFilter(window));
+
     g_roots.insert(cfg.label, root);
     wireWindowEvents(root, cfg.label);
     applyUiTree(cfg.label);

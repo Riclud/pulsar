@@ -3532,14 +3532,6 @@ ApplicationWindow {
                 view.applyPendingScroll(item);
         });
 
-        item.pressedChanged.connect(function () {
-            if (!item.pressed)
-                return;
-
-            if (view.activeFocusItem)
-                view.activeFocusItem.focus = false;
-        });
-
         Qt.callLater(function () {
             view.applyPendingScroll(item);
         });
@@ -4977,21 +4969,4 @@ ApplicationWindow {
         maybeTestClick();
     }
 
-    TapHandler {
-        id: focusDismiss
-
-        acceptedButtons: Qt.LeftButton
-
-        onTapped: function (point) {
-            const focused = view.activeFocusItem;
-
-            if (!focused)
-                return;
-
-            const local = focused.mapFromItem(null, point.scenePosition.x, point.scenePosition.y);
-
-            if (local.x < 0 || local.y < 0 || local.x > focused.width || local.y > focused.height)
-                focused.focus = false;
-        }
-    }
 }
