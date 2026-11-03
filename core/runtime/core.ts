@@ -361,9 +361,6 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
   }
 
   const handleUiEvent = (data: Record<string, unknown>): void => {
-    if (data.event === "focus") App.current?.noteUiFocus(true)
-    else if (data.event === "blur") App.current?.noteUiFocus(false)
-
     dispatchUiEvent(Number(data.id), String(data.event), data.value)
   }
 

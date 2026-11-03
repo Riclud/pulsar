@@ -354,8 +354,6 @@ export class App {
   private readonly sentIds = new Map<string, number[]>()
   private readonly pendingRecent: Array<{ action: "add" | "clear"; path?: string }> = []
   private lastMenu: MenuItem[] | null = null
-  private readonly pendingRender = new Set<string>()
-  private uiFocusCount = 0
 
   /** The windows currently open (start windows plus those created in code). */
   get windows(): AppConfig[] {
@@ -464,20 +462,6 @@ export class App {
     this.flushUi(label)
   }
 
-  /** Track text-input focus so re-renders do not steal it. */
-  noteUiFocus(focused: boolean): void {
-    this.uiFocusCount += focused ? 1 : -1
-
-    if (this.uiFocusCount < 0) this.uiFocusCount = 0
-
-    if (this.uiFocusCount > 0) return
-
-    for (const label of [...this.pendingRender]) {
-      this.pendingRender.delete(label)
-      this.flushUi(label)
-    }
-  }
-
   /** Flush every pending UI tree to the host (called once wired). */
   flushAllUi(): void {
     for (const label of this.renderSources.keys()) this.flushUi(label)
@@ -487,11 +471,6 @@ export class App {
     const source = this.renderSources.get(label)
 
     if (!source || !this.onSendUi) return
-
-    if (this.uiFocusCount > 0) {
-      this.pendingRender.add(label)
-      return
-    }
 
     const nodes = source()
     const tree = serialize(nodes)
