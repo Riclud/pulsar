@@ -3532,6 +3532,14 @@ ApplicationWindow {
                 view.applyPendingScroll(item);
         });
 
+        item.pressedChanged.connect(function () {
+            if (!item.pressed)
+                return;
+
+            if (view.activeFocusItem)
+                view.activeFocusItem.focus = false;
+        });
+
         Qt.callLater(function () {
             view.applyPendingScroll(item);
         });
