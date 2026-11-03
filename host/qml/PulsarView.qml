@@ -529,6 +529,11 @@ ApplicationWindow {
             contentItem: RowLayout {
                 spacing: 6
 
+                Item {
+                    Layout.fillWidth: true
+                    visible: buttonRoot.text.length === 0
+                }
+
                 Label {
                     visible: text.length > 0 && buttonRoot.iconPosition === "left"
                     text: buttonRoot.iconName
@@ -538,7 +543,7 @@ ApplicationWindow {
                 }
 
                 Label {
-                    Layout.fillWidth: true
+                    Layout.fillWidth: buttonRoot.text.length > 0
                     text: buttonRoot.text
                     color: buttonRoot.labelColor
                     font.family: view.fontFamily
@@ -554,6 +559,11 @@ ApplicationWindow {
                     font.family: view.iconFamily
                     font.pixelSize: view.fs(18)
                     color: buttonRoot.labelColor
+                }
+
+                Item {
+                    Layout.fillWidth: true
+                    visible: buttonRoot.text.length === 0
                 }
             }
         }
