@@ -29,6 +29,7 @@ export const CAPABILITY_PERMISSIONS: Record<string, string> = {
   "dialog.openDirectory": "dialog",
   "dialog.saveFile": "dialog",
   "dialog.message": "dialog",
+  "dialog.color": "dialog",
   "dialog.toast": "dialog",
   "screen.list": "screen",
   "theme.get": "theme",

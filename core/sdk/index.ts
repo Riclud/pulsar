@@ -220,6 +220,7 @@ export type {
   AppPaths,
   CapHandler,
   CapRegistry,
+  ColorDialogOptions,
   ColorScheme,
   FileDialogOptions,
   FileStat,

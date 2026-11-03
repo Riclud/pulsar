@@ -148,6 +148,7 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
   registerCapability("dialog.openDirectory", (params) => requestDialog("open-directory", params))
   registerCapability("dialog.saveFile", (params) => requestDialog("save", params))
   registerCapability("dialog.message", (params) => requestDialog("message", params))
+  registerCapability("dialog.color", (params) => requestDialog("color", params))
   registerCapability("fs.exportTo", (params) => requestExport(params))
 
   registerCapability("fs.open", (params: unknown) => {

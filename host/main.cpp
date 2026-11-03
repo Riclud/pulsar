@@ -20,6 +20,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QStandardPaths>
+#include <QColorDialog>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFont>
@@ -752,6 +753,7 @@ static void handleDialogRequest(const QVariantMap &m)
     const QString filter = m.value(QStringLiteral("filter")).toString();
     const QString dir = m.value(QStringLiteral("dir")).toString();
     const QString text = m.value(QStringLiteral("text")).toString();
+    const QString color = m.value(QStringLiteral("color")).toString();
 
     // Headless/test hook: skip the modal dialog and return a stub result.
     const QByteArray stub = qgetenv("PULSAR_DIALOG_STUB");
@@ -775,7 +777,7 @@ static void handleDialogRequest(const QVariantMap &m)
     }
 
     // Defer out of the response handler before opening a modal dialog.
-    QTimer::singleShot(0, QCoreApplication::instance(), [bridge, token, kind, title, filter, dir, text]() {
+    QTimer::singleShot(0, QCoreApplication::instance(), [bridge, token, kind, title, filter, dir, text, color]() {
         if (kind == QLatin1String("open-files")) {
             const QStringList files = QFileDialog::getOpenFileNames(nullptr, title, dir, filter, nullptr, dialogOptions());
 
@@ -792,7 +794,11 @@ static void handleDialogRequest(const QVariantMap &m)
         }
 
         QString result;
-        if (kind == QLatin1String("open"))
+        if (kind == QLatin1String("color")) {
+            const QColor picked = QColorDialog::getColor(QColor(color), nullptr, title);
+
+            result = picked.isValid() ? picked.name(QColor::HexRgb) : QString();
+        } else if (kind == QLatin1String("open"))
             result = QFileDialog::getOpenFileName(nullptr, title, dir, filter, nullptr, dialogOptions());
         else if (kind == QLatin1String("open-directory"))
             result = QFileDialog::getExistingDirectory(nullptr, title, dir,

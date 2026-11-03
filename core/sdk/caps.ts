@@ -136,6 +136,12 @@ export interface MessageDialogOptions {
   text?: string
 }
 
+export interface ColorDialogOptions {
+  title?: string
+  /** Initial color as "#rrggbb". */
+  color?: string
+}
+
 /** Native file and message dialogs (implemented in the Qt host). */
 export const dialog = {
   openFile: (options: FileDialogOptions = {}): Promise<string | null> =>
@@ -148,6 +154,8 @@ export const dialog = {
     callCapability("dialog.saveFile", options) as Promise<string | null>,
   message: (options: MessageDialogOptions = {}): Promise<boolean> =>
     callCapability("dialog.message", options) as Promise<boolean>,
+  color: (options: ColorDialogOptions = {}): Promise<string | null> =>
+    callCapability("dialog.color", options) as Promise<string | null>,
   toast: (text: string): Promise<boolean> => callCapability("dialog.toast", { text }) as Promise<boolean>,
 }
 
