@@ -11,6 +11,8 @@ ApplicationWindow {
     color: windowTransparent ? "transparent" : themeBackground
     property bool windowTransparent: false
     property var tree: []
+    property string treeShape: ""
+    property bool treeGrabPending: false
     property string errorText: ""
     property bool testClicked: false
     property var themeData: ({})
@@ -339,6 +341,22 @@ ApplicationWindow {
         id: overlay
         anchors.fill: parent
         z: 1000
+
+        Image {
+            id: transitionSnapshot
+
+            property var grabResult: null
+
+            x: host.x
+            y: host.y
+            width: host.width
+            height: host.height
+            fillMode: Image.Stretch
+            smooth: true
+            visible: false
+            opacity: 0
+            z: -1
+        }
     }
 
     Rectangle {
@@ -3231,7 +3249,91 @@ ApplicationWindow {
 
     onTreeChanged: {
         errorText = ""
-        rebuild()
+
+        if (treeGrabPending)
+            return;
+
+        const signature = treeSignature(tree || [], 0);
+
+        if (treeShape === "" || signature === treeShape) {
+            treeShape = signature;
+            rebuild();
+            return;
+        }
+
+        treeShape = signature;
+        treeGrabPending = true;
+
+        host.grabToImage(function (result) {
+            treeGrabPending = false;
+            rebuild();
+            playTransition(result);
+        });
+    }
+
+    function treeSignature(nodes, depth) {
+        const parts = [];
+        const walk = function (list, level) {
+            if (!list || level > 3)
+                return;
+
+            for (let i = 0; i < list.length; i++) {
+                const node = list[i];
+
+                if (!node)
+                    continue;
+
+                parts.push(node.type + "@" + node.path);
+                walk(node.children || [], level + 1);
+            }
+        };
+
+        walk(nodes, 0);
+
+        return parts.join("|");
+    }
+
+    function playTransition(result) {
+        if (!result)
+            return;
+
+        if (PulsarBridge.env("PULSAR_DEBUG"))
+            console.log("PulsarView transition");
+
+        transitionSnapshot.grabResult = result;
+        transitionSnapshot.source = result.url;
+        transitionSnapshot.visible = true;
+        transitionSnapshot.opacity = 1;
+        transitionAnim.restart();
+    }
+
+    SequentialAnimation {
+        id: transitionAnim
+
+        PropertyAction {
+            target: transitionSnapshot
+            property: "opacity"
+            value: 1
+        }
+        NumberAnimation {
+            target: transitionSnapshot
+            property: "opacity"
+            to: 0
+            duration: Math.round(view.motionFast * 0.6)
+            easing.type: Easing.BezierSpline
+            easing.bezierCurve: view.motionCurve
+        }
+        PropertyAction {
+            target: transitionSnapshot
+            property: "visible"
+            value: false
+        }
+        ScriptAction {
+            script: {
+                transitionSnapshot.source = "";
+                transitionSnapshot.grabResult = null;
+            }
+        }
     }
 
     Timer {
