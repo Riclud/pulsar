@@ -4766,6 +4766,16 @@ ApplicationWindow {
 
             item.currentIndex = current;
             item.Layout.preferredWidth = prop(props, "expand", false) ? -1 : prop(props, "width", 200);
+            item.palette.text = view.themeText;
+            item.palette.windowText = view.themeText;
+            item.palette.buttonText = view.themeText;
+            item.palette.base = view.themeSurface;
+            item.palette.window = view.themeSurface;
+            item.palette.highlight = view.themePrimary;
+            item.palette.highlightedText = view.themeOnPrimary;
+
+            if (item.contentItem && item.contentItem.color !== undefined)
+                item.contentItem.color = view.themeText;
 
             if (props.color !== undefined) {
                 item.palette.highlight = resolveColor(props.color, view.themePrimary);
