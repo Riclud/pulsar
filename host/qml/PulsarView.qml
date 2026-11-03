@@ -660,8 +660,10 @@ ApplicationWindow {
                 y: checkboxRoot.topPadding + (checkboxRoot.availableHeight - height) / 2
                 color: checkboxRoot.checked
                         ? view.themePrimary
-                        : checkboxRoot.hovered ? view.withAlpha(view.themePrimary, 0.12) : "transparent"
-                border.width: checkboxRoot.checked ? 0 : 1
+                        : checkboxRoot.hovered
+                            ? view.withAlpha(view.themePrimary, 0.16)
+                            : "transparent"
+                border.width: 1
                 border.color: checkboxRoot.checked || checkboxRoot.hovered ? view.themePrimary : view.themeBorder
 
                 Behavior on color {
