@@ -3350,16 +3350,25 @@ ApplicationWindow {
         }
     }
 
+    function discardItem(item) {
+        if (!item)
+            return;
+
+        // destroy() defers deletion to the next event loop pass. Hide the old
+        // node right away so it neither renders over the replacement nor
+        // counts as a layout child when padding is recomputed.
+        item.visible = false;
+        item.destroy();
+    }
+
     function clearContainer(parent) {
         const meta = parent.pulsarMeta;
 
         if (!meta)
             return;
 
-        for (const key in meta.index) {
-            if (meta.index[key])
-                meta.index[key].destroy();
-        }
+        for (const key in meta.index)
+            discardItem(meta.index[key]);
 
         meta.index = ({});
         meta.order = [];
@@ -3416,8 +3425,7 @@ ApplicationWindow {
 
         for (const key in index) {
             if (paths.indexOf(key) < 0) {
-                if (index[key])
-                    index[key].destroy();
+                discardItem(index[key]);
                 delete index[key];
             }
         }
