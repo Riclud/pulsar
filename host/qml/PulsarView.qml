@@ -13,6 +13,7 @@ ApplicationWindow {
     property var tree: []
     property string treeShape: ""
     property bool treeGrabPending: false
+    property var scrollPositions: ({})
     property string errorText: ""
     property bool testClicked: false
     property var themeData: ({})
@@ -3470,6 +3471,42 @@ ApplicationWindow {
         item.destroy();
     }
 
+    function applyPendingScroll(list) {
+        const extra = list.pulsarMeta.extra;
+        const pending = extra.pendingScroll;
+
+        if (pending === undefined)
+            return;
+
+        extra.restoringScroll = true;
+        list.contentY = Math.min(pending, Math.max(0, list.contentHeight - list.height));
+        extra.restoringScroll = false;
+    }
+
+    function setupScrollMemory(item, node) {
+        const extra = item.pulsarMeta.extra;
+
+        extra.scrollKey = node.path;
+        extra.pendingScroll = view.scrollPositions[node.path];
+
+        item.contentYChanged.connect(function () {
+            if (extra.restoringScroll)
+                return;
+
+            extra.pendingScroll = undefined;
+            view.scrollPositions[extra.scrollKey] = item.contentY;
+        });
+
+        item.contentHeightChanged.connect(function () {
+            if (extra.pendingScroll !== undefined)
+                view.applyPendingScroll(item);
+        });
+
+        Qt.callLater(function () {
+            view.applyPendingScroll(item);
+        });
+    }
+
     function clearContainer(parent) {
         const meta = parent.pulsarMeta;
 
@@ -3670,6 +3707,9 @@ ApplicationWindow {
             item.opacity = 0;
             item.pulsarMeta.extra.animateFrom = 0;
         }
+
+        if (node.type === "scroll" || node.type === "list")
+            setupScrollMemory(item, node);
 
         prepareItem(item, node);
         updateNode(item, node, isRoot);
