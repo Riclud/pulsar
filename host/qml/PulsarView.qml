@@ -522,12 +522,14 @@ ApplicationWindow {
 
                 anchors.fill: parent
                 anchors.leftMargin: 12
-                anchors.rightMargin: 4
+                anchors.rightMargin: chipRemove.visible ? 4 : 12
                 spacing: 2
 
                 Label {
                     id: chipLabel
 
+                    Layout.fillWidth: true
+                    horizontalAlignment: chipRemove.visible ? Text.AlignLeft : Text.AlignHCenter
                     color: view.themeText
                     font.family: view.fontFamily
                     font.pixelSize: view.fs(13)
@@ -4362,9 +4364,11 @@ ApplicationWindow {
                     : (chipVariant === "outline" ? chipFill : view.themeText);
             item.removeButton.visible = hasEvent(node, "remove");
             item.implicitWidth = Qt.binding(function () {
-                const removeWidth = item.removeButton.visible ? item.removeButton.implicitWidth + 2 : 0;
+                const removeWidth = item.removeButton.visible
+                        ? item.removeButton.implicitWidth + 18
+                        : 24;
 
-                return item.labelItem.implicitWidth + 20 + removeWidth;
+                return item.labelItem.implicitWidth + removeWidth;
             });
         } else if (node.type === "sheet") {
             const placement = prop(props, "placement", "center");
