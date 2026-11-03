@@ -1,5 +1,5 @@
 import { existsSync, watch } from "fs"
-import { join, resolve } from "path"
+import { dirname, join, resolve } from "path"
 import { pathToFileURL } from "url"
 import { App, setManifest } from "../sdk/index.ts"
 import { createBunPlatform } from "../platform/bun.ts"
@@ -105,6 +105,7 @@ const setupReloadWatcher = (): void => {
 
   const dirs: Array<{ path: string; recursive: boolean }> = [
     { path: appDir, recursive: false },
+    { path: dirname(resolve(appDir, manifest?.main ?? "main.ts")), recursive: true },
     { path: join(appDir, "ui"), recursive: false },
     { path: resolve(import.meta.dir, ".."), recursive: true },
   ]
