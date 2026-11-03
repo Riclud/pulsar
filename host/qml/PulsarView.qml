@@ -4108,6 +4108,7 @@ ApplicationWindow {
 
             if (!flow) {
                 flow = make("import QtQuick; Flow { property var pulsarMeta: null }", item);
+                flow.pulsarMeta = contentMeta();
                 item.pulsarMeta.content = flow;
                 flow.x = Qt.binding(function () {
                     return prop(item.pulsarMeta.node.props, "padding", 0);
