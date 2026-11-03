@@ -544,6 +544,11 @@ ApplicationWindow {
             property string iconPosition: "left"
             property int pulsarElevation: 0
             property color pulsarShadowColor: view.themeShadow
+            property bool colorAnimationReady: false
+
+            Component.onCompleted: Qt.callLater(function () {
+                buttonRoot.colorAnimationReady = true;
+            })
 
             layer.enabled: buttonRoot.pulsarElevation > 0
             layer.effect: MultiEffect {
@@ -637,6 +642,8 @@ ApplicationWindow {
                 border.color: buttonRoot.fillColor
 
                 Behavior on color {
+                    enabled: buttonRoot.colorAnimationReady
+
                     ColorAnimation {
                         duration: view.motionFast
                         easing.type: Easing.BezierSpline
