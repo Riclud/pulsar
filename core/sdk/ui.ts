@@ -237,6 +237,7 @@ export interface TextOptions extends CommonOptions {
   bold?: boolean
   weight?: FontWeight
   italic?: boolean
+  strike?: boolean
   family?: string
   letterSpacing?: number
   lineHeight?: number
@@ -342,6 +343,8 @@ export interface TextInputOptions extends CommonOptions {
   multiline?: boolean
   /** Mask the value (password field). */
   password?: boolean
+  /** Draw the text with a strike-through line. */
+  strike?: boolean
   keyboardType?: KeyboardType
   /** Focus the field as soon as it is created. */
   autoFocus?: boolean

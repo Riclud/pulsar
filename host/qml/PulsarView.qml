@@ -4591,6 +4591,7 @@ ApplicationWindow {
             item.font.pixelSize = view.fs(prop(props, "size", 15));
             item.font.bold = prop(props, "bold", false);
             item.font.italic = prop(props, "italic", false);
+            item.font.strikeout = prop(props, "strike", false);
             item.textFormat = prop(props, "markdown", false) ? Text.MarkdownText : Text.PlainText;
             item.horizontalAlignment = align === "center" ? Text.AlignHCenter
                     : align === "right" ? Text.AlignRight : Text.AlignLeft;
@@ -4677,6 +4678,7 @@ ApplicationWindow {
 
             item.placeholderText = prop(props, "placeholder", "");
             item.readOnly = prop(props, "readOnly", false);
+            item.font.strikeout = prop(props, "strike", false);
 
             const inputVariant = prop(props, "variant", "filled");
             const outlined = inputVariant === "outline";
