@@ -540,8 +540,14 @@ ApplicationWindow {
 
                     text: "close"
                     visible: false
+                    implicitWidth: 24
+                    implicitHeight: 24
+                    padding: 0
                     font.family: view.iconFamily
                     font.pixelSize: view.fs(16)
+                    palette.buttonText: view.themeTextSecondary
+                    palette.windowText: view.themeTextSecondary
+                    palette.text: view.themeTextSecondary
 
                     onClicked: view.emitNodeEvent(chipRoot.nodeData, "remove")
                 }
@@ -1402,6 +1408,9 @@ ApplicationWindow {
                             text: "close"
                             font.family: view.iconFamily
                             font.pixelSize: view.fs(24)
+                            palette.buttonText: view.themeTextSecondary
+                            palette.windowText: view.themeTextSecondary
+                            palette.text: view.themeTextSecondary
 
                             onClicked: view.emitNodeEvent(sheetRoot.nodeData, "close")
                         }
@@ -4628,12 +4637,20 @@ ApplicationWindow {
             item.font.pixelSize = view.fs(prop(props, "size", 24));
             item.color = resolveColor(prop(props, "color", view.themeText), view.themeText);
         } else if (node.type === "iconButton") {
+            const iconColor = resolveColor(prop(props, "color", view.themeText), view.themeText);
+
             item.text = prop(props, "name", "");
             item.enabled = prop(props, "enabled", true);
             item.font.family = view.iconFamily;
             item.font.pixelSize = view.fs(prop(props, "size", 24));
             item.implicitWidth = 40;
             item.implicitHeight = 40;
+            item.palette.buttonText = iconColor;
+            item.palette.windowText = iconColor;
+            item.palette.text = iconColor;
+
+            if (item.contentItem && item.contentItem.color !== undefined)
+                item.contentItem.color = iconColor;
         } else if (node.type === "textInput" || node.type === "textArea") {
             const keyboard = prop(props, "keyboardType", "text");
 
