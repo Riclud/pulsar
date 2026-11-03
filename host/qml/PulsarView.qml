@@ -4383,9 +4383,12 @@ ApplicationWindow {
 
             item.nodeData = node;
             item.labelItem.text = prop(props, "label", "");
-            item.color = chipVariant === "outline" ? "transparent" : chipFill;
-            item.border.width = chipVariant === "outline" ? 1 : 0;
+            item.color = chipVariant === "outline"
+                    ? (chipSelected ? view.withAlpha(chipFill, 0.22) : "transparent")
+                    : chipFill;
+            item.border.width = chipVariant === "outline" ? (chipSelected ? 2 : 1) : 0;
             item.border.color = chipFill;
+            item.labelItem.font.bold = chipSelected;
             item.labelItem.color = chipText !== undefined
                     ? resolveColor(chipText, view.themeText)
                     : (chipVariant === "outline" ? chipFill : view.themeText);
