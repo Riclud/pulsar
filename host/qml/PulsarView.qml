@@ -3627,34 +3627,41 @@ ApplicationWindow {
 
     function applyHover(item, props, base) {
         const hover = prop(props, "hoverColor", undefined);
+        const extra = item.pulsarMeta.extra;
 
-        if (hover === undefined)
+        if (hover === undefined) {
+            if (extra.hoverBound === true)
+                item.color = base;
+
+            extra.hoverBound = false;
+
             return;
+        }
 
-        item.pulsarMeta.extra.baseColor = base;
-
-        let handler = item.pulsarMeta.extra.hover;
+        let handler = extra.hover;
 
         if (!handler) {
             handler = make("import QtQuick; HoverHandler {}", item);
-            item.pulsarMeta.extra.hover = handler;
             handler.cursorShape = Qt.PointingHandCursor;
-            handler.hoveredChanged.connect(function () {
-                const node = item.pulsarMeta.node;
-
-                if (!node)
-                    return;
-
-                const current = prop(node.props, "hoverColor", undefined);
-
-                if (current === undefined)
-                    return;
-
-                item.color = handler.hovered
-                        ? resolveColor(current, item.pulsarMeta.extra.baseColor)
-                        : item.pulsarMeta.extra.baseColor;
-            });
+            extra.hover = handler;
         }
+
+        extra.hoverBound = true;
+        item.color = Qt.binding(function () {
+            const node = item.pulsarMeta.node;
+
+            if (!node)
+                return base;
+
+            const fallback = node.type === "card" ? view.themeSurface : "transparent";
+            const currentBase = resolveColor(prop(node.props, "color", fallback), fallback);
+            const currentHover = prop(node.props, "hoverColor", undefined);
+
+            if (currentHover === undefined)
+                return currentBase;
+
+            return handler.hovered ? resolveColor(currentHover, currentBase) : currentBase;
+        });
     }
 
     function applyCommon(item, node, isRoot) {
