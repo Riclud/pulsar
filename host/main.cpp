@@ -1501,14 +1501,22 @@ int main(int argc, char **argv)
                                  qInfo().noquote() << "UI render" << target << "nodes=" << tree.size();
                          } else if (method == QLatin1String("__query")) {
                              handleQuery(bridge, params.toVariant().toMap());
-                         } else if (method == QLatin1String("__theme")) {
-                             gTheme = params.toVariant().toMap();
+                        } else if (method == QLatin1String("__theme")) {
+                            gTheme = params.toVariant().toMap();
 
-                             for (QObject *root : engine.rootObjects()) {
-                                 if (root->metaObject()->indexOfProperty("themeData") >= 0)
-                                     root->setProperty("themeData", gTheme);
-                             }
-                         } else if (method == QLatin1String("__share")) {
+                            // Windows rendered from the JS tree are created with
+                            // QQmlComponent, so they are tracked in g_roots but
+                            // are not part of engine.rootObjects().
+                            for (QObject *root : std::as_const(g_roots)) {
+                                if (root->metaObject()->indexOfProperty("themeData") >= 0)
+                                    root->setProperty("themeData", gTheme);
+                            }
+
+                            for (QObject *root : engine.rootObjects()) {
+                                if (root->metaObject()->indexOfProperty("themeData") >= 0)
+                                    root->setProperty("themeData", gTheme);
+                            }
+                        } else if (method == QLatin1String("__share")) {
                              const QVariantMap m = params.toVariant().toMap();
                              const QString kind = m.value(QStringLiteral("kind")).toString();
                              const QString text = kind == QLatin1String("file")
