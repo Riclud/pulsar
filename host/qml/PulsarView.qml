@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Effects
+import QtQuick.Shapes
 
 ApplicationWindow {
     id: view
@@ -69,6 +70,135 @@ ApplicationWindow {
 
         interval: 60
         onTriggered: view.reportWindowSize()
+    }
+
+    component FieldBackground: Item {
+        id: fieldBackground
+
+        property var control
+        property Item floatLabel
+        property color borderColor: "transparent"
+        property color focusColor: "transparent"
+        property int cornerRadius: 8
+
+        readonly property real strokeWidth: control && control.activeFocus ? 2 : 1
+        readonly property real inset: strokeWidth / 2
+        readonly property real corner: Math.max(1, cornerRadius - inset)
+        readonly property bool showBorder: control ? (control.outlined || control.activeFocus) : false
+        readonly property bool labelFloating: floatLabel !== null && control !== null
+                && control.placeholderText.length > 0
+                && (control.length > 0 || control.activeFocus)
+        readonly property real labelWidth: labelFloating
+                ? Math.min(floatLabel.width, floatLabel.implicitWidth) * floatLabel.scale
+                : 0
+        readonly property real gapStart: labelFloating ? floatLabel.x - 3 : inset + corner
+        readonly property real gapEnd: labelFloating ? floatLabel.x + labelWidth + 3 : inset + corner
+
+        Rectangle {
+            anchors.fill: parent
+            color: fieldBackground.control ? fieldBackground.control.fieldColor : "transparent"
+            radius: fieldBackground.cornerRadius
+        }
+
+        Shape {
+            anchors.fill: parent
+            visible: fieldBackground.showBorder
+            antialiasing: true
+
+            ShapePath {
+                fillColor: "transparent"
+                strokeColor: fieldBackground.control && fieldBackground.control.activeFocus
+                        ? fieldBackground.focusColor
+                        : fieldBackground.borderColor
+                strokeWidth: fieldBackground.strokeWidth
+                capStyle: ShapePath.FlatCap
+                joinStyle: ShapePath.RoundJoin
+
+                startX: fieldBackground.gapEnd
+                startY: fieldBackground.inset
+
+                PathLine {
+                    x: fieldBackground.width - fieldBackground.inset - fieldBackground.corner
+                    y: fieldBackground.inset
+                }
+                PathAngleArc {
+                    centerX: fieldBackground.width - fieldBackground.inset - fieldBackground.corner
+                    centerY: fieldBackground.inset + fieldBackground.corner
+                    radiusX: fieldBackground.corner
+                    radiusY: fieldBackground.corner
+                    startAngle: -90
+                    sweepAngle: 90
+                }
+                PathLine {
+                    x: fieldBackground.width - fieldBackground.inset
+                    y: fieldBackground.height - fieldBackground.inset - fieldBackground.corner
+                }
+                PathAngleArc {
+                    centerX: fieldBackground.width - fieldBackground.inset - fieldBackground.corner
+                    centerY: fieldBackground.height - fieldBackground.inset - fieldBackground.corner
+                    radiusX: fieldBackground.corner
+                    radiusY: fieldBackground.corner
+                    startAngle: 0
+                    sweepAngle: 90
+                }
+                PathLine {
+                    x: fieldBackground.inset + fieldBackground.corner
+                    y: fieldBackground.height - fieldBackground.inset
+                }
+                PathAngleArc {
+                    centerX: fieldBackground.inset + fieldBackground.corner
+                    centerY: fieldBackground.height - fieldBackground.inset - fieldBackground.corner
+                    radiusX: fieldBackground.corner
+                    radiusY: fieldBackground.corner
+                    startAngle: 90
+                    sweepAngle: 90
+                }
+                PathLine {
+                    x: fieldBackground.inset
+                    y: fieldBackground.inset + fieldBackground.corner
+                }
+                PathAngleArc {
+                    centerX: fieldBackground.inset + fieldBackground.corner
+                    centerY: fieldBackground.inset + fieldBackground.corner
+                    radiusX: fieldBackground.corner
+                    radiusY: fieldBackground.corner
+                    startAngle: 180
+                    sweepAngle: 90
+                }
+                PathLine {
+                    x: fieldBackground.gapStart
+                    y: fieldBackground.inset
+                }
+            }
+        }
+    }
+
+    function findFloatingLabel(root) {
+        const stack = [root];
+
+        while (stack.length > 0) {
+            const node = stack.pop();
+
+            if (!node || !node.children)
+                continue;
+
+            const children = node.children;
+
+            for (let i = 0; i < children.length; i++) {
+                const child = children[i];
+
+                if (!child)
+                    continue;
+
+                if (child.largestHeight !== undefined)
+                    return child;
+
+                if (child.children && child.children.length > 0)
+                    stack.push(child);
+            }
+        }
+
+        return null;
     }
 
     function fs(px) {
@@ -580,6 +710,7 @@ ApplicationWindow {
             property color fieldBorderColor: view.themeBorder
             property int fieldRadius: 8
             property bool outlined: false
+            property Item floatingLabel: null
 
             color: view.themeText
             placeholderTextColor: view.themeTextSecondary
@@ -587,17 +718,14 @@ ApplicationWindow {
             leftPadding: 12
             rightPadding: 12
 
-            background: Rectangle {
-                color: fieldRoot.fieldColor
-                radius: fieldRoot.fieldRadius
-                border.width: fieldRoot.activeFocus ? 2 : fieldRoot.outlined ? 1 : 0
-                border.color: fieldRoot.activeFocus ? view.themePrimary : fieldRoot.fieldBorderColor
+            Component.onCompleted: floatingLabel = view.findFloatingLabel(fieldRoot)
 
-                Behavior on border.color {
-                    ColorAnimation {
-                        duration: view.motionFast
-                    }
-                }
+            background: FieldBackground {
+                control: fieldRoot
+                floatLabel: fieldRoot.floatingLabel
+                borderColor: fieldRoot.fieldBorderColor
+                focusColor: view.themePrimary
+                cornerRadius: fieldRoot.fieldRadius
             }
         }
     }
@@ -613,6 +741,7 @@ ApplicationWindow {
             property color fieldBorderColor: view.themeBorder
             property int fieldRadius: 8
             property bool outlined: false
+            property Item floatingLabel: null
 
             color: view.themeText
             placeholderTextColor: view.themeTextSecondary
@@ -623,17 +752,14 @@ ApplicationWindow {
             bottomPadding: 8
             wrapMode: TextEdit.Wrap
 
-            background: Rectangle {
-                color: areaRoot.fieldColor
-                radius: areaRoot.fieldRadius
-                border.width: areaRoot.activeFocus ? 2 : areaRoot.outlined ? 1 : 0
-                border.color: areaRoot.activeFocus ? view.themePrimary : areaRoot.fieldBorderColor
+            Component.onCompleted: floatingLabel = view.findFloatingLabel(areaRoot)
 
-                Behavior on border.color {
-                    ColorAnimation {
-                        duration: view.motionFast
-                    }
-                }
+            background: FieldBackground {
+                control: areaRoot
+                floatLabel: areaRoot.floatingLabel
+                borderColor: areaRoot.fieldBorderColor
+                focusColor: view.themePrimary
+                cornerRadius: areaRoot.fieldRadius
             }
         }
     }
