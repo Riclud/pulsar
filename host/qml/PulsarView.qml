@@ -4765,6 +4765,7 @@ ApplicationWindow {
             }
 
             item.currentIndex = current;
+            item.enabled = prop(props, "enabled", true);
             item.Layout.preferredWidth = prop(props, "expand", false) ? -1 : prop(props, "width", 200);
             item.palette.text = view.themeText;
             item.palette.windowText = view.themeText;
@@ -4776,6 +4777,29 @@ ApplicationWindow {
 
             if (item.contentItem && item.contentItem.color !== undefined)
                 item.contentItem.color = view.themeText;
+
+            if (!item.pulsarMeta.extra.selectChrome) {
+                const background = make("import QtQuick; Rectangle { }", item);
+
+                background.radius = 8;
+                background.color = "transparent";
+                background.border.width = 1;
+                background.border.color = Qt.binding(function () {
+                    return view.themeBorder;
+                });
+                item.background = background;
+
+                const indicator = make("import QtQuick.Controls; Label { }", item);
+
+                indicator.text = "arrow_drop_down";
+                indicator.font.family = view.iconFamily;
+                indicator.font.pixelSize = view.fs(20);
+                indicator.color = Qt.binding(function () {
+                    return view.themeTextSecondary;
+                });
+                item.indicator = indicator;
+                item.pulsarMeta.extra.selectChrome = true;
+            }
 
             if (props.color !== undefined) {
                 item.palette.highlight = resolveColor(props.color, view.themePrimary);

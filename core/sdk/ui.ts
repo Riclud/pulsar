@@ -410,6 +410,7 @@ export interface SelectOptions extends CommonOptions {
   value?: string | number
   options: Array<string | SelectOption>
   color?: ColorValue
+  enabled?: boolean
   onChange?: (value: string | number) => void
 }
 
