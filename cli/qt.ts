@@ -191,16 +191,18 @@ const linuxQtFiles = (hostPath: string, libsDir: string, pluginsDir: string, qml
   const seen = new Set<string>()
 
   const addLib = (lib: string) => {
+    if (!existsSync(lib)) return
+
+    const real = realpathSync(lib)
     const name = lib.split("/").pop() ?? ""
 
     if (isExcludedLib(name)) return
-    if (!existsSync(lib)) return
-    if (!(lib.startsWith(libsDir) || /^libicu/.test(name)) || seen.has(name)) return
+    if (!(real.startsWith(libsDir) || /^libicu/.test(name)) || seen.has(name)) return
 
     seen.add(name)
-    files.push({ rel: `lib/Qt/lib/${name}`, src: realpathSync(lib) })
+    files.push({ rel: `lib/Qt/lib/${name}`, src: real })
 
-    for (const dep of neededLibs(lib)) addLib(dep)
+    for (const dep of neededLibs(real)) addLib(dep)
   }
 
   for (const lib of neededLibs(hostPath)) addLib(lib)
