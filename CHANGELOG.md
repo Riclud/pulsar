@@ -6,6 +6,30 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-04
+
+### Added
+
+- `Page` and `Scroll` accept `flick: false`, which disables kinetic fling while
+  keeping drag scrolling; useful for dense task lists that should stop as soon
+  as the finger lifts.
+
+### Changed
+
+- Scroll views and virtual lists keep more of the fling velocity and decelerate
+  more slowly (`maximumFlickVelocity` 5000, `flickDeceleration` 1200), so a
+  sharp swipe keeps the list moving like a native chat list.
+
+### Fixed
+
+- Android and desktop builds from an installed release read `PULSAR_VERSION`
+  from `cli/package.json` when the root manifest is missing, and the CLI archive
+  now ships `package.json`. This unblocks `pulsar build --target android` on
+  installed toolchains.
+- Desktop copies preserve attachment timestamps, and `exportTo` applies the
+  stored mtime on desktop and Android (`MediaStore.DATE_MODIFIED` /
+  `File.setLastModified`), so exported files match the attachment.
+
 ## [1.3.0] - 2026-11-04
 
 ### Added
