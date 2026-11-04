@@ -4356,6 +4356,11 @@ ApplicationWindow {
         if (total <= 0)
             return;
 
+        if (horizontal)
+            layout.Layout.maximumWidth = Number.POSITIVE_INFINITY;
+        else
+            layout.Layout.maximumHeight = Number.POSITIVE_INFINITY;
+
         for (const kid of kids) {
             if (kid.pulsarMeta.extra.flexed)
                 bindFlexSize(kid, layout, kids, total, kid.pulsarMeta.node.props.flex, horizontal, edges);
