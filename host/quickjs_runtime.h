@@ -3,6 +3,7 @@
 #include <QByteArray>
 #include <QHash>
 #include <QJsonObject>
+#include <QList>
 #include <QObject>
 #include <QString>
 
@@ -72,7 +73,19 @@ private:
         bool repeating = false;
     };
 
+    struct PendingRejection {
+        JSValue promise = JS_UNDEFINED;
+        JSValue reason = JS_UNDEFINED;
+    };
+
+    static void trackRejection(JSContext *context, JSValueConst promise, JSValueConst reason, bool handled,
+                               void *opaque);
+
     bool createContext();
+    void clearRejections();
+    void forgetRejection(JSValueConst promise);
+    void flushRejections();
+    void reportValue(const QString &scope, JSValueConst value);
     void installGlobals();
     bool evaluate(const QByteArray &code, const QString &filename);
     void reportException(const QString &scope);
@@ -90,6 +103,8 @@ private:
     QJsonObject restoreState_;
     QString appDir_;
     QHash<int, TimerEntry> timers_;
+    QList<PendingRejection> rejections_;
+    bool rejectionFlushQueued_ = false;
     int nextTimer_ = 1;
 
     friend JSValue jsPulsarSend(JSContext *, JSValueConst, int, JSValueConst *);

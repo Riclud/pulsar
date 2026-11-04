@@ -12,6 +12,8 @@
 #include <QTimer>
 #include <QUrl>
 
+#include <utility>
+
 namespace pulsar {
 
 namespace {
@@ -128,14 +130,78 @@ bool QuickJsRuntime::createContext()
     }
 
     JS_SetContextOpaque(context_, this);
+    JS_SetHostPromiseRejectionTracker(runtime_, &QuickJsRuntime::trackRejection, this);
 
     installGlobals();
 
     return true;
 }
 
+void QuickJsRuntime::trackRejection(JSContext *context, JSValueConst promise, JSValueConst reason, bool handled,
+                                    void *opaque)
+{
+    auto *runtime = static_cast<QuickJsRuntime *>(opaque);
+
+    if (handled) {
+        runtime->forgetRejection(promise);
+        return;
+    }
+
+    runtime->rejections_.append({ JS_DupValue(context, promise), JS_DupValue(context, reason) });
+
+    if (runtime->rejectionFlushQueued_)
+        return;
+
+    runtime->rejectionFlushQueued_ = true;
+
+    QMetaObject::invokeMethod(runtime, &QuickJsRuntime::flushRejections, Qt::QueuedConnection);
+}
+
+void QuickJsRuntime::forgetRejection(JSValueConst promise)
+{
+    for (qsizetype index = 0; index < rejections_.size(); index++) {
+        const PendingRejection entry = rejections_.at(index);
+
+        if (JS_VALUE_GET_PTR(entry.promise) != JS_VALUE_GET_PTR(promise))
+            continue;
+
+        rejections_.removeAt(index);
+
+        JS_FreeValue(context_, entry.promise);
+        JS_FreeValue(context_, entry.reason);
+
+        return;
+    }
+}
+
+void QuickJsRuntime::flushRejections()
+{
+    rejectionFlushQueued_ = false;
+
+    const QList<PendingRejection> rejections = std::exchange(rejections_, {});
+
+    for (const PendingRejection &entry : rejections) {
+        reportValue(QStringLiteral("unhandled rejection"), entry.reason);
+
+        JS_FreeValue(context_, entry.promise);
+        JS_FreeValue(context_, entry.reason);
+    }
+}
+
+void QuickJsRuntime::clearRejections()
+{
+    for (const PendingRejection &entry : std::as_const(rejections_)) {
+        JS_FreeValue(context_, entry.promise);
+        JS_FreeValue(context_, entry.reason);
+    }
+
+    rejections_.clear();
+}
+
 void QuickJsRuntime::reset()
 {
+    clearRejections();
+
     for (auto it = timers_.begin(); it != timers_.end(); ++it) {
         if (it->timer) {
             it->timer->stop();
@@ -218,6 +284,8 @@ QJsonObject QuickJsRuntime::evaluateForDev(const QString &expression)
 
 QuickJsRuntime::~QuickJsRuntime()
 {
+    clearRejections();
+
     for (auto it = timers_.begin(); it != timers_.end(); ++it) {
         if (it->timer) {
             it->timer->stop();
@@ -443,15 +511,30 @@ void QuickJsRuntime::runJobs()
 void QuickJsRuntime::reportException(const QString &scope)
 {
     JSValue exception = JS_GetException(context_);
-    const char *text = JS_ToCString(context_, exception);
+
+    reportValue(scope, exception);
+
+    JS_FreeValue(context_, exception);
+}
+
+void QuickJsRuntime::reportValue(const QString &scope, JSValueConst value)
+{
+    const char *text = JS_ToCString(context_, value);
     const QString message = text ? QString::fromUtf8(text) : QStringLiteral("unknown exception");
 
     if (text)
         JS_FreeCString(context_, text);
+    else
+        JS_FreeValue(context_, JS_GetException(context_));
 
-    JSValue line = JS_GetPropertyStr(context_, exception, "lineNumber");
-    JSValue column = JS_GetPropertyStr(context_, exception, "columnNumber");
-    JSValue stackValue = JS_GetPropertyStr(context_, exception, "stack");
+    if (!JS_IsObject(value)) {
+        Q_EMIT failed(QStringLiteral("%1: %2").arg(scope, message));
+        return;
+    }
+
+    JSValue line = JS_GetPropertyStr(context_, value, "lineNumber");
+    JSValue column = JS_GetPropertyStr(context_, value, "columnNumber");
+    JSValue stackValue = JS_GetPropertyStr(context_, value, "stack");
 
     int32_t lineNumber = 0;
     int32_t columnNumber = 0;
@@ -473,7 +556,6 @@ void QuickJsRuntime::reportException(const QString &scope)
     JS_FreeValue(context_, stackValue);
     JS_FreeValue(context_, column);
     JS_FreeValue(context_, line);
-    JS_FreeValue(context_, exception);
 
     const QString location = QStringLiteral("runtime.js:%1:%2").arg(lineNumber).arg(columnNumber);
     const QString output = stack.isEmpty() ? QStringLiteral("%1 (%2): %3").arg(scope, location, message)
