@@ -28,6 +28,8 @@ ApplicationWindow {
     property var scrollPositions: ({})
     property var nodeItems: ({})
     property bool patchShallow: false
+    property bool motionReady: false
+    property int creatingNodes: 0
     property var uiStats: ({ created: 0, updated: 0, removed: 0, reordered: 0 })
     property string errorText: ""
     property bool testClicked: false
@@ -443,6 +445,312 @@ ApplicationWindow {
                 text: "Reload"
                 visible: PulsarBridge.devMode()
                 onClicked: PulsarBridge.devReload()
+            }
+        }
+    }
+
+    Component {
+        id: motionComponent
+
+        PointHandler {
+            id: motion
+
+            readonly property Item host: parent
+            property bool following: false
+            property real offsetX: 0
+            property real offsetY: 0
+            property real zoomValue: 1
+            property real pressScale: 1
+            property real heightLimit: Number.POSITIVE_INFINITY
+            property int duration: view.motionFast
+            property int easingType: Easing.BezierSpline
+            property var exitDone: null
+            readonly property bool holding: active && !following
+                    && Math.abs(point.scenePosition.x - point.scenePressPosition.x) < 12
+                    && Math.abs(point.scenePosition.y - point.scenePressPosition.y) < 12
+            readonly property real pressDuration: Math.min(duration, 120)
+
+            readonly property Translate shift: Translate {
+                x: motion.offsetX
+                y: motion.offsetY
+
+                Behavior on x {
+                    enabled: !motion.following
+
+                    NumberAnimation {
+                        duration: motion.duration
+                        easing.type: motion.easingType
+                        easing.bezierCurve: view.motionCurve
+                    }
+                }
+
+                Behavior on y {
+                    enabled: !motion.following
+
+                    NumberAnimation {
+                        duration: motion.duration
+                        easing.type: motion.easingType
+                        easing.bezierCurve: view.motionCurve
+                    }
+                }
+            }
+
+            readonly property Scale zoom: Scale {
+                readonly property real value: motion.zoomValue * (motion.holding ? motion.pressScale : 1)
+
+                origin.x: motion.host ? motion.host.width / 2 : 0
+                origin.y: motion.host ? motion.host.height / 2 : 0
+                xScale: value
+                yScale: value
+
+                Behavior on xScale {
+                    enabled: !motion.following
+
+                    NumberAnimation {
+                        duration: motion.pressDuration
+                        easing.type: Easing.OutCubic
+                    }
+                }
+
+                Behavior on yScale {
+                    enabled: !motion.following
+
+                    NumberAnimation {
+                        duration: motion.pressDuration
+                        easing.type: Easing.OutCubic
+                    }
+                }
+            }
+
+            readonly property SequentialAnimation enterAnimation: SequentialAnimation {
+                onFinished: {
+                    motion.following = false;
+                    motion.heightLimit = Number.POSITIVE_INFINITY;
+                    motion.host.clip = false;
+                }
+
+                ParallelAnimation {
+                    NumberAnimation {
+                        id: enterHeight
+
+                        target: motion
+                        property: "heightLimit"
+                        duration: motion.duration
+                        easing.type: Easing.OutCubic
+                    }
+
+                    NumberAnimation {
+                        target: motion
+                        properties: "offsetX,offsetY"
+                        to: 0
+                        duration: motion.duration
+                        easing.type: motion.easingType
+                        easing.bezierCurve: view.motionCurve
+                    }
+
+                    NumberAnimation {
+                        target: motion
+                        property: "zoomValue"
+                        to: 1
+                        duration: motion.duration
+                        easing.type: Easing.OutCubic
+                    }
+
+                    NumberAnimation {
+                        id: enterFade
+
+                        target: motion.host
+                        property: "opacity"
+                        duration: motion.duration
+                        easing.type: Easing.OutCubic
+                    }
+                }
+            }
+
+            readonly property SequentialAnimation exitAnimation: SequentialAnimation {
+                onFinished: {
+                    const done = motion.exitDone;
+
+                    motion.exitDone = null;
+                    motion.following = false;
+                    motion.host.clip = false;
+
+                    if (done)
+                        done();
+                }
+
+                ParallelAnimation {
+                    NumberAnimation {
+                        id: exitX
+
+                        target: motion
+                        property: "offsetX"
+                        duration: motion.duration
+                        easing.type: Easing.InCubic
+                    }
+
+                    NumberAnimation {
+                        id: exitY
+
+                        target: motion
+                        property: "offsetY"
+                        duration: motion.duration
+                        easing.type: Easing.InCubic
+                    }
+
+                    NumberAnimation {
+                        id: exitZoom
+
+                        target: motion
+                        property: "zoomValue"
+                        duration: motion.duration
+                        easing.type: Easing.InCubic
+                    }
+
+                    NumberAnimation {
+                        id: exitFade
+
+                        target: motion.host
+                        property: "opacity"
+                        duration: motion.duration
+                        easing.type: Easing.InCubic
+                    }
+                }
+
+                ScriptAction {
+                    script: motion.host.clip = true
+                }
+
+                NumberAnimation {
+                    id: exitHeight
+
+                    target: motion
+                    property: "heightLimit"
+                    to: 0
+                    duration: motion.duration
+                    easing.type: Easing.OutCubic
+                }
+            }
+
+            target: null
+
+            onHeightLimitChanged: host.Layout.maximumHeight = heightLimit
+
+            function configure(props) {
+                const transition = props.transition || ({});
+                const curve = transition.curve || "spring";
+
+                pressScale = props.pressed && props.pressed.scale !== undefined ? props.pressed.scale : 1;
+                duration = transition.duration !== undefined ? transition.duration : view.motionFast;
+                easingType = curve === "linear" ? Easing.Linear
+                        : curve === "ease" ? Easing.OutCubic
+                        : Easing.BezierSpline;
+            }
+
+            function restingOpacity() {
+                const props = host.pulsarMeta.node.props;
+
+                return props.opacity !== undefined ? props.opacity : 1;
+            }
+
+            function playEnter(state) {
+                exitAnimation.stop();
+                exitDone = null;
+                following = true;
+
+                const limit = host.height > 0 ? host.height : host.implicitHeight;
+                const resting = restingOpacity();
+
+                offsetX = state.x !== undefined ? state.x : 0;
+                offsetY = state.y !== undefined ? state.y : 0;
+                zoomValue = state.scale !== undefined ? state.scale : 1;
+
+                enterFade.from = state.opacity !== undefined ? state.opacity : resting;
+                enterFade.to = resting;
+                enterHeight.from = limit > 0 ? 0 : Number.POSITIVE_INFINITY;
+                enterHeight.to = limit > 0 ? limit : Number.POSITIVE_INFINITY;
+                host.clip = limit > 0;
+
+                enterAnimation.restart();
+            }
+
+            function playExit(state, done) {
+                enterAnimation.stop();
+                exitDone = done;
+                following = true;
+
+                exitX.to = state.x !== undefined ? state.x : offsetX;
+                exitY.to = state.y !== undefined ? state.y : offsetY;
+                exitZoom.to = state.scale !== undefined ? state.scale : zoomValue;
+                exitFade.to = state.opacity !== undefined ? state.opacity : host.opacity;
+                heightLimit = host.height > 0 ? host.height : Number.POSITIVE_INFINITY;
+
+                exitAnimation.restart();
+            }
+
+            function settle() {
+                following = true;
+                offsetX = 0;
+                offsetY = 0;
+                zoomValue = 1;
+                heightLimit = Number.POSITIVE_INFINITY;
+                host.opacity = restingOpacity();
+                following = false;
+            }
+        }
+    }
+
+    Component {
+        id: dragComponent
+
+        DragHandler {
+            id: dragHandler
+
+            property var motion: null
+            property string axis: "x"
+            property real threshold: 96
+            property real distance: 0
+
+            target: null
+            xAxis.enabled: axis === "x"
+            yAxis.enabled: axis === "y"
+
+            onActiveTranslationChanged: {
+                if (!active)
+                    return;
+
+                distance = axis === "x" ? activeTranslation.x : activeTranslation.y;
+
+                if (axis === "x")
+                    motion.offsetX = distance;
+                else
+                    motion.offsetY = distance;
+            }
+
+            onActiveChanged: {
+                if (active) {
+                    motion.following = true;
+                    return;
+                }
+
+                const released = distance;
+
+                motion.following = false;
+                motion.offsetX = 0;
+                motion.offsetY = 0;
+                distance = 0;
+
+                if (Math.abs(released) < threshold)
+                    return;
+
+                const direction = axis === "x"
+                        ? (released > 0 ? "right" : "left")
+                        : (released > 0 ? "down" : "up");
+
+                view.emitNodeEvent(motion.host.pulsarMeta.node, "dragRelease", {
+                    direction: direction,
+                    distance: Math.abs(released)
+                });
             }
         }
     }
@@ -3954,11 +4262,105 @@ ApplicationWindow {
             }
         }
 
+        const motion = item.pulsarMeta ? item.pulsarMeta.extra.motion : null;
+        const exit = node ? node.props.exit : undefined;
+
+        if (motion && exit && view.motionReady && item.visible) {
+            item.enabled = false;
+            motion.playExit(exit, function () {
+                logMotion("exit done", node.path);
+                item.visible = false;
+                item.destroy();
+            });
+
+            return;
+        }
+
         // destroy() defers deletion to the next event loop pass. Hide the old
         // node right away so it neither renders over the replacement nor
         // counts as a layout child when padding is recomputed.
         item.visible = false;
         item.destroy();
+    }
+
+    function logMotion(label, path) {
+        if (PulsarBridge.env("PULSAR_DEBUG"))
+            console.log("PulsarView " + label + " " + path);
+    }
+
+    function applyMotion(item, node) {
+        const props = node.props;
+        const extra = item.pulsarMeta.extra;
+
+        if (!extra.motion && !props.pressed && !props.enter && !props.exit && !props.drag)
+            return;
+
+        if (!extra.motion) {
+            extra.motion = motionComponent.createObject(item);
+            item.transform = [extra.motion.shift, extra.motion.zoom];
+        }
+
+        extra.motion.configure(props);
+        applyDrag(item, extra.motion, props.drag);
+    }
+
+    function applyDrag(item, motion, drag) {
+        const extra = item.pulsarMeta.extra;
+
+        if (!drag) {
+            if (extra.drag)
+                extra.drag.enabled = false;
+
+            return;
+        }
+
+        if (!extra.drag)
+            extra.drag = dragComponent.createObject(item, { motion: motion });
+
+        extra.drag.enabled = true;
+        extra.drag.axis = drag.axis;
+        extra.drag.threshold = drag.threshold !== undefined ? drag.threshold : 96;
+    }
+
+    function applyVisible(item, props) {
+        if (props.visible === undefined)
+            return;
+
+        const extra = item.pulsarMeta.extra;
+        const motion = extra.motion;
+        const previous = extra.lastVisible;
+        const next = props.visible;
+
+        extra.lastVisible = next;
+
+        if (!motion || !view.motionReady || previous === undefined || previous === next) {
+            item.visible = next;
+            return;
+        }
+
+        if (next && !props.enter) {
+            motion.settle();
+            item.visible = true;
+            return;
+        }
+
+        if (next) {
+            item.visible = true;
+            motion.playEnter(props.enter);
+            logMotion("enter", item.pulsarMeta.node.path);
+            return;
+        }
+
+        if (!props.exit) {
+            item.visible = false;
+            return;
+        }
+
+        motion.playExit(props.exit, function () {
+            item.visible = false;
+            motion.settle();
+            logMotion("hide done", item.pulsarMeta.node.path);
+        });
     }
 
     function applyPendingScroll(list) {
@@ -4338,7 +4740,21 @@ ApplicationWindow {
             setupScrollMemory(item, node);
 
         prepareItem(item, node);
-        updateNode(item, node, isRoot);
+
+        const nested = view.creatingNodes > 0;
+
+        view.creatingNodes++;
+
+        try {
+            updateNode(item, node, isRoot);
+        } finally {
+            view.creatingNodes--;
+        }
+
+        if (!nested && view.motionReady && node.props.enter && item.visible) {
+            item.pulsarMeta.extra.motion.playEnter(node.props.enter);
+            logMotion("enter", node.path);
+        }
 
         return item;
     }
@@ -4825,8 +5241,8 @@ ApplicationWindow {
             item.Layout.preferredHeight = props.height;
         }
 
-        if (props.visible !== undefined)
-            item.visible = props.visible;
+        applyMotion(item, node);
+        applyVisible(item, props);
 
         const animate = prop(props, "animate", 0);
         const hasOpacity = props.opacity !== undefined || item.pulsarMeta.extra.animateFrom !== undefined;
@@ -5860,6 +6276,8 @@ ApplicationWindow {
         view.uiStats = { created: 0, updated: 0, removed: 0, reordered: 0 };
         reconcile(host, view.uiTree || [], true);
         restoreFocus(focus);
+
+        view.motionReady = (view.uiTree || []).length > 0;
 
         const elapsed = Date.now() - started;
 

@@ -153,6 +153,24 @@ describe("ui", () => {
     expect(diffUiTrees(before, after)).toBeNull()
   })
 
+  test("drag keeps its release callback out of the serialized props", () => {
+    const releases: unknown[] = []
+    const node = box({
+      enter: { opacity: 0, y: 12 },
+      drag: { axis: "x", threshold: 40, onRelease: (release) => releases.push(release) },
+    })
+    const [tree] = serialize([node]) as Array<{ props: Record<string, unknown>; events: string[] }>
+    const { routes } = collectUiHandlers([node])
+
+    setWindowHandlers("drag", routes)
+    dispatchWindowEvent("drag", "/0", "dragRelease", { direction: "left", distance: 50 })
+
+    expect(tree?.props.drag).toEqual({ axis: "x", threshold: 40 })
+    expect(tree?.props.enter).toEqual({ opacity: 0, y: 12 })
+    expect(tree?.events).toEqual(["dragRelease"])
+    expect(releases).toEqual([{ direction: "left", distance: 50 }])
+  })
+
   test("memo reuses a node for unchanged keyed props", () => {
     let renders = 0
     const Row = memo(

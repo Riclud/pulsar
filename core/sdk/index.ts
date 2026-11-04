@@ -70,6 +70,10 @@ export {
 } from "./ui.ts"
 export type {
   A11yRole,
+  DragOptions,
+  DragRelease,
+  MotionState,
+  MotionTransition,
   UiPatch,
   UiChild,
   UiNode,

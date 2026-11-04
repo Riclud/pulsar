@@ -106,6 +106,29 @@ export type A11yRole =
   | "group"
   | "pane"
 
+export interface MotionState {
+  opacity?: number
+  x?: number
+  y?: number
+  scale?: number
+}
+
+export interface MotionTransition {
+  duration?: number
+  curve?: "spring" | "ease" | "linear"
+}
+
+export interface DragRelease {
+  direction: "left" | "right" | "up" | "down"
+  distance: number
+}
+
+export interface DragOptions {
+  axis: "x" | "y"
+  threshold?: number
+  onRelease?: (release: DragRelease) => void
+}
+
 interface CommonOptions {
   key?: string | number
   width?: number
@@ -129,6 +152,16 @@ interface CommonOptions {
   maxWidth?: number
   /** Fade opacity changes over this many milliseconds. */
   animate?: number
+  /** Visual state while the node is held down. Runs in the renderer. */
+  pressed?: { scale?: number }
+  /** State the node animates from when it appears or becomes visible. */
+  enter?: MotionState
+  /** State the node animates to before it is removed or hidden. */
+  exit?: MotionState
+  /** Timing shared by pressed, enter, exit and the drag spring-back. */
+  transition?: MotionTransition
+  /** Follow the finger in the renderer and report a release past the threshold. */
+  drag?: DragOptions
   /** Receive the measured size after layout. */
   onLayout?: (size: { width: number; height: number }) => void
   onFocus?: () => void
@@ -757,11 +790,12 @@ const makeNode = <P extends object>(
   events: string[] = [],
   callbacks?: Record<string, UiHandler>,
 ): UiNode => {
-  const { neon, onLayout, onFocus, onBlur, ...rest } = props as P & {
+  const { neon, onLayout, onFocus, onBlur, drag, ...rest } = props as P & {
     neon?: boolean | NeonOptions
     onLayout?: (size: { width: number; height: number }) => void
     onFocus?: () => void
     onBlur?: () => void
+    drag?: DragOptions
   }
   const id = nextId++
   const layout = typeof onLayout === "function" ? onLayout : null
@@ -789,8 +823,17 @@ const makeNode = <P extends object>(
     callbackMap.blur = () => blur()
   }
 
+  const release = drag?.onRelease
+
+  if (release) {
+    eventList.push("dragRelease")
+    callbackMap.dragRelease = (value) => release(value as DragRelease)
+  }
+
   const node: UiNode = { id, type, props: rest as Record<string, unknown> }
   const nodes = flatten(children)
+
+  if (drag) node.props.drag = { axis: drag.axis, threshold: drag.threshold }
 
   if (Object.keys(callbackMap).length > 0) {
     handlers.set(id, callbackMap)

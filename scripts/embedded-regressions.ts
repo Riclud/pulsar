@@ -56,6 +56,21 @@ const scenarios: Scenario[] = [
     check: (output) => output.includes("ERROR OVERLAY") && output.includes("TOP_LEVEL_THROW"),
   },
   {
+    name: "motion",
+    env: { PULSAR_TRANSITION: "none" },
+    check: (output) => {
+      return (
+        output.includes("PulsarView enter /root/added") &&
+        output.includes("PulsarView exit done /root/removed") &&
+        output.includes("PulsarView hide done /root/hidden") &&
+        output.includes("PulsarView enter /root/hidden") &&
+        !/PulsarView\.qml:\d+: (?!TypeError: Cannot (read property 'colorScheme'|call method '(devMode|env)') of null)/.test(
+          output,
+        )
+      )
+    },
+  },
+  {
     name: "late-catch",
     check: (output) => output.includes("LATE_CATCH_HANDLED") && !output.includes("ERROR OVERLAY"),
   },
