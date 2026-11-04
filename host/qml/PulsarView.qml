@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Controls.Material
 import QtQuick.Layouts
 import QtQuick.Effects
 import QtQuick.Shapes
@@ -9,6 +10,12 @@ ApplicationWindow {
 
     visible: true
     color: windowTransparent ? "transparent" : themeBackground
+
+    Material.theme: themeBackground.hsvValue < 0.5 ? Material.Dark : Material.Light
+    Material.background: themeSurface
+    Material.foreground: themeText
+    Material.primary: themePrimary
+    Material.accent: themePrimary
     property bool windowTransparent: false
     property var tree: []
     property string treeShape: ""
@@ -4768,6 +4775,8 @@ ApplicationWindow {
 
             item.currentIndex = current;
             item.enabled = prop(props, "enabled", true);
+            item.font.family = view.fontFamily;
+            item.font.pixelSize = view.fs(15);
             item.Layout.preferredWidth = prop(props, "expand", false) ? -1 : prop(props, "width", 200);
             item.palette.text = view.themeText;
             item.palette.windowText = view.themeText;
