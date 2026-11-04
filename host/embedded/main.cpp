@@ -677,12 +677,8 @@ int main(int argc, char **argv)
 
     auto loadUi = [&]() -> bool {
         if (jsUi) {
-            if (uiRoot) {
-                uiRoot->setProperty("tree", QVariantList());
-                uiRoot->setProperty("errorText", QString());
-
+            if (uiRoot)
                 return true;
-            }
 
             engine.load(QUrl(QStringLiteral("qrc:/runtime/PulsarView.qml")));
         } else {
@@ -825,6 +821,11 @@ int main(int argc, char **argv)
 #endif
 
     bridge.invoke(QStringLiteral("__sync"), QJSValue());
+
+    const int reloadMs = qEnvironmentVariableIntValue("AUTO_RELOAD_MS");
+
+    if (reloadMs > 0)
+        QTimer::singleShot(reloadMs, &app, reloadApp);
 
     int quitMs = qEnvironmentVariableIntValue("AUTO_QUIT_MS");
 
