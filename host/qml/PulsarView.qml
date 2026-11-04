@@ -3318,7 +3318,8 @@ ApplicationWindow {
         if (treeGrabPending)
             return;
 
-        const signature = treeSignature(tree || [], 0);
+        const route = treeRouteSignature(tree || []);
+        const signature = route !== null ? route : treeSignature(tree || [], 0);
 
         if (treeShape === "" || signature === treeShape) {
             treeShape = signature;
@@ -3334,6 +3335,34 @@ ApplicationWindow {
             rebuild();
             playTransition(result);
         });
+    }
+
+    function treeRouteSignature(nodes) {
+        const walk = function (list, level) {
+            if (!list || level > 1)
+                return null;
+
+            for (let i = 0; i < list.length; i++) {
+                const node = list[i];
+
+                if (!node)
+                    continue;
+
+                const key = node.props ? node.props.key : undefined;
+
+                if (key !== undefined)
+                    return node.type + "@" + node.path;
+
+                const nested = walk(node.children || [], level + 1);
+
+                if (nested !== null)
+                    return nested;
+            }
+
+            return null;
+        };
+
+        return walk(nodes, 0);
     }
 
     function treeSignature(nodes, depth) {
