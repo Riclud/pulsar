@@ -17,7 +17,6 @@ namespace pulsar {
 
 namespace {
 
-constexpr qint64 kMaxResponseBytes = 64ll * 1024 * 1024;
 constexpr int kDefaultTimeoutMs = 30000;
 constexpr int kDefaultRedirects = 5;
 
@@ -212,8 +211,9 @@ void NativeHttpEngine::handleReadyRead(quint32 id, QNetworkReply *reply)
         return;
 
     entry->received += data.size();
+    entry->timer->start();
 
-    if (entry->received > kMaxResponseBytes) {
+    if (entry->spec.maxBytes > 0 && entry->received > entry->spec.maxBytes) {
         fail(id, QStringLiteral("ERR_TOO_LARGE"), QStringLiteral("response exceeds the size limit"));
         return;
     }
@@ -618,6 +618,9 @@ void NetworkService::handle(const QVariantMap &params)
     const int timeout = params.value(QStringLiteral("timeoutMs")).toInt();
 
     spec.timeoutMs = timeout > 0 ? timeout : kDefaultTimeoutMs;
+
+    if (params.contains(QStringLiteral("maxBytes")))
+        spec.maxBytes = params.value(QStringLiteral("maxBytes")).toLongLong();
 
     const QString redirect = params.value(QStringLiteral("redirect")).toString();
 

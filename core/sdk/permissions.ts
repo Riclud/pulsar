@@ -6,6 +6,7 @@
 export const CAPABILITY_PERMISSIONS: Record<string, string> = {
   "fs.readFile": "fs",
   "fs.writeFile": "fs",
+  "fs.appendBytes": "fs",
   "fs.appendFile": "fs",
   "fs.listDir": "fs",
   "fs.exists": "fs",

@@ -11,6 +11,8 @@ export const createFsCaps = (platform: Platform): CapRegistry => ({
   "fs.appendFile": (p: { path: string; content: string; encoding?: "utf8" | "base64" }) =>
     platform.appendFile(p.path, p.content, p.encoding),
 
+  "fs.appendBytes": (p: { path: string; bytes: Uint8Array }) => platform.appendBytes(p.path, p.bytes),
+
   "fs.listDir": (p: { path?: string }) => platform.listDir(p.path),
 
   "fs.exists": (p: { path: string }) => platform.exists(p.path),

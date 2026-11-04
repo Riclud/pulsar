@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "fs"
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
 import { join, resolve } from "path"
 import { bundleRuntime } from "../cli/android.ts"
@@ -7,6 +7,7 @@ import { bundleRuntime } from "../cli/android.ts"
 type Scenario = {
   name: string
   standalone?: boolean
+  desktop?: boolean
   env?: Record<string, string>
   check: (output: string) => boolean
 }
@@ -16,6 +17,35 @@ const fixtures = join(root, "tests", "embedded", "regressions")
 const override = process.env.PULSAR_EMBEDDED_HOST
 const binary =
   override ?? join(root, "build", "bin", process.platform === "win32" ? "qml-host-qjs.exe" : "qml-host-qjs")
+
+const desktopBinary = join(root, "build", "bin", process.platform === "win32" ? "qml-host.exe" : "qml-host")
+
+const slowStream = () => {
+  let sent = 0
+
+  return new ReadableStream({
+    pull: async (controller) => {
+      await Bun.sleep(100)
+
+      controller.enqueue(new Uint8Array(1))
+
+      sent++
+
+      if (sent === 8) controller.close()
+    },
+  })
+}
+
+const server = Bun.serve({
+  hostname: "127.0.0.1",
+  port: 0,
+  idleTimeout: 0,
+  fetch: (request) => {
+    if (!request.url.endsWith("/slow")) return new Response(new Uint8Array(70 * 1024 * 1024))
+
+    return new Response(slowStream())
+  },
+})
 
 const manifest = {
   id: "com.pulsar.regressions",
@@ -73,6 +103,22 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "late-window",
+    desktop: true,
+    check: (output) => lastBuilt(output)?.includes(" +3 ~0 -0 ") === true,
+  },
+  {
+    name: "large-download",
+    env: { AUTO_QUIT_MS: "30000" },
+    check: (output) => {
+      return (
+        output.includes("DOWNLOAD_DONE 73400320") &&
+        output.includes("SLOW_DONE 8") &&
+        output.includes("FETCH_LIMITED ERR_TOO_LARGE")
+      )
+    },
+  },
+  {
     name: "late-catch",
     check: (output) => output.includes("LATE_CATCH_HANDLED") && !output.includes("ERROR OVERLAY"),
   },
@@ -82,7 +128,7 @@ const buildHost = () => {
   if (override) return existsSync(override)
 
   const build = Bun.spawnSync({
-    cmd: ["cmake", "--build", "build", "--target", "qml-host-qjs"],
+    cmd: ["cmake", "--build", "build", "--target", "qml-host-qjs", "qml-host", "bridge"],
     cwd: root,
     stdio: ["ignore", "ignore", "inherit"],
   })
@@ -112,22 +158,34 @@ const bundle = async (scenario: Scenario, dir: string) => {
   writeFileSync(join(dir, "pulsar.json"), JSON.stringify(manifest))
 }
 
+const prepareDesktop = (scenario: Scenario, dir: string) => {
+  writeFileSync(join(dir, "main.ts"), `import ${JSON.stringify(join(fixtures, `${scenario.name}.ts`))}\n`)
+  writeFileSync(join(dir, "pulsar.json"), JSON.stringify(manifest))
+}
+
 const runScenario = async (scenario: Scenario) => {
+  if (scenario.desktop && override) return true
+
   const dir = mkdtempSync(join(tmpdir(), "pulsar-regression-"))
+  const hostLog = join(dir, "host.log")
 
   try {
-    await bundle(scenario, dir)
+    if (scenario.desktop) prepareDesktop(scenario, dir)
+    else await bundle(scenario, dir)
 
-    const run = Bun.spawnSync({
-      cmd: [binary],
+    const run = Bun.spawn({
+      cmd: [scenario.desktop ? desktopBinary : binary],
       cwd: dir,
       env: {
         ...process.env,
+        PULSAR_TEST_URL: `http://127.0.0.1:${server.port}/blob`,
         ...scenario.env,
         PULSAR_APP: dir,
         PULSAR_DEBUG: "1",
         QT_QPA_PLATFORM: "offscreen",
         AUTO_QUIT_MS: "1500",
+        ...scenario.env,
+        QT_LOG_FILE: hostLog,
         XDG_DATA_HOME: join(dir, "data"),
         XDG_CONFIG_HOME: join(dir, "config"),
         XDG_CACHE_HOME: join(dir, "cache"),
@@ -136,10 +194,16 @@ const runScenario = async (scenario: Scenario) => {
       stderr: "pipe",
     })
 
-    const output = `${run.stdout.toString()}\n${run.stderr.toString()}`
-    const passed = run.exitCode === 0 && scenario.check(output)
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(run.stdout).text(),
+      new Response(run.stderr).text(),
+      run.exited,
+    ])
+    const hostOutput = existsSync(hostLog) ? readFileSync(hostLog, "utf8") : ""
+    const output = `${stdout}\n${stderr}\n${hostOutput}`
+    const passed = exitCode === 0 && scenario.check(output)
 
-    console.log(`${passed ? "ok  " : "FAIL"} ${scenario.name} (exit ${run.exitCode})`)
+    console.log(`${passed ? "ok  " : "FAIL"} ${scenario.name} (exit ${exitCode})`)
 
     if (!passed && process.env.PULSAR_REGRESSION_VERBOSE) console.error(output)
 
@@ -150,6 +214,7 @@ const runScenario = async (scenario: Scenario) => {
 }
 
 if (!buildHost()) {
+  server.stop(true)
   console.error("embedded-regressions: qml-host-qjs is not built")
   process.exit(1)
 }
@@ -161,6 +226,8 @@ for (const scenario of scenarios) {
 
   if (!passed) failed++
 }
+
+server.stop(true)
 
 if (failed > 0) {
   console.error(`embedded-regressions: ${failed} FAILED`)

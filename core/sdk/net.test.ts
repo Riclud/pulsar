@@ -113,8 +113,8 @@ describe("net", () => {
 
       return true
     }) as never)
-    registerCapability("fs.appendFile", (async (p: { content: string }) => {
-      writes.push(`append:${p.content}`)
+    registerCapability("fs.appendBytes", (async (p: { bytes: Uint8Array }) => {
+      writes.push(`append:${Buffer.from(p.bytes).toString("base64")}`)
 
       return true
     }) as never)

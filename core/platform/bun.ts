@@ -96,6 +96,12 @@ export const createBunPlatform = (): Platform => {
       return true
     },
 
+    appendBytes: async (path, bytes) => {
+      await fs.appendFile(path, bytes)
+
+      return true
+    },
+
     listDir: async (path) => {
       const entries = await fs.readdir(path ?? ".", { withFileTypes: true })
 

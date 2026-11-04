@@ -343,6 +343,8 @@ void QuickJsRuntime::installGlobals()
                       JS_NewCFunction(context_, jsPulsarWriteFileAtomic, "__pulsarWriteFileAtomic", 3));
     JS_SetPropertyStr(context_, global, "__pulsarAppendFile",
                       JS_NewCFunction(context_, jsPulsarAppendFile, "__pulsarAppendFile", 3));
+    JS_SetPropertyStr(context_, global, "__pulsarAppendBytes",
+                      JS_NewCFunction(context_, jsPulsarAppendBytes, "__pulsarAppendBytes", 2));
     JS_SetPropertyStr(context_, global, "__pulsarListDir",
                       JS_NewCFunction(context_, jsPulsarListDir, "__pulsarListDir", 1));
     JS_SetPropertyStr(context_, global, "__pulsarExists",
@@ -856,6 +858,27 @@ JSValue jsPulsarAppendFile(JSContext *ctx, JSValueConst, int argc, JSValueConst 
         return JS_NewBool(ctx, false);
 
     return JS_NewBool(ctx, file.write(data) == data.size());
+}
+
+JSValue jsPulsarAppendBytes(JSContext *ctx, JSValueConst, int argc, JSValueConst *argv)
+{
+    if (argc < 2)
+        return JS_ThrowTypeError(ctx, "appendBytes: path and bytes are required");
+
+    size_t length = 0;
+    const uint8_t *data = JS_GetArrayBuffer(ctx, &length, argv[1]);
+
+    if (!data && length > 0)
+        return JS_EXCEPTION;
+
+    QFile file(toQString(ctx, argv[0]));
+
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Append))
+        return JS_NewBool(ctx, false);
+
+    const qint64 size = static_cast<qint64>(length);
+
+    return JS_NewBool(ctx, file.write(reinterpret_cast<const char *>(data), size) == size);
 }
 
 JSValue jsPulsarListDir(JSContext *ctx, JSValueConst, int argc, JSValueConst *argv)

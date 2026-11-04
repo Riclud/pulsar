@@ -15,6 +15,8 @@ export interface NetOptions {
   maxRedirects?: number
   responseType?: "text" | "binary" | "auto"
   tlsFingerprint?: boolean | string
+  /** Largest response the host accepts; defaults to 64 MB, 0 removes the limit. */
+  maxBytes?: number
 }
 
 export interface NetResponseInfo {
@@ -316,6 +318,7 @@ class NetClient {
         maxRedirects: options.maxRedirects,
         responseType: options.responseType,
         tlsFingerprint: fingerprint || undefined,
+        maxBytes: options.maxBytes,
       },
     })
 
@@ -460,6 +463,7 @@ class NetClient {
             headers,
             timeoutMs: options.timeoutMs,
             responseType: "binary",
+            maxBytes: 0,
           })
 
           const track = (work: Promise<unknown>): void => {
@@ -493,7 +497,7 @@ class NetClient {
 
             received += bytes.byteLength
 
-            track(fs.appendFile(path, bytesToBase64(bytes), "base64"))
+            track(fs.appendBytes(path, bytes))
             options.onProgress?.(received, total)
           })
 

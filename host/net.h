@@ -31,6 +31,7 @@ struct NetRequestSpec {
     QList<NetHeader> headers;
     QByteArray body;
     int timeoutMs = 30000;
+    qint64 maxBytes = 64ll * 1024 * 1024;
     QString redirect = "follow";
     int maxRedirects = 5;
     QString responseType = "auto";

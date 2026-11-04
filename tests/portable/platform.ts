@@ -41,6 +41,12 @@ export const createMemoryPlatform = (): Platform => {
       return true
     },
 
+    appendBytes: async (path, bytes) => {
+      files.set(path, (files.get(path) ?? "") + new TextDecoder().decode(bytes))
+
+      return true
+    },
+
     appendFile: async (path, content) => {
       files.set(path, (files.get(path) ?? "") + content)
 

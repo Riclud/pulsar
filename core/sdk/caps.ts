@@ -84,6 +84,9 @@ export const fs = {
     callCapability("fs.mkdir", { path, recursive }) as Promise<boolean>,
   remove: (path: string, recursive = false): Promise<boolean> =>
     callCapability("fs.remove", { path, recursive }) as Promise<boolean>,
+  appendBytes: (path: string, bytes: Uint8Array): Promise<boolean> => {
+    return callCapability("fs.appendBytes", { path, bytes }) as Promise<boolean>
+  },
   rename: (from: string, to: string): Promise<boolean> => callCapability("fs.rename", { from, to }) as Promise<boolean>,
   copy: (from: string, to: string, recursive = true): Promise<boolean> =>
     callCapability("fs.copy", { from, to, recursive }) as Promise<boolean>,

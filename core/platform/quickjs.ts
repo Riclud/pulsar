@@ -7,6 +7,7 @@ declare const __pulsarReadFile: (path: string, encoding: string) => string
 declare const __pulsarWriteFile: (path: string, content: string, encoding: string) => boolean
 declare const __pulsarWriteFileAtomic: (path: string, content: string, encoding: string) => boolean
 declare const __pulsarAppendFile: (path: string, content: string, encoding: string) => boolean
+declare const __pulsarAppendBytes: (path: string, bytes: ArrayBuffer) => boolean
 declare const __pulsarListDir: (path: string) => string[]
 declare const __pulsarExists: (path: string) => boolean
 declare const __pulsarStat: (path: string) => string
@@ -54,6 +55,11 @@ export const createQuickJsPlatform = (): Platform => {
     },
     appendFile: async (path, content, encoding: FsEncoding = "utf8") => {
       return requireWrite(__pulsarAppendFile(path, content, encoding), path)
+    },
+    appendBytes: async (path, bytes) => {
+      const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+
+      return requireWrite(__pulsarAppendBytes(path, buffer), path)
     },
     listDir: async (path = ".") => __pulsarListDir(path),
     exists: async (path) => __pulsarExists(path),

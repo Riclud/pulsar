@@ -35,6 +35,7 @@ export interface Platform {
   writeFile(path: string, content: string, encoding?: FsEncoding): Promise<boolean>
   writeFileAtomic(path: string, content: string, encoding?: FsEncoding): Promise<boolean>
   appendFile(path: string, content: string, encoding?: FsEncoding): Promise<boolean>
+  appendBytes(path: string, bytes: Uint8Array): Promise<boolean>
   listDir(path?: string): Promise<string[]>
   exists(path: string): Promise<boolean>
   stat(path: string): Promise<FileStat>
