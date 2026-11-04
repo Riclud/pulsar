@@ -49,7 +49,7 @@ public:
     void finishFileDialog(const QJsonArray &paths);
 
     /** Send a file to the device Downloads (or a desktop download folder). */
-    void beginFileExport(const QString &token, const QString &path, const QString &name);
+    void beginFileExport(const QString &token, const QString &path, const QString &name, qint64 modifiedAT);
 
     /** Resolve the pending export with its success flag. */
     void finishFileExport(bool ok);

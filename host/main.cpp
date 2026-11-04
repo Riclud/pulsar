@@ -840,9 +840,19 @@ static void handleExportRequest(const QVariantMap &m)
     const QString token = m.value(QStringLiteral("token")).toString();
     const QString path = m.value(QStringLiteral("path")).toString();
     const QString name = m.value(QStringLiteral("name")).toString();
+    const qint64 modifiedAT = m.value(QStringLiteral("modifiedAT")).toLongLong();
     const QString target = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation)
         + QLatin1Char('/') + (name.isEmpty() ? QFileInfo(path).fileName() : name);
     const bool ok = QFile::copy(path, target);
+
+    if (ok && modifiedAT > 0) {
+        QFile file(target);
+
+        if (file.open(QIODevice::ReadWrite)) {
+            file.setFileTime(QDateTime::fromMSecsSinceEpoch(modifiedAT), QFileDevice::FileModificationTime);
+            file.close();
+        }
+    }
 
     QJsonObject params;
     params.insert(QStringLiteral("token"), token);

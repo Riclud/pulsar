@@ -117,7 +117,7 @@ export const createBunPlatform = (): Platform => {
     },
 
     copy: async (from, to, recursive = true) => {
-      await fs.cp(from, to, { recursive })
+      await fs.cp(from, to, { recursive, preserveTimestamps: true })
 
       return true
     },

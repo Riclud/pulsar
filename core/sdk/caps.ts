@@ -88,8 +88,8 @@ export const fs = {
   copy: (from: string, to: string, recursive = true): Promise<boolean> =>
     callCapability("fs.copy", { from, to, recursive }) as Promise<boolean>,
   moveToTrash: (path: string): Promise<boolean> => callCapability("fs.moveToTrash", { path }) as Promise<boolean>,
-  exportTo: (path: string, name?: string): Promise<boolean> =>
-    callCapability("fs.exportTo", { path, name }) as Promise<boolean>,
+  exportTo: (path: string, name?: string, modifiedAT?: number): Promise<boolean> =>
+    callCapability("fs.exportTo", { path, name, modifiedAT }) as Promise<boolean>,
   open: (path: string): Promise<boolean> => callCapability("fs.open", { path }) as Promise<boolean>,
   /**
    * Watch a file or directory; `listener` runs after each change. Returns an

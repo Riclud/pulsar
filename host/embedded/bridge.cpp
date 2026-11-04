@@ -4,6 +4,7 @@
 #include "quickjs_runtime.h"
 
 #include <QClipboard>
+#include <QDateTime>
 #include <QCoreApplication>
 #include <QDesktopServices>
 #include <QFile>
@@ -192,7 +193,7 @@ void EmbeddedBridge::beginFileDialog(const QString &token)
 #endif
 }
 
-void EmbeddedBridge::beginFileExport(const QString &token, const QString &path, const QString &name)
+void EmbeddedBridge::beginFileExport(const QString &token, const QString &path, const QString &name, qint64 modifiedAT)
 {
     pendingExportToken_ = token;
 
@@ -206,14 +207,25 @@ void EmbeddedBridge::beginFileExport(const QString &token, const QString &path, 
 
     const QString fileName = name.isEmpty() ? QFileInfo(path).fileName() : name;
 
-    activity.callMethod<void>("exportFile", "(Ljava/lang/String;Ljava/lang/String;)V",
+    activity.callMethod<void>("exportFile", "(Ljava/lang/String;Ljava/lang/String;J)V",
                               QJniObject::fromString(path).object<jstring>(),
-                              QJniObject::fromString(fileName).object<jstring>());
+                              QJniObject::fromString(fileName).object<jstring>(),
+                              static_cast<jlong>(modifiedAT));
 #else
     const QString target = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation)
         + QLatin1Char('/') + (name.isEmpty() ? QFileInfo(path).fileName() : name);
+    const bool ok = QFile::copy(path, target);
 
-    finishFileExport(QFile::copy(path, target));
+    if (ok && modifiedAT > 0) {
+        QFile file(target);
+
+        if (file.open(QIODevice::ReadWrite)) {
+            file.setFileTime(QDateTime::fromMSecsSinceEpoch(modifiedAT), QFileDevice::FileModificationTime);
+            file.close();
+        }
+    }
+
+    finishFileExport(ok);
 #endif
 }
 
@@ -533,7 +545,8 @@ void EmbeddedBridge::handleMessage(const QJsonObject &message)
     if (method == QLatin1String("__export")) {
         beginFileExport(params.value(QStringLiteral("token")).toString(),
                         params.value(QStringLiteral("path")).toString(),
-                        params.value(QStringLiteral("name")).toString());
+                        params.value(QStringLiteral("name")).toString(),
+                        params.value(QStringLiteral("modifiedAT")).toInteger());
         return;
     }
 

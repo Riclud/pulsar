@@ -542,7 +542,7 @@ public class PulsarActivity extends QtActivity {
         }
     }
 
-    public void exportFile(String path, String name) {
+    public void exportFile(String path, String name, long modifiedAT) {
         new Thread(() -> {
             boolean ok = false;
 
@@ -555,6 +555,9 @@ public class PulsarActivity extends QtActivity {
                     values.put(MediaStore.Downloads.DISPLAY_NAME, name);
                     values.put(MediaStore.Downloads.MIME_TYPE, mime);
                     values.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+
+                    if (modifiedAT > 0)
+                        values.put(MediaStore.MediaColumns.DATE_MODIFIED, modifiedAT / 1000);
 
                     Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
 
@@ -578,6 +581,8 @@ public class PulsarActivity extends QtActivity {
                          OutputStream output = new FileOutputStream(target)) {
                         copy(input, output);
                         ok = true;
+
+                        if (modifiedAT > 0) target.setLastModified(modifiedAT);
                     }
                 }
             } catch (Exception ignored) {
