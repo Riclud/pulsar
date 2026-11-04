@@ -14,7 +14,8 @@ type Scenario = {
 const root = resolve(import.meta.dir, "..")
 const fixtures = join(root, "tests", "embedded", "regressions")
 const override = process.env.PULSAR_EMBEDDED_HOST
-const binary = override ?? join(root, "build", "bin", process.platform === "win32" ? "qml-host-qjs.exe" : "qml-host-qjs")
+const binary =
+  override ?? join(root, "build", "bin", process.platform === "win32" ? "qml-host-qjs.exe" : "qml-host-qjs")
 
 const manifest = {
   id: "com.pulsar.regressions",
