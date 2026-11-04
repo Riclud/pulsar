@@ -24,6 +24,7 @@ ApplicationWindow {
     property string treeShape: ""
     property bool treeGrabPending: false
     property var scrollPositions: ({})
+    property var nodeItems: ({})
     property string errorText: ""
     property bool testClicked: false
     property var themeData: ({})
@@ -3832,6 +3833,17 @@ ApplicationWindow {
         if (!item)
             return;
 
+        const node = item.pulsarMeta ? item.pulsarMeta.node : null;
+
+        if (node) {
+            const prefix = node.path + "/";
+
+            for (const path in view.nodeItems) {
+                if (path === node.path || path.indexOf(prefix) === 0)
+                    delete view.nodeItems[path];
+            }
+        }
+
         // destroy() defers deletion to the next event loop pass. Hide the old
         // node right away so it neither renders over the replacement nor
         // counts as a layout child when padding is recomputed.
@@ -3875,17 +3887,123 @@ ApplicationWindow {
         });
     }
 
-    function clearContainer(parent) {
-        const meta = parent.pulsarMeta;
+    function nodePathFor(item) {
+        let current = item;
 
-        if (!meta)
+        while (current && current !== view) {
+            if (current.pulsarMeta && current.pulsarMeta.node)
+                return current.pulsarMeta.node.path;
+
+            current = current.parent;
+        }
+
+        return null;
+    }
+
+    function captureFocus() {
+        const item = view.activeFocusItem;
+
+        if (!item)
+            return null;
+
+        const path = nodePathFor(item);
+
+        if (path === null)
+            return null;
+
+        const state = { path: path };
+
+        if (item.cursorPosition !== undefined)
+            state.cursorPosition = item.cursorPosition;
+        if (item.selectionStart !== undefined)
+            state.selectionStart = item.selectionStart;
+        if (item.selectionEnd !== undefined)
+            state.selectionEnd = item.selectionEnd;
+
+        return state;
+    }
+
+    function restoreFocus(state) {
+        if (!state)
             return;
 
-        for (const key in meta.index)
-            discardItem(meta.index[key]);
+        const item = view.nodeItems[state.path];
 
-        meta.index = ({});
-        meta.order = [];
+        if (!item)
+            return;
+        if (view.activeFocusItem && view.activeFocusItem !== item)
+            return;
+
+        item.forceActiveFocus();
+
+        if (state.cursorPosition !== undefined && item.cursorPosition !== undefined)
+            item.cursorPosition = state.cursorPosition;
+        if (state.selectionStart !== undefined && item.selectionStart !== undefined)
+            item.selectionStart = state.selectionStart;
+        if (state.selectionEnd !== undefined && item.selectionEnd !== undefined)
+            item.selectionEnd = state.selectionEnd;
+    }
+
+    function captureScrolls(items) {
+        const out = [];
+
+        for (const item of items) {
+            if (!item || item.contentY === undefined || item.contentHeight === undefined)
+                continue;
+
+            out.push({ item: item, y: item.contentY });
+        }
+
+        return out;
+    }
+
+    function restoreScrolls(scrolls) {
+        for (const entry of scrolls) {
+            const item = entry.item;
+
+            if (!item || item.contentY === undefined)
+                continue;
+
+            item.contentY = Math.min(entry.y, Math.max(0, item.contentHeight - item.height));
+        }
+    }
+
+    function applyOrder(parent, items) {
+        const direct = [];
+
+        for (const item of items) {
+            if (item && item.parent === parent)
+                direct.push(item);
+        }
+
+        let previous = -1;
+        let ordered = true;
+
+        for (const item of direct) {
+            const index = parent.children.indexOf(item);
+
+            if (index < previous) {
+                ordered = false;
+                break;
+            }
+
+            previous = index;
+        }
+
+        if (ordered)
+            return;
+
+        const scrolls = captureScrolls(direct);
+
+        for (const item of direct) {
+            item.parent = null;
+            item.parent = parent;
+        }
+
+        restoreScrolls(scrolls);
+
+        if (PulsarBridge.env("PULSAR_DEBUG"))
+            console.log("PulsarView reorder " + parent.pulsarMeta.type + " " + direct.length);
     }
 
     function reconcile(parent, nodes, isRoot) {
@@ -3894,70 +4012,48 @@ ApplicationWindow {
         if (!meta)
             return;
 
-        let index = meta.index;
-        let oldOrder = meta.order;
+        const index = meta.index;
         const paths = [];
-        let compatible = true;
-        let seenNew = false;
-        let lastOld = -1;
+        const wanted = ({});
+        const desired = [];
 
         for (let i = 0; i < nodes.length; i++) {
             const node = nodes[i];
-            const item = index[node.path];
+
             paths.push(node.path);
-
-            if (item && item.pulsarMeta.type !== node.type) {
-                compatible = false;
-                break;
-            }
-
-            const oldIndex = oldOrder.indexOf(node.path);
-            const existed = oldIndex >= 0;
-
-            if (!existed)
-                seenNew = true;
-            else if (seenNew) {
-                compatible = false;
-                break;
-            }
-
-            if (existed) {
-                if (oldIndex < lastOld) {
-                    compatible = false;
-                    break;
-                }
-
-                lastOld = oldIndex;
-            }
+            wanted[node.path] = true;
         }
 
-        if (!compatible) {
-            clearContainer(parent);
-            index = meta.index;
-            oldOrder = meta.order;
-        }
+        for (const path in index) {
+            if (wanted[path] === true)
+                continue;
 
-        for (const key in index) {
-            if (paths.indexOf(key) < 0) {
-                discardItem(index[key]);
-                delete index[key];
-            }
+            discardItem(index[path]);
+            delete index[path];
         }
 
         for (let i = 0; i < nodes.length; i++) {
             const node = nodes[i];
             let item = index[node.path];
 
-            if (item) {
+            if (item && item.pulsarMeta.type === node.type) {
                 updateNode(item, node, isRoot);
+                desired.push(item);
                 continue;
+            }
+
+            if (item) {
+                discardItem(item);
+                delete index[node.path];
             }
 
             item = createNode(node, parent, isRoot);
             index[node.path] = item;
+            desired.push(item);
         }
 
         meta.order = paths;
+        applyOrder(parent, desired);
     }
 
     function createNode(node, parent, isRoot) {
@@ -4071,6 +4167,8 @@ ApplicationWindow {
             content: null,
             extra: ({})
         };
+
+        view.nodeItems[node.path] = item;
 
         if (prop(node.props, "animate", 0) > 0) {
             item.opacity = 0;
@@ -5415,8 +5513,10 @@ ApplicationWindow {
             host.pulsarMeta = contentMeta();
 
         const started = Date.now();
+        const focus = captureFocus();
 
         reconcile(host, tree || [], true);
+        restoreFocus(focus);
 
         const elapsed = Date.now() - started;
 
