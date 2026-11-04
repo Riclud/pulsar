@@ -50,6 +50,7 @@ export type UiNodeType =
   | "image"
   | "spacer"
   | "divider"
+  | "qml"
 
 export interface UiNode {
   id: number
@@ -72,6 +73,15 @@ export interface NeonOptions {
   padding?: number
   /** Draw the real glow; disable to keep only a plain outline. */
   effects?: boolean
+}
+
+export interface QmlOptions extends CommonOptions {
+  /** Path to a QML file, relative to the app directory or absolute. */
+  source: string
+  /** Properties assigned to the loaded QML item on every render. */
+  props?: Record<string, unknown>
+  /** Events emitted by the loaded item through its `pulsarEmit` function. */
+  onEvent?: (name: string, value: unknown) => void
 }
 
 interface CommonOptions {
@@ -1196,6 +1206,20 @@ export const zoomable = (options: ZoomableOptions = {}, ...children: UiChild[]):
   })
 }
 
+export const Qml = (options: QmlOptions): UiNode => {
+  const { source, props, onEvent, ...rest } = options
+
+  if (!onEvent) return makeNode("qml", { ...rest, source, props: props ?? {} })
+
+  return makeNode("qml", { ...rest, source, props: props ?? {} }, [], ["event"], {
+    event: (value) => {
+      const data = value as { name: string; value: unknown }
+
+      onEvent(String(data.name), data.value)
+    },
+  })
+}
+
 export const menu = (options: MenuOptions): UiNode => {
   const { onSelect, onClose, ...props } = options
   const events: string[] = []
@@ -1557,4 +1581,5 @@ export const ui = {
   snackbar,
   popover,
   zoomable,
+  qml: Qml,
 }

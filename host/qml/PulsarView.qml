@@ -3135,6 +3135,22 @@ ApplicationWindow {
     }
 
     Component {
+        id: qmlComponent
+
+        Loader {
+            id: qmlLoader
+
+            asynchronous: false
+            property var pulsarMeta: null
+            property var nodeData: null
+            property string pulsarPath: ""
+            property var pulsarEmit: null
+
+            onLoaded: view.applyQmlProps(qmlLoader, qmlLoader.pulsarMeta ? qmlLoader.pulsarMeta.node : null)
+        }
+    }
+
+    Component {
         id: gridComponent
 
         Flickable {
@@ -3968,6 +3984,46 @@ ApplicationWindow {
         }
     }
 
+    function applyQmlProps(loader, node) {
+        if (!loader || !node)
+            return;
+
+        const custom = prop(node.props, "props", {});
+        const loaded = loader.item;
+
+        loader.pulsarPath = node.path;
+
+        const emit = function (name, value) {
+            emitEvent(loader.pulsarMeta.node, "event", { name: name, value: value });
+        };
+
+        loader.pulsarEmit = emit;
+
+        if (!loaded)
+            return;
+
+        loaded.pulsarEmit = emit;
+
+        if (loader.pulsarMeta.extra.qmlSized !== loaded) {
+            loader.pulsarMeta.extra.qmlSized = loaded;
+
+            if (loaded.width !== undefined) {
+                loaded.width = Qt.binding(function () {
+                    return loader.width;
+                });
+            }
+
+            if (loaded.height !== undefined) {
+                loaded.height = Qt.binding(function () {
+                    return loader.height;
+                });
+            }
+        }
+
+        for (const key in custom)
+            loaded[key] = custom[key];
+    }
+
     function applyOrder(parent, items) {
         const direct = [];
 
@@ -4117,6 +4173,8 @@ ApplicationWindow {
             item = navBarComponent.createObject(parent);
         } else if (node.type === "zoomable") {
             item = zoomableComponent.createObject(parent);
+        } else if (node.type === "qml") {
+            item = qmlComponent.createObject(parent);
         } else if (node.type === "text") {
             item = labelComponent.createObject(parent);
         } else if (node.type === "selectableText") {
@@ -5013,6 +5071,24 @@ ApplicationWindow {
                 item.contentItem.pulsarMeta = contentMeta();
 
             reconcile(item.contentItem, node.children || [], false);
+        } else if (node.type === "qml") {
+            item.nodeData = node;
+
+            const source = prop(props, "source", "");
+            const base = PulsarBridge.env("PULSAR_APP") || "";
+            const url = source.length === 0 ? ""
+                    : /^[a-z][a-z0-9+.-]*:/i.test(source) ? source
+                    : "file://" + (source.charAt(0) === "/" ? source : base + "/" + source);
+
+            if (item.source !== url) {
+                if (url.length === 0) {
+                    item.source = "";
+                } else {
+                    item.setSource(url, prop(props, "props", {}));
+                }
+            }
+
+            applyQmlProps(item, node);
         } else if (node.type === "text" || node.type === "selectableText") {
             const wrap = prop(props, "wrap", false);
             const align = prop(props, "align", "left");
