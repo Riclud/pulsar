@@ -192,6 +192,26 @@ static void pulsarNotificationClicked(JNIEnv *env, jclass, jstring token)
         Qt::QueuedConnection);
 }
 
+static void pulsarMessageResult(JNIEnv *env, jclass, jstring token, jboolean accepted)
+{
+    if (!g_backBridge)
+        return;
+
+    const char *chars = env->GetStringUTFChars(token, nullptr);
+    const QString text = QString::fromUtf8(chars);
+    const bool value = accepted;
+
+    env->ReleaseStringUTFChars(token, chars);
+
+    QMetaObject::invokeMethod(
+        g_backBridge,
+        [text, value] {
+            if (g_backBridge)
+                g_backBridge->finishMessageDialog(text, value);
+        },
+        Qt::QueuedConnection);
+}
+
 static void pulsarPermissionResult(JNIEnv *env, jclass, jstring name, jboolean granted)
 {
     if (!g_backBridge)
@@ -522,6 +542,8 @@ int main(int argc, char **argv)
           reinterpret_cast<void *>(pulsarNotificationClicked) },
         { const_cast<char *>("intentReceived"), const_cast<char *>("(Ljava/lang/String;)V"),
           reinterpret_cast<void *>(pulsarIntentReceived) },
+        { const_cast<char *>("messageResult"), const_cast<char *>("(Ljava/lang/String;Z)V"),
+          reinterpret_cast<void *>(pulsarMessageResult) },
     };
 
     JNINativeMethod mediaMethods[] = {
@@ -531,7 +553,7 @@ int main(int argc, char **argv)
 
     QJniEnvironment jniEnvironment;
 
-    jniEnvironment.registerNativeMethods("com/pulsar/host/PulsarActivity", methods, 6);
+    jniEnvironment.registerNativeMethods("com/pulsar/host/PulsarActivity", methods, 7);
     jniEnvironment.registerNativeMethods("com/pulsar/host/PulsarMediaService", mediaMethods, 1);
 #endif
 

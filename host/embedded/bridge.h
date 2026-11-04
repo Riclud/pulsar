@@ -45,6 +45,9 @@ public:
     /** Start the native multi-file picker and remember which dialog to resolve. */
     void beginFileDialog(const QString &token);
 
+    /** Resolve a native confirmation dialog by its token. */
+    void finishMessageDialog(const QString &token, bool accepted);
+
     /** Resolve the pending file dialog with the picked local paths. */
     void finishFileDialog(const QJsonArray &paths);
 

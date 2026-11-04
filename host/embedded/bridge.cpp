@@ -345,6 +345,15 @@ void EmbeddedBridge::finishPermission(const QString &name, bool granted)
     reply(QStringLiteral("__query-result"), replyParams);
 }
 
+void EmbeddedBridge::finishMessageDialog(const QString &token, bool accepted)
+{
+    QJsonObject replyParams;
+    replyParams.insert(QStringLiteral("token"), token);
+    replyParams.insert(QStringLiteral("value"), accepted);
+
+    reply(QStringLiteral("__dialog-result"), replyParams);
+}
+
 void EmbeddedBridge::finishFileDialog(const QJsonArray &paths)
 {
     const QString token = pendingFileToken_;
@@ -504,6 +513,19 @@ void EmbeddedBridge::handleMessage(const QJsonObject &message)
 #ifdef Q_OS_ANDROID
         if (kind == QLatin1String("open-files")) {
             beginFileDialog(params.value(QStringLiteral("token")).toString());
+            return;
+        }
+
+        const QJniObject dialogActivity = QNativeInterface::QAndroidApplication::context();
+
+        if (kind == QLatin1String("message") && dialogActivity.isValid()) {
+            const QJniObject token = QJniObject::fromString(params.value(QStringLiteral("token")).toString());
+            const QJniObject title = QJniObject::fromString(params.value(QStringLiteral("title")).toString());
+            const QJniObject text = QJniObject::fromString(params.value(QStringLiteral("text")).toString());
+
+            dialogActivity.callMethod<void>("showMessageDialog",
+                                            "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
+                                            token.object<jstring>(), title.object<jstring>(), text.object<jstring>());
             return;
         }
 #endif

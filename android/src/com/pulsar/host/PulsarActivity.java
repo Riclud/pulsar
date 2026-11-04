@@ -16,6 +16,7 @@ import android.os.Environment;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.provider.OpenableColumns;
+import android.app.AlertDialog;
 import android.content.SharedPreferences;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
@@ -73,6 +74,8 @@ public class PulsarActivity extends QtActivity {
     private static native void notificationClicked(String token);
 
     private static native void intentReceived(String json);
+
+    private static native void messageResult(String token, boolean accepted);
 
     private static final String DEFAULT_NOTIFICATION_CHANNEL = "pulsar";
     private static final String NOTIFICATION_TOKEN_EXTRA = "pulsarNotificationToken";
@@ -278,6 +281,16 @@ public class PulsarActivity extends QtActivity {
 
     public boolean secureRemove(String key) {
         return securePreferences().edit().remove(key).commit();
+    }
+
+    public void showMessageDialog(String token, String title, String text) {
+        runOnUiThread(() -> new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage(text)
+                .setPositiveButton(android.R.string.ok, (dialog, which) -> messageResult(token, true))
+                .setNegativeButton(android.R.string.cancel, (dialog, which) -> messageResult(token, false))
+                .setOnCancelListener((dialog) -> messageResult(token, false))
+                .show());
     }
 
     public void showToast(String text) {
