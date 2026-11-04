@@ -170,6 +170,22 @@ export const assertSerializable = (value: unknown, key: string): void => {
   if (issue) throw new Error(`store.set("${key}"): value at "${issue.path}" ${issue.reason}`)
 }
 
+export interface UiTimings {
+  label: string
+  build: number
+  serialize: number
+  handlers: number
+  diff: number
+  /** Encoding and delivery; on the embedded host this includes applying the patch in QML. */
+  send: number
+  /** Patches sent, or -1 for a full tree. */
+  patches: number
+}
+
+const clock = (): number => {
+  return typeof performance === "undefined" ? Date.now() : performance.now()
+}
+
 export class Store {
   private readonly data = new Map<string, unknown>()
   private readonly dirty = new Set<string>()
@@ -361,6 +377,8 @@ export class App {
   /** Installed by the runtime; asks the host to create a window. */
   onCreateWindow?: (config: AppConfig) => void
   /** Installed by the runtime; renders a JS UI tree into a window. */
+  /** Receives the cost of each UI flush, in milliseconds. */
+  onUiTimings?: (timings: UiTimings) => void
   onSendUi?: (label: string, tree: unknown[]) => void
   /** Installed by the runtime; applies changed subtrees to an existing window. */
   onSendUiPatch?: (label: string, patches: UiPatch[]) => void
@@ -509,9 +527,14 @@ export class App {
 
     if (!source || !this.onSendUi) return
 
+    const report = this.onUiTimings
+    const started = report ? clock() : 0
     const nodes = source()
+    const built = report ? clock() : 0
     const tree = serialize(nodes)
+    const serialized = report ? clock() : 0
     const { routes, ids } = collectUiHandlers(nodes)
+    const collected = report ? clock() : 0
     const previous = this.sentTrees.get(label)
 
     setWindowHandlers(label, routes)
@@ -520,16 +543,21 @@ export class App {
     this.sentTrees.set(label, tree)
     this.sentIds.set(label, ids)
 
-    if (previous && this.onSendUiPatch) {
-      const patches = diffUiTrees(previous, tree)
+    const patches = previous && this.onSendUiPatch ? diffUiTrees(previous, tree) : null
+    const diffed = report ? clock() : 0
 
-      if (patches !== null) {
-        if (patches.length > 0) this.onSendUiPatch(label, patches)
-        return
-      }
-    }
+    if (patches === null) this.onSendUi(label, tree)
+    else if (patches.length > 0) this.onSendUiPatch?.(label, patches)
 
-    this.onSendUi(label, tree)
+    report?.({
+      label,
+      build: built - started,
+      serialize: serialized - built,
+      handlers: collected - serialized,
+      diff: diffed - collected,
+      send: clock() - diffed,
+      patches: patches?.length ?? -1,
+    })
   }
 
   /**

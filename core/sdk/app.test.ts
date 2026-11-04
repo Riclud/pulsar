@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import { App, Store, WindowHandle, type MenuItem } from "./app.ts"
+import { App, Store, WindowHandle, type MenuItem, type UiTimings } from "./app.ts"
 import { registerCapability } from "./caps.ts"
-import { Text } from "./ui.ts"
+import { Column, Text } from "./ui.ts"
 
 describe("Store", () => {
   test("accepts plain JSON values", () => {
@@ -207,5 +207,22 @@ describe("App windows", () => {
 
     expect(sent[0]).toEqual(["ping", "pong", "*"])
     expect(sent[1]).toEqual(["hi", { n: 1 }, "main"])
+  })
+})
+
+describe("ui timings", () => {
+  test("reports the phases of a flush", () => {
+    const app = new App()
+    const timings: UiTimings[] = []
+
+    app.onUiTimings = (value) => timings.push(value)
+    app.onSendUi = () => {}
+    app.renderWindow("main", () => Column({}, Text({ text: "a" })))
+
+    expect(timings.length).toBe(1)
+    expect(timings[0]?.label).toBe("main")
+    expect(timings[0]?.patches).toBe(-1)
+    expect(timings[0]?.build).toBeGreaterThanOrEqual(0)
+    expect(timings[0]?.send).toBeGreaterThanOrEqual(0)
   })
 })

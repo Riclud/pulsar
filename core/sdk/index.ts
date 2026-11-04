@@ -1,5 +1,5 @@
 export { App, Store, WindowHandle } from "./app.ts"
-export type { AppConfig, EventHandler, PulsarEventMap, KnownEvent, UiSource } from "./app.ts"
+export type { AppConfig, EventHandler, PulsarEventMap, KnownEvent, UiSource, UiTimings } from "./app.ts"
 export {
   ui,
   bind,

@@ -365,6 +365,16 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
         send({ jsonrpc: "2.0", method: "__emit", params: { event, payload, target } })
       app.onCreateWindow = (config) =>
         send({ jsonrpc: "2.0", method: "__window", params: { ...config, action: "create" } })
+      if (platform.env("PULSAR_DEBUG")) {
+        app.onUiTimings = (timings) => {
+          const { label, build, serialize, handlers, diff, send: delivery, patches } = timings
+          const parts = { build, serialize, handlers, diff, send: delivery }
+          const text = Object.entries(parts).map(([name, value]) => `${name}=${value.toFixed(1)}`)
+
+          console.log(`[pulsar] ui ${label} patches=${patches} ${text.join(" ")}`)
+        }
+      }
+
       app.onSendUi = (label, tree) => send({ jsonrpc: "2.0", method: "__ui", params: { target: label, tree } })
       app.onSendUiPatch = (label, patches) =>
         send({ jsonrpc: "2.0", method: "__ui-patch", params: { target: label, patches } })
