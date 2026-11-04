@@ -58,7 +58,7 @@ ApplicationWindow {
     readonly property bool embeddedHost: typeof PulsarEmbedded !== "undefined" && PulsarEmbedded
 
     function reportWindowSize() {
-        if (!embeddedHost || typeof PulsarBridge === "undefined")
+        if (typeof PulsarBridge === "undefined")
             return;
 
         PulsarBridge.emit("__event", {
@@ -71,9 +71,9 @@ ApplicationWindow {
         });
     }
 
-    onWidthChanged: if (embeddedHost) sizeReportTimer.restart()
-    onHeightChanged: if (embeddedHost) sizeReportTimer.restart()
-    Component.onCompleted: if (embeddedHost) sizeReportTimer.start()
+    onWidthChanged: sizeReportTimer.restart()
+    onHeightChanged: sizeReportTimer.restart()
+    Component.onCompleted: sizeReportTimer.start()
 
     Timer {
         id: sizeReportTimer
