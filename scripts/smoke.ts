@@ -67,7 +67,7 @@ const check = (file: string, needle: string) => {
   } catch {}
 
   if (!text.includes(needle)) {
-    console.error(`smoke: missing: ${needle}`)
+    console.error(`smoke: missing: ${needle}\n--- ${file}\n${text.split("\n").slice(-30).join("\n")}\n---`)
     failed = true
   }
 }
