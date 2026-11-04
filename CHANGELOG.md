@@ -6,8 +6,27 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Breaking
+
+- A window no longer re-renders on every store change. Values read during a render
+  must come from a signal, `createState` or the store; `app.invalidateUi()` covers
+  anything else.
+- `store.set` compares objects by reference, so setting an equal copy is a change.
+
 ### Added
 
+- `signal`, `computed`, `effect`, `untracked` and `createState`.
+- `component()` with local state, `onMount` and `onCleanup`. Only components that
+  read a changed value re-render.
+- Layout props: `justify`, `alignItems`, `flex`, `paddingX`, `paddingY`, per-side
+  padding, `minWidth`, `minHeight`, `maxHeight`, `clip`, `zIndex`, and `absolute`
+  inside a `Stack`.
+- `Row`, `Column`, `Wrap` and `Stack` accept the surface props of `Box`.
+- Motion props: `pressed`, `enter`, `exit`, `transition` and `drag`.
+- `secureStorage` on Android, using the Keystore. `screen.list` and `theme.current`
+  also work on Android.
+- `storage.setMany`, `net.fetch` options `bodyFile` and `maxBytes`, and
+  `app.onUiTimings`.
 - `Qml({ source, props, onEvent })` embeds an app QML component inside the
   JS-built tree; the loaded item gets `pulsarEmit(name, value)` for events.
 - `onLayout` reports the measured `{ width, height }` of any node.
@@ -32,6 +51,24 @@ All notable changes to this project are documented here. The format follows
   move existing items instead of clearing the container.
 
 ### Fixed
+
+- A timer callback that cleared its own timer crashed the embedded host.
+- `Pulsar.call` never resolved in the embedded host.
+- Reloading an embedded app left a blank screen.
+- Unhandled rejections and top-level errors were silent in the embedded host.
+- `dialog.message` was accepted automatically on Android without showing anything.
+- `storage` could lose all data on a truncated file; writes are now atomic and a
+  corrupted file is kept aside.
+- `net.download` failed above 64 MB, and `timeoutMs` aborted transfers that were
+  still receiving data.
+- `fs.watch` callbacks never ran, and store changes were not pushed during a slow
+  request.
+- The runtime could miss its first message while starting, leaving a QML app without
+  its state.
+- A conditional child no longer moves the nodes after it, and shallow patches no
+  longer carry the subtree.
+- `pulsar tap` now routes by path and skips hidden nodes.
+- Store values are logged only under `PULSAR_DEBUG`.
 
 - Focus, text selection and scroll positions survive structural updates.
 - The CLI bundles Qt libraries whose `ldd` paths go through

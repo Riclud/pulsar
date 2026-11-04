@@ -59,11 +59,10 @@ Rules:
   accepted. Functions, class instances, `undefined`, `bigint`, `NaN` and
   `Infinity` throw.
 - Circular references are rejected.
-- `set` with a deeply equal value is a no-op. Polling the same payload does not
-  re-render.
-- Mutating an object or array in place and calling `set` with the same reference
-  still produces a new JSON snapshot, but the old value comparison can surprise
-  you. Create new values explicitly:
+- Values are compared by reference. `set` with the same reference is a no-op, and
+  an equal copy counts as a change.
+- Only renders that read a key run again when it changes. Create new values instead
+  of mutating them:
 
 ```ts
 const next = tasks().map((task) => (task.id === id ? { ...task, done } : task))
@@ -262,9 +261,15 @@ await secureStorage.set("api-token", token)
 const saved = await secureStorage.get("api-token")
 ```
 
-`storage` is a JSON file in the app data directory. `secureStorage` keeps
-strings in the OS keychain (Keychain, DPAPI or libsecret) and is scoped to the
-app id. Use it for tokens and passwords, not for large data.
+`storage` is a JSON file in the app data directory. Writes are atomic, so a crash
+cannot leave half a file. A file that cannot be parsed is moved to
+`storage.json.corrupt-<time>` rather than overwritten, and a failed read or write
+rejects. Use `storage.setMany({ a, b })` to write several keys at once.
+
+`secureStorage` keeps strings in the OS secret store (Keychain, DPAPI, libsecret or
+the Android Keystore) and is scoped to the app id. Use it for tokens and passwords,
+not for large data. Declare the `secure` permission if the manifest lists
+permissions.
 
 `fs.open(path)` hands a file to the OS. Video files open in the built-in player
 when QtMultimedia is available. `fs.exportTo(path, name?)` copies a file out to
@@ -291,9 +296,13 @@ try {
 ```
 
 `net.fetch` runs in the native host, not in the JS engine. Options: `method`,
-`headers`, `body` (string or `Uint8Array`), `timeoutMs`, `redirect`
-(`follow`/`manual`/`error`), `maxRedirects`, `responseType`
-(`text`/`binary`/`auto`) and `tlsFingerprint`.
+`headers`, `body` (string or `Uint8Array`), `bodyFile` (a path the host streams),
+`timeoutMs`, `redirect` (`follow`/`manual`/`error`), `maxRedirects`, `responseType`
+(`text`/`binary`/`auto`), `maxBytes` and `tlsFingerprint`.
+
+`timeoutMs` measures idle time: it restarts whenever data moves, so a long transfer
+is not cut off. `maxBytes` limits a buffered response, 64 MB by default; `0` removes
+the limit. `net.download` writes to disk and has no limit.
 
 Streaming:
 
@@ -494,6 +503,8 @@ try {
 
 - Back hides the keyboard first, then reaches `back-pressed`; without a listener
   it quits the app.
+- `dialog.message` shows a native confirmation with OK and Cancel. `dialog.color`
+  and `system.power` have no Android backend yet.
 - Persist state on `app-pause` or `app-stop`; the process can be killed in the
   background.
 - `net`, `fs` and media run in the native host, not the UI thread.
@@ -509,9 +520,12 @@ try {
 
 - Prefer `VirtualList` over rendering thousands of rows.
 - Debounce search input and network calls.
-- Keep the store small; large arrays are serialized and compared.
-- Do not poll faster than the UI needs; deep-equal no-ops help but do not make
-  polling free.
+- Keep the store small: each changed value is sent to the host in full. Prefer
+  signals for state that only JavaScript reads.
+- Split screens into [components](../components/), so a change reruns only what read
+  it. `PULSAR_DEBUG=1` logs the cost of each update.
+- Do not poll faster than the UI needs, and avoid replacing data that did not
+  change.
 - Keep secrets in `secureStorage`, never in `storage` or source.
 - Request the minimum manifest permissions and OS permissions.
 - Treat files and URLs from the OS as untrusted input.

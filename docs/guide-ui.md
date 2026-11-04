@@ -62,6 +62,73 @@ Input({
 `bind(() => ...)` is for **reads**. A plain function in an `on*` prop is a
 **write**.
 
+### Layout props
+
+Every node accepts these, in addition to `Row`, `Column`, `Box`, `Card` and the
+rest of the table above:
+
+| Prop                                       | Meaning                                                             |
+| ------------------------------------------ | ------------------------------------------------------------------- |
+| `paddingX`, `paddingY`                     | Horizontal and vertical padding on layouts, `Box` and `Card`.       |
+| `paddingTop`, `paddingRight`, `paddingBottom`, `paddingLeft` | One side; wins over `paddingX`, `paddingY` and `padding`. |
+| `justify`                                  | `Row`/`Column`: `start`, `center`, `end`, `between`, `around`, `evenly`. |
+| `alignItems`                               | `Row`/`Column`: `start`, `center`, `end`, `stretch` on the cross axis. |
+| `flex`                                     | Share of the free space along the parent `Row` or `Column`.         |
+| `minWidth`, `minHeight`, `maxHeight`       | Size limits inside a layout.                                        |
+| `clip`                                     | Cut off content outside the node.                                   |
+| `zIndex`                                   | Stacking order among siblings.                                      |
+| `absolute`                                 | `{ top, right, bottom, left }` offsets. Only inside a `Stack`.      |
+
+`Row`, `Column`, `Wrap` and `Stack` also accept the surface props of `Box`:
+`color`, `hoverColor`, `radius`, `borderWidth`, `borderColor`, `gradient`,
+`elevation`, `shadowColor`, `onClick` and `onLongPress`.
+
+```ts
+Row(
+  { color: "surface", radius: 12, paddingX: 16, paddingY: 8, justify: "between", alignItems: "center" },
+  Text({ text: "Title" }),
+  Button({ label: "OK" }),
+)
+```
+
+A `Row` or `Column` is as wide as its content. `fillWidth` takes effect together
+with `alignItems`, `justify` or a child with `flex`. See
+[Coming from the web](../guide/web/).
+
+### Motion props
+
+Motion runs in the renderer, so it stays smooth even while JavaScript is busy.
+
+| Prop         | Meaning                                                                         |
+| ------------ | ------------------------------------------------------------------------------- |
+| `pressed`    | `{ scale }` while the node is held down.                                        |
+| `enter`      | `{ opacity, x, y, scale }` to animate from when it appears or becomes visible.  |
+| `exit`       | The same, to animate to before it is removed or hidden.                         |
+| `transition` | `{ duration, curve }`; `curve` is `spring`, `ease` or `linear`.                 |
+| `drag`       | `{ axis, threshold, onRelease }`; follows the finger, then springs back.        |
+
+```ts
+Card(
+  {
+    key: task.id,
+    pressed: { scale: 0.98 },
+    enter: { opacity: 0 },
+    exit: { opacity: 0 },
+    transition: { duration: 180 },
+    drag: {
+      axis: "x",
+      onRelease: ({ direction }) => {
+        if (direction === "right") complete(task)
+      },
+    },
+  },
+  Text({ text: task.text }),
+)
+```
+
+`enter` does not run on the first render or for a node created with a new parent.
+`onRelease` fires only past `threshold`, 96 pixels by default.
+
 ## Layout
 
 ### Column and Row
@@ -82,8 +149,8 @@ Row(
 - `expand: true` on a child lets it take the remaining space.
 - Use `Spacer({ fillWidth: true })` or `Spacer({ fillHeight: true })` to push
   siblings apart.
-- Nesting deeper than two levels is usually a sign to extract a component with
-  `defineComponent`.
+- Nesting deeper than two levels is usually a sign to extract a
+  [`component`](../guide/components/).
 
 ### Box and Card
 

@@ -458,10 +458,9 @@ app.store.set("items", [{ id: 1 }, { id: 2 }])
 вместо установки `undefined` используйте `delete`. Циклические ссылки
 отклоняются.
 
-Если новое значение глубоко равно текущему, `set` ничего не делает: слушатели
-не вызываются, в UI ничего не отправляется и перерисовки нет. Поэтому цикл
-синхронизации по таймеру не перестраивает список, когда данных не изменились.
-Ключи, добавленные после открытия окна, доставляются как обычно; привязывайте
+Значения сравниваются по ссылке: запись той же ссылки ничего не делает, а равная
+копия считается изменением. Рендер, прочитавший ключ, запускается заново при его
+изменении, а остальные нет. Ключи, добавленные после открытия окна, доставляются как обычно; привязывайте
 их напрямую (`Store.<key>`), чтобы QML отслеживал их.
 
 ### Окна
@@ -734,9 +733,10 @@ await storage.remove("todos")
 
 `net.fetch(url, options)` выполняется в нативном хосте, а не в JS-движке,
 поэтому одинаково работает под Bun, Node, Hermes и QuickJS. Опции: `method`,
-`headers`, `body` (строка или `Uint8Array`), `timeoutMs`, `redirect` (`follow` /
-`manual` / `error`), `maxRedirects`, `responseType` (`text` / `binary` / `auto`)
-и `tlsFingerprint`. `tlsFingerprint: true` (или профиль вроде `"chrome120"`)
+`headers`, `body` (строка или `Uint8Array`), `bodyFile` (путь, который хост передаёт
+потоком), `timeoutMs` (время простоя), `redirect` (`follow` / `manual` / `error`),
+`maxRedirects`, `responseType` (`text` / `binary` / `auto`), `maxBytes` (по умолчанию
+64 МБ, `0` снимает лимит) и `tlsFingerprint`. `tlsFingerprint: true` (или профиль вроде `"chrome120"`)
 зарезервирован под бэкенд с маскировкой; сборки без него отвечают
 `ERR_FINGERPRINT_UNAVAILABLE`.
 
@@ -914,7 +914,7 @@ files? }`).
 ### Секреты (системный keychain)
 
 `secureStorage` хранит строки в системном хранилище секретов: Keychain в
-macOS, DPAPI в Windows и libsecret (`secret-tool`) в Linux. Записи привязаны к
+macOS, DPAPI в Windows, libsecret (`secret-tool`) в Linux и Keystore в Android. Записи привязаны к
 `id` приложения, поэтому приложения не видят чужие значения.
 
 ```ts
@@ -961,7 +961,7 @@ app.on("log", (params: { level: string; source: "qml" | "js"; message: string; f
 import {
   App,
   bind,
-  defineComponent,
+  component,
   Button,
   Card,
   Checkbox,
@@ -991,7 +991,7 @@ app.store.set("tasks", [
 
 const tasks = (): Task[] => app.store.get("tasks") as Task[]
 
-const TaskRow = defineComponent<{ task: Task }>(({ task }) =>
+const TaskRow = component<{ key: string; task: Task }>(({ task }) =>
   Card(
     { padding: 12 },
     Row(
@@ -1032,7 +1032,7 @@ app.window("main").render(() =>
       keyOf: (task) => task.id,
       spacing: 8,
       padding: 12,
-      render: (task) => TaskRow({ task }),
+      render: (task) => TaskRow({ key: task.id, task }),
     }),
     Modal(
       {
@@ -1133,6 +1133,13 @@ intensity: 1.2 } })` или `Text({ neon: true })`. Компонент обор�
   Без GPU (software rendering) свечение автоматически заменяется контуром.
 - Низкоуровневые фабрики `ui.column(...)`, `ui.button(...)` остаются доступны;
   компоненты выше — тонкие обёртки над ними.
+- `component()` перерисовывается, только когда изменился прочитанный им сигнал, ключ
+  store или свойство. См. [руководство по компонентам](guide-components.ru.md).
+- `justify`, `alignItems`, `flex`, `paddingX`, `paddingY`, отступы по сторонам,
+  минимальные и максимальные размеры, `clip`, `zIndex` и `absolute` работают для
+  любого узла; `Row`, `Column`, `Wrap` и `Stack` принимают свойства оформления `Box`.
+  См. [руководство для веб-разработчиков](guide-web.ru.md).
+- `pressed`, `enter`, `exit`, `transition` и `drag` анимируются в рендерере.
 - QML-окна работают как раньше — можно смешивать.
 
 ## QML API (escape hatch)

@@ -63,6 +63,75 @@ Input({
 `bind(() => ...)` — для **чтения**. Обычная функция в пропе `on*` — это
 **запись**.
 
+### Свойства раскладки
+
+Их принимает любой узел, в дополнение к таблице выше и свойствам `Row`, `Column`,
+`Box` и `Card`:
+
+| Свойство                                   | Значение                                                            |
+| ------------------------------------------ | ------------------------------------------------------------------- |
+| `paddingX`, `paddingY`                     | Отступы по горизонтали и вертикали у контейнеров, `Box` и `Card`.   |
+| `paddingTop`, `paddingRight`, `paddingBottom`, `paddingLeft` | Одна сторона; важнее `paddingX`, `paddingY` и `padding`. |
+| `justify`                                  | `Row`/`Column`: `start`, `center`, `end`, `between`, `around`, `evenly`. |
+| `alignItems`                               | `Row`/`Column`: `start`, `center`, `end`, `stretch` по поперечной оси. |
+| `flex`                                     | Доля свободного места в родительском `Row` или `Column`.            |
+| `minWidth`, `minHeight`, `maxHeight`       | Ограничения размера внутри контейнера.                              |
+| `clip`                                     | Обрезать содержимое за границами узла.                              |
+| `zIndex`                                   | Порядок наложения среди соседей.                                    |
+| `absolute`                                 | Смещения `{ top, right, bottom, left }`. Только внутри `Stack`.     |
+
+`Row`, `Column`, `Wrap` и `Stack` принимают также свойства оформления `Box`:
+`color`, `hoverColor`, `radius`, `borderWidth`, `borderColor`, `gradient`,
+`elevation`, `shadowColor`, `onClick` и `onLongPress`.
+
+```ts
+Row(
+  { color: "surface", radius: 12, paddingX: 16, paddingY: 8, justify: "between", alignItems: "center" },
+  Text({ text: "Заголовок" }),
+  Button({ label: "OK" }),
+)
+```
+
+`Row` и `Column` шириной с контент. `fillWidth` срабатывает вместе с `alignItems`,
+`justify` или ребёнком с `flex`. Подробнее в разделе
+[Если вы пришли из веба](../guide/web/).
+
+### Свойства движения
+
+Движение выполняется в рендерере, поэтому остаётся плавным, даже когда JavaScript
+занят.
+
+| Свойство     | Значение                                                                        |
+| ------------ | ------------------------------------------------------------------------------- |
+| `pressed`    | `{ scale }`, пока узел удерживают.                                              |
+| `enter`      | `{ opacity, x, y, scale }`, откуда анимировать при появлении.                   |
+| `exit`       | То же, куда анимировать перед удалением или скрытием.                           |
+| `transition` | `{ duration, curve }`; `curve` — это `spring`, `ease` или `linear`.             |
+| `drag`       | `{ axis, threshold, onRelease }`; следует за пальцем и пружинит обратно.        |
+
+```ts
+Card(
+  {
+    key: task.id,
+    pressed: { scale: 0.98 },
+    enter: { opacity: 0 },
+    exit: { opacity: 0 },
+    transition: { duration: 180 },
+    drag: {
+      axis: "x",
+      onRelease: ({ direction }) => {
+        if (direction === "right") complete(task)
+      },
+    },
+  },
+  Text({ text: task.text }),
+)
+```
+
+`enter` не срабатывает при первом рендере и для узла, созданного вместе с новым
+родителем. `onRelease` вызывается только после порога `threshold`, по умолчанию
+96 пикселей.
+
 ## Раскладка
 
 ### Column и Row
@@ -85,8 +154,8 @@ Row(
   пространство.
 - Используйте `Spacer({ fillWidth: true })` или `Spacer({ fillHeight: true })`,
   чтобы раздвинуть соседние элементы.
-- Вложенность глубже двух уровней обычно означает, что стоит вынести компонент
-  через `defineComponent`.
+- Вложенность глубже двух уровней обычно означает, что стоит вынести
+  [`component`](../guide/components/).
 
 ### Box и Card
 

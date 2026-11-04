@@ -26,9 +26,13 @@ describe layout.
 The most important object is `app.store`:
 
 - it is a JSON-safe key/value map;
-- it is the single source of truth for the UI;
-- when it changes, the render function runs again;
+- each key is tracked: a render that read it runs again when it changes, and
+  nothing else does;
+- its values are also published to QML;
 - the host keeps focus, scroll and input state where it can.
+
+For state that only your TypeScript reads, [signals](components/) are lighter. New
+to native UI? Start with [Coming from the web](web/).
 
 The rule of thumb: **data goes in the store; the UI is a function of the
 store.** Local variables are fine for values that are created inside a render.
@@ -85,11 +89,11 @@ app.run()
 What happens when you press the button:
 
 1. `onClick` writes a new number to the store.
-2. The store change invalidates the window.
-3. `render` runs again and produces a new tree.
+2. The render read that key, so it is marked to run again.
+3. `render` runs and produces a new tree for that part of the screen.
 4. The host patches the existing `Text` instead of recreating the window.
 
-`bind(() => ...)` marks a value that should be re-read on every render. A plain
+`bind(() => ...)` marks a value read when the owning component renders. A plain
 function in an `on*` prop is an event handler, not a binding.
 
 ## Choose the right building block
@@ -122,7 +126,8 @@ The detailed props for each one are in [UI building blocks](../ui/).
 ## Layout that does not fight you
 
 `Column` and `Row` are the two containers you will use most. Both accept `gap`,
-`padding`, `fill`, `fillWidth`, `fillHeight` and `align`.
+`padding`, `fill`, `fillWidth`, `fillHeight`, `align`, `justify`, `alignItems` and
+the background props of `Box`.
 
 ```ts
 Column(
@@ -175,13 +180,13 @@ app.store.has("filter")
 app.store.delete("filter")
 ```
 
-A `set` with a deeply equal value is a no-op. That is useful for polling loops,
-but it means mutating an array in place does not notify the UI:
+A `set` with the same value is a no-op. Values are compared by reference, so
+mutating an array in place does not notify the UI:
 
 ```ts
 const tasks = app.store.get("tasks") as Task[]
 
-// no re-render: same array, same contents
+// no re-render: the same array
 tasks.push(newTask)
 
 // re-render: a new array
@@ -398,10 +403,13 @@ Before shipping:
 
 ## Common mistakes
 
-- **Using local variables as state.** A re-render recreates the function body;
-  put durable values in `Store`.
-- **Mutating arrays or objects in place.** The store compares JSON; create a
-  new value instead.
+- **Using local variables as state.** The screen does not see them; use a
+  [signal, `createState` or the store](components/).
+- **Reading plain module variables in a render.** They are not tracked, so the
+  screen will not update. Use `createState`.
+- **Mutating arrays or objects in place.** Values are compared by reference;
+  create a new value instead.
+- **Forgetting `key` on repeated components.** Rows can then swap their state.
 - **Forgetting `keyOf` in `For`.** Rows can then be reused with the wrong state.
 - **Using `For` for a huge list.** Use `VirtualList`.
 - **Putting every branch in `visible`.** Use `When({ test, then, else })` or a
@@ -413,6 +421,8 @@ Before shipping:
 
 ## Next
 
+- [Coming from the web](web/) — what `Box`, `Row` and `Stack` are, in CSS terms.
+- [Components and signals](components/) — local state, props and lifecycle.
 - [UI building blocks](../ui/) — every component, prop and pattern.
 - [API tour](api/) — windows, store, files, network and devices.
 - [The manifest](../manifest/) — every `pulsar.json` field.

@@ -457,9 +457,9 @@ Only JSON-serializable values are allowed (objects, arrays, strings, finite
 numbers, booleans, `null`). Everything else throws a descriptive error; use
 `delete` instead of setting `undefined`. Circular references are rejected.
 
-Setting a value that is deeply equal to the current one does nothing: no
-listener runs, nothing is pushed and the UI is not re-rendered. This keeps a
-polling sync loop from rebuilding a list when nothing changed. Keys added
+Values are compared by reference: setting the same reference does nothing, and an
+equal copy counts as a change. A render that read a key runs again when it changes,
+and nothing else does. Keys added
 after the window is open are pushed as usual; bind them directly
 (`Store.<key>`) so QML tracks them.
 
@@ -731,9 +731,10 @@ await storage.remove("todos")
 
 `net.fetch(url, options)` runs in the native host, not in the JS engine, so it
 works the same under Bun, Node, Hermes or QuickJS. Options: `method`, `headers`,
-`body` (string or `Uint8Array`), `timeoutMs`, `redirect` (`follow` / `manual` /
-`error`), `maxRedirects`, `responseType` (`text` / `binary` / `auto`) and
-`tlsFingerprint`. `tlsFingerprint: true` (or a profile such as `"chrome120"`)
+`body` (string or `Uint8Array`), `bodyFile` (a path the host streams), `timeoutMs`
+(idle time), `redirect` (`follow` / `manual` / `error`), `maxRedirects`,
+`responseType` (`text` / `binary` / `auto`), `maxBytes` (64 MB by default, `0` for no
+limit) and `tlsFingerprint`. `tlsFingerprint: true` (or a profile such as `"chrome120"`)
 is reserved for the impersonating backend; builds without it reject with
 `ERR_FINGERPRINT_UNAVAILABLE`.
 
@@ -909,7 +910,7 @@ directory. `paths` returns the standard per-OS directories:
 ### Secrets (OS keychain)
 
 `secureStorage` keeps strings in the OS secret store: Keychain on macOS, DPAPI
-on Windows and libsecret (`secret-tool`) on Linux. Entries are scoped to the
+on Windows, libsecret (`secret-tool`) on Linux and the Keystore on Android. Entries are scoped to the
 app `id`, so apps never see each other's values.
 
 ```ts
@@ -956,7 +957,7 @@ plain functions, props are plain objects, and events use web names: `onClick`,
 import {
   App,
   bind,
-  defineComponent,
+  component,
   Button,
   Card,
   Checkbox,
@@ -986,7 +987,7 @@ app.store.set("tasks", [
 
 const tasks = (): Task[] => app.store.get("tasks") as Task[]
 
-const TaskRow = defineComponent<{ task: Task }>(({ task }) =>
+const TaskRow = component<{ key: string; task: Task }>(({ task }) =>
   Card(
     { padding: 12 },
     Row(
@@ -1027,7 +1028,7 @@ app.window("main").render(() =>
       keyOf: (task) => task.id,
       spacing: 8,
       padding: 12,
-      render: (task) => TaskRow({ task }),
+      render: (task) => TaskRow({ key: task.id, task }),
     }),
     Modal(
       {
@@ -1131,9 +1132,14 @@ padding })` caps and centers content on large windows.
   accepts `onFocus`/`onBlur`.
 - `a11yRole` and `a11yChecked` add screen-reader roles and state; `a11yLabel`
   and `a11yHint` still set the accessible name and description.
-- `memo(Component)` caches a keyed component by its non-function props, so
-  unchanged rows skip rebuilding. Pass every render input as a prop; values
-  read from `Store` inside the component are not tracked.
+- `component()` re-renders only when a signal, store key or prop it read changes.
+  See the [components guide](docs/guide-components.md). `memo(Component)` still
+  caches by non-function props, but cannot see values read inside the component.
+- `justify`, `alignItems`, `flex`, `paddingX`, `paddingY`, per-side padding, min and
+  max sizes, `clip`, `zIndex` and `absolute` lay out any node; `Row`, `Column`,
+  `Wrap` and `Stack` accept the surface props of `Box`. See the
+  [guide for web developers](docs/guide-web.md).
+- `pressed`, `enter`, `exit`, `transition` and `drag` animate in the renderer.
 - `Page` and `Scroll` accept `flickVelocity`, `flickDeceleration` and
   `overscroll` to tune or disable kinetic scrolling per screen.
 - The lower-level `ui.column(...)`, `ui.button(...)` factories remain available;
