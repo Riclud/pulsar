@@ -366,6 +366,7 @@ export const bundleRuntime = (entry: string, assembly: string, sourcemap = false
   writeFileSync(
     runtimeEntry,
     [
+      `globalThis.__PULSAR_SDK_VERSION = ${JSON.stringify(cliVersion())};`,
       `import { createRuntime } from ${spec(join(root, "core", "runtime", "core.ts"))};`,
       `import { createEmbeddedTransport } from ${spec(join(root, "core", "runtime", "quickjs_transport.ts"))};`,
       `import { createQuickJsPlatform } from ${spec(join(root, "core", "platform", "quickjs.ts"))};`,
@@ -497,6 +498,35 @@ const signApk = (apk: string, target: string, tools: AndroidTools): void => {
   if (sign.status !== 0) throw new Error("failed to sign the apk")
 }
 
+const signAab = (aab: string, target: string, tools: AndroidTools): void => {
+  const keystore = process.env.PULSAR_ANDROID_KEYSTORE ?? join(homedir(), ".android", "debug.keystore")
+  const storePass = process.env.PULSAR_ANDROID_KEYSTORE_PASS ?? "android"
+  const keyPass = process.env.PULSAR_ANDROID_KEY_PASS ?? storePass
+  const alias = process.env.PULSAR_ANDROID_KEY_ALIAS ?? "androiddebugkey"
+  const signer = join(tools.javaHome, "bin", process.platform === "win32" ? "jarsigner.exe" : "jarsigner")
+
+  rmSync(target, { force: true })
+
+  const sign = spawnSync(
+    signer,
+    [
+      "-keystore",
+      keystore,
+      "-storepass",
+      storePass,
+      "-keypass",
+      keyPass,
+      "-signedjar",
+      target,
+      aab,
+      alias,
+    ],
+    { stdio: "inherit" },
+  )
+
+  if (sign.status !== 0) throw new Error("failed to sign the aab")
+}
+
 export interface AndroidBuildOptions {
   appDir: string
   manifest: AppManifest | null
@@ -504,6 +534,7 @@ export interface AndroidBuildOptions {
   outDir: string
   abi?: string
   dev?: boolean
+  aab?: boolean
 }
 
 export const clearStaleBuildDir = (buildDir: string, sourceDir: string): boolean => {
@@ -668,6 +699,25 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
   const mb = (statSync(finalPath).size / (1024 * 1024)).toFixed(1)
 
   console.log(`pulsar: built ${resolve(finalPath)} (${mb} MB)`)
+
+  if (options.aab) {
+    const androidBuildDir = join(buildDir, "android-build")
+    const gradlew = join(androidBuildDir, process.platform === "win32" ? "gradlew.bat" : "gradlew")
+    const bundle = spawnSync(gradlew, ["bundleRelease"], { cwd: androidBuildDir, stdio: "inherit", env })
+
+    if (bundle.status !== 0) throw new Error("android bundle build failed")
+
+    const bundleDir = join(androidBuildDir, "build", "outputs", "bundle", "release")
+    const file = existsSync(bundleDir) ? readdirSync(bundleDir).find((entry) => entry.endsWith(".aab")) : undefined
+
+    if (!file) throw new Error(`aab not found in ${bundleDir}`)
+
+    const aabPath = join(outDir, `${name}${dev ? "-dev" : ""}.aab`)
+
+    signAab(join(bundleDir, file), aabPath, tools)
+
+    console.log(`pulsar: built ${resolve(aabPath)} (${(statSync(aabPath).size / (1024 * 1024)).toFixed(1)} MB)`)
+  }
 
   return finalPath
 }

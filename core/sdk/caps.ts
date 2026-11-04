@@ -186,6 +186,15 @@ export const shell = {
 }
 
 /** Persist JSON-safe values to the app data directory (storage.json). */
+export interface HostInfo {
+  version: string
+  qt?: string
+  platform?: string
+}
+
+/** Version and build details reported by the native host. */
+export const hostInfo = (): Promise<HostInfo> => callCapability("host.info") as Promise<HostInfo>
+
 export const storage = {
   get: (key: string): Promise<unknown> => callCapability("storage.get", { key }),
   has: (key: string): Promise<boolean> => callCapability("storage.has", { key }) as Promise<boolean>,

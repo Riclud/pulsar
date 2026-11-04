@@ -20,6 +20,8 @@
 #include <QHash>
 #include <QMap>
 #include <QJsonArray>
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QStandardPaths>
@@ -106,6 +108,32 @@ struct WindowConfig {
 // Windows are addressed by label; they all share the Store and QML engine.
 static QHash<QString, WindowConfig> g_configs;
 static QHash<QString, QObject *> g_roots;
+static void reportCrash(const QString &text)
+{
+    const QString endpoint = qEnvironmentVariable("PULSAR_CRASH_URL");
+
+    if (endpoint.isEmpty())
+        return;
+
+    const QUrl url(endpoint);
+
+    if (!url.isValid())
+        return;
+
+    static QNetworkAccessManager *manager = new QNetworkAccessManager();
+
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+
+    QJsonObject body;
+    body.insert(QStringLiteral("app"), QCoreApplication::applicationName());
+    body.insert(QStringLiteral("platform"), QGuiApplication::platformName());
+    body.insert(QStringLiteral("qt"), QString::fromLatin1(qVersion()));
+    body.insert(QStringLiteral("error"), text);
+
+    manager->post(request, QJsonDocument(body).toJson(QJsonDocument::Compact));
+}
+
 static void appendCrashLog(const QString &text)
 {
     const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
@@ -122,6 +150,8 @@ static void appendCrashLog(const QString &text)
     file.write(" ");
     file.write(text.toUtf8());
     file.write("\n");
+
+    reportCrash(text);
 }
 
 static QHash<QString, QVariantList> g_uiTrees;
@@ -945,6 +975,17 @@ static void handleQuery(Bridge *bridge, const QVariantMap &m)
         else
             params.insert(QStringLiteral("value"),
                           QJsonObject{{QStringLiteral("source"), QStringLiteral("unknown")}});
+    } else if (kind == QLatin1String("host.info")) {
+#ifdef PULSAR_VERSION
+        const QString version = QStringLiteral(PULSAR_VERSION);
+#else
+        const QString version = QStringLiteral("dev");
+#endif
+        QJsonObject info;
+        info.insert(QStringLiteral("version"), version);
+        info.insert(QStringLiteral("qt"), QString::fromLatin1(qVersion()));
+        info.insert(QStringLiteral("platform"), QGuiApplication::platformName());
+        params.insert(QStringLiteral("value"), info);
     } else if (kind == QLatin1String("theme.get")) {
         QJsonObject value;
         value.insert(QStringLiteral("scheme"), bridge->colorScheme());

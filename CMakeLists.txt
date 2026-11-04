@@ -2,6 +2,13 @@ cmake_minimum_required(VERSION 3.21)
 
 project(pulsar LANGUAGES CXX)
 
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/package.json" PULSAR_PACKAGE_JSON)
+string(REGEX MATCH "\"version\"[ \t]*:[ \t]*\"([^\"]+)\"" _ "${PULSAR_PACKAGE_JSON}")
+set(PULSAR_VERSION "${CMAKE_MATCH_1}")
+if(NOT PULSAR_VERSION)
+    set(PULSAR_VERSION "dev")
+endif()
+
 if(APPLE)
     enable_language(OBJCXX)
     set(CMAKE_OBJCXX_STANDARD 20)
@@ -69,6 +76,7 @@ add_executable(qml-host
     host/power.h
 )
 target_include_directories(qml-host PRIVATE host)
+target_compile_definitions(qml-host PRIVATE PULSAR_VERSION="${PULSAR_VERSION}")
 target_compile_definitions(qml-host PRIVATE QT_NO_EMIT)
 target_link_libraries(qml-host PRIVATE
     Qt6::Core
@@ -140,7 +148,7 @@ add_executable(qml-host-qjs
     host/net.h
 )
 target_include_directories(qml-host-qjs PRIVATE host host/embedded)
-target_compile_definitions(qml-host-qjs PRIVATE QT_NO_EMIT)
+target_compile_definitions(qml-host-qjs PRIVATE QT_NO_EMIT PULSAR_VERSION="${PULSAR_VERSION}")
 target_link_libraries(qml-host-qjs PRIVATE
     Qt6::Core
     Qt6::Gui
@@ -189,7 +197,7 @@ if(ANDROID)
         host/net.h
     )
     target_include_directories(pulsar-android PRIVATE host host/embedded)
-    target_compile_definitions(pulsar-android PRIVATE QT_NO_EMIT)
+    target_compile_definitions(pulsar-android PRIVATE QT_NO_EMIT PULSAR_VERSION="${PULSAR_VERSION}")
 
     if(PULSAR_ANDROID_DEV)
         target_compile_definitions(pulsar-android PRIVATE PULSAR_DEV=1)

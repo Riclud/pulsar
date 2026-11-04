@@ -188,6 +188,7 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
 
     return Promise.resolve(true)
   })
+  registerCapability("host.info", () => hostQuery("host.info"))
 
   registerCapability("fs.watch", (params: unknown) => {
     send({ jsonrpc: "2.0", method: "__fs-watch", params: { action: "add", ...(params as object) } })
@@ -335,6 +336,26 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
 
   const wireApp = (): void => {
     const app = App.current
+
+    const expectedVersion = (globalThis as Record<string, unknown>).__PULSAR_SDK_VERSION as string | undefined
+
+    if (expectedVersion) {
+      void hostQuery("host.info").then((value) => {
+        const info = value as { version?: string } | null
+        const actual = info?.version
+
+        if (actual && actual !== expectedVersion)
+          send({
+            jsonrpc: "2.0",
+            method: "__log",
+            params: {
+              level: "warn",
+              source: "pulsar",
+              message: `host ${actual} != SDK ${expectedVersion}`,
+            },
+          })
+      })
+    }
 
     if (app) {
       app.store.onChange = schedulePush

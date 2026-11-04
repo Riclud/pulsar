@@ -568,6 +568,17 @@ void EmbeddedBridge::handleMessage(const QJsonObject &message)
 #else
             replyParams.insert(QStringLiteral("value"), true);
 #endif
+        } else if (kind == QLatin1String("host.info")) {
+#ifdef PULSAR_VERSION
+            const QString version = QStringLiteral(PULSAR_VERSION);
+#else
+            const QString version = QStringLiteral("dev");
+#endif
+            QJsonObject info;
+            info.insert(QStringLiteral("version"), version);
+            info.insert(QStringLiteral("qt"), QString::fromLatin1(qVersion()));
+            info.insert(QStringLiteral("platform"), QGuiApplication::platformName());
+            replyParams.insert(QStringLiteral("value"), info);
         } else if (kind == QLatin1String("clipboard.read")) {
             replyParams.insert(QStringLiteral("value"), QGuiApplication::clipboard()->text());
         } else if (kind == QLatin1String("clipboard.write")) {

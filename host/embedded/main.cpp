@@ -14,6 +14,8 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
 #include <QKeyEvent>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -275,6 +277,32 @@ static QString androidAppDir()
 }
 #endif
 
+static void reportCrashRemote(const QString &text)
+{
+    const QString endpoint = qEnvironmentVariable("PULSAR_CRASH_URL");
+
+    if (endpoint.isEmpty())
+        return;
+
+    const QUrl url(endpoint);
+
+    if (!url.isValid())
+        return;
+
+    static QNetworkAccessManager *manager = new QNetworkAccessManager();
+
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+
+    QJsonObject body;
+    body.insert(QStringLiteral("app"), QCoreApplication::applicationName());
+    body.insert(QStringLiteral("platform"), QGuiApplication::platformName());
+    body.insert(QStringLiteral("qt"), QString::fromLatin1(qVersion()));
+    body.insert(QStringLiteral("error"), text);
+
+    manager->post(request, QJsonDocument(body).toJson(QJsonDocument::Compact));
+}
+
 int main(int argc, char **argv)
 {
     QGuiApplication app(argc, argv);
@@ -399,6 +427,8 @@ int main(int argc, char **argv)
         file.write(" ");
         file.write(text.toUtf8());
         file.write("\n");
+
+        reportCrashRemote(text);
     };
 
     auto showError = [&](const QString &text) {

@@ -1302,7 +1302,9 @@ Qt ищется через CMake `find_package(Qt6)`, поэтому при не
 
 ## Подпись релиза
 
-`pulsar build --target android` по умолчанию подписывает `dist/<name>.apk` отладочным ключом. Для релизного ключа задай `PULSAR_ANDROID_KEYSTORE`, `PULSAR_ANDROID_KEYSTORE_PASS`, `PULSAR_ANDROID_KEY_ALIAS` и при необходимости `PULSAR_ANDROID_KEY_PASS`. Полученный APK готов к распространению; перед сборкой подними `version` в `pulsar.json`.
+`pulsar build --target android` по умолчанию подписывает `dist/<name>.apk` отладочным ключом. Добавь `--aab`, чтобы также собрать и подписать `dist/<name>.aab` для Play Store. Для релизного ключа задай `PULSAR_ANDROID_KEYSTORE`, `PULSAR_ANDROID_KEYSTORE_PASS`, `PULSAR_ANDROID_KEY_ALIAS` и при необходимости `PULSAR_ANDROID_KEY_PASS`. Перед сборкой подними `version` в `pulsar.json`.
+
+Переменная `PULSAR_CRASH_URL` включает отправку JSON-отчёта (`app`, `platform`, `qt`, `error`) на указанный HTTP-эндпоинт при ошибке приложения или рантайма; без неё отчёты остаются в локальном `crash.log`.
 
 ## Протокол
 

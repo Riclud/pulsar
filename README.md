@@ -1288,7 +1288,9 @@ The same UI tree should look the same on desktop and Android, so the renderer pi
 
 ## Release signing
 
-`pulsar build --target android` signs `dist/<name>.apk` with the debug keystore by default. For a release key set `PULSAR_ANDROID_KEYSTORE`, `PULSAR_ANDROID_KEYSTORE_PASS`, `PULSAR_ANDROID_KEY_ALIAS` and, when it differs, `PULSAR_ANDROID_KEY_PASS`. The resulting APK is ready for distribution; bump `version` in `pulsar.json` first.
+`pulsar build --target android` signs `dist/<name>.apk` with the debug keystore by default. Add `--aab` to also build and sign `dist/<name>.aab` for the Play Store. For a release key set `PULSAR_ANDROID_KEYSTORE`, `PULSAR_ANDROID_KEYSTORE_PASS`, `PULSAR_ANDROID_KEY_ALIAS` and, when it differs, `PULSAR_ANDROID_KEY_PASS`. Bump `version` in `pulsar.json` first.
+
+Set `PULSAR_CRASH_URL` to an HTTP endpoint to POST a JSON crash report (`app`, `platform`, `qt`, `error`) whenever an app or runtime error is logged; without it reports stay in the local `crash.log`.
 
 ## Protocol
 

@@ -23,7 +23,7 @@ import {
   type RuntimeKind,
 } from "../core/sdk/manifest.ts"
 import { cliVersion, findBridge, findHost, findLauncher, linkSdk, pulsarRoot, toolchainVersion } from "./core.ts"
-import { buildAndroid, installAndroid } from "./android.ts"
+import { ANDROID_QT_VERSION, buildAndroid, installAndroid } from "./android.ts"
 import { launcherName, readManifest, resolveEntry, type BuildTarget } from "./app.ts"
 import { create } from "./create.ts"
 import {
@@ -312,11 +312,24 @@ const doctor = () => {
 
   const qt = spawnSync("pkg-config", ["--modversion", "Qt6Core"], { encoding: "utf8" })
 
+  const desktopQt = qt.status === 0 && qt.stdout ? qt.stdout.trim() : ""
+
   lines.push(
-    qt.status === 0 && qt.stdout
-      ? `ok    Qt6: ${qt.stdout.trim()}`
+    desktopQt
+      ? `ok    Qt6: ${desktopQt}`
       : `warn  Qt6: not found via pkg-config (the host may still be built)`,
   )
+
+  if (desktopQt) {
+    const desktopSeries = desktopQt.split(".").slice(0, 2).join(".")
+    const androidSeries = ANDROID_QT_VERSION.split(".").slice(0, 2).join(".")
+
+    lines.push(
+      desktopSeries === androidSeries
+        ? `ok    Qt parity: ${desktopSeries}`
+        : `warn  Qt parity: desktop ${desktopQt} vs Android ${ANDROID_QT_VERSION} (metrics may differ)`,
+    )
+  }
 
   const manifest = join(process.cwd(), "pulsar.json")
 
@@ -450,7 +463,7 @@ const build = async () => {
     const outDir = resolve(flagValue("--out") ?? flagValue("-o") ?? "dist")
 
     try {
-      await buildAndroid({ appDir, manifest, entry, outDir, abi: flagValue("--abi"), dev: args.includes("--dev") })
+      await buildAndroid({ appDir, manifest, entry, outDir, abi: flagValue("--abi"), dev: args.includes("--dev"), aab: args.includes("--aab") })
     } catch (e) {
       console.error(`pulsar build: ${e instanceof Error ? e.message : String(e)}`)
       process.exit(1)
@@ -490,6 +503,7 @@ const build = async () => {
       entryPath,
       [
         `process.env.PULSAR_BUNDLED = "1";`,
+        `globalThis.__PULSAR_SDK_VERSION = ${JSON.stringify(cliVersion())};`,
         `const { wireApp } = await import(${spec(runtimeTs)});`,
         `await import(${spec(entry)});`,
         `wireApp();`,
@@ -572,7 +586,7 @@ const usage = () => {
       "  update         update the CLI to the latest release (--version <v>)",
       "  dev            run with hot reload (watch sources; --android for the dev APK)",
       "  run            run the app in the current directory",
-      "  build          build a single-file executable (--target desktop|android|portable, --dev)",
+      "  build          build a single-file executable (--target desktop|android|portable, --dev, --aab)",
       "  check          audit a target for portable imports (--target android)",
       "  ui             dump the running dev app's UI tree (JSON; --system for uiautomator)",
       "  state          dump the running dev app's store (JSON)",
