@@ -6,6 +6,7 @@ import { bundleRuntime } from "../cli/android.ts"
 
 type Scenario = {
   name: string
+  standalone?: boolean
   env?: Record<string, string>
   check: (output: string) => boolean
 }
@@ -37,6 +38,7 @@ const scenarios: Scenario[] = [
   },
   {
     name: "early-patch",
+    standalone: true,
     check: (output) => output.includes("PulsarView patch 1"),
   },
   {
@@ -70,11 +72,23 @@ const buildHost = () => {
   return build.exitCode === 0 && existsSync(binary)
 }
 
-const bundle = async (name: string, dir: string) => {
-  const { result } = bundleRuntime(join(fixtures, `${name}.ts`), dir)
-  const output = await result
+const buildBundle = (scenario: Scenario, dir: string) => {
+  const entry = join(fixtures, `${scenario.name}.ts`)
 
-  if (!output.success) throw new Error(`cannot bundle ${name}`)
+  if (!scenario.standalone) return bundleRuntime(entry, dir).result
+
+  return Bun.build({
+    entrypoints: [entry],
+    target: "browser",
+    format: "iife",
+    write: false,
+  } as unknown as Parameters<typeof Bun.build>[0])
+}
+
+const bundle = async (scenario: Scenario, dir: string) => {
+  const output = await buildBundle(scenario, dir)
+
+  if (!output.success) throw new Error(`cannot bundle ${scenario.name}`)
 
   writeFileSync(join(dir, "runtime.js"), await output.outputs[0]!.text())
   writeFileSync(join(dir, "pulsar.json"), JSON.stringify(manifest))
@@ -84,7 +98,7 @@ const runScenario = async (scenario: Scenario) => {
   const dir = mkdtempSync(join(tmpdir(), "pulsar-regression-"))
 
   try {
-    await bundle(scenario.name, dir)
+    await bundle(scenario, dir)
 
     const run = Bun.spawnSync({
       cmd: [binary],

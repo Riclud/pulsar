@@ -394,6 +394,7 @@ int main(int argc, char **argv)
 #endif
 
     QVariantList pendingUiTree;
+    QList<QVariantList> pendingUiPatches;
     bool hasPendingUiTree = false;
     quint64 uiPatchSeq = 0;
     QObject *uiRoot = nullptr;
@@ -402,11 +403,25 @@ int main(int argc, char **argv)
     auto applyUiTree = [&](const QVariantList &tree) {
         if (!uiRoot) {
             pendingUiTree = tree;
+            pendingUiPatches.clear();
             hasPendingUiTree = true;
             return;
         }
 
         uiRoot->setProperty("tree", tree);
+    };
+
+    auto applyUiPatches = [&](const QVariantList &patches) {
+        if (!uiRoot) {
+            pendingUiPatches.append(patches);
+            return;
+        }
+
+        QVariantMap patch;
+        patch.insert(QStringLiteral("seq"), QVariant::fromValue(++uiPatchSeq));
+        patch.insert(QStringLiteral("patches"), patches);
+
+        uiRoot->setProperty("uiPatch", patch);
     };
 
     QString pendingError;
@@ -478,14 +493,11 @@ int main(int argc, char **argv)
                      });
     QObject::connect(&bridge, &EmbeddedBridge::uiPatch, &app,
                      [&](const QString &target, const QVariantList &patches) {
-                         if (!jsUi || !uiRoot)
+                         if (!jsUi)
                              return;
 
                          if (target == QLatin1String("main") || target == QLatin1String("*") || target.isEmpty()) {
-                             QVariantMap patch;
-                             patch.insert(QStringLiteral("seq"), QVariant::fromValue(++uiPatchSeq));
-                             patch.insert(QStringLiteral("patches"), patches);
-                             uiRoot->setProperty("uiPatch", patch);
+                             applyUiPatches(patches);
 
 #ifdef PULSAR_DEV
                              if (devChannel)
@@ -694,6 +706,11 @@ int main(int argc, char **argv)
             if (hasPendingUiTree)
                 uiRoot->setProperty("tree", pendingUiTree);
 
+            for (const QVariantList &patches : std::as_const(pendingUiPatches))
+                applyUiPatches(patches);
+
+            pendingUiPatches.clear();
+
             if (!pendingError.isEmpty())
                 uiRoot->setProperty("errorText", pendingError);
 
@@ -757,6 +774,7 @@ int main(int argc, char **argv)
 
         if (jsUi) {
             pendingUiTree.clear();
+            pendingUiPatches.clear();
             hasPendingUiTree = false;
             pendingError.clear();
 
