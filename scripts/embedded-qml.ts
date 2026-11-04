@@ -44,6 +44,7 @@ try {
     env: {
       ...process.env,
       PULSAR_APP: tmp,
+      PULSAR_DEBUG: "1",
       QT_QPA_PLATFORM: "offscreen",
       AUTO_QUIT_MS: "1500",
       XDG_DATA_HOME: join(tmp, "data"),

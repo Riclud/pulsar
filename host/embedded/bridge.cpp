@@ -335,9 +335,15 @@ void EmbeddedBridge::reply(const QString &method, const QJsonObject &params)
 
 void EmbeddedBridge::applyState(const QJsonObject &state, const QJsonArray &unset)
 {
+    const bool debug = qEnvironmentVariableIsSet("PULSAR_DEBUG");
+
     for (auto it = state.constBegin(); it != state.constEnd(); ++it) {
-        std::fprintf(stderr, "STORE %s = %s\n", qPrintable(it.key()), qPrintable(it.value().toVariant().toString()));
-        store_->insert(it.key(), it.value().toVariant());
+        const QVariant value = it.value().toVariant();
+
+        if (debug)
+            std::fprintf(stderr, "STORE %s = %s\n", qPrintable(it.key()), qPrintable(value.toString()));
+
+        store_->insert(it.key(), value);
     }
 
     for (const QJsonValue &value : unset)
