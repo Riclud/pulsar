@@ -25,6 +25,7 @@ ApplicationWindow {
     property bool treeGrabPending: false
     property var scrollPositions: ({})
     property var nodeItems: ({})
+    property var uiStats: ({ created: 0, updated: 0, removed: 0, reordered: 0 })
     property string errorText: ""
     property bool testClicked: false
     property var themeData: ({})
@@ -3854,6 +3855,8 @@ ApplicationWindow {
         const node = item.pulsarMeta ? item.pulsarMeta.node : null;
 
         if (node) {
+            view.uiStats.removed++;
+
             const prefix = node.path + "/";
 
             for (const path in view.nodeItems) {
@@ -4051,6 +4054,8 @@ ApplicationWindow {
         if (ordered)
             return;
 
+        view.uiStats.reordered += direct.length;
+
         const scrolls = captureScrolls(direct);
 
         for (const item of direct) {
@@ -4095,6 +4100,7 @@ ApplicationWindow {
             let item = index[node.path];
 
             if (item && item.pulsarMeta.type === node.type) {
+                view.uiStats.updated++;
                 updateNode(item, node, isRoot);
                 desired.push(item);
                 continue;
@@ -4229,6 +4235,7 @@ ApplicationWindow {
         };
 
         view.nodeItems[node.path] = item;
+        view.uiStats.created++;
 
         if (prop(node.props, "animate", 0) > 0) {
             item.opacity = 0;
@@ -5719,17 +5726,27 @@ ApplicationWindow {
         const started = Date.now();
         const focus = captureFocus();
 
+        view.uiStats = { created: 0, updated: 0, removed: 0, reordered: 0 };
         reconcile(host, tree || [], true);
         restoreFocus(focus);
 
         const elapsed = Date.now() - started;
 
         if (PulsarBridge.env("PULSAR_DEBUG"))
-            console.log("PulsarView built " + host.children.length);
+            console.log("PulsarView built " + host.children.length
+                    + " +" + view.uiStats.created
+                    + " ~" + view.uiStats.updated
+                    + " -" + view.uiStats.removed
+                    + " reorder=" + view.uiStats.reordered
+                    + " " + elapsed + "ms");
 
         if (PulsarBridge.env("PULSAR_INSPECTOR") !== "") {
             view.inspectText = "nodes " + view.countItems(host)
-                    + " · build " + elapsed + " ms\n"
+                    + " · build " + elapsed + " ms"
+                    + " · +" + view.uiStats.created
+                    + " ~" + view.uiStats.updated
+                    + " -" + view.uiStats.removed
+                    + " ↕" + view.uiStats.reordered + "\n"
                     + Math.round(view.width) + "x" + Math.round(view.height)
                     + " · dpr " + view.screen.devicePixelRatio
                     + " · font " + view.fontScale
