@@ -13,6 +13,7 @@
 #include <QPointer>
 #include <QIcon>
 #include <QDir>
+#include <QDateTime>
 #include <QDesktopServices>
 #include <QFile>
 #include <QFileOpenEvent>
@@ -105,6 +106,24 @@ struct WindowConfig {
 // Windows are addressed by label; they all share the Store and QML engine.
 static QHash<QString, WindowConfig> g_configs;
 static QHash<QString, QObject *> g_roots;
+static void appendCrashLog(const QString &text)
+{
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+
+    if (dir.isEmpty()) return;
+
+    QDir().mkpath(dir);
+
+    QFile file(QDir(dir).filePath(QStringLiteral("crash.log")));
+
+    if (!file.open(QIODevice::Append | QIODevice::Text)) return;
+
+    file.write(QDateTime::currentDateTimeUtc().toString(Qt::ISODate).toUtf8());
+    file.write(" ");
+    file.write(text.toUtf8());
+    file.write("\n");
+}
+
 static QHash<QString, QVariantList> g_uiTrees;
 static QSet<QString> g_requested;
 static QString gPrimaryLabel;
@@ -1269,8 +1288,8 @@ int main(int argc, char **argv)
     appFont.setFamily(QStringLiteral("Paper Mono"));
     QApplication::setFont(appFont);
 
-    if (qEnvironmentVariableIsEmpty("QT_QUICK_CONTROLS_STYLE"))
-        QQuickStyle::setStyle(QStringLiteral("Basic"));
+    const QString controlsStyle = qEnvironmentVariable("PULSAR_CONTROLS_STYLE");
+    QQuickStyle::setStyle(controlsStyle.isEmpty() ? QStringLiteral("Basic") : controlsStyle);
     app.setApplicationName(QStringLiteral("pulsar-host"));
 
     // Single-file distribution: if this executable carries an appended payload,
@@ -1664,6 +1683,8 @@ int main(int argc, char **argv)
 
                              qCritical().noquote() << "app error in" << scope << ":" << message;
 
+                             appendCrashLog(text);
+
                              for (QObject *root : engine.rootObjects())
                                  root->setProperty("errorText", text);
                          }
@@ -1672,6 +1693,7 @@ int main(int argc, char **argv)
     // Bun supervision: the bridge reports if the runtime dies.
     QObject::connect(bridge, &Bridge::crashed, &app, [](const QString &kind, int code) {
         qWarning().noquote() << "bun crashed: kind=" << kind << "code=" << code;
+        appendCrashLog(QStringLiteral("runtime crashed: ") + kind + QStringLiteral(" code=") + QString::number(code));
     });
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)

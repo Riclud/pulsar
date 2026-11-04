@@ -11,6 +11,9 @@ ApplicationWindow {
     visible: true
     color: windowTransparent ? "transparent" : themeBackground
 
+    LayoutMirroring.enabled: themeData && themeData.direction === "rtl"
+    LayoutMirroring.childrenInherit: true
+
     Material.theme: themeBackground.hsvValue < 0.5 ? Material.Dark : Material.Light
     Material.background: themeSurface
     Material.foreground: themeText
@@ -54,10 +57,11 @@ ApplicationWindow {
     readonly property var motionCurve: [0.38, 1.21, 0.22, 1.00, 1, 1]
     readonly property string iconFamily: themeData && themeData.iconFamily !== undefined
             ? themeData.iconFamily
-            : (Qt.fontFamilies().indexOf("Material Symbols Rounded") >= 0 ? "Material Symbols Rounded" : iconFont.name)
+            : iconFont.name
     readonly property string fontFamily: themeData && themeData.fontFamily !== undefined ? themeData.fontFamily : "Paper Mono"
     readonly property bool embeddedHost: typeof PulsarEmbedded !== "undefined" && PulsarEmbedded
     property var revealTarget: null
+    property string inspectText: ""
 
     function reportWindowSize() {
         if (typeof PulsarBridge === "undefined")
@@ -367,6 +371,32 @@ ApplicationWindow {
             visible: false
             opacity: 0
             z: -1
+        }
+    }
+
+    Rectangle {
+        id: inspector
+
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.margins: 8
+        width: inspectorLabel.implicitWidth + 16
+        height: inspectorLabel.implicitHeight + 12
+        radius: 8
+        color: view.withAlpha(view.themeBackground, 0.9)
+        border.width: 1
+        border.color: view.themeBorder
+        z: 3000
+        visible: PulsarBridge.env("PULSAR_INSPECTOR") !== ""
+
+        Label {
+            id: inspectorLabel
+
+            anchors.centerIn: parent
+            text: view.inspectText
+            color: view.themeText
+            font.family: "monospace"
+            font.pixelSize: 11
         }
     }
 
@@ -3156,6 +3186,21 @@ ApplicationWindow {
                 model: items
                 topMargin: padding
                 bottomMargin: padding
+                add: Transition {
+                    NumberAnimation {
+                        property: "opacity"
+                        from: 0
+                        to: 1
+                        duration: Math.round(view.motionFast * 0.6)
+                    }
+                }
+                remove: Transition {
+                    NumberAnimation {
+                        property: "opacity"
+                        to: 0
+                        duration: Math.round(view.motionFast * 0.6)
+                    }
+                }
 
                 function keyOf(index) {
                     const item = items[index];
@@ -4979,6 +5024,18 @@ ApplicationWindow {
                     item.forceActiveFocus();
                 });
             }
+
+            const focusWanted = prop(props, "focus", false);
+
+            if (focusWanted && item.pulsarMeta.extra.focusRequested !== true) {
+                item.pulsarMeta.extra.focusRequested = true;
+                Qt.callLater(function () {
+                    item.forceActiveFocus();
+                    Qt.inputMethod.show();
+                });
+            } else if (!focusWanted) {
+                item.pulsarMeta.extra.focusRequested = false;
+            }
         } else if (node.type === "checkbox" || node.type === "switch") {
             item.text = prop(props, "label", "");
             item.pulsarMeta.syncing = true;
@@ -5245,6 +5302,18 @@ ApplicationWindow {
                 item.text = searchValue;
                 item.pulsarMeta.syncing = false;
             }
+
+            const focusWanted = prop(props, "focus", false);
+
+            if (focusWanted && item.pulsarMeta.extra.focusRequested !== true) {
+                item.pulsarMeta.extra.focusRequested = true;
+                Qt.callLater(function () {
+                    item.forceActiveFocus();
+                    Qt.inputMethod.show();
+                });
+            } else if (!focusWanted) {
+                item.pulsarMeta.extra.focusRequested = false;
+            }
         } else if (node.type === "rangeSlider") {
             const rangeColor = resolveColor(prop(props, "color", view.themePrimary), view.themePrimary);
 
@@ -5293,14 +5362,36 @@ ApplicationWindow {
         applyBadge(item, props);
     }
 
+    function countItems(item) {
+        let total = 0;
+
+        for (let i = 0; i < item.children.length; i++)
+            total += 1 + countItems(item.children[i]);
+
+        return total;
+    }
+
     function rebuild() {
         if (!host.pulsarMeta)
             host.pulsarMeta = contentMeta();
 
+        const started = Date.now();
+
         reconcile(host, tree || [], true);
+
+        const elapsed = Date.now() - started;
 
         if (PulsarBridge.env("PULSAR_DEBUG"))
             console.log("PulsarView built " + host.children.length);
+
+        if (PulsarBridge.env("PULSAR_INSPECTOR") !== "") {
+            view.inspectText = "nodes " + view.countItems(host)
+                    + " · build " + elapsed + " ms\n"
+                    + Math.round(view.width) + "x" + Math.round(view.height)
+                    + " · dpr " + view.screen.devicePixelRatio
+                    + " · font " + view.fontScale
+                    + " · " + Qt.platform.os;
+        }
 
         maybeTestClick();
     }

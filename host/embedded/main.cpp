@@ -3,6 +3,7 @@
 #include "quickjs_runtime.h"
 
 #include <QDir>
+#include <QDateTime>
 #include <QElapsedTimer>
 #include <QDirIterator>
 #include <QFile>
@@ -286,8 +287,8 @@ int main(int argc, char **argv)
     appFont.setFamily(QStringLiteral("Paper Mono"));
     QGuiApplication::setFont(appFont);
 
-    if (qEnvironmentVariableIsEmpty("QT_QUICK_CONTROLS_STYLE"))
-        QQuickStyle::setStyle(QStringLiteral("Basic"));
+    const QString controlsStyle = qEnvironmentVariable("PULSAR_CONTROLS_STYLE");
+    QQuickStyle::setStyle(controlsStyle.isEmpty() ? QStringLiteral("Basic") : controlsStyle);
     app.setApplicationName(QStringLiteral("pulsar-app"));
 
 #ifdef Q_OS_ANDROID
@@ -381,9 +382,30 @@ int main(int argc, char **argv)
 
     QString pendingError;
 
+    auto writeCrash = [](const QString &text) {
+        const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+
+        if (dir.isEmpty())
+            return;
+
+        QDir().mkpath(dir);
+
+        QFile file(QDir(dir).filePath(QStringLiteral("crash.log")));
+
+        if (!file.open(QIODevice::Append | QIODevice::Text))
+            return;
+
+        file.write(QDateTime::currentDateTimeUtc().toString(Qt::ISODate).toUtf8());
+        file.write(" ");
+        file.write(text.toUtf8());
+        file.write("\n");
+    };
+
     auto showError = [&](const QString &text) {
         if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
             std::fprintf(stderr, "ERROR OVERLAY: %s\n", qPrintable(text));
+
+        writeCrash(text);
 
         if (uiRoot)
             uiRoot->setProperty("errorText", text);
