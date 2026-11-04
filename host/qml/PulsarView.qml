@@ -3662,6 +3662,10 @@ ApplicationWindow {
             }
         }
 
+        const route = treeRouteSignature(view.uiTree);
+
+        treeShape = route !== null ? route : treeSignature(view.uiTree, 0);
+
         for (const patch of patches) {
             const item = view.nodeItems[patch.path];
 
