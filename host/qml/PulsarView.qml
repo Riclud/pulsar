@@ -50,6 +50,7 @@ ApplicationWindow {
     readonly property int motionFast: themeData && themeData.motion && themeData.motion.fast !== undefined ? themeData.motion.fast : 300
     readonly property int motionNormal: themeData && themeData.motion && themeData.motion.normal !== undefined ? themeData.motion.normal : 450
     readonly property int motionSlow: themeData && themeData.motion && themeData.motion.slow !== undefined ? themeData.motion.slow : 600
+    readonly property string transitionMode: PulsarBridge.env("PULSAR_TRANSITION") || "fade"
     readonly property var motionCurve: [0.38, 1.21, 0.22, 1.00, 1, 1]
     readonly property string iconFamily: themeData && themeData.iconFamily !== undefined
             ? themeData.iconFamily
@@ -3477,13 +3478,25 @@ ApplicationWindow {
         }
 
         treeShape = signature;
-        treeGrabPending = true;
 
-        host.grabToImage(function (result) {
-            treeGrabPending = false;
+        if (view.transitionMode === "none") {
             rebuild();
-            playTransition(result);
-        });
+            return;
+        }
+
+        if (view.transitionMode === "snapshot") {
+            treeGrabPending = true;
+
+            host.grabToImage(function (result) {
+                treeGrabPending = false;
+                rebuild();
+                playTransition(result);
+            });
+
+            return;
+        }
+
+        playFade();
     }
 
     function treeRouteSignature(nodes) {
@@ -3534,6 +3547,24 @@ ApplicationWindow {
         walk(nodes, 0);
 
         return parts.join("|");
+    }
+
+    function playFade() {
+        host.opacity = 0;
+        rebuild();
+        fadeIn.restart();
+    }
+
+    NumberAnimation {
+        id: fadeIn
+
+        target: host
+        property: "opacity"
+        from: 0
+        to: 1
+        duration: Math.round(view.motionFast * 0.6)
+        easing.type: Easing.BezierSpline
+        easing.bezierCurve: view.motionCurve
     }
 
     function playTransition(result) {
