@@ -5439,10 +5439,10 @@ ApplicationWindow {
         item.Layout.fillWidth = fillWidth;
         item.Layout.fillHeight = fillHeight;
 
-        if ((node.type === "column" || node.type === "row") && fillWidth && props.maxWidth === undefined)
+        if (props.alignItems !== undefined && fillWidth && props.maxWidth === undefined)
             item.Layout.maximumWidth = Number.POSITIVE_INFINITY;
 
-        if ((node.type === "column" || node.type === "row") && fillHeight && props.maxHeight === undefined)
+        if (props.alignItems !== undefined && fillHeight && props.maxHeight === undefined)
             item.Layout.maximumHeight = Number.POSITIVE_INFINITY;
 
         if (props.maxWidth !== undefined)
