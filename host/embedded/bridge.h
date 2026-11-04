@@ -104,6 +104,7 @@ private:
     };
 
     qint64 send(const QString &method, const QJsonObject &params);
+    void deliver(qint64 id, const QString &method, const QJsonObject &params);
     void ensurePromiseFactory();
     void applyState(const QJsonObject &state, const QJsonArray &unset);
     void reply(const QString &method, const QJsonObject &params);

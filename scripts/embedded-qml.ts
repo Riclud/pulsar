@@ -55,7 +55,7 @@ try {
   })
 
   const output = `${run.stdout.toString()}\n${run.stderr.toString()}`
-  if (run.exitCode !== 0 || !output.includes("STORE greeting") || !output.includes("STORE pong")) {
+  if (run.exitCode !== 0 || !output.includes("STORE greeting") || !output.includes("STORE pong") || !output.includes("CALLRESULT true")) {
     console.error(output)
     console.error("embedded-qml: FAILED")
     process.exit(1)

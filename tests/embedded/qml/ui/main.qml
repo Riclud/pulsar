@@ -8,7 +8,12 @@ ApplicationWindow {
     height: 200
     title: "Embedded"
 
-    Component.onCompleted: Pulsar.emit("ping", {})
+    Component.onCompleted: {
+        Pulsar.emit("ping", {});
+        Pulsar.call("fs.exists", { path: "." }).then(function (result) {
+            console.log("CALLRESULT " + result);
+        });
+    }
 
     Column {
         anchors.centerIn: parent

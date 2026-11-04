@@ -53,6 +53,13 @@ qint64 EmbeddedBridge::send(const QString &method, const QJsonObject &params)
 {
     const qint64 id = nextId_++;
 
+    deliver(id, method, params);
+
+    return id;
+}
+
+void EmbeddedBridge::deliver(qint64 id, const QString &method, const QJsonObject &params)
+{
     QJsonObject body;
     body.insert(QStringLiteral("jsonrpc"), QStringLiteral("2.0"));
     body.insert(QStringLiteral("id"), id);
@@ -60,8 +67,6 @@ qint64 EmbeddedBridge::send(const QString &method, const QJsonObject &params)
     body.insert(QStringLiteral("params"), params);
 
     runtime_->receive(body);
-
-    return id;
 }
 
 qint64 EmbeddedBridge::invoke(const QString &method, const QJSValue &params)
@@ -126,8 +131,12 @@ QJSValue EmbeddedBridge::call(const QString &method, const QJSValue &params)
     if (!handle.isObject())
         return engine_->evaluate(QStringLiteral("Promise.reject(new Error('pulsar: cannot create promise'))"));
 
-    const qint64 id = invoke(method, params);
+    const QVariantMap map = params.isObject() ? params.toVariant().toMap() : QVariantMap();
+    const qint64 id = nextId_++;
+
     pending_.insert(id, {handle.property(QStringLiteral("resolve")), handle.property(QStringLiteral("reject"))});
+
+    deliver(id, method, QJsonObject::fromVariantMap(map));
 
     return handle.property(QStringLiteral("promise"));
 }
