@@ -205,8 +205,19 @@ const runDevice = async (action: () => Promise<void>): Promise<void> => {
   }
 }
 
+const warnToolchain = (): void => {
+  const toolchain = toolchainVersion()
+  const cli = cliVersion()
+
+  if (toolchain && toolchain !== cli)
+    console.warn(`pulsar: toolchain ${toolchain} != CLI ${cli}; run \`pulsar update\` or set PULSAR_SOURCE`)
+}
+
 const run = () => {
   const appDir = process.cwd()
+
+  warnToolchain()
+
   const host = findHost()
   const r = spawnSync(host, [], {
     stdio: "inherit",
@@ -246,9 +257,11 @@ const dev = async () => {
     return
   }
 
+  warnToolchain()
+
   const host = findHost()
 
-  console.log("pulsar: dev mode (watching for changes)")
+  console.log(`pulsar: dev mode (watching for changes, host ${host})`)
 
   const r = spawnSync(host, [], {
     stdio: "inherit",

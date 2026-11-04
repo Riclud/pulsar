@@ -1274,6 +1274,22 @@ the DLLs next to the executable on Windows — never from the system. Use
 host has no bundled Qt (dev builds) it falls back to `qmake`. Set
 `PULSAR_QT_ROOT` to point at a specific Qt tree.
 
+## Platform parity
+
+The same UI tree should look the same on desktop and Android, so the renderer pins what affects layout:
+
+- icons always come from the bundled Material Icons font; `theme.iconFamily` overrides it deliberately;
+- the Qt Quick Controls style is `Basic` everywhere; `PULSAR_CONTROLS_STYLE` overrides it for experiments;
+- the host never substitutes fonts: bundle the UI font you use;
+- desktop builds should use the same Qt version as the Android bundle (6.9.x) when pixel parity matters;
+- build host, SDK and app from one revision (`PULSAR_SOURCE`), otherwise stale artifacts diverge.
+
+`pulsar dev` warns when the installed toolchain and CLI versions differ, and `pulsar doctor` reports the host and Qt details. Runtime and QML errors are appended to `crash.log` in the app data directory.
+
+## Release signing
+
+`pulsar build --target android` signs `dist/<name>.apk` with the debug keystore by default. For a release key set `PULSAR_ANDROID_KEYSTORE`, `PULSAR_ANDROID_KEYSTORE_PASS`, `PULSAR_ANDROID_KEY_ALIAS` and, when it differs, `PULSAR_ANDROID_KEY_PASS`. The resulting APK is ready for distribution; bump `version` in `pulsar.json` first.
+
 ## Protocol
 
 The host and the runtime exchange framed messages over stdio: JSON-RPC on the
