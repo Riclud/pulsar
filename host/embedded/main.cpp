@@ -486,6 +486,11 @@ int main(int argc, char **argv)
                              patch.insert(QStringLiteral("seq"), QVariant::fromValue(++uiPatchSeq));
                              patch.insert(QStringLiteral("patches"), patches);
                              uiRoot->setProperty("uiPatch", patch);
+
+#ifdef PULSAR_DEV
+                             if (devChannel)
+                                 devChannel->applyPatch(patches);
+#endif
                          }
                      });
 

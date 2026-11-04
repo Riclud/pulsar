@@ -197,6 +197,50 @@ void DevChannel::setTree(const QVariantList &tree)
     tree_ = QJsonArray::fromVariantList(tree);
 }
 
+namespace {
+
+bool replaceInTree(QJsonArray &nodes, const QString &path, const QJsonObject &node)
+{
+    for (int index = 0; index < nodes.size(); index++) {
+        QJsonObject current = nodes.at(index).toObject();
+
+        if (current.value(QStringLiteral("path")).toString() == path) {
+            nodes.replace(index, node);
+            return true;
+        }
+
+        const QString currentPath = current.value(QStringLiteral("path")).toString();
+
+        if (!currentPath.isEmpty() && path.startsWith(currentPath + QLatin1Char('/'))) {
+            QJsonArray children = current.value(QStringLiteral("children")).toArray();
+
+            if (replaceInTree(children, path, node)) {
+                current.insert(QStringLiteral("children"), children);
+                nodes.replace(index, current);
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+}
+
+void DevChannel::applyPatch(const QVariantList &patches)
+{
+    for (const QVariant &value : patches) {
+        const QVariantMap patch = value.toMap();
+        const QString path = patch.value(QStringLiteral("path")).toString();
+        const QJsonObject node = QJsonObject::fromVariantMap(patch.value(QStringLiteral("node")).toMap());
+
+        if (path.isEmpty())
+            continue;
+
+        replaceInTree(tree_, path, node);
+    }
+}
+
 void DevChannel::requestReload()
 {
     post(QStringLiteral("__dev/reload"), QJsonObject());
