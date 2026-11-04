@@ -192,17 +192,22 @@ app
   )
 ```
 
-Every change to `Store` rebuilds and re-sends the tree (skipped when unchanged,
-or while a text field is focused). The tree reaches the host as a `__ui`
-notification and is turned into Qt Quick items by `PulsarView`:
+Every change to `Store` rebuilds the tree in the runtime, but only changed
+subtrees cross the bridge. The first render sends the full tree; later renders
+send a patch and the host applies it to the existing items. The full tree is
+sent again when the root children or a node type change.
 
 ```
-__ui    { target, tree }                                  runtime -> host (full window render)
-__event { name: "ui-event", data: { id, event, value } }  host -> runtime
+__ui       { target, tree }                               runtime -> host (full render)
+__ui-patch { target, patches: [{ path, node }] }          runtime -> host (changed subtrees)
+__event    { name: "ui-event", data: { target, path, id, event, value } }
+                                                          host -> runtime
 ```
 
-Nodes carry a numeric `id`; the app-side callbacks stay in the runtime and are
-dispatched by `id` when the matching `ui-event` arrives.
+Each patch carries the full serialized subtree at `path`; unchanged children
+are not included in the message. Callbacks stay in the runtime and are
+dispatched by window label and node path, with the numeric `id` kept as a
+fallback for older payloads.
 
 ## Data channel
 
