@@ -27,6 +27,7 @@ ApplicationWindow {
     property bool treeGrabPending: false
     property var scrollPositions: ({})
     property var nodeItems: ({})
+    property bool patchShallow: false
     property var uiStats: ({ created: 0, updated: 0, removed: 0, reordered: 0 })
     property string errorText: ""
     property bool testClicked: false
@@ -3680,7 +3681,13 @@ ApplicationWindow {
             }
 
             view.uiStats.updated++;
-            updateNode(item, patch.node, false);
+            view.patchShallow = patch.shallow === true;
+
+            try {
+                updateNode(item, patch.node, false);
+            } finally {
+                view.patchShallow = false;
+            }
         }
 
         const elapsed = Date.now() - started;
@@ -4152,6 +4159,9 @@ ApplicationWindow {
     }
 
     function reconcile(parent, nodes, isRoot) {
+        if (view.patchShallow)
+            return;
+
         const meta = parent.pulsarMeta;
 
         if (!meta)

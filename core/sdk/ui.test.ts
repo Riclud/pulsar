@@ -113,6 +113,7 @@ describe("ui", () => {
 
     expect(patches?.length).toBe(1)
     expect(patches?.[0]?.path).toBe("/0/1")
+    expect(patches?.[0]?.shallow).toBe(true)
     expect((patches?.[0]?.node.props as { text: string }).text).toBe("c")
   })
 

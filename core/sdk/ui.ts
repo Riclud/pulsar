@@ -1652,6 +1652,7 @@ export const serialize = (nodes: UiNode[], parentPath = "", keys?: Array<string 
 export interface UiPatch {
   path: string
   node: Record<string, unknown>
+  shallow?: boolean
 }
 
 type SerializedUiNode = {
@@ -1688,15 +1689,15 @@ const diffNode = (
   next: SerializedUiNode,
   patches: UiPatch[],
 ): boolean => {
-  if (!sameOwnProps(previous, next)) {
-    patches.push({ path: next.path, node: next as unknown as Record<string, unknown> })
-    return true
-  }
+  const ownChanged = !sameOwnProps(previous, next)
 
   if (!sameChildPaths(previous, next)) {
     patches.push({ path: next.path, node: next as unknown as Record<string, unknown> })
     return true
   }
+
+  if (ownChanged)
+    patches.push({ path: next.path, node: next as unknown as Record<string, unknown>, shallow: true })
 
   const previousChildren = previous.children ?? []
   const nextChildren = next.children ?? []
