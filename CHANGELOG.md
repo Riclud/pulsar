@@ -19,6 +19,10 @@ All notable changes to this project are documented here. The format follows
   `overscroll`.
 - `PULSAR_DEBUG` and the inspector report created, updated, removed and
   reordered node counts for each build.
+- `memo(Component)` reuses a keyed component node when its non-function props
+  are unchanged.
+- UI updates send `__ui-patch` with only changed subtrees; the full tree is
+  kept for the first render and for root or type changes.
 
 ### Changed
 

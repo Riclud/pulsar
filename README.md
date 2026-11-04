@@ -1131,6 +1131,9 @@ padding })` caps and centers content on large windows.
   accepts `onFocus`/`onBlur`.
 - `a11yRole` and `a11yChecked` add screen-reader roles and state; `a11yLabel`
   and `a11yHint` still set the accessible name and description.
+- `memo(Component)` caches a keyed component by its non-function props, so
+  unchanged rows skip rebuilding. Pass every render input as a prop; values
+  read from `Store` inside the component are not tracked.
 - `Page` and `Scroll` accept `flickVelocity`, `flickDeceleration` and
   `overscroll` to tune or disable kinetic scrolling per screen.
 - The lower-level `ui.column(...)`, `ui.button(...)` factories remain available;
