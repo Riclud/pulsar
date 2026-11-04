@@ -1123,6 +1123,16 @@ padding })` caps and centers content on large windows.
   `glow` (strength), `padding` (room for the halo) and `effects` (set `false`
   for a plain outline instead of the glow). Content stays crisp. Under software
   rendering the GPU glow is replaced by the outline automatically.
+- `Qml({ source: "ui/widget.qml", props, onEvent })` embeds an app QML
+  component inside the JS tree. The loaded item calls `pulsarEmit(name, value)`
+  to reach `onEvent`; `props` are applied on load and on every render.
+- `onLayout({ width, height })` reports measured size, `onScroll({ offset,
+  contentHeight, height })` works on `Page`, `Scroll` and `For`, and every node
+  accepts `onFocus`/`onBlur`.
+- `a11yRole` and `a11yChecked` add screen-reader roles and state; `a11yLabel`
+  and `a11yHint` still set the accessible name and description.
+- `Page` and `Scroll` accept `flickVelocity`, `flickDeceleration` and
+  `overscroll` to tune or disable kinetic scrolling per screen.
 - The lower-level `ui.column(...)`, `ui.button(...)` factories remain available;
   the components above are thin wrappers over them.
 - QML windows keep working as before — mix freely (some windows in QML, some in
