@@ -6,6 +6,34 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `Qml({ source, props, onEvent })` embeds an app QML component inside the
+  JS-built tree; the loaded item gets `pulsarEmit(name, value)` for events.
+- `onLayout` reports the measured `{ width, height }` of any node.
+- `Page`, `Scroll` and `For` accept `onScroll` with `{ offset, contentHeight,
+  height }`.
+- Every node accepts `onFocus`/`onBlur`, and `a11yRole`/`a11yChecked` map to Qt
+  Accessible roles and state.
+- `Page` and `Scroll` accept `flickVelocity`, `flickDeceleration` and
+  `overscroll`.
+- `PULSAR_DEBUG` and the inspector report created, updated, removed and
+  reordered node counts for each build.
+
+### Changed
+
+- UI events carry the window label and node path; handlers are rebuilt per
+  window instead of being dropped before each tree is applied.
+- Keyed children are reconciled in place: insertions, removals and reordering
+  move existing items instead of clearing the container.
+
+### Fixed
+
+- Focus, text selection and scroll positions survive structural updates.
+- The CLI bundles Qt libraries whose `ldd` paths go through
+  `plugins/platforms/../../lib`, so `libQt6XcbQpa` no longer falls back to the
+  system Qt and the xcb platform plugin starts.
+
 ## [1.4.0] - 2026-11-04
 
 ### Added
