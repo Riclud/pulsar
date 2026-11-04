@@ -570,7 +570,10 @@ void QuickJsRuntime::fireTimer(int id)
         return;
 
     const bool repeating = it->repeating;
-    JSValue result = JS_Call(context_, it->callback, JS_UNDEFINED, 0, nullptr);
+    JSValue callback = JS_DupValue(context_, it->callback);
+    JSValue result = JS_Call(context_, callback, JS_UNDEFINED, 0, nullptr);
+
+    JS_FreeValue(context_, callback);
 
     if (JS_IsException(result))
         reportException(QStringLiteral("timer"));

@@ -13,7 +13,7 @@
     "editor-config": "cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && ln -sf build/compile_commands.json compile_commands.json",
     "clean": "rm -rf build compile_commands.json",
     "setup": "bun install && cmake -S . -B build",
-    "test": "bun test core cli && bun scripts/portable.ts && bun scripts/embedded.ts && bun scripts/embedded-qml.ts && bun scripts/error-overlay.ts && bun scripts/smoke.ts",
+    "test": "bun test core cli && bun scripts/portable.ts && bun scripts/embedded.ts && bun scripts/embedded-qml.ts && bun scripts/embedded-regressions.ts && bun scripts/error-overlay.ts && bun scripts/smoke.ts",
     "test:unit": "bun test core",
     "typecheck": "tsc --noEmit",
     "version:check": "bun scripts/version-check.ts",
@@ -24,6 +24,7 @@
     "test:portable": "bun scripts/portable.ts",
     "test:embedded": "bun scripts/embedded.ts",
     "test:embedded:qml": "bun scripts/embedded-qml.ts",
+    "test:embedded:regressions": "bun scripts/embedded-regressions.ts",
     "docs": "cd site && bun run build",
     "docs:dev": "cd site && bun run dev"
   },
