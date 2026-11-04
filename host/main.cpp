@@ -676,6 +676,48 @@ static void watchQmlFile(const QUrl &url)
         gWatcher->addPath(path);
 }
 
+static bool replaceUiNode(QVariantList &nodes, const QString &path, const QVariant &node)
+{
+    for (QVariant &value : nodes) {
+        QVariantMap current = value.toMap();
+        const QString currentPath = current.value(QStringLiteral("path")).toString();
+
+        if (currentPath == path) {
+            value = node;
+            return true;
+        }
+
+        if (!path.startsWith(currentPath + QLatin1Char('/')))
+            continue;
+
+        QVariantList children = current.value(QStringLiteral("children")).toList();
+
+        if (!replaceUiNode(children, path, node))
+            continue;
+
+        current.insert(QStringLiteral("children"), children);
+        value = current;
+
+        return true;
+    }
+
+    return false;
+}
+
+static void patchStoredUiTree(const QString &label, const QVariantList &patches)
+{
+    auto tree = g_uiTrees.find(label);
+
+    if (tree == g_uiTrees.end())
+        return;
+
+    for (const QVariant &value : patches) {
+        const QVariantMap patch = value.toMap();
+
+        replaceUiNode(*tree, patch.value(QStringLiteral("path")).toString(), patch.value(QStringLiteral("node")));
+    }
+}
+
 static void wireWindowEvents(QObject *root, const QString &label);
 
 static void applyUiTree(const QString &label)
@@ -1640,6 +1682,8 @@ int main(int argc, char **argv)
                              const QVariantMap m = params.toVariant().toMap();
                              const QString target = m.value(QStringLiteral("target")).toString();
                              const QVariantList patches = m.value(QStringLiteral("patches")).toList();
+
+                             patchStoredUiTree(target, patches);
 
                              if (QObject *root = g_roots.value(target)) {
                                  QVariantMap patch;
