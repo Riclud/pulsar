@@ -122,6 +122,19 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "layout",
+    check: (output) => {
+      return (
+        output.includes("SIZE one 100") &&
+        output.includes("SIZE two 200") &&
+        output.includes("SIZE fixed 40") &&
+        output.includes("SIZE after 360") &&
+        output.includes("SIZE wide 400") &&
+        output.includes("SIZE padded 48")
+      )
+    },
+  },
+  {
     name: "late-window",
     desktop: true,
     check: (output) => lastBuilt(output)?.includes(" +3 ~0 -0 ") === true,

@@ -171,6 +171,21 @@ interface CommonOptions {
   transition?: MotionTransition
   /** Follow the finger in the renderer and report a release past the threshold. */
   drag?: DragOptions
+  minWidth?: number
+  minHeight?: number
+  maxHeight?: number
+  /** Share of the free space along the parent Row or Column. */
+  flex?: number
+  /** Cut off content outside the node's bounds. */
+  clip?: boolean
+  zIndex?: number
+  /** Place the node relative to its parent Stack; offsets are in pixels. */
+  absolute?: {
+    top?: number
+    right?: number
+    bottom?: number
+    left?: number
+  }
   /** Receive the measured size after layout. */
   onLayout?: (size: { width: number; height: number }) => void
   onFocus?: () => void
@@ -179,10 +194,40 @@ interface CommonOptions {
   neon?: boolean | NeonOptions
 }
 
-export interface LayoutOptions extends CommonOptions {
-  gap?: number
+export interface PaddingOptions {
   padding?: number
+  paddingX?: number
+  paddingY?: number
+  paddingTop?: number
+  paddingRight?: number
+  paddingBottom?: number
+  paddingLeft?: number
+}
+
+export interface SurfaceOptions {
+  color?: ColorValue
+  hoverColor?: ColorValue
+  radius?: number
+  borderColor?: ColorValue
+  borderWidth?: number
+  gradient?: GradientOptions
+  elevation?: number
+  shadowColor?: ColorValue
+  onClick?: () => void
+  onLongPress?: () => void
+}
+
+export type Justify = "start" | "center" | "end" | "between" | "around" | "evenly"
+
+export type AlignItems = "start" | "center" | "end" | "stretch"
+
+export interface LayoutOptions extends CommonOptions, PaddingOptions, SurfaceOptions {
+  gap?: number
   expand?: boolean
+  /** How free space is shared along the main axis. */
+  justify?: Justify
+  /** How children sit on the cross axis, unless a child sets its own `align`. */
+  alignItems?: AlignItems
 }
 
 export interface ContainerOptions extends CommonOptions {
@@ -214,7 +259,7 @@ export interface WrapOptions extends LayoutOptions {
   align?: "start" | "center" | "end"
 }
 
-export interface StackOptions extends CommonOptions {
+export interface StackOptions extends CommonOptions, PaddingOptions, SurfaceOptions {
   align?: "start" | "center" | "end"
 }
 
@@ -288,11 +333,10 @@ export interface GradientOptions {
   direction?: "vertical" | "horizontal"
 }
 
-export interface CardOptions extends CommonOptions {
+export interface CardOptions extends CommonOptions, PaddingOptions {
   color?: ColorValue
   hoverColor?: ColorValue
   radius?: number
-  padding?: number
   borderColor?: ColorValue
   borderWidth?: number
   gradient?: GradientOptions
@@ -311,19 +355,8 @@ export interface AppBarOptions extends CommonOptions {
   actions?: UiNode[]
 }
 
-export interface BoxOptions extends CommonOptions {
-  color?: ColorValue
-  hoverColor?: ColorValue
-  radius?: number
-  padding?: number
-  borderColor?: ColorValue
-  borderWidth?: number
-  gradient?: GradientOptions
-  elevation?: number
-  shadowColor?: ColorValue
+export interface BoxOptions extends CommonOptions, PaddingOptions, SurfaceOptions {
   expand?: boolean
-  onClick?: () => void
-  onLongPress?: () => void
 }
 
 export type FontWeight = number | "light" | "normal" | "medium" | "semibold" | "bold"
@@ -920,20 +953,126 @@ const withLongPress = <P extends { onClick?: () => void; onLongPress?: () => voi
   return makeNode(type, props, children, events, callbacks)
 }
 
+const SURFACE_KEYS = [
+  "color",
+  "hoverColor",
+  "radius",
+  "borderColor",
+  "borderWidth",
+  "gradient",
+  "elevation",
+  "shadowColor",
+  "onClick",
+  "onLongPress",
+]
+
+const INNER_KEYS = ["gap", "justify", "alignItems"]
+
+const hasSurface = (options: object): boolean => {
+  return SURFACE_KEYS.some((key) => (options as Record<string, unknown>)[key] !== undefined)
+}
+
+const splitSurface = (options: object) => {
+  const outer: Record<string, unknown> = {}
+  const inner: Record<string, unknown> = { fillWidth: true, fillHeight: true }
+
+  for (const [key, value] of Object.entries(options)) {
+    if (INNER_KEYS.includes(key)) inner[key] = value
+    else outer[key] = value
+  }
+
+  return { outer, inner }
+}
+
+const justifySpacer = (axis: "row" | "column", key: string, flex: number) => {
+  return spacer({ key, flex, ...(axis === "row" ? { fillWidth: true } : { fillHeight: true }) })
+}
+
+const justifyChildren = (axis: "row" | "column", justify: Justify, children: UiChild[]) => {
+  const nodes = flatten(children)
+  const slots = childSlots(children)
+  const out: UiNode[] = []
+  const outSlots: string[] = []
+  const edge = 1
+  const middle = justify === "around" ? 2 : 1
+
+  const add = (key: string, flex: number) => {
+    out.push(justifySpacer(axis, key, flex))
+    outSlots.push(key)
+  }
+
+  if (justify === "center" || justify === "end" || justify === "around" || justify === "evenly") {
+    add("justify-start", edge)
+  }
+
+  nodes.forEach((node, index) => {
+    out.push(node)
+    outSlots.push(slots[index] ?? String(index))
+
+    const inside = index < nodes.length - 1
+    const spaced = justify === "between" || justify === "around" || justify === "evenly"
+
+    if (inside && spaced) add(`justify-${slots[index]}`, middle)
+  })
+
+  if (justify === "center" || justify === "around" || justify === "evenly") add("justify-end", edge)
+
+  return { nodes: out, slots: outSlots }
+}
+
+const justifiedDefaults = (axis: "row" | "column", options: LayoutOptions): LayoutOptions => {
+  if (!options.justify || options.justify === "start") return options
+  if (options.fill !== undefined || options.expand !== undefined) return options
+  if (axis === "row") return options.width !== undefined || options.fillWidth !== undefined ? options : { ...options, fillWidth: true }
+
+  return options.height !== undefined || options.fillHeight !== undefined ? options : { ...options, fillHeight: true }
+}
+
+const layoutNode = (axis: "row" | "column", options: LayoutOptions, children: UiChild[]): UiNode => {
+  const { justify, ...props } = options
+
+  if (!justify || justify === "start") return makeNode(axis, props, children)
+
+  const arranged = justifyChildren(axis, justify, children)
+  const node = makeNode(axis, props, arranged.nodes)
+
+  node.slots = arranged.slots
+
+  return node
+}
+
+const axisNode = (axis: "row" | "column", options: LayoutOptions, children: UiChild[]): UiNode => {
+  const resolved = justifiedDefaults(axis, options)
+
+  if (!hasSurface(resolved)) return layoutNode(axis, resolved, children)
+
+  const { outer, inner } = splitSurface(resolved)
+
+  return withLongPress("box", outer as BoxOptions, [layoutNode(axis, inner as LayoutOptions, children)])
+}
+
 export const column = (options: LayoutOptions = {}, ...children: UiChild[]): UiNode => {
-  return makeNode("column", options, children)
+  return axisNode("column", options, children)
 }
 
 export const row = (options: LayoutOptions = {}, ...children: UiChild[]): UiNode => {
-  return makeNode("row", options, children)
+  return axisNode("row", options, children)
 }
 
 export const wrap = (options: WrapOptions = {}, ...children: UiChild[]): UiNode => {
-  return makeNode("wrap", options, children)
+  if (!hasSurface(options)) return makeNode("wrap", options, children)
+
+  const { outer, inner } = splitSurface(options)
+
+  return withLongPress("box", outer as BoxOptions, [makeNode("wrap", inner, children)])
 }
 
 export const stack = (options: StackOptions = {}, ...children: UiChild[]): UiNode => {
-  return makeNode("stack", options, children)
+  if (!hasSurface(options)) return makeNode("stack", options, children)
+
+  const { outer, inner } = splitSurface(options)
+
+  return withLongPress("box", outer as BoxOptions, [makeNode("stack", inner, children)])
 }
 
 export const box = (options: BoxOptions = {}, ...children: UiChild[]): UiNode => {
@@ -1069,7 +1208,7 @@ export const spinner = (options: SpinnerOptions = {}): UiNode => {
 }
 
 export const spacer = (
-  options: { size?: number; width?: number; height?: number; fillWidth?: boolean; fillHeight?: boolean } = {},
+  options: { key?: string; flex?: number; size?: number; width?: number; height?: number; fillWidth?: boolean; fillHeight?: boolean } = {},
 ): UiNode => {
   return makeNode("spacer", options)
 }

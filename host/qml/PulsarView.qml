@@ -527,7 +527,7 @@ ApplicationWindow {
                 onFinished: {
                     motion.following = false;
                     motion.heightLimit = Number.POSITIVE_INFINITY;
-                    motion.host.clip = false;
+                    motion.host.clip = motion.host.pulsarMeta.extra.clip === true;
                 }
 
                 ParallelAnimation {
@@ -574,7 +574,7 @@ ApplicationWindow {
 
                     motion.exitDone = null;
                     motion.following = false;
-                    motion.host.clip = false;
+                    motion.host.clip = motion.host.pulsarMeta.extra.clip === true;
 
                     if (done)
                         done();
@@ -629,7 +629,13 @@ ApplicationWindow {
 
             target: null
 
-            onHeightLimitChanged: host.Layout.maximumHeight = heightLimit
+            readonly property bool animating: enterAnimation.running || exitAnimation.running
+
+            onHeightLimitChanged: {
+                const limit = host.pulsarMeta.extra.maxHeight;
+
+                host.Layout.maximumHeight = Math.min(heightLimit, limit !== undefined ? limit : Number.POSITIVE_INFINITY);
+            }
 
             function configure(props) {
                 const transition = props.transition || ({});
@@ -670,7 +676,7 @@ ApplicationWindow {
                 enterFade.to = restingOpacity();
                 enterHeight.from = heightLimit;
                 enterHeight.to = limit > 0 ? limit : Number.POSITIVE_INFINITY;
-                host.clip = limit > 0;
+                host.clip = limit > 0 || host.pulsarMeta.extra.clip === true;
 
                 enterAnimation.restart();
             }
@@ -4226,6 +4232,160 @@ ApplicationWindow {
         return wrapper;
     }
 
+    function paddingEdges(props, fallback) {
+        const all = prop(props, "padding", fallback);
+        const x = prop(props, "paddingX", all);
+        const y = prop(props, "paddingY", all);
+
+        return {
+            top: prop(props, "paddingTop", y),
+            right: prop(props, "paddingRight", x),
+            bottom: prop(props, "paddingBottom", y),
+            left: prop(props, "paddingLeft", x)
+        };
+    }
+
+    function applyContentPadding(inner, edges) {
+        inner.anchors.topMargin = edges.top;
+        inner.anchors.rightMargin = edges.right;
+        inner.anchors.bottomMargin = edges.bottom;
+        inner.anchors.leftMargin = edges.left;
+    }
+
+    function applyCrossAlign(layout, alignItems, horizontal) {
+        if (alignItems === undefined)
+            return;
+
+        const alignment = horizontal
+                ? (alignItems === "start" ? Qt.AlignTop : alignItems === "end" ? Qt.AlignBottom : Qt.AlignVCenter)
+                : (alignItems === "start" ? Qt.AlignLeft : alignItems === "end" ? Qt.AlignRight : Qt.AlignHCenter);
+
+        for (let i = 0; i < layout.children.length; i++) {
+            const kid = layout.children[i];
+            const kidNode = kid.pulsarMeta ? kid.pulsarMeta.node : null;
+
+            if (!kidNode)
+                continue;
+
+            if (alignItems === "stretch") {
+                if (horizontal)
+                    kid.Layout.fillHeight = true;
+                else
+                    kid.Layout.fillWidth = true;
+
+                continue;
+            }
+
+            if (kidNode.props.align === undefined)
+                kid.Layout.alignment = alignment;
+        }
+    }
+
+    function applyAbsolute(child, parent, absolute) {
+        child.anchors.fill = undefined;
+        child.anchors.centerIn = undefined;
+        child.anchors.top = absolute.top !== undefined ? parent.top : undefined;
+        child.anchors.right = absolute.right !== undefined ? parent.right : undefined;
+        child.anchors.bottom = absolute.bottom !== undefined ? parent.bottom : undefined;
+        child.anchors.left = absolute.left !== undefined ? parent.left : undefined;
+        child.anchors.topMargin = prop(absolute, "top", 0);
+        child.anchors.rightMargin = prop(absolute, "right", 0);
+        child.anchors.bottomMargin = prop(absolute, "bottom", 0);
+        child.anchors.leftMargin = prop(absolute, "left", 0);
+    }
+
+    function layoutMainSize(kid, horizontal) {
+        const preferred = horizontal ? kid.Layout.preferredWidth : kid.Layout.preferredHeight;
+
+        if (preferred >= 0)
+            return preferred;
+
+        return horizontal ? kid.implicitWidth : kid.implicitHeight;
+    }
+
+    function bindFlexSize(kid, layout, kids, total, flex, horizontal, edges) {
+        const size = Qt.binding(function () {
+            let used = (horizontal ? edges.left + edges.right : edges.top + edges.bottom);
+            let shown = 0;
+
+            for (const other of kids) {
+                if (!other.visible)
+                    continue;
+
+                shown++;
+
+                if (!other.pulsarMeta.extra.flexed)
+                    used += layoutMainSize(other, horizontal);
+            }
+
+            used += Math.max(0, shown - 1) * layout.spacing;
+
+            const available = horizontal ? layout.width : layout.height;
+
+            return Math.max(0, (available - used) * flex / total);
+        });
+
+        if (horizontal)
+            kid.Layout.preferredWidth = size;
+        else
+            kid.Layout.preferredHeight = size;
+    }
+
+    function applyFlex(layout, horizontal, edges) {
+        const kids = [];
+
+        let total = 0;
+
+        for (let i = 0; i < layout.children.length; i++) {
+            const kid = layout.children[i];
+            const kidNode = kid.pulsarMeta ? kid.pulsarMeta.node : null;
+
+            if (!kidNode)
+                continue;
+
+            kids.push(kid);
+
+            const flex = kidNode.props.flex;
+
+            kid.pulsarMeta.extra.flexed = flex !== undefined && flex > 0;
+
+            if (kid.pulsarMeta.extra.flexed)
+                total += flex;
+        }
+
+        if (total <= 0)
+            return;
+
+        for (const kid of kids) {
+            if (kid.pulsarMeta.extra.flexed)
+                bindFlexSize(kid, layout, kids, total, kid.pulsarMeta.node.props.flex, horizontal, edges);
+        }
+    }
+
+    function applyLayoutLimits(item, props) {
+        const extra = item.pulsarMeta.extra;
+        const motion = extra.motion;
+
+        if (props.minWidth !== undefined)
+            item.Layout.minimumWidth = props.minWidth;
+        if (props.minHeight !== undefined)
+            item.Layout.minimumHeight = props.minHeight;
+
+        extra.maxHeight = props.maxHeight !== undefined ? props.maxHeight : Number.POSITIVE_INFINITY;
+        item.Layout.maximumHeight = Math.min(extra.maxHeight, motion ? motion.heightLimit : Number.POSITIVE_INFINITY);
+
+        if (props.zIndex !== undefined)
+            item.z = props.zIndex;
+
+        if (extra.baseClip === undefined)
+            extra.baseClip = item.clip;
+
+        extra.clip = props.clip !== undefined ? props.clip === true : extra.baseClip;
+
+        if (!motion || !motion.animating)
+            item.clip = extra.clip;
+    }
+
     function applyPadding(layout, padding, horizontal) {
         const kids = layout.children;
         const active = [];
@@ -4242,17 +4402,17 @@ ApplicationWindow {
             const kid = kids[i];
 
             if (horizontal) {
-                kid.Layout.topMargin = padding;
-                kid.Layout.bottomMargin = padding;
-                kid.Layout.leftMargin = i === first ? padding : 0;
-                kid.Layout.rightMargin = i === last ? padding : 0;
+                kid.Layout.topMargin = padding.top;
+                kid.Layout.bottomMargin = padding.bottom;
+                kid.Layout.leftMargin = i === first ? padding.left : 0;
+                kid.Layout.rightMargin = i === last ? padding.right : 0;
                 continue;
             }
 
-            kid.Layout.leftMargin = padding;
-            kid.Layout.rightMargin = padding;
-            kid.Layout.topMargin = i === first ? padding : 0;
-            kid.Layout.bottomMargin = i === last ? padding : 0;
+            kid.Layout.leftMargin = padding.left;
+            kid.Layout.rightMargin = padding.right;
+            kid.Layout.topMargin = i === first ? padding.top : 0;
+            kid.Layout.bottomMargin = i === last ? padding.bottom : 0;
         }
     }
 
@@ -5253,6 +5413,7 @@ ApplicationWindow {
         }
 
         applyMotion(item, node);
+        applyLayoutLimits(item, props);
         applyVisible(item, props);
 
         const animate = prop(props, "animate", 0);
@@ -5277,6 +5438,12 @@ ApplicationWindow {
 
         item.Layout.fillWidth = fillWidth;
         item.Layout.fillHeight = fillHeight;
+
+        if ((node.type === "column" || node.type === "row") && fillWidth && props.maxWidth === undefined)
+            item.Layout.maximumWidth = Number.POSITIVE_INFINITY;
+
+        if ((node.type === "column" || node.type === "row") && fillHeight && props.maxHeight === undefined)
+            item.Layout.maximumHeight = Number.POSITIVE_INFINITY;
 
         if (props.maxWidth !== undefined)
             item.Layout.maximumWidth = props.maxWidth;
@@ -5312,7 +5479,9 @@ ApplicationWindow {
         if (node.type === "column" || node.type === "row") {
             item.spacing = prop(props, "gap", 0);
             reconcile(item, node.children || [], false);
-            applyPadding(item, prop(props, "padding", 0), node.type === "row");
+            applyPadding(item, paddingEdges(props, 0), node.type === "row");
+            applyCrossAlign(item, props.alignItems, node.type === "row");
+            applyFlex(item, node.type === "row", paddingEdges(props, 0));
         } else if (node.type === "wrap") {
             const gap = prop(props, "gap", view.themeSpacing);
             const padding = prop(props, "padding", 0);
@@ -5348,6 +5517,13 @@ ApplicationWindow {
                 const childNode = child.pulsarMeta ? child.pulsarMeta.node : null;
                 const childProps = childNode ? childNode.props : ({});
 
+                if (childProps.absolute) {
+                    applyAbsolute(child, item, childProps.absolute);
+                    child.pulsarMeta.extra.stackAnchored = true;
+
+                    continue;
+                }
+
                 if (child.pulsarMeta && child.pulsarMeta.extra.stackAnchored)
                     continue;
 
@@ -5369,7 +5545,7 @@ ApplicationWindow {
             applyGradient(item, prop(props, "gradient", null));
 
             let inner = item.pulsarMeta.content;
-            const padding = prop(props, "padding", 0);
+            const edges = paddingEdges(props, 0);
 
             if (!inner) {
                 inner = makeContent(item);
@@ -5377,15 +5553,16 @@ ApplicationWindow {
                 item.pulsarMeta.content = inner;
             }
 
-            inner.anchors.margins = padding;
+            applyContentPadding(inner, edges);
             inner.spacing = 0;
             item.implicitWidth = Qt.binding(function () {
-                return inner.implicitWidth + 2 * padding;
+                return inner.implicitWidth + edges.left + edges.right;
             });
             item.implicitHeight = Qt.binding(function () {
-                return inner.implicitHeight + 2 * padding;
+                return inner.implicitHeight + edges.top + edges.bottom;
             });
             reconcile(inner, node.children || [], false);
+            applyFlex(inner, false, ({ top: 0, right: 0, bottom: 0, left: 0 }));
         } else if (node.type === "scroll" || node.type === "list") {
             item.maximumFlickVelocity = (prop(props, "flick", true) === false)
                     ? 0
@@ -5521,23 +5698,24 @@ ApplicationWindow {
             applyGradient(item, prop(props, "gradient", null));
 
             let inner = item.pulsarMeta.content;
-            const padding = prop(props, "padding", 16);
+            const edges = paddingEdges(props, 16);
 
             if (!inner) {
                 inner = makeContent(item);
                 inner.anchors.fill = item;
                 item.pulsarMeta.content = inner;
-                item.implicitWidth = Qt.binding(function () {
-                    return inner.implicitWidth + 2 * prop(item.pulsarMeta.node.props, "padding", 16);
-                });
-                item.implicitHeight = Qt.binding(function () {
-                    return inner.implicitHeight + 2 * prop(item.pulsarMeta.node.props, "padding", 16);
-                });
             }
 
-            inner.anchors.margins = padding;
+            applyContentPadding(inner, edges);
+            item.implicitWidth = Qt.binding(function () {
+                return inner.implicitWidth + edges.left + edges.right;
+            });
+            item.implicitHeight = Qt.binding(function () {
+                return inner.implicitHeight + edges.top + edges.bottom;
+            });
             inner.spacing = view.themeSpacing;
             reconcile(inner, node.children || [], false);
+            applyFlex(inner, false, ({ top: 0, right: 0, bottom: 0, left: 0 }));
         } else if (node.type === "appBar") {
             const barText = prop(props, "textColor", undefined);
 
@@ -5723,7 +5901,7 @@ ApplicationWindow {
                 }
             }
 
-            applyPadding(item, prop(props, "padding", 0), true);
+            applyPadding(item, paddingEdges(props, 0), true);
         } else if (node.type === "snackbar") {
             item.nodeData = node;
             item.textLabel.text = prop(props, "text", "");

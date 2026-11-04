@@ -48,6 +48,7 @@ import {
   pager,
   popover,
   progress,
+  row,
   radio,
   radioGroup,
   rangeSlider,
@@ -128,12 +129,8 @@ describe("ui", () => {
   })
 
   test("sends the parent subtree when keyed children reorder", () => {
-    const before = serialize([
-      column({}, [text({ text: "a", key: "a" }), text({ text: "b", key: "b" })]),
-    ])
-    const after = serialize([
-      column({}, [text({ text: "b", key: "b" }), text({ text: "a", key: "a" })]),
-    ])
+    const before = serialize([column({}, [text({ text: "a", key: "a" }), text({ text: "b", key: "b" })])])
+    const after = serialize([column({}, [text({ text: "b", key: "b" }), text({ text: "a", key: "a" })])])
     const patches = diffUiTrees(before, after)
 
     expect(patches?.length).toBe(1)
@@ -151,6 +148,44 @@ describe("ui", () => {
     const after = serialize([text("a"), text("b")])
 
     expect(diffUiTrees(before, after)).toBeNull()
+  })
+
+  test("a layout with a surface is wrapped in a box", () => {
+    const tree = row({ key: "card", color: "#222", radius: 12, padding: 8, gap: 4, fillWidth: true }, text("a"))
+
+    expect(tree.type).toBe("box")
+    expect(tree.props.key).toBe("card")
+    expect(tree.props.radius).toBe(12)
+    expect(tree.props.padding).toBe(8)
+    expect(tree.children?.[0]?.type).toBe("row")
+    expect(tree.children?.[0]?.props.gap).toBe(4)
+  })
+
+  test("justify keeps child paths stable when a sibling appears", () => {
+    const paths = (extra: boolean) => {
+      const tree = serialize([
+        row({ key: "r", justify: "between" }, extra ? text("x") : null, text("a"), text("b")),
+      ]) as Array<{ children: Array<{ path: string; type: string }> }>
+
+      return (tree[0]?.children ?? []).filter((child) => child.type === "text").map((child) => child.path)
+    }
+
+    expect(paths(false)).toEqual(["/r/1", "/r/2"])
+    expect(paths(true)).toEqual(["/r/0", "/r/1", "/r/2"])
+  })
+
+  test("justify shares free space with spacers", () => {
+    const flexes = (justify: "center" | "end" | "between" | "around" | "evenly") => {
+      const tree = row({ justify }, text("a"), text("b"))
+
+      return (tree.children ?? []).map((child) => (child.type === "spacer" ? child.props.flex : child.type))
+    }
+
+    expect(flexes("end")).toEqual([1, "text", "text"])
+    expect(flexes("center")).toEqual([1, "text", "text", 1])
+    expect(flexes("between")).toEqual(["text", 1, "text"])
+    expect(flexes("around")).toEqual([1, "text", 2, "text", 1])
+    expect(flexes("evenly")).toEqual([1, "text", 1, "text", 1])
   })
 
   test("a shallow patch does not carry the subtree", () => {
@@ -822,15 +857,12 @@ describe("qml-like components", () => {
   })
 })
 
-
 describe("layout additions", () => {
   test("page keeps the header and footer outside the scroll body", () => {
-    const out = serialize([
-      Page(
-        { header: text("header"), footer: text("footer") },
-        text("body"),
-      ),
-    ]) as Array<{ type: string; children: Array<{ type: string; children?: Array<{ props: Record<string, unknown> }> }> }>
+    const out = serialize([Page({ header: text("header"), footer: text("footer") }, text("body"))]) as Array<{
+      type: string
+      children: Array<{ type: string; children?: Array<{ props: Record<string, unknown> }> }>
+    }>
 
     const page = out[0]!
     const children = page.children as Array<{ type: string; props: Record<string, unknown> }>
