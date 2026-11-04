@@ -41,6 +41,7 @@ const systemLog = join(tmp, "system.log")
 const secureLog = join(tmp, "secure.log")
 const trayLog = join(tmp, "tray.log")
 const jsUiLog = join(tmp, "js-ui.log")
+const jsReconcileLog = join(tmp, "js-reconcile.log")
 const uiKitLog = join(tmp, "ui-kit.log")
 const deepLog = join(tmp, "deep.log")
 const recentLog = join(tmp, "recent.log")
@@ -275,6 +276,21 @@ try {
   check(jsUiLog, "STORE open = QVariant(bool, true)")
   check(jsUiLog, "STORE mutated = QVariant(bool, true)")
   checkAbsent(jsUiLog, "Error:")
+
+  // Keyed reconcile: inserting at the front creates one row, reordering moves
+  // the existing rows instead of clearing and rebuilding the list container.
+  runHost({
+    PULSAR_DEBUG: "1",
+    QT_QPA_PLATFORM: "offscreen",
+    PULSAR_APP: join(root, "tests", "apps", "js-reconcile"),
+    AUTO_QUIT_MS: "2500",
+    QT_LOG_FILE: jsReconcileLog,
+  })
+  check(jsReconcileLog, "PulsarView built 1 +1")
+  check(jsReconcileLog, "PulsarView built 1 +0")
+  check(jsReconcileLog, "reorder=4")
+  checkAbsent(jsReconcileLog, "PulsarView built 1 +4")
+  checkAbsent(jsReconcileLog, "Error:")
 
   // Extended UI kit: every new node type is created by the QML renderer
   // without warnings.
