@@ -676,14 +676,24 @@ static void watchQmlFile(const QUrl &url)
         gWatcher->addPath(path);
 }
 
-static bool replaceUiNode(QVariantList &nodes, const QString &path, const QVariant &node)
+static QVariant mergedUiNode(const QVariantMap &current, const QVariant &node, bool shallow)
+{
+    QVariantMap merged = node.toMap();
+
+    if (shallow && !merged.contains(QStringLiteral("children")) && current.contains(QStringLiteral("children")))
+        merged.insert(QStringLiteral("children"), current.value(QStringLiteral("children")));
+
+    return merged;
+}
+
+static bool replaceUiNode(QVariantList &nodes, const QString &path, const QVariant &node, bool shallow)
 {
     for (QVariant &value : nodes) {
         QVariantMap current = value.toMap();
         const QString currentPath = current.value(QStringLiteral("path")).toString();
 
         if (currentPath == path) {
-            value = node;
+            value = mergedUiNode(current, node, shallow);
             return true;
         }
 
@@ -692,7 +702,7 @@ static bool replaceUiNode(QVariantList &nodes, const QString &path, const QVaria
 
         QVariantList children = current.value(QStringLiteral("children")).toList();
 
-        if (!replaceUiNode(children, path, node))
+        if (!replaceUiNode(children, path, node, shallow))
             continue;
 
         current.insert(QStringLiteral("children"), children);
@@ -714,7 +724,8 @@ static void patchStoredUiTree(const QString &label, const QVariantList &patches)
     for (const QVariant &value : patches) {
         const QVariantMap patch = value.toMap();
 
-        replaceUiNode(*tree, patch.value(QStringLiteral("path")).toString(), patch.value(QStringLiteral("node")));
+        replaceUiNode(*tree, patch.value(QStringLiteral("path")).toString(), patch.value(QStringLiteral("node")),
+                      patch.value(QStringLiteral("shallow")).toBool());
     }
 }
 

@@ -57,6 +57,8 @@ export interface UiNode {
   type: UiNodeType
   props: Record<string, unknown>
   children?: UiNode[]
+  /** Path segments of children that stay put when a conditional sibling is absent. */
+  slots?: string[]
   events?: string[]
   callbacks?: Record<string, (value: unknown) => void>
 }
@@ -743,6 +745,25 @@ const resolveChild = (value: UiChild | (() => UiChild)): UiChild => {
   return typeof value === "function" ? value() : value
 }
 
+const childSlots = (children: UiChild[], prefix = "", out: string[] = []): string[] => {
+  const only = children.length === 1 ? children[0] : null
+  const items = Array.isArray(only) ? only : children
+
+  items.forEach((child, index) => {
+    if (!child) return
+
+    if (Array.isArray(child)) {
+      childSlots(child, `${prefix}${index}.`, out)
+
+      return
+    }
+
+    if (typeof child === "object") out.push(`${prefix}${index}`)
+  })
+
+  return out
+}
+
 const flatten = (children: UiChild[], out: UiNode[] = []): UiNode[] => {
   for (const child of children) {
     if (!child) continue
@@ -842,6 +863,10 @@ const makeNode = <P extends object>(
 
   if (nodes.length > 0) node.children = nodes
   if (eventList.length > 0) node.events = eventList
+
+  const slots = childSlots(children)
+
+  if (slots.some((slot, index) => slot !== String(index))) node.slots = slots
 
   if (neon === undefined || neon === false) return node
 
@@ -1666,24 +1691,29 @@ export const Spinner = (options: SpinnerOptions = {}): UiNode => spinner(options
 export const BottomSheet = (options: SheetOptions = {}, ...children: UiChild[]): UiNode =>
   bottomSheet(options, ...children)
 
-const nodeSegment = (node: UiNode, index: number, keys?: Array<string | number>): string => {
+const nodeSegment = (node: UiNode, index: number, keys?: Array<string | number>, slots?: string[]): string => {
   const explicit = node.props.key
 
   if (explicit !== undefined) return String(explicit)
   if (keys) return String(keys[index] ?? index)
 
-  return String(index)
+  return slots?.[index] ?? String(index)
 }
 
-export const serialize = (nodes: UiNode[], parentPath = "", keys?: Array<string | number>): unknown[] => {
+export const serialize = (
+  nodes: UiNode[],
+  parentPath = "",
+  keys?: Array<string | number>,
+  slots?: string[],
+): unknown[] => {
   return nodes.map((node, index) => {
-    const path = `${parentPath}/${nodeSegment(node, index, keys)}`
+    const path = `${parentPath}/${nodeSegment(node, index, keys, slots)}`
     const out: Record<string, unknown> = { id: node.id, type: node.type, props: resolveProps(node.props), path }
 
     if (node.children) {
       const childKeys = node.type === "list" ? (node.props.itemKeys as Array<string | number> | undefined) : undefined
 
-      out.children = serialize(node.children, path, childKeys)
+      out.children = serialize(node.children, path, childKeys, node.slots)
     }
 
     if (node.events) out.events = node.events
@@ -1739,8 +1769,11 @@ const diffNode = (
     return true
   }
 
-  if (ownChanged)
-    patches.push({ path: next.path, node: next as unknown as Record<string, unknown>, shallow: true })
+  if (ownChanged) {
+    const { children: _children, ...own } = next
+
+    patches.push({ path: next.path, node: own as unknown as Record<string, unknown>, shallow: true })
+  }
 
   const previousChildren = previous.children ?? []
   const nextChildren = next.children ?? []
@@ -1794,12 +1827,13 @@ export const collectUiHandlers = (
   nodes: UiNode[],
   parentPath = "",
   keys?: Array<string | number>,
+  slots?: string[],
 ): { routes: Record<string, Record<string, UiHandler>>; ids: number[] } => {
   const routes: Record<string, Record<string, UiHandler>> = {}
   const ids: number[] = []
 
   nodes.forEach((node, index) => {
-    const path = `${parentPath}/${nodeSegment(node, index, keys)}`
+    const path = `${parentPath}/${nodeSegment(node, index, keys, slots)}`
     const callbacks = node.callbacks ?? handlers.get(node.id)
 
     ids.push(node.id)
@@ -1810,7 +1844,7 @@ export const collectUiHandlers = (
 
     const childKeys =
       node.type === "list" ? (node.props.itemKeys as Array<string | number> | undefined) : undefined
-    const child = collectUiHandlers(node.children, path, childKeys)
+    const child = collectUiHandlers(node.children, path, childKeys, node.slots)
 
     Object.assign(routes, child.routes)
     ids.push(...child.ids)

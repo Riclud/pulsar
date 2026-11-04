@@ -3945,17 +3945,20 @@ ApplicationWindow {
         playFade();
     }
 
-    function replaceTreeBranch(nodes, path, node) {
+    function replaceTreeBranch(nodes, path, node, shallow) {
         for (let index = 0; index < nodes.length; index++) {
             const current = nodes[index];
 
             if (current.path === path) {
+                if (node.children === undefined && shallow && current.children !== undefined)
+                    node.children = current.children;
+
                 nodes[index] = node;
                 return true;
             }
 
             if (current.children && path.indexOf(current.path + "/") === 0) {
-                if (replaceTreeBranch(current.children, path, node))
+                if (replaceTreeBranch(current.children, path, node, shallow))
                     return true;
             }
         }
@@ -3977,7 +3980,7 @@ ApplicationWindow {
                 return;
             }
 
-            if (!replaceTreeBranch(view.uiTree, patch.path, patch.node)) {
+            if (!replaceTreeBranch(view.uiTree, patch.path, patch.node, patch.shallow === true)) {
                 renderTree();
                 return;
             }

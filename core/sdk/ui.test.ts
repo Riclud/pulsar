@@ -153,6 +153,34 @@ describe("ui", () => {
     expect(diffUiTrees(before, after)).toBeNull()
   })
 
+  test("a shallow patch does not carry the subtree", () => {
+    const tree = (opacity: number) => {
+      return serialize([column({ key: "root", opacity }, ...Array.from({ length: 50 }, (_, i) => text(`row ${i}`)))])
+    }
+    const patches = diffUiTrees(tree(1), tree(0.5))
+
+    expect(patches?.length).toBe(1)
+    expect(patches?.[0]?.shallow).toBe(true)
+    expect(patches?.[0]?.node.children).toBeUndefined()
+  })
+
+  test("a conditional sibling does not move the nodes after it", () => {
+    const tree = (header: boolean) => {
+      return serialize([column({ key: "root" }, header ? text("header") : null, text("body"))]) as Array<{
+        children: Array<{ path: string; type: string }>
+      }>
+    }
+    const handlerPaths = (header: boolean) => {
+      const node = column({ key: "root" }, header ? text("header") : null, button("Go", { onClick: () => {} }))
+
+      return Object.keys(collectUiHandlers([node]).routes)
+    }
+
+    expect(tree(false)[0]?.children[0]?.path).toBe("/root/1")
+    expect(tree(true)[0]?.children[1]?.path).toBe("/root/1")
+    expect(handlerPaths(false)).toEqual(handlerPaths(true))
+  })
+
   test("drag keeps its release callback out of the serialized props", () => {
     const releases: unknown[] = []
     const node = box({

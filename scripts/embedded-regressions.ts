@@ -103,6 +103,23 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "stable-paths",
+    env: { PULSAR_TRANSITION: "none" },
+    check: (output) => {
+      const patches = output.split("\n").filter((line) => line.includes("PulsarView patch"))
+      const builds = output.split("\n").filter((line) => line.includes("PulsarView built"))
+
+      return (
+        patches.length === 3 &&
+        patches[0]!.includes(" +0 ~1 -0 ") &&
+        patches[1]!.includes(" +0 ~1 -0 ") &&
+        patches[2]!.includes(" +1 ") &&
+        patches[2]!.includes(" -0 ") &&
+        builds.at(-1)?.includes(" +3 ~0 -0 ") === true
+      )
+    },
+  },
+  {
     name: "late-window",
     desktop: true,
     check: (output) => lastBuilt(output)?.includes(" +3 ~0 -0 ") === true,

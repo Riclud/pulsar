@@ -199,13 +199,16 @@ sent again when the root children or a node type change.
 
 ```
 __ui       { target, tree }                               runtime -> host (full render)
-__ui-patch { target, patches: [{ path, node }] }          runtime -> host (changed subtrees)
+__ui-patch { target, patches: [{ path, node, shallow? }] } runtime -> host (changed nodes)
 __event    { name: "ui-event", data: { target, path, id, event, value } }
                                                           host -> runtime
 ```
 
-Each patch carries the full serialized subtree at `path`; unchanged children
-are not included in the message. Callbacks stay in the runtime and are
+A patch with `shallow: true` replaces only the node's own props and events: it
+has no `children`, and the host keeps the ones it already has. Any other patch
+carries the full serialized subtree at `path`. Child paths come from the key or
+from the child's position among its siblings, counting absent conditional
+children, so a sibling that appears does not move the others. Callbacks stay in the runtime and are
 dispatched by window label and node path, with the numeric `id` kept as a
 fallback for older payloads.
 
