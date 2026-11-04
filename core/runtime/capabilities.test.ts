@@ -24,6 +24,7 @@ const testPlatform = (): Platform => ({
 
   readFile: () => Promise.resolve(""),
   writeFile: () => Promise.resolve(true),
+  writeFileAtomic: () => Promise.resolve(true),
   appendFile: () => Promise.resolve(true),
   listDir: () => Promise.resolve([]),
   exists: () => Promise.resolve(false),

@@ -33,6 +33,7 @@ export interface Platform {
 
   readFile(path: string, encoding?: FsEncoding): Promise<string>
   writeFile(path: string, content: string, encoding?: FsEncoding): Promise<boolean>
+  writeFileAtomic(path: string, content: string, encoding?: FsEncoding): Promise<boolean>
   appendFile(path: string, content: string, encoding?: FsEncoding): Promise<boolean>
   listDir(path?: string): Promise<string[]>
   exists(path: string): Promise<boolean>

@@ -21,6 +21,7 @@ JSValue jsPulsarPaths(JSContext *, JSValueConst, int, JSValueConst *);
 JSValue jsPulsarEnv(JSContext *, JSValueConst, int, JSValueConst *);
 JSValue jsPulsarReadFile(JSContext *, JSValueConst, int, JSValueConst *);
 JSValue jsPulsarWriteFile(JSContext *, JSValueConst, int, JSValueConst *);
+JSValue jsPulsarWriteFileAtomic(JSContext *, JSValueConst, int, JSValueConst *);
 JSValue jsPulsarAppendFile(JSContext *, JSValueConst, int, JSValueConst *);
 JSValue jsPulsarListDir(JSContext *, JSValueConst, int, JSValueConst *);
 JSValue jsPulsarExists(JSContext *, JSValueConst, int, JSValueConst *);
@@ -115,6 +116,7 @@ private:
     friend JSValue jsPulsarEnv(JSContext *, JSValueConst, int, JSValueConst *);
     friend JSValue jsPulsarReadFile(JSContext *, JSValueConst, int, JSValueConst *);
     friend JSValue jsPulsarWriteFile(JSContext *, JSValueConst, int, JSValueConst *);
+    friend JSValue jsPulsarWriteFileAtomic(JSContext *, JSValueConst, int, JSValueConst *);
     friend JSValue jsPulsarAppendFile(JSContext *, JSValueConst, int, JSValueConst *);
     friend JSValue jsPulsarListDir(JSContext *, JSValueConst, int, JSValueConst *);
     friend JSValue jsPulsarExists(JSContext *, JSValueConst, int, JSValueConst *);

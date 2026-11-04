@@ -28,16 +28,38 @@ export const createStorageCaps = (platform: Platform): CapRegistry => {
     return paths.data + "/" + FILE
   }
 
-  const readStore = async (): Promise<Record<string, unknown>> => {
+  const parseStore = (text: string): Record<string, unknown> | null => {
     try {
-      return JSON.parse(await platform.readFile(await storePath(), "utf8")) as Record<string, unknown>
+      const data: unknown = JSON.parse(text)
+
+      if (typeof data !== "object" || data === null || Array.isArray(data)) return null
+
+      return data as Record<string, unknown>
     } catch {
-      return {}
+      return null
     }
   }
 
+  const readStore = async (): Promise<Record<string, unknown>> => {
+    const path = await storePath()
+
+    if (!(await platform.exists(path))) return {}
+
+    const data = parseStore(await platform.readFile(path, "utf8"))
+
+    if (data) return data
+
+    const backup = `${path}.corrupt-${Date.now()}`
+
+    await platform.rename(path, backup)
+
+    console.error(`[pulsar] storage is corrupted; moved it to ${backup}`)
+
+    return {}
+  }
+
   const writeStore = async (data: Record<string, unknown>): Promise<void> => {
-    await platform.writeFile(await storePath(), JSON.stringify(data, null, 2), "utf8")
+    await platform.writeFileAtomic(await storePath(), JSON.stringify(data, null, 2), "utf8")
   }
 
   return {

@@ -1,8 +1,9 @@
 import { describe, expect, test, beforeAll, afterAll } from "bun:test"
-import { mkdtempSync, rmSync } from "fs"
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
 import { join } from "path"
 import { createStorageCaps } from "./storage.ts"
+import type { Platform } from "../platform.ts"
 import { createBunPlatform } from "../platform/bun.ts"
 import { resetAppPaths } from "../platform/bun-paths.ts"
 
@@ -56,5 +57,74 @@ describe("storage", () => {
 
   test("rejects non-json values", async () => {
     await expect(call("storage.set", { key: "bad", value: new Map() })).rejects.toThrow(/Map/)
+  })
+})
+
+describe("storage durability", () => {
+  const platformWith = (overrides: Partial<Platform>): Platform => {
+    return { ...createBunPlatform(), ...overrides }
+  }
+
+  test("a corrupted file is kept aside and not overwritten", async () => {
+    const data = join(dir, "corrupt-case")
+    const platform = platformWith({ paths: async () => ({ data, config: data, cache: data, temp: data, home: data }) })
+    const store = createStorageCaps(platform)
+
+    mkdirSync(data, { recursive: true })
+    writeFileSync(join(data, "storage.json"), '{"todos":[1,2')
+
+    await store["storage.set"]!({ key: "next", value: 1 } as never)
+
+    const backup = readdirSync(data).find((name) => name.includes(".corrupt-"))
+
+    expect(backup).toBeDefined()
+    expect(readFileSync(join(data, backup!), "utf8")).toBe('{"todos":[1,2')
+    expect(JSON.parse(readFileSync(join(data, "storage.json"), "utf8"))).toEqual({ next: 1 })
+  })
+
+  test("a failed read does not overwrite the file", async () => {
+    const data = join(dir, "read-error-case")
+    const platform = platformWith({
+      paths: async () => ({ data, config: data, cache: data, temp: data, home: data }),
+      readFile: async () => {
+        throw new Error("EIO")
+      },
+    })
+    const store = createStorageCaps(platform)
+
+    mkdirSync(data, { recursive: true })
+    writeFileSync(join(data, "storage.json"), '{"keep":true}')
+
+    expect(store["storage.set"]!({ key: "next", value: 1 } as never)).rejects.toThrow("EIO")
+    await Bun.sleep(5)
+    expect(readFileSync(join(data, "storage.json"), "utf8")).toBe('{"keep":true}')
+  })
+
+  test("a failed write rejects and keeps the previous file", async () => {
+    const data = join(dir, "write-error-case")
+    const platform = platformWith({
+      paths: async () => ({ data, config: data, cache: data, temp: data, home: data }),
+      writeFileAtomic: async () => {
+        throw new Error("ENOSPC")
+      },
+    })
+    const store = createStorageCaps(platform)
+
+    mkdirSync(data, { recursive: true })
+    writeFileSync(join(data, "storage.json"), '{"keep":true}')
+
+    expect(store["storage.set"]!({ key: "next", value: 1 } as never)).rejects.toThrow("ENOSPC")
+    await Bun.sleep(5)
+    expect(readFileSync(join(data, "storage.json"), "utf8")).toBe('{"keep":true}')
+  })
+
+  test("an atomic write leaves no temporary files", async () => {
+    const data = join(dir, "atomic-case")
+
+    await createBunPlatform().writeFileAtomic(join(data, "file.json"), "first")
+    await createBunPlatform().writeFileAtomic(join(data, "file.json"), "second")
+
+    expect(readdirSync(data)).toEqual(["file.json"])
+    expect(readFileSync(join(data, "file.json"), "utf8")).toBe("second")
   })
 })

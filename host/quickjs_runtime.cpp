@@ -8,6 +8,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonValue>
+#include <QSaveFile>
 #include <QStandardPaths>
 #include <QTimer>
 #include <QUrl>
@@ -40,6 +41,21 @@ QByteArray toBytes(JSContext *ctx, JSValueConst value)
     if (!data)
         return {};
     return QByteArray(reinterpret_cast<const char *>(data), static_cast<int>(length));
+}
+
+QByteArray fileContent(JSContext *ctx, JSValueConst value, const QString &encoding)
+{
+    size_t length = 0;
+    const char *text = JS_ToCStringLen(ctx, &length, value);
+
+    if (!text)
+        return {};
+
+    const QByteArray data(text, static_cast<qsizetype>(length));
+
+    JS_FreeCString(ctx, text);
+
+    return encoding == QLatin1String("base64") ? QByteArray::fromBase64(data) : data;
 }
 
 JSValue jsonString(JSContext *ctx, const QJsonDocument &doc)
@@ -323,6 +339,8 @@ void QuickJsRuntime::installGlobals()
                       JS_NewCFunction(context_, jsPulsarReadFile, "__pulsarReadFile", 2));
     JS_SetPropertyStr(context_, global, "__pulsarWriteFile",
                       JS_NewCFunction(context_, jsPulsarWriteFile, "__pulsarWriteFile", 3));
+    JS_SetPropertyStr(context_, global, "__pulsarWriteFileAtomic",
+                      JS_NewCFunction(context_, jsPulsarWriteFileAtomic, "__pulsarWriteFileAtomic", 3));
     JS_SetPropertyStr(context_, global, "__pulsarAppendFile",
                       JS_NewCFunction(context_, jsPulsarAppendFile, "__pulsarAppendFile", 3));
     JS_SetPropertyStr(context_, global, "__pulsarListDir",
@@ -786,10 +804,7 @@ JSValue jsPulsarWriteFile(JSContext *ctx, JSValueConst, int argc, JSValueConst *
 
     const QString path = toQString(ctx, argv[0]);
     const QString encoding = argc > 2 ? toQString(ctx, argv[2]) : QStringLiteral("utf8");
-    QByteArray data = toQString(ctx, argv[1]).toUtf8();
-
-    if (encoding == QLatin1String("base64"))
-        data = QByteArray::fromBase64(data);
+    const QByteArray data = fileContent(ctx, argv[1], encoding);
 
     QDir().mkpath(QFileInfo(path).absolutePath());
 
@@ -798,9 +813,32 @@ JSValue jsPulsarWriteFile(JSContext *ctx, JSValueConst, int argc, JSValueConst *
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))
         return JS_NewBool(ctx, false);
 
-    file.write(data);
+    return JS_NewBool(ctx, file.write(data) == data.size());
+}
 
-    return JS_NewBool(ctx, true);
+JSValue jsPulsarWriteFileAtomic(JSContext *ctx, JSValueConst, int argc, JSValueConst *argv)
+{
+    if (argc < 2)
+        return JS_ThrowTypeError(ctx, "writeFileAtomic: path and content are required");
+
+    const QString path = toQString(ctx, argv[0]);
+    const QString encoding = argc > 2 ? toQString(ctx, argv[2]) : QStringLiteral("utf8");
+    const QByteArray data = fileContent(ctx, argv[1], encoding);
+
+    QDir().mkpath(QFileInfo(path).absolutePath());
+
+    QSaveFile file(path);
+
+    if (!file.open(QIODevice::WriteOnly))
+        return JS_NewBool(ctx, false);
+
+    if (file.write(data) != data.size()) {
+        file.cancelWriting();
+
+        return JS_NewBool(ctx, false);
+    }
+
+    return JS_NewBool(ctx, file.commit());
 }
 
 JSValue jsPulsarAppendFile(JSContext *ctx, JSValueConst, int argc, JSValueConst *argv)
@@ -810,19 +848,14 @@ JSValue jsPulsarAppendFile(JSContext *ctx, JSValueConst, int argc, JSValueConst 
 
     const QString path = toQString(ctx, argv[0]);
     const QString encoding = argc > 2 ? toQString(ctx, argv[2]) : QStringLiteral("utf8");
-    QByteArray data = toQString(ctx, argv[1]).toUtf8();
-
-    if (encoding == QLatin1String("base64"))
-        data = QByteArray::fromBase64(data);
+    const QByteArray data = fileContent(ctx, argv[1], encoding);
 
     QFile file(path);
 
     if (!file.open(QIODevice::WriteOnly | QIODevice::Append))
         return JS_NewBool(ctx, false);
 
-    file.write(data);
-
-    return JS_NewBool(ctx, true);
+    return JS_NewBool(ctx, file.write(data) == data.size());
 }
 
 JSValue jsPulsarListDir(JSContext *ctx, JSValueConst, int argc, JSValueConst *argv)

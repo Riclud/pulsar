@@ -42,6 +42,8 @@ const opener = (url: string): { cmd: string; args: string[] } => {
   return { cmd: "xdg-open", args: [url] }
 }
 
+let atomicWrites = 0
+
 /** Platform backed by Bun/Node: filesystem, paths and shell integration. */
 export const createBunPlatform = (): Platform => {
   return {
@@ -59,6 +61,31 @@ export const createBunPlatform = (): Platform => {
     writeFile: async (path, content, encoding) => {
       await fs.mkdir(dirname(path), { recursive: true })
       await fs.writeFile(path, content, readEncoding(encoding))
+
+      return true
+    },
+
+    writeFileAtomic: async (path, content, encoding) => {
+      await fs.mkdir(dirname(path), { recursive: true })
+
+      const temporary = `${path}.${process.pid}.${++atomicWrites}.tmp`
+
+      try {
+        const file = await fs.open(temporary, "w")
+
+        try {
+          await file.writeFile(content, readEncoding(encoding))
+          await file.sync()
+        } finally {
+          await file.close()
+        }
+
+        await fs.rename(temporary, path)
+      } catch (error) {
+        await fs.rm(temporary, { force: true })
+
+        throw error
+      }
 
       return true
     },

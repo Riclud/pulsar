@@ -35,6 +35,11 @@ export const createMemoryPlatform = (): Platform => {
 
       return true
     },
+    writeFileAtomic: async (path, content) => {
+      files.set(path, content)
+
+      return true
+    },
 
     appendFile: async (path, content) => {
       files.set(path, (files.get(path) ?? "") + content)

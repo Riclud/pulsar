@@ -5,6 +5,7 @@ declare const __pulsarPaths: () => string
 declare const __pulsarEnv: (name: string) => string | undefined
 declare const __pulsarReadFile: (path: string, encoding: string) => string
 declare const __pulsarWriteFile: (path: string, content: string, encoding: string) => boolean
+declare const __pulsarWriteFileAtomic: (path: string, content: string, encoding: string) => boolean
 declare const __pulsarAppendFile: (path: string, content: string, encoding: string) => boolean
 declare const __pulsarListDir: (path: string) => string[]
 declare const __pulsarExists: (path: string) => boolean
@@ -24,6 +25,12 @@ interface PlatformInfo {
   cwd: string
 }
 
+const requireWrite = (written: boolean, path: string): boolean => {
+  if (!written) throw new Error(`cannot write the file: ${path}`)
+
+  return true
+}
+
 /** Platform backed by native globals installed by the embedded host. */
 export const createQuickJsPlatform = (): Platform => {
   const info = JSON.parse(__pulsarPlatformInfo()) as PlatformInfo
@@ -39,8 +46,15 @@ export const createQuickJsPlatform = (): Platform => {
     paths: async () => JSON.parse(__pulsarPaths()) as AppPaths,
 
     readFile: async (path, encoding: FsEncoding = "utf8") => __pulsarReadFile(path, encoding),
-    writeFile: async (path, content, encoding: FsEncoding = "utf8") => __pulsarWriteFile(path, content, encoding),
-    appendFile: async (path, content, encoding: FsEncoding = "utf8") => __pulsarAppendFile(path, content, encoding),
+    writeFile: async (path, content, encoding: FsEncoding = "utf8") => {
+      return requireWrite(__pulsarWriteFile(path, content, encoding), path)
+    },
+    writeFileAtomic: async (path, content, encoding: FsEncoding = "utf8") => {
+      return requireWrite(__pulsarWriteFileAtomic(path, content, encoding), path)
+    },
+    appendFile: async (path, content, encoding: FsEncoding = "utf8") => {
+      return requireWrite(__pulsarAppendFile(path, content, encoding), path)
+    },
     listDir: async (path = ".") => __pulsarListDir(path),
     exists: async (path) => __pulsarExists(path),
     stat: async (path) => JSON.parse(__pulsarStat(path)) as FileStat,
