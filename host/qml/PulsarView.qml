@@ -2723,10 +2723,12 @@ ApplicationWindow {
             property color fieldBorderColor: view.themeBorder
             property int fieldRadius: 8
             property int debounce: 0
+            property string hint: ""
             property alias clearButton: searchClear
             property alias inputTimer: debounceTimer
 
             color: view.themeText
+            placeholderText: ""
             placeholderTextColor: view.themeTextSecondary
             font.family: view.fontFamily
             font.pixelSize: view.fs(15)
@@ -2753,6 +2755,19 @@ ApplicationWindow {
                 font.family: view.iconFamily
                 font.pixelSize: view.fs(20)
                 color: searchRoot.activeFocus ? view.themePrimary : view.themeTextSecondary
+            }
+
+            Label {
+                anchors.left: parent.left
+                anchors.leftMargin: 40
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.max(0, searchRoot.width - 52)
+                text: searchRoot.hint
+                visible: searchRoot.text.length === 0
+                elide: Text.ElideRight
+                color: view.themeTextSecondary
+                font.family: view.fontFamily
+                font.pixelSize: view.fs(15)
             }
 
             ToolButton {
@@ -5190,7 +5205,7 @@ ApplicationWindow {
             const searchValue = prop(props, "value", item.text);
 
             item.nodeData = node;
-            item.placeholderText = prop(props, "placeholder", "Search");
+            item.hint = prop(props, "placeholder", "Search");
             item.outlined = searchOutlined;
             item.fieldColor = searchOutlined ? "transparent"
                     : resolveColor(prop(props, "color", view.themeSurfaceVariant), view.themeSurfaceVariant);
