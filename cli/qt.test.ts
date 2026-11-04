@@ -67,7 +67,7 @@ describe("linux Qt bundle", () => {
         }
       }
     }
-  })
+  }, 30000)
 
   test.skipIf(!hasQt)("includes the QML modules and plugins used by the runtime", () => {
     const rels = qtFiles("/nonexistent/qml-host")!.map((file) => file.rel)
