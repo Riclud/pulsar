@@ -348,6 +348,8 @@ export interface TextInputOptions extends CommonOptions {
   keyboardType?: KeyboardType
   /** Focus the field as soon as it is created. */
   autoFocus?: boolean
+  /** Focus the field when set to true; the request fires once per true edge. */
+  focus?: boolean
   maxLength?: number
   readOnly?: boolean
   selectable?: boolean
@@ -426,6 +428,7 @@ export interface SearchFieldOptions extends CommonOptions {
   radius?: number
   debounce?: number
   enabled?: boolean
+  focus?: boolean
   onInput?: (value: string) => void
   onSubmit?: (value: string) => void
   onClear?: () => void
@@ -772,10 +775,19 @@ export const card = (options: CardOptions = {}, ...children: UiChild[]): UiNode 
   return withLongPress("card", options, children)
 }
 
+const implicitItemKey = (value: unknown): string | number | undefined => {
+  if (value === null || typeof value !== "object") return undefined
+
+  const record = value as Record<string, unknown>
+  const key = record.ID ?? record.id
+
+  return typeof key === "string" || typeof key === "number" ? key : undefined
+}
+
 export const list = <T>(options: ListOptions<T>): UiNode => {
   const { items, render, keyOf, ...props } = options
   const children = items.map((item, index) => render(item, index))
-  const itemKeys = items.map((item, index) => keyOf?.(item, index) ?? index)
+  const itemKeys = items.map((item, index) => keyOf?.(item, index) ?? implicitItemKey(item) ?? index)
 
   return makeNode("list", { ...props, itemKeys }, children)
 }

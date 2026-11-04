@@ -175,7 +175,13 @@ export interface ThemeColors {
 }
 export type ThemeColor = keyof ThemeColors
 export { Router, createRouter } from "./nav.ts"
+export { direction, getLocale, getMessages, interpolate, plural, setLocale, setMessages, t, translate } from "./i18n.ts"
+export type { PluralForms } from "./i18n.ts"
+export { email, isValid, max, maxLength, min, minLength, number, pattern, required, validate } from "./validate.ts"
+export type { ValidationResult, ValidationRule } from "./validate.ts"
 export type { Route, RouterState, RouterScreen, RouterOptions } from "./nav.ts"
+export { runMigrations } from "./migrations.ts"
+export type { Migration, MigrationOptions, MigrationStore } from "./migrations.ts"
 export { Breakpoints, createBreakpoints, responsive } from "./responsive.ts"
 export type { BreakpointPoints, BreakpointState, BreakpointsOptions, BreakpointValue } from "./responsive.ts"
 export { CAPABILITY_PERMISSIONS, capabilityPermission, createPermissionGate } from "./permissions.ts"

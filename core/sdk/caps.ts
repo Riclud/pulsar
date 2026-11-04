@@ -284,12 +284,14 @@ export interface ThemeOptions {
   fontScale?: number
   /** Multiplier for spacing and radii (default 1). */
   density?: number
-  /** Icon font family; defaults to Material Symbols Rounded when installed. */
+  /** Icon font family; defaults to the bundled Material Icons font. */
   iconFamily?: string
   /** UI font family; defaults to the bundled Paper Mono. */
   fontFamily?: string
   /** Motion durations in milliseconds. */
   motion?: { fast?: number; normal?: number; slow?: number }
+  /** Layout direction; "rtl" mirrors anchors, layouts and controls. */
+  direction?: "ltr" | "rtl"
 }
 
 /** System appearance; the app also gets a `theme-changed` event on switches. */
