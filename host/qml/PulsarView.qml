@@ -462,6 +462,7 @@ ApplicationWindow {
             property real zoomValue: 1
             property real pressScale: 1
             property real heightLimit: Number.POSITIVE_INFINITY
+            property real fullHeight: 0
             property int duration: view.motionFast
             property int easingType: Easing.BezierSpline
             property var exitDone: null
@@ -586,7 +587,7 @@ ApplicationWindow {
                         target: motion
                         property: "offsetX"
                         duration: motion.duration
-                        easing.type: Easing.InCubic
+                        easing.type: Easing.OutCubic
                     }
 
                     NumberAnimation {
@@ -595,7 +596,7 @@ ApplicationWindow {
                         target: motion
                         property: "offsetY"
                         duration: motion.duration
-                        easing.type: Easing.InCubic
+                        easing.type: Easing.OutCubic
                     }
 
                     NumberAnimation {
@@ -604,7 +605,7 @@ ApplicationWindow {
                         target: motion
                         property: "zoomValue"
                         duration: motion.duration
-                        easing.type: Easing.InCubic
+                        easing.type: Easing.OutCubic
                     }
 
                     NumberAnimation {
@@ -613,22 +614,16 @@ ApplicationWindow {
                         target: motion.host
                         property: "opacity"
                         duration: motion.duration
-                        easing.type: Easing.InCubic
+                        easing.type: Easing.OutCubic
                     }
-                }
 
-                ScriptAction {
-                    script: motion.host.clip = true
-                }
-
-                NumberAnimation {
-                    id: exitHeight
-
-                    target: motion
-                    property: "heightLimit"
-                    to: 0
-                    duration: motion.duration
-                    easing.type: Easing.OutCubic
+                    NumberAnimation {
+                        target: motion
+                        property: "heightLimit"
+                        to: 0
+                        duration: motion.duration
+                        easing.type: Easing.OutCubic
+                    }
                 }
             }
 
@@ -654,20 +649,26 @@ ApplicationWindow {
             }
 
             function playEnter(state) {
+                const interrupted = exitAnimation.running || enterAnimation.running;
+
                 exitAnimation.stop();
+                enterAnimation.stop();
                 exitDone = null;
                 following = true;
 
-                const limit = host.height > 0 ? host.height : host.implicitHeight;
-                const resting = restingOpacity();
+                const limit = fullHeight > 0 ? fullHeight : (host.height > 0 ? host.height : host.implicitHeight);
 
-                offsetX = state.x !== undefined ? state.x : 0;
-                offsetY = state.y !== undefined ? state.y : 0;
-                zoomValue = state.scale !== undefined ? state.scale : 1;
+                if (!interrupted) {
+                    offsetX = state.x !== undefined ? state.x : 0;
+                    offsetY = state.y !== undefined ? state.y : 0;
+                    zoomValue = state.scale !== undefined ? state.scale : 1;
+                    host.opacity = state.opacity !== undefined ? state.opacity : restingOpacity();
+                    heightLimit = limit > 0 ? 0 : Number.POSITIVE_INFINITY;
+                }
 
-                enterFade.from = state.opacity !== undefined ? state.opacity : resting;
-                enterFade.to = resting;
-                enterHeight.from = limit > 0 ? 0 : Number.POSITIVE_INFINITY;
+                enterFade.from = host.opacity;
+                enterFade.to = restingOpacity();
+                enterHeight.from = heightLimit;
                 enterHeight.to = limit > 0 ? limit : Number.POSITIVE_INFINITY;
                 host.clip = limit > 0;
 
@@ -675,15 +676,21 @@ ApplicationWindow {
             }
 
             function playExit(state, done) {
+                const interrupted = enterAnimation.running;
+
                 enterAnimation.stop();
                 exitDone = done;
                 following = true;
+
+                if (!interrupted)
+                    fullHeight = host.height;
 
                 exitX.to = state.x !== undefined ? state.x : offsetX;
                 exitY.to = state.y !== undefined ? state.y : offsetY;
                 exitZoom.to = state.scale !== undefined ? state.scale : zoomValue;
                 exitFade.to = state.opacity !== undefined ? state.opacity : host.opacity;
-                heightLimit = host.height > 0 ? host.height : Number.POSITIVE_INFINITY;
+                heightLimit = host.height;
+                host.clip = true;
 
                 exitAnimation.restart();
             }

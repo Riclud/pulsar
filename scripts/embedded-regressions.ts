@@ -64,6 +64,8 @@ const scenarios: Scenario[] = [
         output.includes("PulsarView exit done /root/removed") &&
         output.includes("PulsarView hide done /root/hidden") &&
         output.includes("PulsarView enter /root/hidden") &&
+        output.includes("PulsarView enter /root/flip") &&
+        !output.includes("PulsarView hide done /root/flip") &&
         !/PulsarView\.qml:\d+: (?!TypeError: Cannot (read property 'colorScheme'|call method '(devMode|env)') of null)/.test(
           output,
         )

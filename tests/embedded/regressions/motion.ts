@@ -28,9 +28,15 @@ app.window("main").render(() => {
     step < 1 ? Row("removed") : null,
     step >= 1 ? Row("added") : null,
     Row("hidden", step !== 2),
+    Row("flip", step !== 4),
   )
 })
 
 setTimeout(() => app.store.set("step", 1), 200)
 setTimeout(() => app.store.set("step", 2), 500)
 setTimeout(() => app.store.set("step", 3), 800)
+setTimeout(() => {
+  app.store.set("step", 4)
+
+  setTimeout(() => app.store.set("step", 5), 5)
+}, 1000)
