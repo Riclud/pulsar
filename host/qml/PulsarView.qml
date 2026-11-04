@@ -309,8 +309,6 @@ ApplicationWindow {
             item.gradient = extra.gradientShape;
     }
 
-    readonly property string shadowItemCode: "property int pulsarElevation: 0; property color pulsarShadowColor: '#000000'; layer.enabled: shadowHost.pulsarElevation > 0; layer.effect: MultiEffect { shadowEnabled: true; autoPaddingEnabled: true; shadowColor: shadowHost.pulsarShadowColor; shadowBlur: Math.min(1, 0.2 + shadowHost.pulsarElevation * 0.15); shadowOpacity: Math.min(0.5, 0.12 + shadowHost.pulsarElevation * 0.04); shadowVerticalOffset: shadowHost.pulsarElevation * 2 }"
-
     function applyElevation(item, level, color) {
         if (item.pulsarElevation === undefined)
             return;
@@ -405,6 +403,157 @@ ApplicationWindow {
                 text: "Reload"
                 visible: PulsarBridge.devMode()
                 onClicked: PulsarBridge.devReload()
+            }
+        }
+    }
+
+    Component {
+        id: columnComponent
+
+        ColumnLayout {
+            property var pulsarMeta: null
+        }
+    }
+
+    Component {
+        id: rowComponent
+
+        RowLayout {
+            property var pulsarMeta: null
+        }
+    }
+
+    Component {
+        id: itemComponent
+
+        Item {
+            property var pulsarMeta: null
+        }
+    }
+
+    Component {
+        id: labelComponent
+
+        Label {
+            property var pulsarMeta: null
+        }
+    }
+
+    Component {
+        id: textComponent
+
+        Text {
+            property var pulsarMeta: null
+        }
+    }
+
+    Component {
+        id: selectableTextComponent
+
+        TextEdit {
+            readOnly: true
+            selectByMouse: true
+            property var pulsarMeta: null
+        }
+    }
+
+    Component {
+        id: toolButtonComponent
+
+        ToolButton {
+            property var pulsarMeta: null
+        }
+    }
+
+    Component {
+        id: sliderComponent
+
+        Slider {
+            property var pulsarMeta: null
+        }
+    }
+
+    Component {
+        id: comboBoxComponent
+
+        ComboBox {
+            property var pulsarMeta: null
+        }
+    }
+
+    Component {
+        id: progressBarComponent
+
+        ProgressBar {
+            property var pulsarMeta: null
+        }
+    }
+
+    Component {
+        id: imageComponent
+
+        Image {
+            property var pulsarMeta: null
+        }
+    }
+
+    Component {
+        id: rectangleComponent
+
+        Rectangle {
+            property var pulsarMeta: null
+        }
+    }
+
+    Component {
+        id: flickableComponent
+
+        Flickable {
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            property var pulsarMeta: null
+        }
+    }
+
+    Component {
+        id: boxComponent
+
+        Rectangle {
+            id: boxShadowHost
+
+            property var pulsarMeta: null
+            property int pulsarElevation: 0
+            property color pulsarShadowColor: "#000000"
+            layer.enabled: boxShadowHost.pulsarElevation > 0
+            layer.effect: MultiEffect {
+                shadowEnabled: true
+                autoPaddingEnabled: true
+                shadowColor: boxShadowHost.pulsarShadowColor
+                shadowBlur: Math.min(1, 0.2 + boxShadowHost.pulsarElevation * 0.15)
+                shadowOpacity: Math.min(0.5, 0.12 + boxShadowHost.pulsarElevation * 0.04)
+                shadowVerticalOffset: boxShadowHost.pulsarElevation * 2
+            }
+        }
+    }
+
+    Component {
+        id: cardComponent
+
+        Rectangle {
+            id: cardShadowHost
+
+            border.width: 1
+            property var pulsarMeta: null
+            property int pulsarElevation: 0
+            property color pulsarShadowColor: "#000000"
+            layer.enabled: cardShadowHost.pulsarElevation > 0
+            layer.effect: MultiEffect {
+                shadowEnabled: true
+                autoPaddingEnabled: true
+                shadowColor: cardShadowHost.pulsarShadowColor
+                shadowBlur: Math.min(1, 0.2 + cardShadowHost.pulsarElevation * 0.15)
+                shadowOpacity: Math.min(0.5, 0.12 + cardShadowHost.pulsarElevation * 0.04)
+                shadowVerticalOffset: cardShadowHost.pulsarElevation * 2
             }
         }
     }
@@ -3687,22 +3836,23 @@ ApplicationWindow {
 
     function createNode(node, parent, isRoot) {
         let item = null;
-        const base = "{ property var pulsarMeta: null }";
 
-        if (node.type === "column" || node.type === "row") {
-            item = make("import QtQuick.Layouts; " + (node.type === "column" ? "ColumnLayout" : "RowLayout") + " " + base, parent);
+        if (node.type === "column") {
+            item = columnComponent.createObject(parent);
+        } else if (node.type === "row") {
+            item = rowComponent.createObject(parent);
         } else if (node.type === "wrap" || node.type === "stack") {
-            item = make("import QtQuick; Item " + base, parent);
+            item = itemComponent.createObject(parent);
         } else if (node.type === "box") {
-            item = make("import QtQuick; import QtQuick.Effects; Rectangle { id: shadowHost; property var pulsarMeta: null; " + shadowItemCode + " }", parent);
+            item = boxComponent.createObject(parent);
         } else if (node.type === "scroll" || node.type === "list") {
-            item = make("import QtQuick; Flickable " + "{ clip: true; boundsBehavior: Flickable.StopAtBounds; property var pulsarMeta: null }", parent);
+            item = flickableComponent.createObject(parent);
         } else if (node.type === "grid") {
             item = gridComponent.createObject(parent);
         } else if (node.type === "virtualList") {
             item = virtualListComponent.createObject(parent);
         } else if (node.type === "card") {
-            item = make("import QtQuick; import QtQuick.Effects; Rectangle { id: shadowHost; border.width: 1; property var pulsarMeta: null; " + shadowItemCode + " }", parent);
+            item = cardComponent.createObject(parent);
         } else if (node.type === "appBar") {
             item = appBarComponent.createObject(parent);
         } else if (node.type === "chip") {
@@ -3746,15 +3896,15 @@ ApplicationWindow {
         } else if (node.type === "zoomable") {
             item = zoomableComponent.createObject(parent);
         } else if (node.type === "text") {
-            item = make("import QtQuick.Controls; Label " + base, parent);
+            item = labelComponent.createObject(parent);
         } else if (node.type === "selectableText") {
-            item = make("import QtQuick; TextEdit { readOnly: true; selectByMouse: true; property var pulsarMeta: null }", parent);
+            item = selectableTextComponent.createObject(parent);
         } else if (node.type === "button") {
             item = buttonComponent.createObject(parent);
         } else if (node.type === "icon") {
-            item = make("import QtQuick; Text " + base, parent);
+            item = textComponent.createObject(parent);
         } else if (node.type === "iconButton") {
-            item = make("import QtQuick.Controls; ToolButton " + base, parent);
+            item = toolButtonComponent.createObject(parent);
         } else if (node.type === "textInput") {
             item = textFieldComponent.createObject(parent);
         } else if (node.type === "textArea") {
@@ -3764,13 +3914,13 @@ ApplicationWindow {
         } else if (node.type === "switch") {
             item = switchComponent.createObject(parent);
         } else if (node.type === "slider") {
-            item = make("import QtQuick.Controls; Slider " + base, parent);
+            item = sliderComponent.createObject(parent);
         } else if (node.type === "select") {
-            item = make("import QtQuick.Controls; ComboBox " + base, parent);
+            item = comboBoxComponent.createObject(parent);
         } else if (node.type === "progress") {
-            item = make("import QtQuick.Controls; ProgressBar " + base, parent);
+            item = progressBarComponent.createObject(parent);
         } else if (node.type === "image") {
-            item = make("import QtQuick; Image " + base, parent);
+            item = imageComponent.createObject(parent);
         } else if (node.type === "avatar") {
             item = avatarComponent.createObject(parent);
         } else if (node.type === "badge") {
@@ -3780,11 +3930,11 @@ ApplicationWindow {
         } else if (node.type === "spinner") {
             item = spinnerComponent.createObject(parent);
         } else if (node.type === "spacer") {
-            item = make("import QtQuick; Item " + base, parent);
+            item = itemComponent.createObject(parent);
         } else if (node.type === "divider") {
-            item = make("import QtQuick; Rectangle " + base, parent);
+            item = rectangleComponent.createObject(parent);
         } else {
-            item = make("import QtQuick; Rectangle " + base, parent);
+            item = rectangleComponent.createObject(parent);
         }
 
         item.pulsarMeta = {
@@ -5081,6 +5231,20 @@ ApplicationWindow {
             console.log("PulsarView built " + host.children.length);
 
         maybeTestClick();
+    }
+
+    Connections {
+        target: Qt.inputMethod
+
+        function onVisibleChanged() {
+            if (Qt.platform.os !== "android" || Qt.inputMethod.visible)
+                return;
+
+            const focused = view.activeFocusItem;
+
+            if (focused)
+                focused.focus = false;
+        }
     }
 
 }
