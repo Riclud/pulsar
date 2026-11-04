@@ -84,6 +84,27 @@ export interface QmlOptions extends CommonOptions {
   onEvent?: (name: string, value: unknown) => void
 }
 
+export type A11yRole =
+  | "button"
+  | "checkbox"
+  | "radio"
+  | "switch"
+  | "slider"
+  | "text"
+  | "image"
+  | "list"
+  | "listItem"
+  | "dialog"
+  | "link"
+  | "progress"
+  | "tab"
+  | "tabList"
+  | "menu"
+  | "menuItem"
+  | "toolbar"
+  | "group"
+  | "pane"
+
 interface CommonOptions {
   key?: string | number
   width?: number
@@ -99,6 +120,8 @@ interface CommonOptions {
   a11yLabel?: string
   /** Accessibility hint/description announced after the name. */
   a11yHint?: string
+  a11yRole?: A11yRole
+  a11yChecked?: boolean
   /** Horizontal placement inside a layout: "start" (default), "center" or "end". */
   align?: "start" | "center" | "end" | "left" | "right"
   /** Cap the width inside a layout (the node stays centered when `align` is "center"). */

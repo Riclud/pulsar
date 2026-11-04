@@ -4627,6 +4627,31 @@ ApplicationWindow {
         scheduleScroll(item);
     }
 
+    function accessibleRole(name) {
+        switch (name) {
+        case "button": return Accessible.Button;
+        case "checkbox": return Accessible.CheckBox;
+        case "radio": return Accessible.RadioButton;
+        case "switch": return Accessible.Switch;
+        case "slider": return Accessible.Slider;
+        case "text": return Accessible.StaticText;
+        case "image": return Accessible.Image;
+        case "list": return Accessible.List;
+        case "listItem": return Accessible.ListItem;
+        case "dialog": return Accessible.Dialog;
+        case "link": return Accessible.Link;
+        case "progress": return Accessible.ProgressBar;
+        case "tab": return Accessible.PageTab;
+        case "tabList": return Accessible.PageTabList;
+        case "menu": return Accessible.Menu;
+        case "menuItem": return Accessible.MenuItem;
+        case "toolbar": return Accessible.ToolBar;
+        case "group": return Accessible.Grouping;
+        case "pane": return Accessible.Pane;
+        default: return undefined;
+        }
+    }
+
     function applyCommon(item, node, isRoot) {
         watchLayout(item, node);
         watchFocus(item, node);
@@ -4672,6 +4697,20 @@ ApplicationWindow {
             item.Accessible.name = a11yLabel;
         if (a11yHint.length > 0)
             item.Accessible.description = a11yHint;
+
+        const a11yRole = String(prop(props, "a11yRole", ""));
+
+        if (a11yRole.length > 0) {
+            const role = accessibleRole(a11yRole);
+
+            if (role !== undefined)
+                item.Accessible.role = role;
+        }
+
+        if (props.a11yChecked !== undefined) {
+            item.Accessible.checkable = true;
+            item.Accessible.checked = props.a11yChecked === true;
+        }
 
         let defaultElevation = 0;
 

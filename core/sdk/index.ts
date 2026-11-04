@@ -67,6 +67,7 @@ export {
   BottomSheet,
 } from "./ui.ts"
 export type {
+  A11yRole,
   UiChild,
   UiNode,
   UiNodeType,
