@@ -1,3 +1,4 @@
+import { signal } from "./reactive.ts"
 export type PluralForms = {
   one?: string
   few?: string
@@ -7,33 +8,30 @@ export type PluralForms = {
 
 type Messages = Record<string, string>
 
-let locale = "en"
-let messages: Messages = {}
+const locale = signal("en")
+const messages = signal<Messages>({})
 
 export const setLocale = (value: string): void => {
-  locale = value || "en"
+  locale.set(value || "en")
 }
 
 export const getLocale = (): string => {
-  return locale
+  return locale.get()
 }
 
 export const setMessages = (value: Messages): void => {
-  messages = { ...value }
+  messages.set({ ...value })
 }
 
 export const getMessages = (): Messages => {
-  return { ...messages }
+  return { ...messages.get() }
 }
 
 export const translate = (key: string, fallback?: string): string => {
-  return messages[key] ?? fallback ?? key
+  return messages.get()[key] ?? fallback ?? key
 }
 
-export const interpolate = (
-  template: string,
-  params: Record<string, string | number> = {},
-): string => {
+export const interpolate = (template: string, params: Record<string, string | number> = {}): string => {
   return template.replace(/\{(\w+)\}/g, (match, name: string) => {
     const value = params[name]
 
@@ -45,7 +43,7 @@ const isRTL = (value: string): boolean => {
   return /^(ar|fa|he|ur|yi|ps|sd|ug|dv)\b/i.test(value)
 }
 
-export const direction = (value = locale): "ltr" | "rtl" => {
+export const direction = (value = locale.get()): "ltr" | "rtl" => {
   return isRTL(value) ? "rtl" : "ltr"
 }
 
@@ -60,21 +58,13 @@ const pluralCategory = (count: number, value: string): keyof PluralForms => {
   return count === 1 ? "one" : "other"
 }
 
-export const plural = (
-  count: number,
-  forms: PluralForms,
-  params: Record<string, string | number> = {},
-): string => {
-  const category = pluralCategory(count, locale)
+export const plural = (count: number, forms: PluralForms, params: Record<string, string | number> = {}): string => {
+  const category = pluralCategory(count, locale.get())
   const template = forms[category] ?? forms.other
 
   return interpolate(template, { ...params, count })
 }
 
-export const t = (
-  key: string,
-  params: Record<string, string | number> = {},
-  fallback?: string,
-): string => {
+export const t = (key: string, params: Record<string, string | number> = {}, fallback?: string): string => {
   return interpolate(translate(key, fallback), params)
 }

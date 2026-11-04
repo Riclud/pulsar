@@ -1,3 +1,4 @@
+import { signal, type Signal } from "./reactive.ts"
 import type { App } from "./app.ts"
 import type { UiChild } from "./ui.ts"
 
@@ -33,7 +34,7 @@ export class Breakpoints {
   private readonly listeners = new Set<(state: BreakpointState) => void>()
   private readonly key: string
   private readonly label: string | undefined
-  private windowWidth: number
+  private readonly windowWidth: Signal<number>
 
   constructor(
     private readonly app: App,
@@ -43,7 +44,7 @@ export class Breakpoints {
     this.points = Object.entries(points).sort((a, b) => a[1] - b[1])
     this.key = options.key ?? "breakpoint"
     this.label = options.label
-    this.windowWidth = options.width ?? 0
+    this.windowWidth = signal(options.width ?? 0)
 
     this.app.on("window-resize", (payload: { label?: string; width?: number }) => {
       if (this.label !== undefined && payload.label !== this.label) return
@@ -55,7 +56,7 @@ export class Breakpoints {
   }
 
   current(): string {
-    const width = this.windowWidth
+    const width = this.windowWidth.get()
     let name = this.points[0]?.[0] ?? "compact"
 
     for (const [candidate, minimum] of this.points) {
@@ -68,7 +69,7 @@ export class Breakpoints {
   }
 
   width(): number {
-    return this.windowWidth
+    return this.windowWidth.get()
   }
 
   is(name: string): boolean {
@@ -84,9 +85,9 @@ export class Breakpoints {
   }
 
   setWidth(width: number): this {
-    if (width === this.windowWidth) return this
+    if (width === this.windowWidth.peek()) return this
 
-    this.windowWidth = width
+    this.windowWidth.set(width)
     this.publish()
 
     return this
@@ -114,7 +115,7 @@ export class Breakpoints {
   }
 
   private state(): BreakpointState {
-    return { name: this.current(), width: this.windowWidth }
+    return { name: this.current(), width: this.windowWidth.peek() }
   }
 
   private publish(): void {

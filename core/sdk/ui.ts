@@ -1,3 +1,4 @@
+import { Computation } from "./reactive.ts"
 import type { ColorValue } from "./theme.ts"
 
 export type UiNodeType =
@@ -61,7 +62,13 @@ export interface UiNode {
   slots?: string[]
   events?: string[]
   callbacks?: Record<string, (value: unknown) => void>
+  /** Set on nodes that are reused between renders, so their serialized form can be too. */
+  cacheable?: boolean
+  serialized?: { path: string; out: Record<string, unknown> }
+  collected?: { path: string; routes: UiRoutes; ids: number[] }
 }
+
+export type UiRoutes = Record<string, Record<string, (value: unknown) => void>>
 
 export type UiChild = UiNode | string | number | null | false | undefined | UiChild[]
 
@@ -851,6 +858,16 @@ const makeNode = <P extends object>(
     callbackMap.dragRelease = (value) => release(value as DragRelease)
   }
 
+  if (currentInstance) {
+    const own = rest as Record<string, unknown>
+
+    for (const key of Object.keys(own)) {
+      const value = own[key]
+
+      if (isBinding(value)) own[key] = (value as unknown as BindingBox<unknown>)[BINDING]()
+    }
+  }
+
   const node: UiNode = { id, type, props: rest as Record<string, unknown> }
   const nodes = flatten(children)
 
@@ -1502,8 +1519,323 @@ export const When = (options: WhenOptions): UiChild => {
 
 export type DefinedComponent<P> = (props: P, ...children: UiChild[]) => UiNode
 
-export const defineComponent = <P>(component: DefinedComponent<P>): DefinedComponent<P> => {
-  return component
+export type ComponentSetup<P> = (props: P, ...children: UiChild[]) => UiNode | (() => UiNode)
+
+type Cleanup = () => void
+
+export interface ComponentInstance {
+  props: Record<string, unknown>
+  args: UiChild[]
+  render: () => UiNode | UiNode[] | null
+  computation: Computation
+  node: UiNode | UiNode[] | null
+  dirty: boolean
+  parent: ComponentInstance | null
+  depth: number
+  instances: Map<unknown, Map<string, ComponentInstance>>
+  seen: Set<ComponentInstance>
+  calls: Map<unknown, number>
+  cleanups: Cleanup[]
+  root: UiRoot
+}
+
+export interface UiRoot {
+  instance: ComponentInstance
+  dirty: Set<ComponentInstance>
+  schedule: () => void
+}
+
+let currentInstance: ComponentInstance | null = null
+
+const pendingMounts: Array<{ instance: ComponentInstance; run: () => void | Cleanup }> = []
+
+const createInstance = (root: UiRoot | null, parent: ComponentInstance | null, props: Record<string, unknown>) => {
+  const instance: ComponentInstance = {
+    props,
+    args: [],
+    render: () => null,
+    computation: new Computation(() => {
+      instance.dirty = true
+      instance.root.dirty.add(instance)
+      instance.root.schedule()
+    }),
+    node: null,
+    dirty: true,
+    parent,
+    depth: parent ? parent.depth + 1 : 0,
+    instances: new Map(),
+    seen: new Set(),
+    calls: new Map(),
+    cleanups: [],
+    root: (root ?? parent?.root) as UiRoot,
+  }
+
+  return instance
+}
+
+const disposeInstance = (instance: ComponentInstance): void => {
+  instance.computation.clear()
+  instance.root.dirty.delete(instance)
+  instance.dirty = false
+
+  for (const group of instance.instances.values()) {
+    for (const child of group.values()) disposeInstance(child)
+  }
+
+  instance.instances.clear()
+
+  for (const cleanup of instance.cleanups.splice(0)) cleanup()
+}
+
+const removeUnseenInstances = (instance: ComponentInstance): void => {
+  for (const group of instance.instances.values()) {
+    for (const [id, child] of group) {
+      if (instance.seen.has(child)) continue
+
+      disposeInstance(child)
+      group.delete(id)
+    }
+  }
+}
+
+const withInstance = <T>(instance: ComponentInstance, fn: () => T): T => {
+  const previous = currentInstance
+
+  currentInstance = instance
+  instance.seen.clear()
+  instance.calls.clear()
+
+  try {
+    return instance.computation.run(fn)
+  } finally {
+    currentInstance = previous
+    instance.dirty = false
+    instance.root.dirty.delete(instance)
+  }
+}
+
+const renderInstance = (instance: ComponentInstance): void => {
+  const node = withInstance(instance, instance.render)
+
+  if (node && !Array.isArray(node)) {
+    node.cacheable = true
+
+    if (instance.props.key !== undefined && node.props.key === undefined) node.props.key = instance.props.key
+  }
+
+  instance.node = node
+  removeUnseenInstances(instance)
+}
+
+const startInstance = <P>(instance: ComponentInstance, setup: ComponentSetup<P>): void => {
+  const node = withInstance(instance, () => setup(instance.props as P, ...instance.args))
+
+  if (typeof node === "function") {
+    instance.render = node
+    renderInstance(instance)
+
+    return
+  }
+
+  instance.render = () => setup(instance.props as P, ...instance.args) as UiNode
+  node.cacheable = true
+
+  if (instance.props.key !== undefined && node.props.key === undefined) node.props.key = instance.props.key
+
+  instance.node = node
+  removeUnseenInstances(instance)
+}
+
+const sameProps = (current: Record<string, unknown>, next: Record<string, unknown>): boolean => {
+  const keys = Object.keys(next)
+
+  if (keys.length !== Object.keys(current).length) return false
+
+  for (const key of keys) {
+    const value = next[key]
+
+    if (typeof value === "function" && typeof current[key] === "function") continue
+    if (!Object.is(current[key], value)) return false
+  }
+
+  return true
+}
+
+const replaceProps = (current: Record<string, unknown>, next: Record<string, unknown>): void => {
+  for (const key of Object.keys(current)) {
+    if (!(key in next)) delete current[key]
+  }
+
+  Object.assign(current, next)
+}
+
+/**
+ * Define a component. `setup` runs once per instance and may return a render
+ * function, which reruns when anything it read changes; local state lives in
+ * the closure. A `setup` that returns a node directly reruns as a whole.
+ * Read props through `props` so that they stay current.
+ */
+export const component = <P>(setup: ComponentSetup<P>): DefinedComponent<P> => {
+  return (props, ...children) => {
+    const parent = currentInstance
+
+    if (!parent) {
+      const result = setup(props, ...children)
+
+      return typeof result === "function" ? result() : result
+    }
+
+    const own = { ...(props as Record<string, unknown>) }
+    const position = parent.calls.get(setup) ?? 0
+    const group = parent.instances.get(setup) ?? new Map<string, ComponentInstance>()
+    let id = own.key !== undefined ? `key:${String(own.key)}` : `at:${position}`
+
+    if (children.length > 0) own.children = children
+
+    parent.calls.set(setup, position + 1)
+    parent.instances.set(setup, group)
+
+    const existing = group.get(id)
+
+    if (existing && parent.seen.has(existing)) {
+      console.warn(`[pulsar] duplicate component key: ${String(own.key)}`)
+
+      id = `${id}#${position}`
+    }
+
+    const instance = group.get(id)
+
+    if (!instance) {
+      const created = createInstance(null, parent, own)
+
+      created.args = children
+      group.set(id, created)
+      parent.seen.add(created)
+      startInstance(created, setup)
+
+      return created.node as UiNode
+    }
+
+    const changed = !sameProps(instance.props, own)
+
+    replaceProps(instance.props, own)
+    instance.args = children
+    parent.seen.add(instance)
+
+    if (changed || instance.dirty) renderInstance(instance)
+
+    return instance.node as UiNode
+  }
+}
+
+export const defineComponent = component
+
+/** Run after this component's first render has reached the host; may return a cleanup. */
+export const onMount = (run: () => void | Cleanup): void => {
+  if (!currentInstance) throw new Error("onMount must be called while setting up a component")
+
+  pendingMounts.push({ instance: currentInstance, run })
+}
+
+/** Run when this component leaves the tree. */
+export const onCleanup = (cleanup: Cleanup): void => {
+  if (!currentInstance) throw new Error("onCleanup must be called while setting up a component")
+
+  currentInstance.cleanups.push(cleanup)
+}
+
+export const runPendingMounts = (): void => {
+  for (const { instance, run } of pendingMounts.splice(0)) {
+    const cleanup = run()
+
+    if (cleanup) instance.cleanups.push(cleanup)
+  }
+}
+
+export const createUiRoot = (render: () => UiNode[], schedule: () => void): UiRoot => {
+  const root = { dirty: new Set(), schedule } as unknown as UiRoot
+
+  root.instance = createInstance(root, null, {})
+  root.instance.render = render
+  root.dirty.add(root.instance)
+
+  return root
+}
+
+export const disposeUiRoot = (root: UiRoot): void => {
+  disposeInstance(root.instance)
+}
+
+export const renderUiRoot = (root: UiRoot): UiNode[] => {
+  renderInstance(root.instance)
+
+  return (root.instance.node ?? []) as UiNode[]
+}
+
+const invalidateInstance = (instance: ComponentInstance): void => {
+  instance.computation.invalidate()
+
+  for (const group of instance.instances.values()) {
+    for (const child of group.values()) invalidateInstance(child)
+  }
+}
+
+/** Mark every component of this root for a rerender. */
+export const invalidateUiRoot = (root: UiRoot): void => {
+  invalidateInstance(root.instance)
+}
+
+export interface UiRootUpdate {
+  patches: UiPatch[]
+  removedRoutes: string[]
+  routes: UiRoutes
+  removedIDs: number[]
+  ids: number[]
+}
+
+/** Rerender the dirty components in place; null means the root must rerender. */
+export const updateUiRoot = (root: UiRoot): UiRootUpdate | null => {
+  if (root.instance.dirty) return null
+
+  const update: UiRootUpdate = { patches: [], removedRoutes: [], routes: {}, removedIDs: [], ids: [] }
+  const dirty = [...root.dirty].sort((a, b) => a.depth - b.depth)
+
+  for (const instance of dirty) {
+    if (!instance.dirty) continue
+
+    const previous = instance.node as UiNode | null
+    const before = previous?.serialized
+
+    if (!before || !previous) return null
+
+    renderInstance(instance)
+
+    const next = instance.node as UiNode | null
+
+    if (!next) return null
+    if (next === previous) continue
+
+    const out = serializeNode(next, before.path)
+    const old = previous.collected
+    const collected = collectNode(next, before.path)
+
+    diffNode(before.out as unknown as SerializedUiNode, out as unknown as SerializedUiNode, update.patches)
+
+    for (const key of Object.keys(before.out)) delete before.out[key]
+
+    Object.assign(before.out, out)
+    next.serialized = { path: before.path, out: before.out }
+
+    if (old) {
+      update.removedRoutes.push(...Object.keys(old.routes))
+      update.removedIDs.push(...old.ids)
+    }
+
+    Object.assign(update.routes, collected.routes)
+    update.ids.push(...collected.ids)
+  }
+
+  return update
 }
 
 const resolveMemoValue = (value: unknown): unknown => {
@@ -1549,6 +1881,8 @@ export const memo = <P extends { key?: string | number }>(
     const node = component(props, ...children)
 
     if (signature !== null) {
+      node.cacheable = true
+
       if (cache.size > 512) cache.clear()
       cache.set(key, { signature, node })
     }
@@ -1700,26 +2034,30 @@ const nodeSegment = (node: UiNode, index: number, keys?: Array<string | number>,
   return slots?.[index] ?? String(index)
 }
 
+const serializeNode = (node: UiNode, path: string): Record<string, unknown> => {
+  if (node.cacheable && node.serialized?.path === path) return node.serialized.out
+
+  const out: Record<string, unknown> = { id: node.id, type: node.type, props: resolveProps(node.props), path }
+
+  if (node.children) {
+    const childKeys = node.type === "list" ? (node.props.itemKeys as Array<string | number> | undefined) : undefined
+
+    out.children = serialize(node.children, path, childKeys, node.slots)
+  }
+
+  if (node.events) out.events = node.events
+  if (node.cacheable) node.serialized = { path, out }
+
+  return out
+}
+
 export const serialize = (
   nodes: UiNode[],
   parentPath = "",
   keys?: Array<string | number>,
   slots?: string[],
 ): unknown[] => {
-  return nodes.map((node, index) => {
-    const path = `${parentPath}/${nodeSegment(node, index, keys, slots)}`
-    const out: Record<string, unknown> = { id: node.id, type: node.type, props: resolveProps(node.props), path }
-
-    if (node.children) {
-      const childKeys = node.type === "list" ? (node.props.itemKeys as Array<string | number> | undefined) : undefined
-
-      out.children = serialize(node.children, path, childKeys, node.slots)
-    }
-
-    if (node.events) out.events = node.events
-
-    return out
-  })
+  return nodes.map((node, index) => serializeNode(node, `${parentPath}/${nodeSegment(node, index, keys, slots)}`))
 }
 
 export interface UiPatch {
@@ -1762,6 +2100,8 @@ const diffNode = (
   next: SerializedUiNode,
   patches: UiPatch[],
 ): boolean => {
+  if (previous === next) return true
+
   const ownChanged = !sameOwnProps(previous, next)
 
   if (!sameChildPaths(previous, next)) {
@@ -1812,10 +2152,7 @@ export const forgetHandlers = (ids: number[]): void => {
 
 const windowHandlers = new Map<string, Record<string, Record<string, UiHandler>>>()
 
-export const setWindowHandlers = (
-  target: string,
-  routes: Record<string, Record<string, UiHandler>>,
-): void => {
+export const setWindowHandlers = (target: string, routes: UiRoutes): void => {
   windowHandlers.set(target, routes)
 }
 
@@ -1823,31 +2160,42 @@ export const dispatchWindowEvent = (target: string, path: string, event: string,
   windowHandlers.get(target)?.[path]?.[event]?.(value)
 }
 
+const collectNode = (node: UiNode, path: string): { routes: UiRoutes; ids: number[] } => {
+  if (node.cacheable && node.collected?.path === path) return node.collected
+
+  const routes: UiRoutes = {}
+  const callbacks = node.callbacks ?? handlers.get(node.id)
+  const ids = [node.id]
+
+  if (callbacks) routes[path] = callbacks
+
+  if (node.children) {
+    const childKeys = node.type === "list" ? (node.props.itemKeys as Array<string | number> | undefined) : undefined
+    const child = collectUiHandlers(node.children, path, childKeys, node.slots)
+
+    Object.assign(routes, child.routes)
+    ids.push(...child.ids)
+  }
+
+  if (node.cacheable) node.collected = { path, routes, ids }
+
+  return { routes, ids }
+}
+
 export const collectUiHandlers = (
   nodes: UiNode[],
   parentPath = "",
   keys?: Array<string | number>,
   slots?: string[],
-): { routes: Record<string, Record<string, UiHandler>>; ids: number[] } => {
-  const routes: Record<string, Record<string, UiHandler>> = {}
+): { routes: UiRoutes; ids: number[] } => {
+  const routes: UiRoutes = {}
   const ids: number[] = []
 
   nodes.forEach((node, index) => {
-    const path = `${parentPath}/${nodeSegment(node, index, keys, slots)}`
-    const callbacks = node.callbacks ?? handlers.get(node.id)
+    const collected = collectNode(node, `${parentPath}/${nodeSegment(node, index, keys, slots)}`)
 
-    ids.push(node.id)
-
-    if (callbacks) routes[path] = callbacks
-
-    if (!node.children) return
-
-    const childKeys =
-      node.type === "list" ? (node.props.itemKeys as Array<string | number> | undefined) : undefined
-    const child = collectUiHandlers(node.children, path, childKeys, node.slots)
-
-    Object.assign(routes, child.routes)
-    ids.push(...child.ids)
+    Object.assign(routes, collected.routes)
+    ids.push(...collected.ids)
   })
 
   return { routes, ids }

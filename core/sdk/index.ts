@@ -1,10 +1,15 @@
 export { App, Store, WindowHandle } from "./app.ts"
+export { computed, createState, effect, signal, untracked } from "./reactive.ts"
+export type { Computed, Signal } from "./reactive.ts"
 export type { AppConfig, EventHandler, PulsarEventMap, KnownEvent, UiSource, UiTimings } from "./app.ts"
 export {
   ui,
   bind,
+  component,
   defineComponent,
   memo,
+  onCleanup,
+  onMount,
   diffUiTrees,
   dispatchUiEvent,
   dispatchWindowEvent,

@@ -1,3 +1,4 @@
+import { signal } from "./reactive.ts"
 import type { App } from "./app.ts"
 import type { UiChild } from "./ui.ts"
 
@@ -31,6 +32,7 @@ const normalizeRoute = (route: Route | string): Route => {
  * system back button pops the stack.
  */
 export class Router {
+  private readonly changes = signal(0)
   private readonly stack: Route[]
   private readonly listeners = new Set<(state: RouterState) => void>()
   private readonly storeKey: string
@@ -53,6 +55,8 @@ export class Router {
 
   /** Current route. */
   current(): Route {
+    this.changes.get()
+
     return this.stack[this.stack.length - 1]!
   }
 
@@ -130,6 +134,8 @@ export class Router {
   }
 
   private publish(): void {
+    this.changes.set(this.changes.peek() + 1)
+
     const state = this.state()
 
     this.app.store.set(this.storeKey, state)

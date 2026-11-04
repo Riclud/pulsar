@@ -1,13 +1,22 @@
 import { callCapability } from "./caps.ts"
 import { loadManifest, resolveWindows, type AppManifest } from "./manifest.ts"
+import { Source } from "./reactive.ts"
 import {
   collectUiHandlers,
+  createUiRoot,
   diffUiTrees,
+  disposeUiRoot,
   forgetHandlers,
+  invalidateUiRoot,
+  renderUiRoot,
+  runPendingMounts,
   serialize,
   setWindowHandlers,
+  updateUiRoot,
   type UiNode,
   type UiPatch,
+  type UiRoot,
+  type UiRoutes,
 } from "./ui.ts"
 
 export type UiSource = UiNode | UiNode[] | (() => UiNode | UiNode[])
@@ -188,6 +197,8 @@ const clock = (): number => {
 
 export class Store {
   private readonly data = new Map<string, unknown>()
+  private readonly sources = new Map<string, Source>()
+  private readonly keysSource = new Source()
   private readonly dirty = new Set<string>()
   private readonly removed = new Set<string>()
   private readonly listeners = new Set<() => void>()
@@ -233,15 +244,21 @@ export class Store {
     this.notify()
   }
 
-  private same(a: unknown, b: unknown): boolean {
-    if (Object.is(a, b)) return true
+  private sourceOf(key: string): Source {
+    const existing = this.sources.get(key)
 
-    if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false
+    if (existing) return existing
 
-    return JSON.stringify(a) === JSON.stringify(b)
+    const source = new Source()
+
+    this.sources.set(key, source)
+
+    return source
   }
 
   get(key: string): unknown {
+    this.sourceOf(key).track()
+
     return this.data.has(key) ? this.data.get(key) : null
   }
 
@@ -250,17 +267,23 @@ export class Store {
 
     const existed = this.data.has(key)
 
-    if (existed && this.same(this.data.get(key), value)) return this
+    if (existed && Object.is(this.data.get(key), value)) return this
 
     this.data.set(key, value)
     this.dirty.add(key)
     this.removed.delete(key)
+    this.sourceOf(key).trigger()
+
+    if (!existed) this.keysSource.trigger()
+
     this.requestNotify()
 
     return this
   }
 
   has(key: string): boolean {
+    this.sourceOf(key).track()
+
     return this.data.has(key)
   }
 
@@ -270,6 +293,8 @@ export class Store {
     if (had) {
       this.removed.add(key)
       this.dirty.delete(key)
+      this.sourceOf(key).trigger()
+      this.keysSource.trigger()
       this.requestNotify()
     }
 
@@ -277,6 +302,8 @@ export class Store {
   }
 
   keys(): string[] {
+    this.keysSource.track()
+
     return [...this.data.keys()]
   }
 
@@ -389,9 +416,10 @@ export class App {
   /** Installed by the runtime; builds the native menu bar. */
   onSetMenu?: (items: MenuItem[]) => void
 
-  private readonly renderSources = new Map<string, () => UiNode[]>()
+  private readonly roots = new Map<string, UiRoot>()
   private readonly sentTrees = new Map<string, unknown[]>()
-  private readonly sentIds = new Map<string, number[]>()
+  private readonly sentRoutes = new Map<string, UiRoutes>()
+  private readonly sentIds = new Map<string, Set<number>>()
   private readonly pendingRecent: Array<{ action: "add" | "clear"; path?: string }> = []
   private lastMenu: MenuItem[] | null = null
   private flushQueued = false
@@ -410,7 +438,6 @@ export class App {
     this.manifest = loadManifest()
     this.windowConfigs = resolveWindows(this.manifest, config)
     this.store = new Store()
-    this.store.subscribe(() => this.queueFlush())
     App.current = this
   }
 
@@ -430,7 +457,7 @@ export class App {
     const resolved: AppConfig = {
       ...config,
       label,
-      ui: config.ui ?? (this.renderSources.has(label) ? "" : "ui/main.qml"),
+      ui: config.ui ?? (this.roots.has(label) ? "" : "ui/main.qml"),
     }
 
     const index = this.windowConfigs.findIndex((w) => w.label === label)
@@ -498,16 +525,33 @@ export class App {
 
   /** Render a JS-built UI tree into the window with this label. */
   renderWindow(label: string, source: UiSource): void {
-    this.renderSources.set(label, () => {
-      const value = typeof source === "function" ? source() : source
+    const previous = this.roots.get(label)
 
-      return Array.isArray(value) ? value : [value]
-    })
+    if (previous) disposeUiRoot(previous)
+
+    this.roots.set(
+      label,
+      createUiRoot(
+        () => {
+          const value = typeof source === "function" ? source() : source
+
+          return Array.isArray(value) ? value : [value]
+        },
+        () => this.queueFlush(),
+      ),
+    )
 
     this.sentTrees.delete(label)
+    this.sentRoutes.delete(label)
     this.sentIds.delete(label)
 
     this.flushUi(label)
+    runPendingMounts()
+  }
+
+  /** Rerender every component, for state that signals and the store cannot see. */
+  invalidateUi(): void {
+    for (const root of this.roots.values()) invalidateUiRoot(root)
   }
 
   private queueFlush(): void {
@@ -523,34 +567,86 @@ export class App {
 
   /** Flush every pending UI tree to the host (called once wired). */
   flushAllUi(): void {
-    for (const label of this.renderSources.keys()) this.flushUi(label)
+    for (const label of this.roots.keys()) this.flushUi(label)
+
+    runPendingMounts()
   }
 
   private flushUi(label: string): void {
-    const source = this.renderSources.get(label)
+    const root = this.roots.get(label)
 
-    if (!source || !this.onSendUi) return
+    if (!root || !this.onSendUi) return
 
+    const previous = this.sentTrees.get(label)
+    const started = this.onUiTimings ? clock() : 0
+
+    if (previous && this.onSendUiPatch && !root.instance.dirty) {
+      this.flushChanges(label, root, started)
+
+      return
+    }
+
+    this.flushRoot(label, root, previous, started)
+  }
+
+  private flushChanges(label: string, root: UiRoot, started: number): void {
+    if (root.dirty.size === 0) return
+
+    const update = updateUiRoot(root)
+
+    if (!update) {
+      this.flushRoot(label, root, this.sentTrees.get(label), started)
+
+      return
+    }
+
+    const routes = this.sentRoutes.get(label) ?? {}
+    const ids = this.sentIds.get(label) ?? new Set<number>()
+
+    for (const path of update.removedRoutes) delete routes[path]
+    for (const id of update.removedIDs) ids.delete(id)
+
+    forgetHandlers(update.removedIDs)
+    Object.assign(routes, update.routes)
+
+    for (const id of update.ids) ids.add(id)
+
+    const rendered = this.onUiTimings ? clock() : 0
+
+    if (update.patches.length > 0) this.onSendUiPatch?.(label, update.patches)
+
+    this.onUiTimings?.({
+      label,
+      build: rendered - started,
+      serialize: 0,
+      handlers: 0,
+      diff: 0,
+      send: clock() - rendered,
+      patches: update.patches.length,
+    })
+  }
+
+  private flushRoot(label: string, root: UiRoot, previous: unknown[] | undefined, started: number): void {
     const report = this.onUiTimings
-    const started = report ? clock() : 0
-    const nodes = source()
+    const nodes = renderUiRoot(root)
     const built = report ? clock() : 0
     const tree = serialize(nodes)
     const serialized = report ? clock() : 0
     const { routes, ids } = collectUiHandlers(nodes)
     const collected = report ? clock() : 0
-    const previous = this.sentTrees.get(label)
+    const next = new Set(ids)
 
+    forgetHandlers([...(this.sentIds.get(label) ?? [])].filter((id) => !next.has(id)))
     setWindowHandlers(label, routes)
-    forgetHandlers(this.sentIds.get(label) ?? [])
 
     this.sentTrees.set(label, tree)
-    this.sentIds.set(label, ids)
+    this.sentRoutes.set(label, routes)
+    this.sentIds.set(label, next)
 
     const patches = previous && this.onSendUiPatch ? diffUiTrees(previous, tree) : null
     const diffed = report ? clock() : 0
 
-    if (patches === null) this.onSendUi(label, tree)
+    if (patches === null) this.onSendUi?.(label, tree)
     else if (patches.length > 0) this.onSendUiPatch?.(label, patches)
 
     report?.({

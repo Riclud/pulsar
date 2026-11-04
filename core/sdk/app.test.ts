@@ -57,22 +57,19 @@ describe("Store", () => {
     expect(patch.changed).toEqual({ b: 3 })
   })
 
-  test("ignores structurally equal objects and arrays", () => {
+  test("compares objects by reference", () => {
     const store = new Store()
-    let notified = 0
+    const value = { a: 1 }
+    let changes = 0
 
-    store.subscribe(() => notified++)
+    store.set("value", value)
+    store.subscribe(() => changes++)
 
-    store.set("todos", [{ id: "1", done: false, tags: [] }])
-    store.set("todos", [{ id: "1", done: false, tags: [] }])
-    expect(notified).toBe(1)
+    store.set("value", value)
+    expect(changes).toBe(0)
 
-    store.set("todos", [{ id: "1", done: true, tags: [] }])
-    expect(notified).toBe(2)
-
-    store.takePatch()
-    store.set("todos", [{ id: "1", done: true, tags: [] }])
-    expect(store.takePatch().changed).toEqual({})
+    store.set("value", { a: 1 })
+    expect(changes).toBe(1)
   })
 
   test("still notifies when a key appears for the first time", () => {
