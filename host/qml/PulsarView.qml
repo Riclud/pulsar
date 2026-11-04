@@ -57,6 +57,7 @@ ApplicationWindow {
             : (Qt.fontFamilies().indexOf("Material Symbols Rounded") >= 0 ? "Material Symbols Rounded" : iconFont.name)
     readonly property string fontFamily: themeData && themeData.fontFamily !== undefined ? themeData.fontFamily : "Paper Mono"
     readonly property bool embeddedHost: typeof PulsarEmbedded !== "undefined" && PulsarEmbedded
+    property var revealTarget: null
 
     function reportWindowSize() {
         if (typeof PulsarBridge === "undefined")
@@ -73,7 +74,10 @@ ApplicationWindow {
     }
 
     onWidthChanged: sizeReportTimer.restart()
-    onHeightChanged: sizeReportTimer.restart()
+    onHeightChanged: {
+        sizeReportTimer.restart();
+        keyboardRevealTimer.restart();
+    }
     Component.onCompleted: sizeReportTimer.start()
 
     Timer {
@@ -4026,6 +4030,13 @@ ApplicationWindow {
             });
             item.activeFocusChanged.connect(function () {
                 emitEvent(item.pulsarMeta.node, item.activeFocus ? "focus" : "blur");
+
+                if (item.activeFocus) {
+                    view.revealTarget = item;
+                    keyboardRevealTimer.restart();
+                } else if (view.revealTarget === item) {
+                    view.revealTarget = null;
+                }
             });
             if (node.type === "textInput") {
                 item.accepted.connect(function () {
@@ -4086,6 +4097,13 @@ ApplicationWindow {
             });
             item.activeFocusChanged.connect(function () {
                 emitEvent(item.pulsarMeta.node, item.activeFocus ? "focus" : "blur");
+
+                if (item.activeFocus) {
+                    view.revealTarget = item;
+                    keyboardRevealTimer.restart();
+                } else if (view.revealTarget === item) {
+                    view.revealTarget = null;
+                }
             });
         } else if (node.type === "rangeSlider") {
             const emitRange = function () {
@@ -4886,10 +4904,14 @@ ApplicationWindow {
                         : view.themeOnPrimary;
 
         } else if (node.type === "icon") {
+            const align = prop(props, "align", "left");
+
             item.text = prop(props, "name", "");
             item.font.family = view.iconFamily;
             item.font.pixelSize = view.fs(prop(props, "size", 24));
             item.color = resolveColor(prop(props, "color", view.themeText), view.themeText);
+            item.horizontalAlignment = align === "center" ? Text.AlignHCenter
+                    : align === "right" || align === "end" ? Text.AlignRight : Text.AlignLeft;
         } else if (node.type === "iconButton") {
             const iconColor = resolveColor(prop(props, "color", view.themeText), view.themeText);
 
@@ -5002,6 +5024,7 @@ ApplicationWindow {
             item.enabled = prop(props, "enabled", true);
             item.font.family = view.fontFamily;
             item.font.pixelSize = view.fs(15);
+            item.implicitHeight = Math.max(44, view.fs(15) + 28);
             item.leftPadding = 12;
             item.rightPadding = 40;
             item.Layout.preferredWidth = prop(props, "expand", false) ? -1 : prop(props, "width", 200);
@@ -5035,6 +5058,9 @@ ApplicationWindow {
                 indicator.color = Qt.binding(function () {
                     return view.themeTextSecondary;
                 });
+                indicator.anchors.right = item.right;
+                indicator.anchors.rightMargin = 12;
+                indicator.anchors.verticalCenter = item.verticalCenter;
                 item.indicator = indicator;
                 item.pulsarMeta.extra.selectChrome = true;
             }
@@ -5279,12 +5305,70 @@ ApplicationWindow {
         maybeTestClick();
     }
 
+    function scrollAncestor(item) {
+        let node = item ? item.parent : null;
+
+        while (node && node !== view) {
+            if (node.contentY !== undefined && node.contentHeight !== undefined)
+                return node;
+
+            node = node.parent;
+        }
+
+        return null;
+    }
+
+    function revealInput(item) {
+        if (!item)
+            return;
+
+        const flick = scrollAncestor(item);
+
+        if (!flick || flick.height <= 0)
+            return;
+
+        const top = item.mapToItem(flick, 0, 0).y;
+        const bottom = top + item.height;
+        const margin = 16;
+
+        if (top >= margin && bottom + margin <= flick.height)
+            return;
+
+        const maxY = Math.max(0, flick.contentHeight - flick.height);
+        const target = top < margin
+                ? flick.contentY + top - margin
+                : flick.contentY + bottom + margin - flick.height;
+
+        flick.contentY = Math.min(maxY, Math.max(0, target));
+    }
+
+    function revealFocusedInput() {
+        if (!view.revealTarget)
+            return;
+
+        view.revealInput(view.revealTarget);
+    }
+
+    Timer {
+        id: keyboardRevealTimer
+
+        interval: 220
+        onTriggered: view.revealFocusedInput()
+    }
+
     Connections {
         target: Qt.inputMethod
 
         function onVisibleChanged() {
-            if (Qt.platform.os !== "android" || Qt.inputMethod.visible)
+            if (Qt.platform.os !== "android")
                 return;
+
+            if (Qt.inputMethod.visible) {
+                keyboardRevealTimer.restart();
+                return;
+            }
+
+            view.revealTarget = null;
 
             const focused = view.activeFocusItem;
 
