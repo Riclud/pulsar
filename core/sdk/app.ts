@@ -427,7 +427,11 @@ export class App {
   /** Create a window at runtime; returns a handle to control it. */
   createWindow(config: AppConfig): WindowHandle {
     const label = config.label ?? this.nextWindowLabel()
-    const resolved: AppConfig = { ...config, label, ui: config.ui ?? (this.renderSources.has(label) ? "" : "ui/main.qml") }
+    const resolved: AppConfig = {
+      ...config,
+      label,
+      ui: config.ui ?? (this.renderSources.has(label) ? "" : "ui/main.qml"),
+    }
 
     const index = this.windowConfigs.findIndex((w) => w.label === label)
 
