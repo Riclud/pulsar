@@ -411,7 +411,10 @@ QJsonObject DevChannel::findNode(const QJsonArray &nodes, const QJsonObject &com
         const QJsonObject node = value.toObject();
         const QJsonObject props = node.value(QStringLiteral("props")).toObject();
 
-        if (props.value(QStringLiteral("visible")).toBool(true) && matches(node, command)) {
+        if (!props.value(QStringLiteral("visible")).toBool(true) || !props.value(QStringLiteral("open")).toBool(true))
+            continue;
+
+        if (matches(node, command)) {
             const QString candidate = command.value(QStringLiteral("event")).toString().isEmpty()
                                           ? defaultEvent(node)
                                           : command.value(QStringLiteral("event")).toString();
