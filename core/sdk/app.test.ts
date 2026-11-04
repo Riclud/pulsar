@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { App, Store, WindowHandle, type MenuItem } from "./app.ts"
 import { registerCapability } from "./caps.ts"
+import { Text } from "./ui.ts"
 
 describe("Store", () => {
   test("accepts plain JSON values", () => {
@@ -85,6 +86,49 @@ describe("Store", () => {
 
     expect(notified).toBe(2)
     expect(store.takePatch().changed).toEqual({ late: null, dynamic: { ready: true } })
+  })
+})
+
+describe("Store batch", () => {
+  test("notifies once after the last mutation", () => {
+    const store = new Store()
+    let calls = 0
+
+    store.subscribe(() => calls++)
+
+    store.batch(() => {
+      store.set("a", 1)
+      store.set("b", 2)
+      store.set("a", 3)
+    })
+
+    expect(calls).toBe(1)
+    expect(store.get("a")).toBe(3)
+    expect(store.get("b")).toBe(2)
+  })
+})
+
+describe("App renders", () => {
+  test("coalesces store changes into one render per tick", async () => {
+    const app = new App()
+    const trees: unknown[] = []
+
+    app.onSendUi = (_label, tree) => {
+      trees.push(tree)
+    }
+
+    app.window("main").render(() => [Text({ text: String(app.store.get("a") ?? "") })])
+
+    const base = trees.length
+
+    app.store.set("a", 1)
+    app.store.set("b", 2)
+
+    expect(trees.length).toBe(base)
+
+    await Promise.resolve()
+
+    expect(trees.length).toBe(base + 1)
   })
 })
 

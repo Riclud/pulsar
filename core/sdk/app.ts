@@ -182,6 +182,8 @@ export class Store {
   private readonly dirty = new Set<string>()
   private readonly removed = new Set<string>()
   private readonly listeners = new Set<() => void>()
+  private batching = 0
+  private pendingNotify = false
 
   /** Called whenever the store changes; the runtime uses it to push updates. */
   onChange?: () => void
@@ -192,9 +194,34 @@ export class Store {
     return () => this.listeners.delete(listener)
   }
 
+  /** Run several mutations and notify listeners once, after the last one. */
+  batch<T>(fn: () => T): T {
+    this.batching++
+
+    try {
+      return fn()
+    } finally {
+      this.batching--
+
+      if (this.batching === 0 && this.pendingNotify) {
+        this.pendingNotify = false
+        this.notify()
+      }
+    }
+  }
+
   private notify(): void {
     this.onChange?.()
     for (const listener of this.listeners) listener()
+  }
+
+  private requestNotify(): void {
+    if (this.batching > 0) {
+      this.pendingNotify = true
+      return
+    }
+
+    this.notify()
   }
 
   private same(a: unknown, b: unknown): boolean {
@@ -219,7 +246,7 @@ export class Store {
     this.data.set(key, value)
     this.dirty.add(key)
     this.removed.delete(key)
-    this.notify()
+    this.requestNotify()
 
     return this
   }
@@ -234,7 +261,7 @@ export class Store {
     if (had) {
       this.removed.add(key)
       this.dirty.delete(key)
-      this.notify()
+      this.requestNotify()
     }
 
     return had
@@ -354,6 +381,7 @@ export class App {
   private readonly sentIds = new Map<string, number[]>()
   private readonly pendingRecent: Array<{ action: "add" | "clear"; path?: string }> = []
   private lastMenu: MenuItem[] | null = null
+  private flushQueued = false
 
   /** The windows currently open (start windows plus those created in code). */
   get windows(): AppConfig[] {
@@ -369,7 +397,7 @@ export class App {
     this.manifest = loadManifest()
     this.windowConfigs = resolveWindows(this.manifest, config)
     this.store = new Store()
-    this.store.subscribe(() => this.flushAllUi())
+    this.store.subscribe(() => this.queueFlush())
     App.current = this
   }
 
@@ -460,6 +488,17 @@ export class App {
     })
 
     this.flushUi(label)
+  }
+
+  private queueFlush(): void {
+    if (this.flushQueued) return
+
+    this.flushQueued = true
+
+    queueMicrotask(() => {
+      this.flushQueued = false
+      this.flushAllUi()
+    })
   }
 
   /** Flush every pending UI tree to the host (called once wired). */
