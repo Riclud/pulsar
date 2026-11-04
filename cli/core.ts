@@ -5,13 +5,19 @@ import { basename, join, relative, resolve, sep } from "path"
 /** GitHub repository that hosts the releases. */
 export const REPO = process.env.PULSAR_REPO ?? "riclud/pulsar"
 
-/** Root of the installed pulsar distribution (cli/ + core/ + templates/). */
+/** Root of the pulsar distribution (cli/ + core/ + templates/). */
 export const pulsarRoot = (): string => {
+  const source = process.env.PULSAR_SOURCE
+
+  if (source) return resolve(source)
+
   return resolve(import.meta.dir, "..")
 }
 
 /** Directory of the SDK shipped with the active distribution. */
 export const sdkDir = (): string => {
+  if (process.env.PULSAR_SOURCE) return join(pulsarRoot(), "core", "sdk")
+
   const current = join(pulsarHome(), "current", "core", "sdk")
   const home = resolve(pulsarHome())
   const root = resolve(pulsarRoot())

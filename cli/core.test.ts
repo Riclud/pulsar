@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
-import { join } from "path"
-import { linkSdk } from "./core.ts"
+import { join, resolve } from "path"
+import { linkSdk, pulsarRoot } from "./core.ts"
 
 const withTemp = (run: (dir: string) => void): void => {
   const dir = mkdtempSync(join(tmpdir(), "pulsar-sdk-"))
@@ -37,5 +37,19 @@ describe("linkSdk", () => {
       linkSdk(app, second)
       expect(readFileSync(join(link, "index.ts"), "utf8")).toContain("new")
     })
+  })
+})
+
+describe("pulsarRoot", () => {
+  test("honours PULSAR_SOURCE", () => {
+    const previous = process.env.PULSAR_SOURCE
+
+    try {
+      process.env.PULSAR_SOURCE = "/tmp/pulsar-src"
+      expect(pulsarRoot()).toBe(resolve("/tmp/pulsar-src"))
+    } finally {
+      if (previous === undefined) delete process.env.PULSAR_SOURCE
+      else process.env.PULSAR_SOURCE = previous
+    }
   })
 })

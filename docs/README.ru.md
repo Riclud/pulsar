@@ -1250,6 +1250,14 @@ cmake -S . -B build && cmake --build build
 - `build/bin/bridge` — супервизор процессов на C++ для рантайма;
 - `build/bin/launcher` — лончер без Qt для однофайловых приложений.
 
+CLI берёт исходники из каталога, откуда запущен. Если в `PATH` стоит
+установленный `pulsar`, укажи `PULSAR_SOURCE` на чекаут, чтобы собирать
+приложения — включая Android APK — с хостом и SDK из этого чекаута:
+
+```sh
+PULSAR_SOURCE=/path/to/pulsar pulsar build --target android
+```
+
 Qt ищется через CMake `find_package(Qt6)`, поэтому при нестандартном пути
 передай `-DCMAKE_PREFIX_PATH=<qt>`. `PULSAR_QMAKE` по-прежнему задаёт `qmake`
 для упаковки (`pulsar build` встраивает Qt).

@@ -1236,6 +1236,14 @@ The build produces:
 - `build/bin/bridge` — the C++ process supervisor for the runtime;
 - `build/bin/launcher` — the Qt-free single-file launcher.
 
+The CLI takes its sources from the directory it runs from. When the installed
+`pulsar` launcher is on `PATH`, point `PULSAR_SOURCE` at a checkout to build
+apps — desktop and Android APKs — against that checkout's host and SDK:
+
+```sh
+PULSAR_SOURCE=/path/to/pulsar pulsar build --target android
+```
+
 Qt is located with CMake's `find_package(Qt6)`, so pass `-DCMAKE_PREFIX_PATH=<qt>`
 if it is not in a standard location. `PULSAR_QMAKE` still selects the `qmake`
 used when packaging (`pulsar build` bundles Qt).
