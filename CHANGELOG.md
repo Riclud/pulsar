@@ -6,6 +6,50 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-04
+
+### Added
+
+- The host reports `PULSAR_VERSION` over `host.info`; the runtime compares it
+  with the build-time SDK version and logs a mismatch. `pulsar dev` and
+  `pulsar doctor` warn about toolchain and Qt-series drift.
+- `pulsar build --target android --aab` builds and signs an Android App Bundle
+  next to the APK.
+- `PULSAR_CRASH_URL` forwards crash records as JSON while `crash.log` stays in
+  the app data directory.
+- Platform parity is pinned: icons come from the bundled font, the Controls
+  style is `Basic` everywhere (`PULSAR_CONTROLS_STYLE` overrides), and icons
+  honour `align`. `theme.set({ direction })` mirrors layouts for RTL.
+- SDK additions: `t`/`plural`/`direction`, validation combinators,
+  `runMigrations`, implicit list keys from `ID`/`id`, one-shot input `focus`,
+  and `hostInfo()`.
+- `PULSAR_SOURCE` builds apps against a checkout; `pulsar run`, `dev` and
+  `build` relink the app SDK to the renderer root so capabilities stay shared.
+- `PULSAR_INSPECTOR=1` shows node count, build time, DPR and font scale.
+- `virtualList` recycles delegates (`reuseItems`) and animates add, remove and
+  move transitions.
+
+### Changed
+
+- Route transitions fade the rebuilt tree instead of grabbing a screenshot;
+  `PULSAR_TRANSITION=snapshot|none` switches the behaviour.
+- Store mutations coalesce into one render per microtask, and `store.batch()`
+  groups explicit work.
+- Common UI nodes are created from precompiled components instead of
+  `Qt.createQmlObject` per node.
+
+### Fixed
+
+- Portable builds failed with `unknown capability` when the app and runtime
+  resolved different SDK copies.
+- Inputs no longer keep focus after the Android keyboard closes, mobile
+  selects no longer clip their text, and the focused editor field scrolls
+  above the keyboard.
+- The search hint stays inside the field, empty-search states show
+  immediately, and select indicators are anchored to the right.
+- Assorted control theming, focus and floating-label fixes across chips,
+  buttons, selects, checkboxes and scroll views.
+
 ## [1.2.3] - 2026-11-02
 
 ### Fixed
