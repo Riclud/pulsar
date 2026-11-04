@@ -30,6 +30,7 @@ struct NetRequestSpec {
     QByteArray method = "GET";
     QList<NetHeader> headers;
     QByteArray body;
+    QString bodyFile;
     int timeoutMs = 30000;
     qint64 maxBytes = 64ll * 1024 * 1024;
     QString redirect = "follow";

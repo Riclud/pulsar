@@ -10,6 +10,8 @@ export interface NetOptions {
   method?: string
   headers?: Record<string, string>
   body?: string | Uint8Array
+  /** Send this file as the body; the host streams it from disk. */
+  bodyFile?: string
   timeoutMs?: number
   redirect?: "follow" | "manual" | "error"
   maxRedirects?: number
@@ -313,6 +315,7 @@ class NetClient {
         headers: options.headers ?? {},
         body: body?.body,
         bodyEncoding: body?.encoding,
+        bodyFile: options.bodyFile,
         timeoutMs: options.timeoutMs,
         redirect: options.redirect,
         maxRedirects: options.maxRedirects,

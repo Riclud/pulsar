@@ -1,5 +1,7 @@
 #include "net.h"
 
+#include <QFile>
+
 #include <QAbstractSocket>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -133,7 +135,28 @@ void NativeHttpEngine::dispatch(quint32 id)
     });
     entry->timer->start(entry->spec.timeoutMs > 0 ? entry->spec.timeoutMs : kDefaultTimeoutMs);
 
-    QNetworkReply *reply = manager_->sendCustomRequest(request, entry->spec.method, entry->spec.body);
+    QNetworkReply *reply = nullptr;
+
+    if (entry->spec.bodyFile.isEmpty()) {
+        reply = manager_->sendCustomRequest(request, entry->spec.method, entry->spec.body);
+    } else {
+        auto *file = new QFile(entry->spec.bodyFile);
+
+        if (!file->open(QIODevice::ReadOnly)) {
+            delete file;
+            fail(id, QStringLiteral("ERR_FILE"), QStringLiteral("cannot read the request body file"));
+
+            return;
+        }
+
+        request.setHeader(QNetworkRequest::ContentLengthHeader, file->size());
+        reply = manager_->sendCustomRequest(request, entry->spec.method, file);
+        file->setParent(reply);
+
+        QObject::connect(reply, &QNetworkReply::uploadProgress, entry->timer, [timer = entry->timer]() {
+            timer->start();
+        });
+    }
 
     entry->reply = reply;
     entry->received = 0;
@@ -299,6 +322,7 @@ void NativeHttpEngine::handleFinished(quint32 id, QNetworkReply *reply)
             && entry->spec.method != "GET" && entry->spec.method != "HEAD") {
             entry->spec.method = "GET";
             entry->spec.body.clear();
+            entry->spec.bodyFile.clear();
 
             QList<NetHeader> filtered;
 
@@ -614,6 +638,8 @@ void NetworkService::handle(const QVariantMap &params)
     const QString body = params.value(QStringLiteral("body")).toString();
 
     spec.body = encoding == QLatin1String("base64") ? QByteArray::fromBase64(body.toLatin1()) : body.toUtf8();
+
+    spec.bodyFile = params.value(QStringLiteral("bodyFile")).toString();
 
     const int timeout = params.value(QStringLiteral("timeoutMs")).toInt();
 

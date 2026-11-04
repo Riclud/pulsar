@@ -40,7 +40,9 @@ const server = Bun.serve({
   hostname: "127.0.0.1",
   port: 0,
   idleTimeout: 0,
-  fetch: (request) => {
+  fetch: async (request) => {
+    if (request.method === "PUT") return new Response(String((await request.arrayBuffer()).byteLength))
+
     if (!request.url.endsWith("/slow")) return new Response(new Uint8Array(70 * 1024 * 1024))
 
     return new Response(slowStream())
@@ -131,6 +133,7 @@ const scenarios: Scenario[] = [
       return (
         output.includes("DOWNLOAD_DONE 73400320") &&
         output.includes("SLOW_DONE 8") &&
+        output.includes("UPLOAD_DONE 3145728") &&
         output.includes("FETCH_LIMITED ERR_TOO_LARGE")
       )
     },
