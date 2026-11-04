@@ -107,6 +107,8 @@ interface CommonOptions {
   animate?: number
   /** Receive the measured size after layout. */
   onLayout?: (size: { width: number; height: number }) => void
+  onFocus?: () => void
+  onBlur?: () => void
   /** Neon glow around the node; `true` uses the theme primary. */
   neon?: boolean | NeonOptions
 }
@@ -123,6 +125,12 @@ export interface ContainerOptions extends CommonOptions {
   padding?: number
 }
 
+export interface ScrollState {
+  offset: number
+  contentHeight: number
+  height: number
+}
+
 export interface PageOptions extends CommonOptions {
   gap?: number
   padding?: number
@@ -133,6 +141,7 @@ export interface PageOptions extends CommonOptions {
   flickVelocity?: number
   flickDeceleration?: number
   overscroll?: boolean
+  onScroll?: (state: ScrollState) => void
 }
 
 export interface WrapOptions extends LayoutOptions {
@@ -150,6 +159,7 @@ export interface ScrollOptions extends CommonOptions {
   flickVelocity?: number
   flickDeceleration?: number
   overscroll?: boolean
+  onScroll?: (state: ScrollState) => void
 }
 
 export interface ListOptions<T> extends CommonOptions {
@@ -158,6 +168,7 @@ export interface ListOptions<T> extends CommonOptions {
   keyOf?: (item: T, index: number) => string | number
   spacing?: number
   padding?: number
+  onScroll?: (state: ScrollState) => void
 }
 
 export interface GridOptions extends CommonOptions {
@@ -722,21 +733,36 @@ const makeNode = <P extends object>(
   events: string[] = [],
   callbacks?: Record<string, UiHandler>,
 ): UiNode => {
-  const { neon, onLayout, ...rest } = props as P & {
+  const { neon, onLayout, onFocus, onBlur, ...rest } = props as P & {
     neon?: boolean | NeonOptions
     onLayout?: (size: { width: number; height: number }) => void
+    onFocus?: () => void
+    onBlur?: () => void
   }
   const id = nextId++
   const layout = typeof onLayout === "function" ? onLayout : null
-  const eventList = layout ? [...events, "layout"] : events
+  const focus = typeof onFocus === "function" ? onFocus : null
+  const blur = typeof onBlur === "function" ? onBlur : null
+  const eventList = [...events]
   const callbackMap: Record<string, UiHandler> = { ...(callbacks ?? {}) }
 
   if (layout) {
+    eventList.push("layout")
     callbackMap.layout = (value) => {
       const size = value as { width: number; height: number }
 
       layout({ width: size.width, height: size.height })
     }
+  }
+
+  if (focus) {
+    eventList.push("focus")
+    callbackMap.focus = () => focus()
+  }
+
+  if (blur) {
+    eventList.push("blur")
+    callbackMap.blur = () => blur()
   }
 
   if (Object.keys(callbackMap).length > 0) handlers.set(id, callbackMap)
@@ -803,7 +829,13 @@ export const box = (options: BoxOptions = {}, ...children: UiChild[]): UiNode =>
 }
 
 export const scroll = (options: ScrollOptions = {}, ...children: UiChild[]): UiNode => {
-  return makeNode("scroll", options, children)
+  const { onScroll, ...props } = options
+
+  if (!onScroll) return makeNode("scroll", props, children)
+
+  return makeNode("scroll", props, children, ["scroll"], {
+    scroll: (value) => onScroll(value as ScrollState),
+  })
 }
 
 export const card = (options: CardOptions = {}, ...children: UiChild[]): UiNode => {
@@ -820,11 +852,15 @@ const implicitItemKey = (value: unknown): string | number | undefined => {
 }
 
 export const list = <T>(options: ListOptions<T>): UiNode => {
-  const { items, render, keyOf, ...props } = options
+  const { items, render, keyOf, onScroll, ...props } = options
   const children = items.map((item, index) => render(item, index))
   const itemKeys = items.map((item, index) => keyOf?.(item, index) ?? implicitItemKey(item) ?? index)
 
-  return makeNode("list", { ...props, itemKeys }, children)
+  if (!onScroll) return makeNode("list", { ...props, itemKeys }, children)
+
+  return makeNode("list", { ...props, itemKeys }, children, ["scroll"], {
+    scroll: (value) => onScroll(value as ScrollState),
+  })
 }
 
 export const grid = (options: GridOptions = {}, ...children: UiChild[]): UiNode => {
@@ -1344,6 +1380,7 @@ export const page = (options: PageOptions = {}, ...children: UiChild[]): UiNode 
     flickVelocity,
     flickDeceleration,
     overscroll,
+    onScroll,
     ...props
   } = options
 
@@ -1351,7 +1388,7 @@ export const page = (options: PageOptions = {}, ...children: UiChild[]): UiNode 
     { ...props, fill: true, gap, padding },
     header ?? null,
     scroll(
-      { fill: true, flick, flickVelocity, flickDeceleration, overscroll },
+      { fill: true, flick, flickVelocity, flickDeceleration, overscroll, onScroll },
       column({ gap, fillWidth: true }, ...children),
     ),
     footer ?? null,

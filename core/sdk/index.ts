@@ -77,6 +77,7 @@ export type {
   WrapOptions,
   StackOptions,
   ScrollOptions,
+  ScrollState,
   ListOptions,
   GridOptions,
   GradientOptions,

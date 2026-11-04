@@ -4261,8 +4261,6 @@ ApplicationWindow {
                     emitEvent(item.pulsarMeta.node, "input", item.text);
             });
             item.activeFocusChanged.connect(function () {
-                emitEvent(item.pulsarMeta.node, item.activeFocus ? "focus" : "blur");
-
                 if (item.activeFocus) {
                     view.revealTarget = item;
                     keyboardRevealTimer.restart();
@@ -4328,8 +4326,6 @@ ApplicationWindow {
                     emitEvent(item.pulsarMeta.node, "submit", item.text);
             });
             item.activeFocusChanged.connect(function () {
-                emitEvent(item.pulsarMeta.node, item.activeFocus ? "focus" : "blur");
-
                 if (item.activeFocus) {
                     view.revealTarget = item;
                     keyboardRevealTimer.restart();
@@ -4546,8 +4542,85 @@ ApplicationWindow {
         scheduleLayout(item);
     }
 
+    function emitFocus(item, focused) {
+        if (!item || !item.pulsarMeta)
+            return;
+
+        const event = focused ? "focus" : "blur";
+
+        if (!hasEvent(item.pulsarMeta.node, event))
+            return;
+
+        emitEvent(item.pulsarMeta.node, event);
+    }
+
+    function watchFocus(item, node) {
+        if (!hasEvent(node, "focus") && !hasEvent(node, "blur"))
+            return;
+        if (item.pulsarMeta.extra.focusWatched === true)
+            return;
+
+        item.pulsarMeta.extra.focusWatched = true;
+        item.activeFocusChanged.connect(function () { emitFocus(item, item.activeFocus); });
+    }
+
+    function emitScroll(item) {
+        if (!item || !item.pulsarMeta)
+            return;
+        if (!hasEvent(item.pulsarMeta.node, "scroll"))
+            return;
+
+        const extra = item.pulsarMeta.extra;
+
+        if (extra.lastScrollOffset === item.contentY && extra.lastScrollHeight === item.contentHeight)
+            return;
+
+        extra.lastScrollOffset = item.contentY;
+        extra.lastScrollHeight = item.contentHeight;
+        emitEvent(item.pulsarMeta.node, "scroll", {
+            offset: item.contentY,
+            contentHeight: item.contentHeight,
+            height: item.height
+        });
+    }
+
+    function scheduleScroll(item) {
+        if (!item || !item.pulsarMeta)
+            return;
+
+        const extra = item.pulsarMeta.extra;
+
+        if (extra.scrollPending === true)
+            return;
+
+        extra.scrollPending = true;
+        Qt.callLater(function () {
+            if (!item || !item.pulsarMeta)
+                return;
+
+            extra.scrollPending = false;
+            emitScroll(item);
+        });
+    }
+
+    function watchScroll(item, node) {
+        if (!hasEvent(node, "scroll"))
+            return;
+        if (item.pulsarMeta.extra.scrollWatched === true)
+            return;
+        if (item.contentY === undefined || item.contentHeight === undefined)
+            return;
+
+        item.pulsarMeta.extra.scrollWatched = true;
+        item.contentYChanged.connect(function () { scheduleScroll(item); });
+        item.contentHeightChanged.connect(function () { scheduleScroll(item); });
+        item.heightChanged.connect(function () { scheduleScroll(item); });
+        scheduleScroll(item);
+    }
+
     function applyCommon(item, node, isRoot) {
         watchLayout(item, node);
+        watchFocus(item, node);
 
         const props = node.props;
         const defaultFillWidth = node.type === "card" || node.type === "list" || node.type === "scroll"
@@ -4754,6 +4827,8 @@ ApplicationWindow {
             item.boundsBehavior = prop(props, "overscroll", false)
                     ? Flickable.DragAndOvershootBounds
                     : Flickable.StopAtBounds;
+
+            watchScroll(item, node);
 
             const contentColumn = (node.children || [])[0];
             const firstChild = contentColumn && contentColumn.children ? contentColumn.children[0] : null;
