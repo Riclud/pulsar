@@ -116,6 +116,8 @@ export interface PageOptions extends CommonOptions {
   padding?: number
   header?: UiChild
   footer?: UiChild
+  /** Allow kinetic fling after a drag; false stops the list as soon as the finger lifts. */
+  flick?: boolean
 }
 
 export interface WrapOptions extends LayoutOptions {
@@ -129,6 +131,7 @@ export interface StackOptions extends CommonOptions {
 export interface ScrollOptions extends CommonOptions {
   gap?: number
   padding?: number
+  flick?: boolean
 }
 
 export interface ListOptions<T> extends CommonOptions {
@@ -1286,12 +1289,12 @@ export const container = (options: ContainerOptions = {}, ...children: UiChild[]
 }
 
 export const page = (options: PageOptions = {}, ...children: UiChild[]): UiNode => {
-  const { gap = 12, padding = 16, header, footer, ...props } = options
+  const { gap = 12, padding = 16, header, footer, flick, ...props } = options
 
   return column(
     { ...props, fill: true, gap, padding },
     header ?? null,
-    scroll({ fill: true }, column({ gap, fillWidth: true }, ...children)),
+    scroll({ fill: true, flick }, column({ gap, fillWidth: true }, ...children)),
     footer ?? null,
   )
 }

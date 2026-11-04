@@ -546,6 +546,8 @@ ApplicationWindow {
         Flickable {
             clip: true
             boundsBehavior: Flickable.StopAtBounds
+            maximumFlickVelocity: 5000
+            flickDeceleration: 1200
             property var pulsarMeta: null
         }
     }
@@ -3185,6 +3187,8 @@ ApplicationWindow {
 
                 model: items
                 reuseItems: true
+                maximumFlickVelocity: 5000
+                flickDeceleration: 1200
                 topMargin: padding
                 bottomMargin: padding
                 add: Transition {
@@ -4526,6 +4530,9 @@ ApplicationWindow {
             });
             reconcile(inner, node.children || [], false);
         } else if (node.type === "scroll" || node.type === "list") {
+            if (prop(props, "flick", true) === false)
+                item.maximumFlickVelocity = 0;
+
             const contentColumn = (node.children || [])[0];
             const firstChild = contentColumn && contentColumn.children ? contentColumn.children[0] : null;
 
