@@ -373,6 +373,8 @@ void DevChannel::dispatch(const QJsonObject &node, const QString &event, const Q
 {
     QJsonObject data;
 
+    data.insert(QStringLiteral("target"), QStringLiteral("main"));
+    data.insert(QStringLiteral("path"), node.value(QStringLiteral("path")));
     data.insert(QStringLiteral("id"), node.value(QStringLiteral("id")));
     data.insert(QStringLiteral("event"), event);
 
