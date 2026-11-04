@@ -4497,7 +4497,58 @@ ApplicationWindow {
         });
     }
 
+    function emitLayout(item) {
+        if (!item || !item.pulsarMeta)
+            return;
+        if (!hasEvent(item.pulsarMeta.node, "layout"))
+            return;
+        if (item.width < 0 || item.height < 0)
+            return;
+
+        const extra = item.pulsarMeta.extra;
+
+        if (extra.lastLayoutWidth === item.width && extra.lastLayoutHeight === item.height)
+            return;
+
+        extra.lastLayoutWidth = item.width;
+        extra.lastLayoutHeight = item.height;
+        emitEvent(item.pulsarMeta.node, "layout", { width: item.width, height: item.height });
+    }
+
+    function scheduleLayout(item) {
+        if (!item || !item.pulsarMeta)
+            return;
+
+        const extra = item.pulsarMeta.extra;
+
+        if (extra.layoutPending === true)
+            return;
+
+        extra.layoutPending = true;
+        Qt.callLater(function () {
+            if (!item || !item.pulsarMeta)
+                return;
+
+            extra.layoutPending = false;
+            emitLayout(item);
+        });
+    }
+
+    function watchLayout(item, node) {
+        if (!hasEvent(node, "layout"))
+            return;
+        if (item.pulsarMeta.extra.layoutWatched === true)
+            return;
+
+        item.pulsarMeta.extra.layoutWatched = true;
+        item.widthChanged.connect(function () { scheduleLayout(item); });
+        item.heightChanged.connect(function () { scheduleLayout(item); });
+        scheduleLayout(item);
+    }
+
     function applyCommon(item, node, isRoot) {
+        watchLayout(item, node);
+
         const props = node.props;
         const defaultFillWidth = node.type === "card" || node.type === "list" || node.type === "scroll"
                 || node.type === "wrap" || node.type === "grid" || node.type === "virtualList"

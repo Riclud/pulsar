@@ -105,6 +105,8 @@ interface CommonOptions {
   maxWidth?: number
   /** Fade opacity changes over this many milliseconds. */
   animate?: number
+  /** Receive the measured size after layout. */
+  onLayout?: (size: { width: number; height: number }) => void
   /** Neon glow around the node; `true` uses the theme primary. */
   neon?: boolean | NeonOptions
 }
@@ -720,16 +722,30 @@ const makeNode = <P extends object>(
   events: string[] = [],
   callbacks?: Record<string, UiHandler>,
 ): UiNode => {
-  const { neon, ...rest } = props as P & { neon?: boolean | NeonOptions }
+  const { neon, onLayout, ...rest } = props as P & {
+    neon?: boolean | NeonOptions
+    onLayout?: (size: { width: number; height: number }) => void
+  }
   const id = nextId++
+  const layout = typeof onLayout === "function" ? onLayout : null
+  const eventList = layout ? [...events, "layout"] : events
+  const callbackMap: Record<string, UiHandler> = { ...(callbacks ?? {}) }
 
-  if (callbacks) handlers.set(id, callbacks)
+  if (layout) {
+    callbackMap.layout = (value) => {
+      const size = value as { width: number; height: number }
+
+      layout({ width: size.width, height: size.height })
+    }
+  }
+
+  if (Object.keys(callbackMap).length > 0) handlers.set(id, callbackMap)
 
   const node: UiNode = { id, type, props: rest as Record<string, unknown> }
   const nodes = flatten(children)
 
   if (nodes.length > 0) node.children = nodes
-  if (events.length > 0) node.events = events
+  if (eventList.length > 0) node.events = eventList
 
   if (neon === undefined || neon === false) return node
 
