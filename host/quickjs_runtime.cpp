@@ -13,6 +13,8 @@
 #include <QTimer>
 #include <QUrl>
 
+#include <filesystem>
+#include <system_error>
 #include <utility>
 
 namespace pulsar {
@@ -99,6 +101,9 @@ bool copyRecursive(const QString &from, const QString &to)
     }
 
     QDir().mkpath(QFileInfo(to).absolutePath());
+
+    if (QFileInfo::exists(to) && !QFile::remove(to))
+        return false;
 
     if (!QFile::copy(from, to))
         return false;
@@ -946,6 +951,9 @@ JSValue jsPulsarRemove(JSContext *ctx, JSValueConst, int argc, JSValueConst *arg
     const bool recursive = argc > 1 ? JS_ToBool(ctx, argv[1]) : false;
     const QFileInfo info(path);
 
+    if (!info.exists() && !info.isSymLink())
+        return JS_NewBool(ctx, true);
+
     if (info.isDir()) {
         if (recursive) return JS_NewBool(ctx, QDir(path).removeRecursively());
 
@@ -965,7 +973,11 @@ JSValue jsPulsarRename(JSContext *ctx, JSValueConst, int argc, JSValueConst *arg
 
     QDir().mkpath(QFileInfo(to).absolutePath());
 
-    return JS_NewBool(ctx, QFile::rename(from, to));
+    std::error_code error;
+
+    std::filesystem::rename(QFile::encodeName(from).toStdString(), QFile::encodeName(to).toStdString(), error);
+
+    return JS_NewBool(ctx, !error);
 }
 
 JSValue jsPulsarCopy(JSContext *ctx, JSValueConst, int argc, JSValueConst *argv)

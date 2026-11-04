@@ -32,6 +32,12 @@ const requireWrite = (written: boolean, path: string): boolean => {
   return true
 }
 
+const requireDone = (done: boolean, action: string, path: string): boolean => {
+  if (!done) throw new Error(`cannot ${action}: ${path}`)
+
+  return true
+}
+
 /** Platform backed by native globals installed by the embedded host. */
 export const createQuickJsPlatform = (): Platform => {
   const info = JSON.parse(__pulsarPlatformInfo()) as PlatformInfo
@@ -64,10 +70,18 @@ export const createQuickJsPlatform = (): Platform => {
     listDir: async (path = ".") => __pulsarListDir(path),
     exists: async (path) => __pulsarExists(path),
     stat: async (path) => JSON.parse(__pulsarStat(path)) as FileStat,
-    mkdir: async (path, recursive = true) => __pulsarMkdir(path, recursive),
-    remove: async (path, recursive = false) => __pulsarRemove(path, recursive),
-    rename: async (from, to) => __pulsarRename(from, to),
-    copy: async (from, to, recursive = true) => __pulsarCopy(from, to, recursive),
+    mkdir: async (path, recursive = true) => {
+      return requireDone(__pulsarMkdir(path, recursive), "create the directory", path)
+    },
+    remove: async (path, recursive = false) => {
+      return requireDone(__pulsarRemove(path, recursive), "remove", path)
+    },
+    rename: async (from, to) => {
+      return requireDone(__pulsarRename(from, to), "rename", from)
+    },
+    copy: async (from, to, recursive = true) => {
+      return requireDone(__pulsarCopy(from, to, recursive), "copy", from)
+    },
     moveToTrash: async (path) => __pulsarMoveToTrash(path),
 
     openUrl: async (url) => __pulsarOpenUrl(url),

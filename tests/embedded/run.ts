@@ -32,7 +32,29 @@ try {
       const text = await fs.readFile(dirs.data + "/note.txt")
       const value = (await storage.get("k")) as { n?: number } | undefined
 
-      __pulsarSend(JSON.stringify({ method: "RESULT", ok: text === "hello native" && value?.n === 7 }))
+      const source = dirs.data + "/source.txt"
+      const target = dirs.data + "/target.txt"
+      const copied = dirs.data + "/copied.txt"
+
+      await fs.writeFile(source, "new")
+      await fs.writeFile(target, "old")
+      await fs.writeFile(copied, "old")
+      await fs.copy(source, copied)
+      await fs.rename(source, target)
+      await fs.remove(dirs.data + "/missing.txt")
+
+      const replaced = (await fs.readFile(target)) === "new" && (await fs.readFile(copied)) === "new"
+      const failure = await fs.rename(dirs.data + "/missing.txt", target).then(
+        () => false,
+        () => true,
+      )
+
+      __pulsarSend(
+        JSON.stringify({
+          method: "RESULT",
+          ok: text === "hello native" && value?.n === 7 && replaced && failure,
+        }),
+      )
     } catch (e) {
       __pulsarSend(JSON.stringify({ method: "ERROR", message: e instanceof Error ? e.stack : String(e) }))
     }
