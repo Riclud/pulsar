@@ -22,7 +22,7 @@ import {
   type Compat,
   type RuntimeKind,
 } from "../core/sdk/manifest.ts"
-import { cliVersion, findBridge, findHost, findLauncher, pulsarRoot, toolchainVersion } from "./core.ts"
+import { cliVersion, findBridge, findHost, findLauncher, linkSdk, pulsarRoot, toolchainVersion } from "./core.ts"
 import { buildAndroid, installAndroid } from "./android.ts"
 import { launcherName, readManifest, resolveEntry, type BuildTarget } from "./app.ts"
 import { create } from "./create.ts"
@@ -217,6 +217,7 @@ const run = () => {
   const appDir = process.cwd()
 
   warnToolchain()
+  linkSdk(appDir, join(pulsarRoot(), "core", "sdk"))
 
   const host = findHost()
   const r = spawnSync(host, [], {
@@ -258,6 +259,7 @@ const dev = async () => {
   }
 
   warnToolchain()
+  linkSdk(appDir, join(pulsarRoot(), "core", "sdk"))
 
   const host = findHost()
 
@@ -459,6 +461,8 @@ const build = async () => {
 
   const root = pulsarRoot()
   const runtimeTs = join(root, "core", "runtime", "main.ts")
+
+  linkSdk(appDir, join(root, "core", "sdk"))
 
   if (!existsSync(runtimeTs)) {
     console.error(`pulsar build: runtime not found at ${runtimeTs}`)
