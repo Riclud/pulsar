@@ -3184,6 +3184,7 @@ ApplicationWindow {
                 property bool endReached: false
 
                 model: items
+                reuseItems: true
                 topMargin: padding
                 bottomMargin: padding
                 add: Transition {
@@ -3199,6 +3200,22 @@ ApplicationWindow {
                         property: "opacity"
                         to: 0
                         duration: Math.round(view.motionFast * 0.6)
+                    }
+                }
+                move: Transition {
+                    NumberAnimation {
+                        property: "y"
+                        duration: view.motionFast
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: view.motionCurve
+                    }
+                }
+                moveDisplaced: Transition {
+                    NumberAnimation {
+                        property: "y"
+                        duration: view.motionFast
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: view.motionCurve
                     }
                 }
 
