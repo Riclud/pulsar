@@ -57,6 +57,7 @@
 #include "net.h"
 #include "power.h"
 #include "recent.h"
+#include "screen_info.h"
 #include "secure.h"
 
 static bool gErrorShown = false;
@@ -1006,33 +1007,7 @@ static void handleQuery(Bridge *bridge, const QVariantMap &m)
     params.insert(QStringLiteral("token"), token);
 
     if (kind == QLatin1String("screen.list")) {
-        QJsonArray screens;
-        QScreen *primary = QGuiApplication::primaryScreen();
-
-        for (QScreen *s : QGuiApplication::screens()) {
-            const QRect geo = s->geometry();
-            const QRect area = s->availableGeometry();
-
-            QJsonObject work;
-            work.insert(QStringLiteral("x"), area.x());
-            work.insert(QStringLiteral("y"), area.y());
-            work.insert(QStringLiteral("width"), area.width());
-            work.insert(QStringLiteral("height"), area.height());
-
-            QJsonObject screen;
-            screen.insert(QStringLiteral("name"), s->name());
-            screen.insert(QStringLiteral("x"), geo.x());
-            screen.insert(QStringLiteral("y"), geo.y());
-            screen.insert(QStringLiteral("width"), geo.width());
-            screen.insert(QStringLiteral("height"), geo.height());
-            screen.insert(QStringLiteral("workArea"), work);
-            screen.insert(QStringLiteral("scale"), s->devicePixelRatio());
-            screen.insert(QStringLiteral("primary"), s == primary);
-
-            screens.append(screen);
-        }
-
-        params.insert(QStringLiteral("value"), screens);
+        params.insert(QStringLiteral("value"), pulsar::screenList());
     } else if (kind == QLatin1String("system.power")) {
         if (gPower)
             params.insert(QStringLiteral("value"), QJsonObject::fromVariantMap(gPower->state()));

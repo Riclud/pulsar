@@ -16,6 +16,10 @@ import android.os.Environment;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.provider.OpenableColumns;
+import android.content.SharedPreferences;
+import android.security.keystore.KeyGenParameterSpec;
+import android.security.keystore.KeyProperties;
+import android.util.Base64;
 import android.graphics.Color;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -40,10 +44,21 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
+
 public class PulsarActivity extends QtActivity {
+    private static final String SECURE_KEY_ALIAS = "pulsar_secure";
+    private static final String SECURE_PREFERENCES = "pulsar_secure";
+    private static final String SECURE_CIPHER = "AES/GCM/NoPadding";
+
     private static final int PICK_FILES_REQUEST = 0x504b;
     private static final int PERMISSION_REQUEST = 0x504d;
 
@@ -187,6 +202,82 @@ public class PulsarActivity extends QtActivity {
         WindowInsets insets = getWindow().getDecorView().getRootWindowInsets();
 
         return insets != null && insets.isVisible(WindowInsets.Type.ime());
+    }
+
+    private SecretKey secureKey() throws Exception {
+        KeyStore store = KeyStore.getInstance("AndroidKeyStore");
+
+        store.load(null);
+
+        if (store.containsAlias(SECURE_KEY_ALIAS)) {
+            return (SecretKey) store.getKey(SECURE_KEY_ALIAS, null);
+        }
+
+        KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+
+        generator.init(new KeyGenParameterSpec.Builder(
+                SECURE_KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .build());
+
+        return generator.generateKey();
+    }
+
+    private SharedPreferences securePreferences() {
+        return getSharedPreferences(SECURE_PREFERENCES, MODE_PRIVATE);
+    }
+
+    public boolean secureAvailable() {
+        try {
+            secureKey();
+
+            return true;
+        } catch (Exception error) {
+            return false;
+        }
+    }
+
+    public boolean secureSet(String key, String value) {
+        try {
+            Cipher cipher = Cipher.getInstance(SECURE_CIPHER);
+
+            cipher.init(Cipher.ENCRYPT_MODE, secureKey());
+
+            byte[] encrypted = cipher.doFinal(value.getBytes(StandardCharsets.UTF_8));
+            String stored = Base64.encodeToString(cipher.getIV(), Base64.NO_WRAP) + ":"
+                    + Base64.encodeToString(encrypted, Base64.NO_WRAP);
+
+            return securePreferences().edit().putString(key, stored).commit();
+        } catch (Exception error) {
+            return false;
+        }
+    }
+
+    public String secureGet(String key) {
+        String stored = securePreferences().getString(key, null);
+
+        if (stored == null) {
+            return null;
+        }
+
+        try {
+            String[] parts = stored.split(":", 2);
+            Cipher cipher = Cipher.getInstance(SECURE_CIPHER);
+
+            cipher.init(Cipher.DECRYPT_MODE, secureKey(),
+                    new GCMParameterSpec(128, Base64.decode(parts[0], Base64.NO_WRAP)));
+
+            byte[] decrypted = cipher.doFinal(Base64.decode(parts[1], Base64.NO_WRAP));
+
+            return new String(decrypted, StandardCharsets.UTF_8);
+        } catch (Exception error) {
+            return null;
+        }
+    }
+
+    public boolean secureRemove(String key) {
+        return securePreferences().edit().remove(key).commit();
     }
 
     public void showToast(String text) {

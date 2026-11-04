@@ -2,6 +2,7 @@
 
 #include "net.h"
 #include "quickjs_runtime.h"
+#include "screen_info.h"
 
 #include <QClipboard>
 #include <QDateTime>
@@ -24,6 +25,40 @@
 #include <QUrl>
 
 #include <cstdio>
+
+static QJsonValue secureQuery(const QString &kind, const QJsonObject &params)
+{
+#ifdef Q_OS_ANDROID
+    const QJniObject activity = QNativeInterface::QAndroidApplication::context();
+
+    if (!activity.isValid())
+        return kind == QLatin1String("secure.get") ? QJsonValue(QJsonValue::Null) : QJsonValue(false);
+
+    if (kind == QLatin1String("secure.available"))
+        return bool(activity.callMethod<jboolean>("secureAvailable", "()Z"));
+
+    const QJniObject key = QJniObject::fromString(params.value(QStringLiteral("key")).toString());
+
+    if (kind == QLatin1String("secure.remove"))
+        return bool(activity.callMethod<jboolean>("secureRemove", "(Ljava/lang/String;)Z", key.object<jstring>()));
+
+    if (kind == QLatin1String("secure.set")) {
+        const QJniObject value = QJniObject::fromString(params.value(QStringLiteral("value")).toString());
+
+        return bool(activity.callMethod<jboolean>("secureSet", "(Ljava/lang/String;Ljava/lang/String;)Z",
+                                                  key.object<jstring>(), value.object<jstring>()));
+    }
+
+    const QJniObject value = activity.callObjectMethod("secureGet", "(Ljava/lang/String;)Ljava/lang/String;",
+                                                       key.object<jstring>());
+
+    return value.isValid() ? QJsonValue(value.toString()) : QJsonValue(QJsonValue::Null);
+#else
+    Q_UNUSED(params)
+
+    return kind == QLatin1String("secure.get") ? QJsonValue(QJsonValue::Null) : QJsonValue(false);
+#endif
+}
 
 EmbeddedBridge::EmbeddedBridge(pulsar::QuickJsRuntime *runtime, QJSEngine *engine,
                                QQmlPropertyMap *store, QObject *parent)
@@ -613,6 +648,15 @@ void EmbeddedBridge::handleMessage(const QJsonObject &message)
             info.insert(QStringLiteral("qt"), QString::fromLatin1(qVersion()));
             info.insert(QStringLiteral("platform"), QGuiApplication::platformName());
             replyParams.insert(QStringLiteral("value"), info);
+        } else if (kind == QLatin1String("screen.list")) {
+            replyParams.insert(QStringLiteral("value"), pulsar::screenList());
+        } else if (kind == QLatin1String("theme.get")) {
+            QJsonObject value;
+            value.insert(QStringLiteral("scheme"), colorScheme());
+            replyParams.insert(QStringLiteral("value"), value);
+        } else if (kind == QLatin1String("secure.available") || kind == QLatin1String("secure.get")
+                   || kind == QLatin1String("secure.set") || kind == QLatin1String("secure.remove")) {
+            replyParams.insert(QStringLiteral("value"), secureQuery(kind, params));
         } else if (kind == QLatin1String("clipboard.read")) {
             replyParams.insert(QStringLiteral("value"), QGuiApplication::clipboard()->text());
         } else if (kind == QLatin1String("clipboard.write")) {

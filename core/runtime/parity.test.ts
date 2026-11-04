@@ -24,15 +24,7 @@ const queryPattern = /kind == QLatin1String\("([a-zA-Z.]+)"\)/g
 const desktopOnly = ["__menu", "__recent", "__tray", "__reload"]
 const androidOnly = ["__notify-channel", "__toast"]
 const appliedFromAnyDesktopNotification = ["__state"]
-const queriesWithoutEmbeddedSupport = [
-  "screen.list",
-  "secure.available",
-  "secure.get",
-  "secure.remove",
-  "secure.set",
-  "system.power",
-  "theme.get",
-]
+const queriesWithoutEmbeddedSupport = ["system.power"]
 
 const missing = (wanted: Set<string>, handled: Set<string>, allowed: string[]) => {
   return [...wanted].filter((name) => !handled.has(name) && !allowed.includes(name)).sort()
