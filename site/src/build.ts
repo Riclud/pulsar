@@ -494,14 +494,24 @@ const homeText = {
   },
 }
 
-const homeSample = `const Contact = component<{ key: string; name: string }>((props) => {
+const homeSample = (title: string, left: string): string => {
+  return `const TaskRow = component<{ key: string; task: Task }>(({ task }) => {
   return Row(
-    { color: "surface", radius: 12, padding: 12, gap: 12, alignItems: "center" },
-    Avatar({ name: props.name }),
-    Column({ flex: 1 }, Text({ text: props.name, weight: "semibold" })),
-    Button({ label: "Open" }),
+    { color: "surface", radius: 10, padding: 12, gap: 10, alignItems: "center", fillWidth: true },
+    Checkbox({ checked: task.done, onToggle: () => toggle(task) }),
+    Text({ text: task.text, strike: task.done, flex: 1 }),
+  )
+})
+
+app.window().render(() => {
+  return Column(
+    { fill: true, padding: 16, gap: 8 },
+    Text({ text: "${title}", size: 24, weight: "semibold" }),
+    Text({ text: \`${left}\`, size: 12 }),
+    ...state.tasks.map((task) => TaskRow({ key: task.id, task })),
   )
 })`
+}
 
 const homePage = (lang: Lang, md: ReturnType<typeof makeMarkdown>): Page => {
   const t = ui[lang]
@@ -536,7 +546,7 @@ pulsar install</code></pre>
     <p>${c.sampleText}</p>
   </div>
   <div class="sample">
-    <div class="sample-code prose">${md.render("```ts\n" + homeSample + "\n```")}</div>
+    <div class="sample-code prose">${md.render("```ts\n" + homeSample(c.tasksTitle, lang === "en" ? "${open.get()} left" : "Осталось: ${open.get()}") + "\n```")}</div>
     <div class="phone" aria-hidden="true">
       <div class="phone-screen">
         <p class="phone-title">${c.tasksTitle}</p>
