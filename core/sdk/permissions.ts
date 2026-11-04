@@ -40,6 +40,7 @@ export const CAPABILITY_PERMISSIONS: Record<string, string> = {
   "storage.get": "storage",
   "storage.has": "storage",
   "storage.set": "storage",
+  "storage.setMany": "storage",
   "storage.remove": "storage",
   "secure.available": "secure",
   "secure.get": "secure",

@@ -79,6 +79,15 @@ export const createStorageCaps = (platform: Platform): CapRegistry => {
         return true
       }),
 
+    "storage.setMany": (p: { values: Record<string, unknown> }) =>
+      serial(async () => {
+        for (const [key, value] of Object.entries(p.values)) assertSerializable(value, key)
+
+        await writeStore({ ...(await readStore()), ...p.values })
+
+        return true
+      }),
+
     "storage.remove": (p: { key: string }) =>
       serial(async () => {
         const data = await readStore()

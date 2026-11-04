@@ -203,6 +203,9 @@ export const storage = {
   has: (key: string): Promise<boolean> => callCapability("storage.has", { key }) as Promise<boolean>,
   set: (key: string, value: unknown): Promise<boolean> =>
     callCapability("storage.set", { key, value }) as Promise<boolean>,
+  setMany: (values: Record<string, unknown>): Promise<boolean> => {
+    return callCapability("storage.setMany", { values }) as Promise<boolean>
+  },
   remove: (key: string): Promise<boolean> => callCapability("storage.remove", { key }) as Promise<boolean>,
 }
 
