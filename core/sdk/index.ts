@@ -4,6 +4,8 @@ export {
   ui,
   bind,
   defineComponent,
+  memo,
+  diffUiTrees,
   dispatchUiEvent,
   dispatchWindowEvent,
   For,
@@ -68,6 +70,7 @@ export {
 } from "./ui.ts"
 export type {
   A11yRole,
+  UiPatch,
   UiChild,
   UiNode,
   UiNodeType,

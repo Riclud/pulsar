@@ -58,6 +58,7 @@ export interface UiNode {
   props: Record<string, unknown>
   children?: UiNode[]
   events?: string[]
+  callbacks?: Record<string, (value: unknown) => void>
 }
 
 export type UiChild = UiNode | string | number | null | false | undefined | UiChild[]
@@ -788,10 +789,13 @@ const makeNode = <P extends object>(
     callbackMap.blur = () => blur()
   }
 
-  if (Object.keys(callbackMap).length > 0) handlers.set(id, callbackMap)
-
   const node: UiNode = { id, type, props: rest as Record<string, unknown> }
   const nodes = flatten(children)
+
+  if (Object.keys(callbackMap).length > 0) {
+    handlers.set(id, callbackMap)
+    node.callbacks = callbackMap
+  }
 
   if (nodes.length > 0) node.children = nodes
   if (eventList.length > 0) node.events = eventList
@@ -1434,6 +1438,57 @@ export const defineComponent = <P>(component: DefinedComponent<P>): DefinedCompo
   return component
 }
 
+const resolveMemoValue = (value: unknown): unknown => {
+  if (isBinding(value)) return (value as unknown as BindingBox<unknown>)[BINDING]()
+
+  return value
+}
+
+const memoSignature = (props: Record<string, unknown>): string | null => {
+  const parts: string[] = []
+
+  try {
+    for (const key of Object.keys(props).sort()) {
+      const value = props[key]
+
+      if (typeof value === "function") continue
+
+      parts.push(`${key}:${JSON.stringify(resolveMemoValue(value))}`)
+    }
+  } catch {
+    return null
+  }
+
+  return parts.join("|")
+}
+
+export const memo = <P extends { key?: string | number }>(
+  component: DefinedComponent<P>,
+): DefinedComponent<P> => {
+  const cache = new Map<string, { signature: string; node: UiNode }>()
+
+  return (props, ...children) => {
+    if (props.key === undefined || children.length > 0)
+      return component(props, ...children)
+
+    const signature = memoSignature(props as Record<string, unknown>)
+    const key = String(props.key)
+    const cached = cache.get(key)
+
+    if (signature !== null && cached && cached.signature === signature)
+      return cached.node
+
+    const node = component(props, ...children)
+
+    if (signature !== null) {
+      if (cache.size > 512) cache.clear()
+      cache.set(key, { signature, node })
+    }
+
+    return node
+  }
+}
+
 export const Column = (options: LayoutOptions = {}, ...children: UiChild[]): UiNode => column(options, ...children)
 
 export const Row = (options: LayoutOptions = {}, ...children: UiChild[]): UiNode => row(options, ...children)
@@ -1594,6 +1649,81 @@ export const serialize = (nodes: UiNode[], parentPath = "", keys?: Array<string 
   })
 }
 
+export interface UiPatch {
+  path: string
+  node: Record<string, unknown>
+}
+
+type SerializedUiNode = {
+  id: number
+  type: string
+  props: Record<string, unknown>
+  path: string
+  children?: SerializedUiNode[]
+  events?: string[]
+}
+
+const sameChildPaths = (a: SerializedUiNode, b: SerializedUiNode): boolean => {
+  const aChildren = a.children ?? []
+  const bChildren = b.children ?? []
+
+  if (aChildren.length !== bChildren.length) return false
+
+  for (let index = 0; index < aChildren.length; index++) {
+    if (aChildren[index]!.path !== bChildren[index]!.path) return false
+  }
+
+  return true
+}
+
+const sameOwnProps = (a: SerializedUiNode, b: SerializedUiNode): boolean => {
+  if (a.type !== b.type) return false
+  if (JSON.stringify(a.events ?? []) !== JSON.stringify(b.events ?? [])) return false
+
+  return JSON.stringify(a.props) === JSON.stringify(b.props)
+}
+
+const diffNode = (
+  previous: SerializedUiNode,
+  next: SerializedUiNode,
+  patches: UiPatch[],
+): boolean => {
+  if (!sameOwnProps(previous, next)) {
+    patches.push({ path: next.path, node: next as unknown as Record<string, unknown> })
+    return true
+  }
+
+  if (!sameChildPaths(previous, next)) {
+    patches.push({ path: next.path, node: next as unknown as Record<string, unknown> })
+    return true
+  }
+
+  const previousChildren = previous.children ?? []
+  const nextChildren = next.children ?? []
+
+  for (let index = 0; index < nextChildren.length; index++) {
+    if (!diffNode(previousChildren[index]!, nextChildren[index]!, patches)) return false
+  }
+
+  return true
+}
+
+export const diffUiTrees = (previous: unknown[], next: unknown[]): UiPatch[] | null => {
+  if (previous.length !== next.length) return null
+
+  const patches: UiPatch[] = []
+
+  for (let index = 0; index < next.length; index++) {
+    const before = previous[index] as SerializedUiNode
+    const after = next[index] as SerializedUiNode
+
+    if (before.path !== after.path) return null
+    if (!diffNode(before, after, patches)) return null
+  }
+
+  return patches
+}
+
 export const dispatchUiEvent = (id: number, event: string, value: unknown): void => {
   handlers.get(id)?.[event]?.(value)
 }
@@ -1626,7 +1756,7 @@ export const collectUiHandlers = (
 
   nodes.forEach((node, index) => {
     const path = `${parentPath}/${nodeSegment(node, index, keys)}`
-    const callbacks = handlers.get(node.id)
+    const callbacks = node.callbacks ?? handlers.get(node.id)
 
     ids.push(node.id)
 

@@ -1,6 +1,14 @@
 import { callCapability } from "./caps.ts"
 import { loadManifest, resolveWindows, type AppManifest } from "./manifest.ts"
-import { collectUiHandlers, forgetHandlers, serialize, setWindowHandlers, type UiNode } from "./ui.ts"
+import {
+  collectUiHandlers,
+  diffUiTrees,
+  forgetHandlers,
+  serialize,
+  setWindowHandlers,
+  type UiNode,
+  type UiPatch,
+} from "./ui.ts"
 
 export type UiSource = UiNode | UiNode[] | (() => UiNode | UiNode[])
 
@@ -354,6 +362,8 @@ export class App {
   onCreateWindow?: (config: AppConfig) => void
   /** Installed by the runtime; renders a JS UI tree into a window. */
   onSendUi?: (label: string, tree: unknown[]) => void
+  /** Installed by the runtime; applies changed subtrees to an existing window. */
+  onSendUiPatch?: (label: string, patches: UiPatch[]) => void
   /** Installed by the runtime; adds a file to the OS recent list. */
   onAddRecentDocument?: (path: string) => void
   /** Installed by the runtime; clears the OS recent list. */
@@ -362,7 +372,7 @@ export class App {
   onSetMenu?: (items: MenuItem[]) => void
 
   private readonly renderSources = new Map<string, () => UiNode[]>()
-  private readonly sentTrees = new Map<string, string>()
+  private readonly sentTrees = new Map<string, unknown[]>()
   private readonly sentIds = new Map<string, number[]>()
   private readonly pendingRecent: Array<{ action: "add" | "clear"; path?: string }> = []
   private lastMenu: MenuItem[] | null = null
@@ -472,6 +482,9 @@ export class App {
       return Array.isArray(value) ? value : [value]
     })
 
+    this.sentTrees.delete(label)
+    this.sentIds.delete(label)
+
     this.flushUi(label)
   }
 
@@ -498,17 +511,24 @@ export class App {
 
     const nodes = source()
     const tree = serialize(nodes)
-    const json = JSON.stringify(tree)
-
-    if (this.sentTrees.get(label) === json) return
-
     const { routes, ids } = collectUiHandlers(nodes)
+    const previous = this.sentTrees.get(label)
 
     setWindowHandlers(label, routes)
     forgetHandlers(this.sentIds.get(label) ?? [])
 
-    this.sentTrees.set(label, json)
+    this.sentTrees.set(label, tree)
     this.sentIds.set(label, ids)
+
+    if (previous && this.onSendUiPatch) {
+      const patches = diffUiTrees(previous, tree)
+
+      if (patches !== null) {
+        if (patches.length > 0) this.onSendUiPatch(label, patches)
+        return
+      }
+    }
+
     this.onSendUi(label, tree)
   }
 

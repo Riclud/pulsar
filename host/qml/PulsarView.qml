@@ -21,6 +21,8 @@ ApplicationWindow {
     Material.accent: themePrimary
     property bool windowTransparent: false
     property var tree: []
+    property var uiTree: []
+    property var uiPatch: null
     property string treeShape: ""
     property bool treeGrabPending: false
     property var scrollPositions: ({})
@@ -3576,13 +3578,23 @@ ApplicationWindow {
     }
 
     onTreeChanged: {
-        errorText = ""
+        uiTree = tree || [];
+        renderTree();
+    }
+
+    onUiPatchChanged: {
+        if (uiPatch && uiPatch.patches)
+            applyUiPatch(uiPatch.patches);
+    }
+
+    function renderTree() {
+        errorText = "";
 
         if (treeGrabPending)
             return;
 
-        const route = treeRouteSignature(tree || []);
-        const signature = route !== null ? route : treeSignature(tree || [], 0);
+        const route = treeRouteSignature(uiTree);
+        const signature = route !== null ? route : treeSignature(uiTree, 0);
 
         if (treeShape === "" || signature === treeShape) {
             treeShape = signature;
@@ -3610,6 +3622,67 @@ ApplicationWindow {
         }
 
         playFade();
+    }
+
+    function replaceTreeBranch(nodes, path, node) {
+        for (let index = 0; index < nodes.length; index++) {
+            const current = nodes[index];
+
+            if (current.path === path) {
+                nodes[index] = node;
+                return true;
+            }
+
+            if (current.children && path.indexOf(current.path + "/") === 0) {
+                if (replaceTreeBranch(current.children, path, node))
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    function applyUiPatch(patches) {
+        if (!patches || patches.length === 0)
+            return;
+
+        const started = Date.now();
+
+        view.uiStats = { created: 0, updated: 0, removed: 0, reordered: 0 };
+
+        for (const patch of patches) {
+            if (!patch || !patch.path || !patch.node) {
+                renderTree();
+                return;
+            }
+
+            if (!replaceTreeBranch(view.uiTree, patch.path, patch.node)) {
+                renderTree();
+                return;
+            }
+        }
+
+        for (const patch of patches) {
+            const item = view.nodeItems[patch.path];
+
+            if (!item || item.pulsarMeta.type !== patch.node.type) {
+                renderTree();
+                return;
+            }
+
+            view.uiStats.updated++;
+            updateNode(item, patch.node, false);
+        }
+
+        const elapsed = Date.now() - started;
+
+        if (PulsarBridge.env("PULSAR_DEBUG"))
+            console.log("PulsarView patch " + patches.length
+                    + " +" + view.uiStats.created
+                    + " ~" + view.uiStats.updated
+                    + " -" + view.uiStats.removed
+                    + " reorder=" + view.uiStats.reordered
+                    + " " + elapsed + "ms");
     }
 
     function treeRouteSignature(nodes) {
@@ -5766,7 +5839,7 @@ ApplicationWindow {
         const focus = captureFocus();
 
         view.uiStats = { created: 0, updated: 0, removed: 0, reordered: 0 };
-        reconcile(host, tree || [], true);
+        reconcile(host, view.uiTree || [], true);
         restoreFocus(focus);
 
         const elapsed = Date.now() - started;

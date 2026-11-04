@@ -272,6 +272,7 @@ try {
   })
   check(jsUiLog, "UI render main nodes= 1")
   check(jsUiLog, "PulsarView built 1")
+  check(jsUiLog, "UI patch main ops=")
   check(jsUiLog, "STORE count = QVariant(qlonglong, 1)")
   check(jsUiLog, "STORE open = QVariant(bool, true)")
   check(jsUiLog, "STORE mutated = QVariant(bool, true)")
@@ -286,8 +287,8 @@ try {
     AUTO_QUIT_MS: "2500",
     QT_LOG_FILE: jsReconcileLog,
   })
-  check(jsReconcileLog, "PulsarView built 1 +1")
-  check(jsReconcileLog, "PulsarView built 1 +0")
+  check(jsReconcileLog, "PulsarView patch 1 +1")
+  check(jsReconcileLog, "PulsarView patch 1 +0")
   check(jsReconcileLog, "reorder=4")
   checkAbsent(jsReconcileLog, "PulsarView built 1 +4")
   checkAbsent(jsReconcileLog, "Error:")

@@ -28,6 +28,7 @@ import {
   collectUiHandlers,
   column,
   defineComponent,
+  diffUiTrees,
   dispatchUiEvent,
   dispatchWindowEvent,
   setWindowHandlers,
@@ -38,6 +39,7 @@ import {
   iconButton,
   image,
   list,
+  memo,
   container,
   menu,
   navBar,
@@ -102,6 +104,96 @@ describe("ui", () => {
     expect(clicked).toBe(1)
 
     forgetHandlers([node.id])
+  })
+
+  test("diffs a changed leaf", () => {
+    const before = serialize([column({}, [text("a"), text("b")])])
+    const after = serialize([column({}, [text("a"), text("c")])])
+    const patches = diffUiTrees(before, after)
+
+    expect(patches?.length).toBe(1)
+    expect(patches?.[0]?.path).toBe("/0/1")
+    expect((patches?.[0]?.node.props as { text: string }).text).toBe("c")
+  })
+
+  test("sends the parent subtree when a child is inserted", () => {
+    const before = serialize([column({}, [text("a"), text("b")])])
+    const after = serialize([column({}, [text("a"), text("b"), text("c")])])
+    const patches = diffUiTrees(before, after)
+
+    expect(patches?.length).toBe(1)
+    expect(patches?.[0]?.path).toBe("/0")
+    expect((patches?.[0]?.node.children as unknown[]).length).toBe(3)
+  })
+
+  test("sends the parent subtree when keyed children reorder", () => {
+    const before = serialize([
+      column({}, [text({ text: "a", key: "a" }), text({ text: "b", key: "b" })]),
+    ])
+    const after = serialize([
+      column({}, [text({ text: "b", key: "b" }), text({ text: "a", key: "a" })]),
+    ])
+    const patches = diffUiTrees(before, after)
+
+    expect(patches?.length).toBe(1)
+    expect(patches?.[0]?.path).toBe("/0")
+  })
+
+  test("returns no patches for an unchanged tree", () => {
+    const tree = serialize([column({}, [text("a")])])
+
+    expect(diffUiTrees(tree, tree)).toEqual([])
+  })
+
+  test("falls back to a full tree when root children change", () => {
+    const before = serialize([text("a")])
+    const after = serialize([text("a"), text("b")])
+
+    expect(diffUiTrees(before, after)).toBeNull()
+  })
+
+  test("memo reuses a node for unchanged keyed props", () => {
+    let renders = 0
+    const Row = memo(
+      defineComponent<{ key: string; text: string }>(({ text: value }) => {
+        renders++
+
+        return text(value)
+      }),
+    )
+
+    const first = Row({ key: "a", text: "one" })
+    const second = Row({ key: "a", text: "one" })
+
+    expect(second).toBe(first)
+    expect(renders).toBe(1)
+
+    const third = Row({ key: "a", text: "two" })
+
+    expect(third).not.toBe(first)
+    expect(renders).toBe(2)
+  })
+
+  test("memoized nodes keep callbacks after forgetHandlers", () => {
+    let clicks = 0
+    const Go = memo(
+      defineComponent<{ key: string; label: string; onClick: () => void }>(({ label, onClick }) => {
+        return button(label, { onClick })
+      }),
+    )
+
+    const first = Go({ key: "go", label: "Go", onClick: () => clicks++ })
+    const second = Go({ key: "go", label: "Go", onClick: () => clicks++ })
+
+    expect(second).toBe(first)
+
+    forgetHandlers([first.id])
+
+    const { routes } = collectUiHandlers([second], "", undefined)
+
+    setWindowHandlers("memo", routes)
+    dispatchWindowEvent("memo", "/0", "click", undefined)
+    expect(clicks).toBe(1)
   })
 
   test("checkbox toggle forwards the value", () => {

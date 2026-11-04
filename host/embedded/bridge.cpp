@@ -432,6 +432,12 @@ void EmbeddedBridge::handleMessage(const QJsonObject &message)
         return;
     }
 
+    if (method == QLatin1String("__ui-patch")) {
+        Q_EMIT uiPatch(params.value(QStringLiteral("target")).toString(),
+                       params.value(QStringLiteral("patches")).toArray().toVariantList());
+        return;
+    }
+
     if (method == QLatin1String("__window")) {
         Q_EMIT windowCommand(params.toVariantMap());
         return;

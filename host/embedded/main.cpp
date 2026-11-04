@@ -395,6 +395,7 @@ int main(int argc, char **argv)
 
     QVariantList pendingUiTree;
     bool hasPendingUiTree = false;
+    quint64 uiPatchSeq = 0;
     QObject *uiRoot = nullptr;
     QVariantMap currentTheme;
 
@@ -473,6 +474,18 @@ int main(int argc, char **argv)
                              if (devChannel)
                                  devChannel->setTree(tree);
 #endif
+                         }
+                     });
+    QObject::connect(&bridge, &EmbeddedBridge::uiPatch, &app,
+                     [&](const QString &target, const QVariantList &patches) {
+                         if (!jsUi || !uiRoot)
+                             return;
+
+                         if (target == QLatin1String("main") || target == QLatin1String("*") || target.isEmpty()) {
+                             QVariantMap patch;
+                             patch.insert(QStringLiteral("seq"), QVariant::fromValue(++uiPatchSeq));
+                             patch.insert(QStringLiteral("patches"), patches);
+                             uiRoot->setProperty("uiPatch", patch);
                          }
                      });
 

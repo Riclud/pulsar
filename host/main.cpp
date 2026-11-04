@@ -155,6 +155,7 @@ static void appendCrashLog(const QString &text)
 }
 
 static QHash<QString, QVariantList> g_uiTrees;
+static quint64 g_uiPatchSeq = 0;
 static QSet<QString> g_requested;
 static QString gPrimaryLabel;
 static bool gShownAny = false;
@@ -1257,8 +1258,6 @@ static void handleWindowCommand(QQmlApplicationEngine &engine, const QVariantMap
 
             if (auto *existing = qobject_cast<QQuickWindow *>(g_roots.value(cfg.label)))
                 existing->show();
-
-            applyUiTree(cfg.label);
         } else {
             showWindow(engine, cfg);
         }
@@ -1637,6 +1636,20 @@ int main(int argc, char **argv)
 
                              if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
                                  qInfo().noquote() << "UI render" << target << "nodes=" << tree.size();
+                         } else if (method == QLatin1String("__ui-patch")) {
+                             const QVariantMap m = params.toVariant().toMap();
+                             const QString target = m.value(QStringLiteral("target")).toString();
+                             const QVariantList patches = m.value(QStringLiteral("patches")).toList();
+
+                             if (QObject *root = g_roots.value(target)) {
+                                 QVariantMap patch;
+                                 patch.insert(QStringLiteral("seq"), QVariant::fromValue(++g_uiPatchSeq));
+                                 patch.insert(QStringLiteral("patches"), patches);
+                                 root->setProperty("uiPatch", patch);
+                             }
+
+                             if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
+                                 qInfo().noquote() << "UI patch" << target << "ops=" << patches.size();
                          } else if (method == QLatin1String("__query")) {
                              handleQuery(bridge, params.toVariant().toMap());
                         } else if (method == QLatin1String("__theme")) {
