@@ -3098,6 +3098,7 @@ ApplicationWindow {
             placeholderTextColor: view.themeTextSecondary
             font.family: view.fontFamily
             font.pixelSize: view.fs(15)
+            inputMethodHints: Qt.ImhNoPredictiveText
             leftPadding: 40
             rightPadding: searchClear.visible ? 40 : 12
             implicitHeight: 40
@@ -3129,7 +3130,7 @@ ApplicationWindow {
                 anchors.verticalCenter: parent.verticalCenter
                 width: Math.max(0, searchRoot.width - 52)
                 text: searchRoot.hint
-                visible: searchRoot.text.length === 0
+                visible: searchRoot.text.length === 0 && searchRoot.preeditText.length === 0
                 elide: Text.ElideRight
                 color: view.themeTextSecondary
                 font.family: view.fontFamily
