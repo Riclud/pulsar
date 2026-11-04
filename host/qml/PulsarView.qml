@@ -548,6 +548,16 @@ ApplicationWindow {
             boundsBehavior: Flickable.StopAtBounds
             maximumFlickVelocity: 5000
             flickDeceleration: 1200
+
+            rebound: Transition {
+                NumberAnimation {
+                    properties: "x,y"
+                    duration: view.motionNormal
+                    easing.type: Easing.BezierSpline
+                    easing.bezierCurve: view.motionCurve
+                }
+            }
+
             property var pulsarMeta: null
         }
     }
@@ -4530,8 +4540,13 @@ ApplicationWindow {
             });
             reconcile(inner, node.children || [], false);
         } else if (node.type === "scroll" || node.type === "list") {
-            if (prop(props, "flick", true) === false)
-                item.maximumFlickVelocity = 0;
+            item.maximumFlickVelocity = (prop(props, "flick", true) === false)
+                    ? 0
+                    : prop(props, "flickVelocity", 5000);
+            item.flickDeceleration = prop(props, "flickDeceleration", 1200);
+            item.boundsBehavior = prop(props, "overscroll", false)
+                    ? Flickable.DragAndOvershootBounds
+                    : Flickable.StopAtBounds;
 
             const contentColumn = (node.children || [])[0];
             const firstChild = contentColumn && contentColumn.children ? contentColumn.children[0] : null;
