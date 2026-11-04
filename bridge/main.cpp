@@ -178,6 +178,9 @@ int main(int argc, char **argv)
 
     process->start(program, arguments);
 
+    if (!process->waitForStarted())
+        return 1;
+
     std::thread(pumpStdin, process, shuttingDown).detach();
 
     return app.exec();
