@@ -3577,6 +3577,11 @@ ApplicationWindow {
         }
     }
 
+    onThemeDataChanged: {
+        if (uiTree.length > 0)
+            Qt.callLater(rebuild);
+    }
+
     onTreeChanged: {
         uiTree = tree || [];
         renderTree();
