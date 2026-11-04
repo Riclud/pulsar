@@ -5,6 +5,7 @@ import {
   callCapability,
   createPermissionGate,
   dispatchUiEvent,
+  dispatchWindowEvent,
   fsWatchInternals,
   hasCapability,
   listCapabilities,
@@ -383,6 +384,14 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
   }
 
   const handleUiEvent = (data: Record<string, unknown>): void => {
+    const target = String(data.target ?? "main")
+    const path = String(data.path ?? "")
+
+    if (path.length > 0) {
+      dispatchWindowEvent(target, path, String(data.event), data.value)
+      return
+    }
+
     dispatchUiEvent(Number(data.id), String(data.event), data.value)
   }
 

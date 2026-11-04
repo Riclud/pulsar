@@ -3772,6 +3772,8 @@ ApplicationWindow {
         if (!node)
             return;
         PulsarBridge.emit("ui-event", {
+            target: typeof PulsarWindowLabel !== "undefined" ? PulsarWindowLabel : "main",
+            path: node.path,
             id: node.id,
             event: event,
             value: value

@@ -1580,6 +1580,48 @@ export const forgetHandlers = (ids: number[]): void => {
   for (const id of ids) handlers.delete(id)
 }
 
+const windowHandlers = new Map<string, Record<string, Record<string, UiHandler>>>()
+
+export const setWindowHandlers = (
+  target: string,
+  routes: Record<string, Record<string, UiHandler>>,
+): void => {
+  windowHandlers.set(target, routes)
+}
+
+export const dispatchWindowEvent = (target: string, path: string, event: string, value: unknown): void => {
+  windowHandlers.get(target)?.[path]?.[event]?.(value)
+}
+
+export const collectUiHandlers = (
+  nodes: UiNode[],
+  parentPath = "",
+  keys?: Array<string | number>,
+): { routes: Record<string, Record<string, UiHandler>>; ids: number[] } => {
+  const routes: Record<string, Record<string, UiHandler>> = {}
+  const ids: number[] = []
+
+  nodes.forEach((node, index) => {
+    const path = `${parentPath}/${nodeSegment(node, index, keys)}`
+    const callbacks = handlers.get(node.id)
+
+    ids.push(node.id)
+
+    if (callbacks) routes[path] = callbacks
+
+    if (!node.children) return
+
+    const childKeys =
+      node.type === "list" ? (node.props.itemKeys as Array<string | number> | undefined) : undefined
+    const child = collectUiHandlers(node.children, path, childKeys)
+
+    Object.assign(routes, child.routes)
+    ids.push(...child.ids)
+  })
+
+  return { routes, ids }
+}
+
 export const ui = {
   column,
   row,

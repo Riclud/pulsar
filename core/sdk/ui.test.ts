@@ -25,9 +25,12 @@ import {
   card,
   checkbox,
   chip,
+  collectUiHandlers,
   column,
   defineComponent,
   dispatchUiEvent,
+  dispatchWindowEvent,
+  setWindowHandlers,
   emptyState,
   fab,
   forgetHandlers,
@@ -83,6 +86,22 @@ describe("ui", () => {
     forgetHandlers([node.id])
     dispatchUiEvent(node.id, "click", undefined)
     expect(clicked).toBe(1)
+  })
+
+  test("routes events by window and path", () => {
+    let clicked = 0
+    const node = button("go", { onClick: () => clicked++ })
+    const { routes } = collectUiHandlers([node], "", undefined)
+
+    setWindowHandlers("main", routes)
+
+    dispatchWindowEvent("main", "/0", "click", undefined)
+    expect(clicked).toBe(1)
+
+    dispatchWindowEvent("other", "/0", "click", undefined)
+    expect(clicked).toBe(1)
+
+    forgetHandlers([node.id])
   })
 
   test("checkbox toggle forwards the value", () => {

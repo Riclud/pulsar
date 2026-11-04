@@ -142,6 +142,34 @@ describe("lifecycle events", () => {
     expect(error?.params?.message).toContain("boom in ui")
   })
 
+  test("routes UI events by window and path", async () => {
+    const app = harness()
+    const instance = new App()
+
+    let clicks = 0
+    let button: ReturnType<typeof Button> | undefined
+
+    app.runtime.wireApp()
+
+    instance.window("main").render(() => {
+      button = Button({ label: "Go", onClick: () => clicks++ })
+
+      return button
+    })
+
+    await flush()
+
+    app.deliver({
+      jsonrpc: "2.0",
+      id: 7,
+      method: "ui-event",
+      params: { target: "main", path: "/0", event: "click" },
+    })
+    await flush()
+
+    expect(clicks).toBe(1)
+  })
+
   test("restore seeds the store directly", async () => {
     const app = harness()
     const instance = new App()

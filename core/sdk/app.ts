@@ -1,23 +1,8 @@
 import { callCapability } from "./caps.ts"
 import { loadManifest, resolveWindows, type AppManifest } from "./manifest.ts"
-import { forgetHandlers, serialize, type UiNode } from "./ui.ts"
+import { collectUiHandlers, forgetHandlers, serialize, setWindowHandlers, type UiNode } from "./ui.ts"
 
 export type UiSource = UiNode | UiNode[] | (() => UiNode | UiNode[])
-
-const collectUiIds = (nodes: UiNode[]): number[] => {
-  const ids: number[] = []
-
-  const walk = (list: UiNode[]) => {
-    for (const node of list) {
-      ids.push(node.id)
-      if (node.children) walk(node.children)
-    }
-  }
-
-  walk(nodes)
-
-  return ids
-}
 
 export interface AppConfig {
   /** QML file for this window; omit it to render the window from a JS tree. */
@@ -517,10 +502,13 @@ export class App {
 
     if (this.sentTrees.get(label) === json) return
 
+    const { routes, ids } = collectUiHandlers(nodes)
+
+    setWindowHandlers(label, routes)
     forgetHandlers(this.sentIds.get(label) ?? [])
 
     this.sentTrees.set(label, json)
-    this.sentIds.set(label, collectUiIds(nodes))
+    this.sentIds.set(label, ids)
     this.onSendUi(label, tree)
   }
 

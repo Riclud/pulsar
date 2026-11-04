@@ -5,6 +5,7 @@ export {
   bind,
   defineComponent,
   dispatchUiEvent,
+  dispatchWindowEvent,
   For,
   When,
   Column,
