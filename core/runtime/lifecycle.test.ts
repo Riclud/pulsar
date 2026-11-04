@@ -1,6 +1,6 @@
 import { describe, expect, spyOn, test } from "bun:test"
 import type { AppPaths, Platform } from "../platform.ts"
-import { App, Button } from "../sdk/index.ts"
+import { App, Button, fs, registerCapability } from "../sdk/index.ts"
 import { createRuntime } from "./core.ts"
 import type { Transport } from "./framing.ts"
 
@@ -83,6 +83,66 @@ const flush = async (): Promise<void> => {
   await Promise.resolve()
   await Promise.resolve()
 }
+
+describe("store sync", () => {
+  test("pushes changes while a slow capability is pending", async () => {
+    const app = harness()
+    const instance = new App()
+    let finish: (value: unknown) => void = () => {}
+
+    registerCapability("test.slow", () => new Promise((resolve) => (finish = resolve)))
+    app.runtime.wireApp()
+    app.deliver({ id: 1, method: "test.slow", params: {} })
+    await flush()
+
+    instance.store.set("value", 1)
+    await flush()
+
+    const sent = app.sent as Array<{ method?: string; id?: number; params?: unknown; state?: unknown }>
+    const pushed = sent.find((message) => message.method === "__state")
+
+    expect(pushed?.params).toEqual({ state: { value: 1 } })
+
+    finish(true)
+    await flush()
+    await flush()
+
+    expect(sent.some((message) => message.id === 1)).toBe(true)
+  })
+
+  test("a reply still carries changes made while handling a request", async () => {
+    const app = harness()
+    const instance = new App()
+
+    instance.on("set-value", () => instance.store.set("value", 2))
+    app.runtime.wireApp()
+    app.deliver({ id: 2, method: "set-value", params: {} })
+    await flush()
+
+    const sent = app.sent as Array<{ method?: string; id?: number; state?: unknown }>
+    const reply = sent.find((message) => message.id === 2)
+
+    expect(reply?.state).toEqual({ value: 2 })
+    expect(app.sent.some((message) => message.method === "__state")).toBe(false)
+  })
+})
+
+describe("fs.watch", () => {
+  test("delivers the event that the hosts send", async () => {
+    const app = harness()
+    const paths: string[] = []
+
+    new App()
+    app.runtime.wireApp()
+
+    await fs.watch("/watched", (path) => paths.push(path))
+
+    app.deliver(event("fs-change", { path: "/watched" }))
+    await flush()
+
+    expect(paths).toEqual(["/watched"])
+  })
+})
 
 describe("lifecycle events", () => {
   test("back without a handler quits the app", async () => {

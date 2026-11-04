@@ -317,17 +317,17 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
     return out
   }
 
-  let inRequest = false
+  let requestDepth = 0
   let pushScheduled = false
 
   const schedulePush = (): void => {
-    if (inRequest || pushScheduled) return
+    if (requestDepth > 0 || pushScheduled) return
 
     pushScheduled = true
 
     microtask(() => {
       pushScheduled = false
-      if (inRequest) return
+      if (requestDepth > 0) return
 
       const patch = patchState()
 
@@ -421,6 +421,8 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
         return
       }
 
+      if (params.name === "fs-change") fsWatchInternals.notify(String(params.data?.path ?? ""))
+
       if (params.name === "back-pressed" && !App.current?.hasEvent("back-pressed")) {
         send({ jsonrpc: "2.0", method: "__quit" })
 
@@ -460,12 +462,6 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
       return
     }
 
-    if (req.method === "__fs-change") {
-      fsWatchInternals.notify(String((params as { path?: string }).path ?? ""))
-
-      return
-    }
-
     if (req.method === "__launch") {
       if (appWired) dispatchLaunch(params as LaunchParams)
       else pendingLaunch.push(params as LaunchParams)
@@ -494,7 +490,17 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
       return
     }
 
-    inRequest = true
+    let inSyncPart = true
+
+    const leaveSyncPart = (): void => {
+      if (!inSyncPart) return
+
+      inSyncPart = false
+      requestDepth--
+    }
+
+    requestDepth++
+
     try {
       if (req.method === "ui-event") {
         try {
@@ -521,7 +527,11 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
       } else {
         if (!hasCapability(req.method)) throw new Error("method not found: " + req.method)
 
-        result = await callCapability(req.method, req.params ?? {})
+        const pending = callCapability(req.method, req.params ?? {})
+
+        leaveSyncPart()
+
+        result = await pending
       }
 
       send({ jsonrpc: "2.0", id: req.id, result, ...patchState() })
@@ -530,7 +540,7 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
 
       send({ jsonrpc: "2.0", id: req.id, error: { code: -32000, message }, ...patchState() })
     } finally {
-      inRequest = false
+      leaveSyncPart()
     }
   }
 
