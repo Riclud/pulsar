@@ -4777,6 +4777,8 @@ ApplicationWindow {
             item.enabled = prop(props, "enabled", true);
             item.font.family = view.fontFamily;
             item.font.pixelSize = view.fs(15);
+            item.leftPadding = 12;
+            item.rightPadding = 40;
             item.Layout.preferredWidth = prop(props, "expand", false) ? -1 : prop(props, "width", 200);
             item.palette.text = view.themeText;
             item.palette.windowText = view.themeText;
