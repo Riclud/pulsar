@@ -197,6 +197,10 @@ const rewriteLinks = (html: string, page: Page, anchors: Map<string, { page: Pag
       "docs/protocol.md": "protocol-internals/",
       "protocol.md": "protocol-internals/",
       "docs/README.ru.md": "ru/",
+      "docs/guide-web.md": "guide/web/",
+      "docs/guide-components.md": "guide/components/",
+      "guide-web.ru.md": "ru/guide/web/",
+      "guide-components.ru.md": "ru/guide/components/",
       LICENSE: "https://github.com/riclud/pulsar/blob/main/LICENSE",
       "THIRD_PARTY_NOTICES.md": "https://github.com/riclud/pulsar/blob/main/THIRD_PARTY_NOTICES.md",
       "examples/hello": "https://github.com/riclud/pulsar/tree/main/examples/hello",
@@ -325,7 +329,7 @@ const slugs = [
 
 const navGroups: Record<Lang, Array<{ label: string; slugs: string[] }>> = {
   en: [
-    { label: "Guide", slugs: ["guide", "guide/api"] },
+    { label: "Guide", slugs: ["guide/web", "guide", "guide/components", "guide/api"] },
     { label: "Setup", slugs: ["platforms", "requirements", "install", "quick-start"] },
     { label: "Reference", slugs: ["cli", "manifest", "app-api", "ui", "qml"] },
     {
@@ -334,7 +338,7 @@ const navGroups: Record<Lang, Array<{ label: string; slugs: string[] }>> = {
     },
   ],
   ru: [
-    { label: "Руководство", slugs: ["guide", "guide/api"] },
+    { label: "Руководство", slugs: ["guide/web", "guide", "guide/components", "guide/api"] },
     { label: "Установка", slugs: ["platforms", "requirements", "install", "quick-start"] },
     { label: "Справочник", slugs: ["cli", "manifest", "app-api", "ui", "qml"] },
     {
@@ -403,61 +407,201 @@ const ui = {
   },
 }
 
-const homePage = (lang: Lang): Page => {
-  const t = ui[lang]
-  const version = `v${VERSION}`
-  const quickStart = sitePath("quick-start/")
-  const cli = sitePath("cli/")
-  const api = sitePath("guide/api/")
-  const components = sitePath("ui/")
-  const guide = sitePath("guide/")
+const homeText = {
+  en: {
+    eyebrow: "Native apps in TypeScript",
+    title: "Write TypeScript.<br>Ship <em>native</em>.",
+    lead: "Pulsar is an app framework with a declarative TypeScript UI, drawn by Qt on the GPU with no browser inside. It packages into a single executable and builds Android APKs from the same code.",
+    start: "Start building",
+    fromWeb: "Coming from the web",
+    sampleKicker: "Familiar from day one",
+    sampleTitle: "If you know flexbox, you can already read this",
+    sampleText: "Functions instead of tags and props instead of CSS. Controls come ready, with their states and theme.",
+    tasks: ["Buy coffee", "Call Anna", "Ship the update"],
+    tasksTitle: "Tasks",
+    tasksLeft: "2 left",
+    playKicker: "Try it",
+    playTitle: "Layout, the way you expect",
+    playText: "This is the prop on a real Row. Pick a value and watch the same result you would get in the app.",
+    alignLabel: "alignItems",
+    signalKicker: "Reactivity",
+    signalTitle: "Only what changed runs again",
+    signalText: "A component records what it reads. Press a button: only the part that read that value renders, and the rest of the screen is not touched.",
+    signalNames: ["Header", "Search", "Task list"],
+    signalReads: ["reads count", "reads query", "reads tasks"],
+    signalButtons: ["count + 1", "type in search", "add a task"],
+    signalRenders: "renders",
+    featuresTitle: "What is in the box",
+    features: [
+      ["Native rendering", "Qt Quick draws on the GPU. No Chromium, and a real native window."],
+      ["Components and signals", "Local state, lifecycle and fine-grained updates, with no hook rules."],
+      ["Motion in the renderer", "Press, enter, exit and drag stay smooth even while JavaScript is busy."],
+      ["One codebase", "Linux, macOS, Windows and Android from the same TypeScript."],
+      ["The whole OS", "Files, network, secure storage, notifications, tray, media and more."],
+      ["Testable by agents", "pulsar tap, type, expect, shot and eval drive a running app by its UI tree."],
+    ],
+    pathsTitle: "Where to go next",
+    paths: [
+      ["guide/web/", "Coming from the web", "What Box, Row and Stack are, in CSS terms."],
+      ["guide/", "Build an app", "A complete task app, from an empty project."],
+      ["guide/components/", "Components and signals", "State, props, keys and lifecycle."],
+      ["ui/", "UI building blocks", "Every component and prop."],
+      ["guide/api/", "API tour", "Windows, storage, network and devices."],
+      ["cli/", "CLI reference", "Create, run, build and inspect."],
+    ],
+  },
+  ru: {
+    eyebrow: "Нативные приложения на TypeScript",
+    title: "Пишите на TypeScript.<br>Выпускайте <em>нативное</em>.",
+    lead: "Pulsar — фреймворк приложений с декларативным интерфейсом на TypeScript, который Qt рисует на GPU без браузера внутри. Он собирается в один исполняемый файл и делает Android APK из того же кода.",
+    start: "Начать",
+    fromWeb: "Если вы пришли из веба",
+    sampleKicker: "Знакомо с первого дня",
+    sampleTitle: "Если вы знаете flexbox, вы уже можете это читать",
+    sampleText: "Функции вместо тегов и свойства вместо CSS. Элементы управления уже готовы, с состояниями и темой.",
+    tasks: ["Купить кофе", "Позвонить Анне", "Выпустить обновление"],
+    tasksTitle: "Задачи",
+    tasksLeft: "Осталось: 2",
+    playKicker: "Попробуйте",
+    playTitle: "Раскладка, как вы и ожидаете",
+    playText: "Это свойство настоящего Row. Выберите значение и посмотрите на результат, такой же, как в приложении.",
+    alignLabel: "alignItems",
+    signalKicker: "Реактивность",
+    signalTitle: "Запускается заново только то, что изменилось",
+    signalText: "Компонент запоминает, что прочитал. Нажмите кнопку: перерисуется только часть, прочитавшая это значение, а остальной экран останется нетронутым.",
+    signalNames: ["Шапка", "Поиск", "Список задач"],
+    signalReads: ["читает count", "читает query", "читает tasks"],
+    signalButtons: ["count + 1", "ввод в поиске", "добавить задачу"],
+    signalRenders: "рендеров",
+    featuresTitle: "Что внутри",
+    features: [
+      ["Нативная отрисовка", "Qt Quick рисует на GPU. Без Chromium и в настоящем нативном окне."],
+      ["Компоненты и сигналы", "Локальное состояние, жизненный цикл и точечные обновления без правил хуков."],
+      ["Движение в рендерере", "Нажатие, появление, исчезновение и свайп остаются плавными, даже когда JavaScript занят."],
+      ["Один код", "Linux, macOS, Windows и Android из одного TypeScript."],
+      ["Вся ОС", "Файлы, сеть, защищённое хранилище, уведомления, трей, медиа и многое другое."],
+      ["Удобно для агентов", "pulsar tap, type, expect, shot и eval управляют запущенным приложением по дереву UI."],
+    ],
+    pathsTitle: "Куда дальше",
+    paths: [
+      ["guide/web/", "Если вы пришли из веба", "Что такое Box, Row и Stack в терминах CSS."],
+      ["guide/", "Соберите приложение", "Полное приложение задач с нуля."],
+      ["guide/components/", "Компоненты и сигналы", "Состояние, свойства, ключи и жизненный цикл."],
+      ["ui/", "UI-блоки", "Все компоненты и свойства."],
+      ["guide/api/", "Тур по API", "Окна, хранилище, сеть и устройства."],
+      ["cli/", "CLI", "Создание, запуск, сборка и проверка."],
+    ],
+  },
+}
 
-  const content =
-    lang === "en"
-      ? `<canvas class="starfield" aria-hidden="true"></canvas>
-<div class="hero">
-  <p class="eyebrow">Documentation · ${version}</p>
-  <h1>TypeScript UI.<br>Native rendering.<br>One binary.</h1>
-  <p class="lead">Pulsar is an app framework with a declarative TypeScript UI and a Bun backend. It renders through QML, packages into a single executable, and builds Android APKs from the same code.</p>
-  <div class="install">
-    <div class="install-head"><span>${t.install}</span><button class="copy" data-copy="curl -fsSL https://get.pulsarjs.org | sh&#10;pulsar install">${t.copy}</button></div>
-    <pre><code>curl -fsSL https://get.pulsarjs.org | sh
+const homeSample = `const Contact = component<{ key: string; name: string }>((props) => {
+  return Row(
+    { color: "surface", radius: 12, padding: 12, gap: 12, alignItems: "center" },
+    Avatar({ name: props.name }),
+    Column({ flex: 1 }, Text({ text: props.name, weight: "semibold" })),
+    Button({ label: "Open" }),
+  )
+})`
+
+const homePage = (lang: Lang, md: ReturnType<typeof makeMarkdown>): Page => {
+  const t = ui[lang]
+  const c = homeText[lang]
+  const prefix = lang === "en" ? "" : "ru/"
+  const local = (path: string) => sitePath(`${prefix}${path}`)
+  const install = "curl -fsSL https://get.pulsarjs.org | sh&#10;pulsar install"
+
+  const content = `<section class="hero">
+  <canvas class="pulsar-canvas" aria-hidden="true"></canvas>
+  <div class="hero-copy">
+    <p class="eyebrow"><span class="eyebrow-dot"></span>${c.eyebrow} · v${VERSION}</p>
+    <h1>${c.title}</h1>
+    <p class="lead">${c.lead}</p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="${local("guide/")}">${c.start} <span aria-hidden="true">→</span></a>
+      <a class="btn" href="${local("guide/web/")}">${c.fromWeb}</a>
+    </div>
+    <div class="install">
+      <div class="install-head"><span>${t.install}</span><button class="copy" data-copy="${install}">${t.copy}</button></div>
+      <pre><code>curl -fsSL https://get.pulsarjs.org | sh
 pulsar install</code></pre>
+    </div>
+    <p class="home-platforms">Linux · macOS · Windows · Android</p>
   </div>
-  <div class="hero-actions">
-    <a href="${guide}">Read the guide <span aria-hidden="true">→</span></a>
-    <a href="https://github.com/riclud/pulsar" rel="noopener">GitHub <span aria-hidden="true">↗</span></a>
+</section>
+
+<section class="band band-sample">
+  <div class="band-head">
+    <p class="kicker">${c.sampleKicker}</p>
+    <h2>${c.sampleTitle}</h2>
+    <p>${c.sampleText}</p>
   </div>
-</div>
-<div class="home-links">
-  <a class="home-link" href="${guide}"><span class="home-title">Build an app</span><span class="home-desc">A guided path from the project skeleton to a shipped desktop or Android app.</span></a>
-  <a class="home-link" href="${components}"><span class="home-title">UI components</span><span class="home-desc">Layout, inputs, overlays, lists, navigation and theming in TypeScript.</span></a>
-  <a class="home-link" href="${cli}"><span class="home-title">CLI reference</span><span class="home-desc">Create, run, build and inspect apps from the command line.</span></a>
-  <a class="home-link" href="${api}"><span class="home-title">App API</span><span class="home-desc">Windows, store, files, network, dialogs, media and device capabilities.</span></a>
-</div>
-<p class="home-platforms">Linux · macOS · Windows · Android</p>`
-      : `<canvas class="starfield" aria-hidden="true"></canvas>
-<div class="hero">
-  <p class="eyebrow">Документация · ${version}</p>
-  <h1>TypeScript UI.<br>Нативный рендер.<br>Один бинарник.</h1>
-  <p class="lead">Pulsar — фреймворк приложений с декларативным интерфейсом на TypeScript и бэкендом на Bun. Он рендерит через QML, собирается в один исполняемый файл и в APK для Android из одного и того же кода.</p>
-  <div class="install">
-    <div class="install-head"><span>${t.install}</span><button class="copy" data-copy="curl -fsSL https://get.pulsarjs.org | sh&#10;pulsar install">${t.copy}</button></div>
-    <pre><code>curl -fsSL https://get.pulsarjs.org | sh
-pulsar install</code></pre>
+  <div class="sample">
+    <div class="sample-code prose">${md.render("```ts\n" + homeSample + "\n```")}</div>
+    <div class="phone" aria-hidden="true">
+      <div class="phone-screen">
+        <p class="phone-title">${c.tasksTitle}</p>
+        <p class="phone-sub">${c.tasksLeft}</p>
+        ${c.tasks
+          .map((task, index) => `<div class="phone-row${index === 0 ? " is-done" : ""}${index === 1 ? " is-swiping" : ""}"><span class="phone-check"></span><span>${task}</span></div>`)
+          .join("")}
+      </div>
+    </div>
   </div>
-  <div class="hero-actions">
-    <a href="${guide}">Читать руководство <span aria-hidden="true">→</span></a>
-    <a href="https://github.com/riclud/pulsar" rel="noopener">GitHub <span aria-hidden="true">↗</span></a>
+</section>
+
+<section class="band">
+  <div class="band-head">
+    <p class="kicker">${c.playKicker}</p>
+    <h2>${c.playTitle}</h2>
+    <p>${c.playText}</p>
   </div>
-</div>
-<div class="home-links">
-  <a class="home-link" href="${guide}"><span class="home-title">Собрать приложение</span><span class="home-desc">Пошаговый путь от скелета проекта до готового приложения для десктопа или Android.</span></a>
-  <a class="home-link" href="${components}"><span class="home-title">UI-компоненты</span><span class="home-desc">Раскладка, ввод, оверлеи, списки, навигация и темы на TypeScript.</span></a>
-  <a class="home-link" href="${cli}"><span class="home-title">CLI</span><span class="home-desc">Создание, запуск, сборка и инспекция приложений из командной строки.</span></a>
-  <a class="home-link" href="${api}"><span class="home-title">App API</span><span class="home-desc">Окна, Store, файлы, сеть, диалоги, медиа и возможности устройства.</span></a>
-</div>
-<p class="home-platforms">Linux · macOS · Windows · Android</p>`
+  <div class="playground" data-playground>
+    <div class="play-controls">
+      <div class="segment" role="group" aria-label="justify">
+        <span class="segment-label">justify</span>
+        ${["start", "center", "end", "between", "around", "evenly"].map((value) => `<button data-justify="${value}"${value === "between" ? ' aria-pressed="true"' : ""}>${value}</button>`).join("")}
+      </div>
+      <div class="segment" role="group" aria-label="${c.alignLabel}">
+        <span class="segment-label">${c.alignLabel}</span>
+        ${["start", "center", "end"].map((value) => `<button data-align="${value}"${value === "center" ? ' aria-pressed="true"' : ""}>${value}</button>`).join("")}
+      </div>
+    </div>
+    <div class="play-stage"><div class="play-row"><i class="tile tile-a"></i><i class="tile tile-b"></i><i class="tile tile-c"></i></div></div>
+    <pre class="play-code"><code></code></pre>
+  </div>
+</section>
+
+<section class="band">
+  <div class="band-head">
+    <p class="kicker">${c.signalKicker}</p>
+    <h2>${c.signalTitle}</h2>
+    <p>${c.signalText}</p>
+  </div>
+  <div class="signals" data-signals data-label="${c.signalRenders}">
+    <div class="signal-grid">
+      ${c.signalNames
+        .map((name, index) => `<div class="signal-card" data-card="${index}"><p class="signal-name">${name}</p><p class="signal-reads">${c.signalReads[index]}</p><p class="signal-count"><b>1</b> ${c.signalRenders}</p></div>`)
+        .join("")}
+    </div>
+    <div class="signal-actions">
+      ${c.signalButtons.map((label, index) => `<button class="btn" data-trigger="${index}">${label}</button>`).join("")}
+    </div>
+  </div>
+</section>
+
+<section class="band">
+  <div class="band-head"><h2>${c.featuresTitle}</h2></div>
+  <div class="feature-grid">
+    ${c.features.map(([title, text]) => `<div class="feature"><h3>${title}</h3><p>${text}</p></div>`).join("")}
+  </div>
+</section>
+
+<section class="band band-last">
+  <div class="band-head"><h2>${c.pathsTitle}</h2></div>
+  <div class="path-grid">
+    ${c.paths.map(([path, title, text]) => `<a class="path" href="${local(path!)}"><span class="path-title">${title} <span aria-hidden="true">→</span></span><span class="path-text">${text}</span></a>`).join("")}
+  </div>
+</section>`
 
   return {
     lang,
@@ -781,11 +925,15 @@ const build = async () => {
   }
 
   const guideEN = [
+    guideSource("en", "guide-web.md", "Coming from the web", "guide/web"),
     guideSource("en", "guide.md", "Build an app", "guide"),
+    guideSource("en", "guide-components.md", "Components and signals", "guide/components"),
     guideSource("en", "guide-api.md", "API tour", "guide/api"),
   ]
   const guideRU = [
+    guideSource("ru", "guide-web.ru.md", "Если вы пришли из веба", "guide/web"),
     guideSource("ru", "guide.ru.md", "Соберите приложение", "guide"),
+    guideSource("ru", "guide-components.ru.md", "Компоненты и сигналы", "guide/components"),
     guideSource("ru", "guide-api.ru.md", "Тур по API", "guide/api"),
   ]
 
@@ -797,8 +945,8 @@ const build = async () => {
     }
   }
 
-  const enPages = [homePage("en"), ...guideEN, ...enSections, protocolEN, changelogEN]
-  const ruPages = [homePage("ru"), ...guideRU, ...ruSections, protocolRU, changelogRU]
+  const enPages = [homePage("en", md), ...guideEN, ...enSections, protocolEN, changelogEN]
+  const ruPages = [homePage("ru", md), ...guideRU, ...ruSections, protocolRU, changelogRU]
 
   const groupsFor = (lang: Lang, pages: Page[]) => {
     const bySlug = new Map(pages.map((page) => [page.slug, page]))

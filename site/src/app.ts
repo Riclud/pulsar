@@ -398,118 +398,213 @@ const copyText = async (text: string) => {
   }
 }
 
-interface Star {
-  x: number
-  y: number
-  depth: number
-  radius: number
-  phase: number
-  twinkle: number
-  accent: boolean
-}
-
 let stopStarfield: (() => void) | null = null
 
-const initStarfield = () => {
+const initPulsar = () => {
   stopStarfield?.()
-  stopStarfield = null
 
-  const canvas = document.querySelector<HTMLCanvasElement>("canvas.starfield")
+  const canvas = document.querySelector<HTMLCanvasElement>("canvas.pulsar-canvas")
   const context = canvas?.getContext("2d")
+
   if (!canvas || !context) return
 
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  const stars = Array.from({ length: 70 }, () => ({
+    angle: Math.random() * Math.PI * 2,
+    distance: 0.12 + Math.random() * 0.86,
+    size: 0.4 + Math.random() * 1.2,
+    phase: Math.random() * Math.PI * 2,
+  }))
 
-  let stars: Star[] = []
-  let width = 0
-  let height = 0
+  let size = 0
   let frame = 0
-  let last = 0
-
-  const seed = () => {
-    const count = Math.min(130, Math.max(28, Math.round((width * height) / 17000)))
-
-    stars = Array.from({ length: count }, () => ({
-      x: Math.random() * width,
-      y: Math.random() * height,
-      depth: Math.random(),
-      radius: 0.5 + Math.random() * 1.35,
-      phase: Math.random() * Math.PI * 2,
-      twinkle: 0.5 + Math.random() * 1.4,
-      accent: Math.random() < 0.12,
-    }))
-  }
 
   const resize = () => {
     const rect = canvas.getBoundingClientRect()
     const dpr = Math.min(2, window.devicePixelRatio || 1)
 
-    width = Math.max(1, rect.width)
-    height = Math.max(1, rect.height)
-    canvas.width = Math.round(width * dpr)
-    canvas.height = Math.round(height * dpr)
+    size = Math.max(1, rect.width)
+    canvas.width = Math.round(size * dpr)
+    canvas.height = Math.round(size * dpr)
     context.setTransform(dpr, 0, 0, dpr, 0, 0)
-
-    seed()
-
-    if (reduced) draw(0, false)
   }
 
-  const draw = (delta: number, animate: boolean) => {
-    context.clearRect(0, 0, width, height)
+  const beam = (angle: number, radius: number, rgb: string) => {
+    const spread = 0.13
+    const gradient = context.createRadialGradient(0, 0, 0, 0, 0, radius)
 
-    const dark = document.documentElement.dataset.theme !== "light"
-    const base = dark ? "253, 252, 252" : "32, 29, 29"
-    const accent = dark ? "51, 105, 255" : "47, 91, 255"
+    gradient.addColorStop(0, `rgba(${rgb}, 0.55)`)
+    gradient.addColorStop(0.35, `rgba(${rgb}, 0.16)`)
+    gradient.addColorStop(1, `rgba(${rgb}, 0)`)
 
-    for (const star of stars) {
-      if (animate) {
-        const speed = 5 + star.depth * 16
+    context.fillStyle = gradient
+    context.beginPath()
+    context.moveTo(0, 0)
+    context.arc(0, 0, radius, angle - spread, angle + spread)
+    context.closePath()
+    context.fill()
+  }
 
-        star.x -= speed * delta
-        star.y += speed * 0.22 * delta
-        star.phase += star.twinkle * delta
+  const draw = (time: number) => {
+    const light = document.documentElement.dataset.theme === "light"
+    const primary = light ? "69, 86, 232" : "127, 146, 255"
+    const secondary = light ? "10, 147, 184" : "95, 227, 255"
+    const star = light ? "40, 45, 90" : "230, 235, 255"
+    const center = size / 2
+    const radius = size / 2
+    const seconds = time / 1000
+    const spin = seconds * 0.5
 
-        if (star.x < -4) {
-          star.x = width + 4
-          star.y = Math.random() * height
-        }
+    context.clearRect(0, 0, size, size)
 
-        if (star.y > height + 4) {
-          star.y = -4
-          star.x = Math.random() * width
-        }
-      }
+    for (const item of stars) {
+      const twinkle = 0.3 + 0.7 * Math.abs(Math.sin(seconds * 0.7 + item.phase))
+      const x = center + Math.cos(item.angle + seconds * 0.012) * item.distance * radius
+      const y = center + Math.sin(item.angle + seconds * 0.012) * item.distance * radius
 
-      const pulse = 0.55 + 0.45 * Math.sin(star.phase)
-      const alpha = (0.16 + star.depth * 0.5) * pulse
-
+      context.fillStyle = `rgba(${star}, ${0.5 * twinkle})`
       context.beginPath()
-      context.arc(star.x, star.y, star.radius, 0, Math.PI * 2)
-      context.fillStyle = `rgba(${star.accent ? accent : base}, ${alpha.toFixed(3)})`
+      context.arc(x, y, item.size, 0, Math.PI * 2)
       context.fill()
     }
+
+    for (let ring = 0; ring < 3; ring++) {
+      const progress = (seconds / 3.6 + ring / 3) % 1
+
+      context.strokeStyle = `rgba(${primary}, ${0.32 * (1 - progress) ** 2})`
+      context.lineWidth = 1.2
+      context.beginPath()
+      context.arc(center, center, radius * (0.08 + progress * 0.9), 0, Math.PI * 2)
+      context.stroke()
+    }
+
+    context.save()
+    context.translate(center, center)
+    context.rotate(-0.42)
+    context.scale(1, 0.92)
+    beam(spin, radius, primary)
+    beam(spin + Math.PI, radius, secondary)
+    context.restore()
+
+    const pulse = 0.82 + 0.18 * Math.sin(seconds * 5)
+    const glow = context.createRadialGradient(center, center, 0, center, center, radius * 0.24 * pulse)
+
+    glow.addColorStop(0, `rgba(${light ? primary : "255, 255, 255"}, 0.95)`)
+    glow.addColorStop(0.13, `rgba(${secondary}, 0.7)`)
+    glow.addColorStop(0.42, `rgba(${primary}, 0.2)`)
+    glow.addColorStop(1, `rgba(${primary}, 0)`)
+
+    context.fillStyle = glow
+    context.beginPath()
+    context.arc(center, center, radius * 0.24, 0, Math.PI * 2)
+    context.fill()
   }
 
   const loop = (time: number) => {
-    const delta = Math.min(0.05, last ? (time - last) / 1000 : 0.016)
-    last = time
-
-    draw(delta, true)
+    draw(time)
     frame = requestAnimationFrame(loop)
   }
 
-  const observer = new ResizeObserver(resize)
-  observer.observe(canvas.parentElement ?? canvas)
+  const observer = new ResizeObserver(() => {
+    resize()
+
+    if (reduced) draw(1200)
+  })
+
+  observer.observe(canvas)
   resize()
 
-  if (!reduced) frame = requestAnimationFrame(loop)
+  if (reduced) draw(1200)
+  else frame = requestAnimationFrame(loop)
 
   stopStarfield = () => {
     cancelAnimationFrame(frame)
     observer.disconnect()
     stopStarfield = null
   }
+}
+
+const JUSTIFY_CSS: Record<string, string> = {
+  start: "flex-start",
+  center: "center",
+  end: "flex-end",
+  between: "space-between",
+  around: "space-around",
+  evenly: "space-evenly",
+}
+
+const ALIGN_CSS: Record<string, string> = {
+  start: "flex-start",
+  center: "center",
+  end: "flex-end",
+}
+
+const initPlayground = () => {
+  const root = document.querySelector<HTMLElement>("[data-playground]")
+  const row = root?.querySelector<HTMLElement>(".play-row")
+  const code = root?.querySelector<HTMLElement>(".play-code code")
+
+  if (!root || !row || !code) return
+
+  let justify = "between"
+  let align = "center"
+
+  const paint = () => {
+    row.style.justifyContent = JUSTIFY_CSS[justify] ?? "flex-start"
+    row.style.alignItems = ALIGN_CSS[align] ?? "center"
+    code.textContent = `Row({ fillWidth: true, justify: "${justify}", alignItems: "${align}" }, ...)`
+
+    for (const button of root.querySelectorAll<HTMLButtonElement>("button")) {
+      const active = button.dataset.justify === justify || button.dataset.align === align
+
+      button.setAttribute("aria-pressed", String(active))
+    }
+  }
+
+  root.addEventListener("click", (event) => {
+    const button = (event.target as Element).closest<HTMLButtonElement>("button")
+
+    if (!button) return
+
+    justify = button.dataset.justify ?? justify
+    align = button.dataset.align ?? align
+    paint()
+  })
+
+  paint()
+}
+
+const initSignalsDemo = () => {
+  const root = document.querySelector<HTMLElement>("[data-signals]")
+
+  if (!root) return
+
+  const counts = [1, 1, 1]
+  const reads: Record<string, number[]> = { "0": [0], "1": [1], "2": [0, 2] }
+
+  root.addEventListener("click", (event) => {
+    const button = (event.target as Element).closest<HTMLButtonElement>("[data-trigger]")
+
+    if (!button) return
+
+    for (const index of reads[button.dataset.trigger ?? ""] ?? []) {
+      const card = root.querySelector<HTMLElement>(`[data-card="${index}"]`)
+      const value = card?.querySelector("b")
+
+      if (!card || !value) continue
+
+      counts[index] = (counts[index] ?? 0) + 1
+      value.textContent = String(counts[index])
+      card.classList.add("is-hit")
+      setTimeout(() => card.classList.remove("is-hit"), 180)
+    }
+  })
+}
+
+const initStarfield = () => {
+  initPulsar()
+  initPlayground()
+  initSignalsDemo()
 }
 
 const initCopyButtons = (root: ParentNode = document) => {
