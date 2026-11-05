@@ -35,7 +35,7 @@ pulsar dev
 > [!NOTE]
 > Эти команды ставят последний релиз, 1.4.0. JSX, пример ниже и перезагрузка с
 > сохранением окна есть в `main` и выйдут в версии 2.0. Чтобы попробовать их сейчас,
-> [соберите Pulsar из исходников](https://pulsarjs.org/ru/install/#из-исходников).
+> [соберите Pulsar из исходников](https://pulsarjs.org/ru/install/#iz-iskhodnikov).
 
 ```tsx
 import { App, Button, Column, Text, signal } from "pulsar"
