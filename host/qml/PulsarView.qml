@@ -23,6 +23,7 @@ ApplicationWindow {
     property bool windowTransparent: false
     readonly property var flingCurve: makeFlingCurve()
     property var tappedItems: []
+    property var gapLayouts: []
     property var madeComponents: ({})
     property bool reordering: false
     property int revealTicks: 0
@@ -789,6 +790,8 @@ ApplicationWindow {
 
                     if (done)
                         done();
+
+                    view.scheduleGaps(motion.host.parent);
                 }
 
                 ParallelAnimation {
@@ -848,6 +851,7 @@ ApplicationWindow {
                 const limit = host.pulsarMeta.extra.maxHeight;
 
                 host.Layout.maximumHeight = Math.min(heightLimit, limit !== undefined ? limit : Number.POSITIVE_INFINITY);
+                view.scheduleGaps(host.parent);
             }
 
             function configure(props) {
@@ -4630,7 +4634,9 @@ ApplicationWindow {
                     used += layoutMainSize(other, horizontal);
             }
 
-            used += Math.max(0, shown - 1) * layout.spacing;
+            const gap = layout.pulsarMeta.extra.gap !== undefined ? layout.pulsarMeta.extra.gap : layout.spacing;
+
+            used += Math.max(0, shown - 1) * gap;
 
             const available = horizontal ? layout.width : layout.height;
 
@@ -4797,6 +4803,60 @@ ApplicationWindow {
         item.pulsarMeta.syncing = false;
     }
 
+    function scheduleGaps(layout) {
+        const meta = layout ? layout.pulsarMeta : null;
+
+        if (!meta || meta.type !== "column")
+            return;
+
+        if (view.gapLayouts.indexOf(layout) < 0)
+            view.gapLayouts.push(layout);
+
+        Qt.callLater(view.flushGaps);
+    }
+
+    function flushGaps() {
+        const layouts = view.gapLayouts;
+
+        view.gapLayouts = [];
+
+        for (const layout of layouts)
+            applyGaps(layout);
+    }
+
+    function openShare(kid) {
+        const motion = kid.pulsarMeta.extra.motion;
+
+        if (!motion || motion.fullHeight <= 0 || motion.heightLimit >= motion.fullHeight)
+            return 1;
+
+        return Math.max(0, motion.heightLimit / motion.fullHeight);
+    }
+
+    function applyGaps(layout) {
+        const gap = layout.pulsarMeta.extra.gap || 0;
+
+        let opened = 0;
+
+        for (let i = 0; i < layout.children.length; i++) {
+            const kid = layout.children[i];
+            const meta = kid.pulsarMeta;
+
+            if (!meta || !meta.node)
+                continue;
+
+            const animating = meta.extra.motion && meta.extra.motion.animating;
+
+            if ((meta.extra.discarded || meta.node.props.visible === false) && !animating)
+                continue;
+
+            const share = openShare(kid);
+
+            kid.Layout.topMargin = (meta.extra.baseTopMargin || 0) + gap * share * Math.min(1, opened);
+            opened += share;
+        }
+    }
+
     function applyLayoutLimits(item, props) {
         const extra = item.pulsarMeta.extra;
         const motion = extra.motion;
@@ -4854,9 +4914,13 @@ ApplicationWindow {
 
             kid.Layout.leftMargin = padding.left;
             kid.Layout.rightMargin = padding.right;
-            kid.Layout.topMargin = i === first ? padding.top : 0;
+            kid.pulsarMeta.extra.baseTopMargin = i === first ? padding.top : 0;
+            kid.Layout.topMargin = kid.pulsarMeta.extra.baseTopMargin;
             kid.Layout.bottomMargin = i === last ? padding.bottom : 0;
         }
+
+        if (!horizontal && layout.pulsarMeta.type === "column")
+            applyGaps(layout);
     }
 
     function discardItem(item) {
@@ -4950,6 +5014,9 @@ ApplicationWindow {
         const next = props.visible;
 
         extra.lastVisible = next;
+
+        if (previous !== next)
+            scheduleGaps(item.parent);
 
         if (!motion || !view.motionReady || previous === undefined || previous === next) {
             item.visible = next;
@@ -6029,7 +6096,8 @@ ApplicationWindow {
         const props = node.props;
 
         if (node.type === "column" || node.type === "row") {
-            item.spacing = prop(props, "gap", 0);
+            item.pulsarMeta.extra.gap = prop(props, "gap", 0);
+            item.spacing = node.type === "column" ? 0 : item.pulsarMeta.extra.gap;
             reconcile(item, node.children || [], false);
             applyPadding(item, paddingEdges(props, 0), node.type === "row");
             applyCrossAlign(item, props.alignItems, node.type === "row");
