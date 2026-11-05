@@ -48,10 +48,13 @@ jobs:
           xcrun simctl boot "$device"
           xcrun simctl bootstatus "$device"
           xcrun simctl install "$device" dist/ios-app.app
-          xcrun simctl launch "$device" com.pulsar.iosapp
+          xcrun simctl launch --stdout="$PWD/app.log" --stderr="$PWD/app.log" "$device" com.pulsar.iosapp
           sleep 20
           xcrun simctl io "$device" screenshot simulator.png
-          xcrun simctl spawn "$device" launchctl list | grep com.pulsar.iosapp
+          mkdir -p crashes
+          cp ~/Library/Logs/DiagnosticReports/pulsar-ios* crashes/ 2>/dev/null || true
+          cat app.log || true
+          xcrun simctl spawn "$device" launchctl list | grep com.pulsar.iosapp | grep -E '^[0-9]+'
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -59,5 +62,7 @@ jobs:
           name: ios-simulator
           path: |
             tests/apps/ios-app/simulator.png
+            tests/apps/ios-app/app.log
+            tests/apps/ios-app/crashes
             tests/apps/ios-app/dist/ios-app.app/Info.plist
           if-no-files-found: warn
