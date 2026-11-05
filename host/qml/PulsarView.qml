@@ -22,6 +22,7 @@ ApplicationWindow {
     Material.accent: themePrimary
     property bool windowTransparent: false
     readonly property var flingCurve: makeFlingCurve()
+    readonly property bool effectsAvailable: host.GraphicsInfo.api !== GraphicsInfo.Software
     property var tappedItems: []
     property var gapLayouts: []
     property var madeComponents: ({})
@@ -1134,7 +1135,7 @@ ApplicationWindow {
             property var pulsarMeta: null
             property int pulsarElevation: 0
             property color pulsarShadowColor: "#000000"
-            layer.enabled: boxShadowHost.pulsarElevation > 0
+            layer.enabled: view.effectsAvailable && boxShadowHost.pulsarElevation > 0
             layer.effect: MultiEffect {
                 shadowEnabled: true
                 autoPaddingEnabled: true
@@ -1170,7 +1171,7 @@ ApplicationWindow {
             property var pulsarMeta: null
             property int pulsarElevation: 0
             property color pulsarShadowColor: "#000000"
-            layer.enabled: cardShadowHost.pulsarElevation > 0
+            layer.enabled: view.effectsAvailable && cardShadowHost.pulsarElevation > 0
             layer.effect: MultiEffect {
                 shadowEnabled: true
                 autoPaddingEnabled: true
@@ -1370,7 +1371,7 @@ ApplicationWindow {
                 buttonRoot.colorAnimationReady = true;
             })
 
-            layer.enabled: buttonRoot.pulsarElevation > 0
+            layer.enabled: view.effectsAvailable && buttonRoot.pulsarElevation > 0
             layer.effect: MultiEffect {
                 shadowEnabled: true
                 autoPaddingEnabled: true
@@ -2116,7 +2117,7 @@ ApplicationWindow {
                     }
                 }
 
-                layer.enabled: pulsarElevation > 0
+                layer.enabled: view.effectsAvailable && pulsarElevation > 0
                 layer.effect: MultiEffect {
                     shadowEnabled: true
                     autoPaddingEnabled: true
@@ -2674,7 +2675,7 @@ ApplicationWindow {
                     }
                 }
 
-                layer.enabled: pulsarElevation > 0
+                layer.enabled: view.effectsAvailable && pulsarElevation > 0
                 layer.effect: MultiEffect {
                     shadowEnabled: true
                     autoPaddingEnabled: true
@@ -3124,7 +3125,7 @@ ApplicationWindow {
                 border.width: 1
                 border.color: view.themeBorder
                 clip: true
-                layer.enabled: pulsarElevation > 0
+                layer.enabled: view.effectsAvailable && pulsarElevation > 0
 
                 layer.effect: MultiEffect {
                     shadowEnabled: true
@@ -3265,7 +3266,7 @@ ApplicationWindow {
             width: fabSize
             height: fabSize
             opacity: fabEnabled ? 1 : 0.45
-            layer.enabled: pulsarElevation > 0
+            layer.enabled: view.effectsAvailable && pulsarElevation > 0
 
             layer.effect: MultiEffect {
                 shadowEnabled: true

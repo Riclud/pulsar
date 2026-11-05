@@ -76,6 +76,8 @@ All notable changes to this project are documented here. The format follows
 - `gradient` on `Box` and `Card` now draws; it used to paint nothing.
 - A tap reaches only the deepest clickable node, not every card around it.
 - Cards that hide or appear close their gap with them, instead of jumping at the end.
+- Sheets and nodes with `elevation` stay visible under software rendering, without the
+  shadow. They used to disappear.
 - `SearchField` reports text while a word is still being composed on the keyboard.
 - A click finishes the word being composed on the keyboard first, so a button next to
   an input sees the whole text.
