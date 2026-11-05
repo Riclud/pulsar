@@ -138,6 +138,10 @@ Input({ value: name.get(), onInput: (value) => name.set(value) })
 Page({ padding: 16, gap: 12, header: Text({ text: "Задачи", size: 24 }) }, Text({ text: "Эта часть прокручивается" }))
 ```
 
+Скролл на всех платформах идёт по кривой инерции Android, нажатие останавливает его
+без случайного клика, а у краёв контент растягивается. `overscroll: false` отключает
+растяжение, а `flick: false` останавливает список сразу, как только палец поднят.
+
 ## Раскладка с точки зрения CSS
 
 Большинство привычек из flexbox работает.
@@ -204,8 +208,10 @@ Box({ ...panel, color: "#333" }, Text({ text: "Два" }))
 - `fillWidth: true` занимает доступную ширину;
 - `Card`, `Scroll` и `Input` заполняют ширину по умолчанию.
 
-Если `justify` или центрирование ни на что не влияют, `Row` или его родитель,
-скорее всего, уже, чем вам кажется: добавьте `fillWidth`.
+`justify`, отличный от `start`, сам заполняет ширину, иначе ему нечего делать.
+Задайте `width` или `fillWidth: false`, если нужен узкий `Row`. Если центрирование
+ребёнка ни на что не влияет, `Row` или его родитель, скорее всего, уже, чем вам
+кажется: добавьте `fillWidth`.
 
 ## Собираем экран шаг за шагом
 
@@ -375,6 +381,8 @@ const Counter = component(() => {
 | `transition`, keyframes  | `enter`, `exit`, `transition`                  |
 | Свайп или перетаскивание | `drag: { axis: "x", onRelease }`               |
 | Длинный список           | `VirtualList`                                  |
+| `display: none` на вкладке | `KeepAlive`, см. [Сохранить экран](../components/#sokhranit-ekran) |
+| `stopPropagation`        | Не нужен: нажатие доходит только до самого вложенного узла |
 | `localStorage`           | `storage`                                      |
 | Хранение токена          | `secureStorage`                                |
 | CSS-переменные и темы    | `defineTheme` и цвета темы вроде `"surface"`   |

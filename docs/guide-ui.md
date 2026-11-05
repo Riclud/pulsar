@@ -22,6 +22,18 @@ Text({ size: 20, weight: "semibold" }, "Hello")
 Text({ size: 20, text: "Hello" })
 ```
 
+In a `.tsx` file the same calls can be written as tags. Both forms compile to the same
+thing, and `.ts` and `.tsx` files import each other. See
+[JSX](../guide/web/#jsx) for the setup.
+
+```tsx
+<Button icon="add" onClick={add}>Add task</Button>
+
+<Card padding={16}>
+  <Text size={14}>A card with one child</Text>
+</Card>
+```
+
 ### Props shared by every node
 
 | Prop                       | Meaning                                                          |
@@ -140,7 +152,9 @@ Card(
 ### Column and Row
 
 `Column` stacks children vertically, `Row` horizontally. Both accept `gap`,
-`padding`, `fill`, `fillWidth`, `fillHeight` and `align`.
+`padding`, `fill`, `fillWidth`, `fillHeight` and `align`. With spare space, children
+stay together at the start, as in flexbox. `fillWidth` and `fillHeight` always fill
+the parent. A window has no margin of its own, so give the root node a `padding`.
 
 ```ts
 Row(
@@ -189,7 +203,9 @@ Card(
 
 ### Scroll, Container, Spacer, Divider
 
-- `Scroll` makes a page scroll when its content is taller than the window.
+- `Scroll` makes a page scroll when its content is taller than the window. It follows
+  the Android fling curve and stretches at the edges; `overscroll: false` and
+  `flick: false` turn those off.
 - `Container({ maxWidth, padding })` centers and caps content on wide windows.
 - `Spacer` fills leftover space in the main axis.
 - `Divider` is a one-pixel separator.
@@ -226,7 +242,8 @@ When({
 })
 ```
 
-`visible` is for hiding one node, not for switching between full screens.
+`visible` is for hiding one node, not for switching between full screens. To keep a
+whole screen between visits, use [`KeepAlive`](../guide/components/#keep-a-screen-alive).
 
 ## Text and content
 
@@ -357,6 +374,11 @@ TextArea({
   onInput: (value) => app.store.set("notes", value),
 })
 ```
+
+`value` also works while the field has focus, so clearing it after a submit just means
+setting it to an empty string. What the user is typing is not overwritten by its own
+echo. A field with `onSubmitted` shows a Done key instead of Next. `focusBorderColor`
+sets the outline while focused.
 
 - `variant`: `filled` or `outline`.
 - `password` masks the value.
@@ -861,7 +883,8 @@ Modal(
 | ---------------- | ------------------------------------------------------ | ---------------------------------- |
 | `Column`/`Row`   | `gap`, `padding`, `fill`, `fillWidth`, `align`         | —                                  |
 | `Card`/`Box`     | `padding`, `radius`, `elevation`, `gradient`, `border` | `onLongPress`                      |
-| `Scroll`         | `fill`, `gap`, `padding`                               | —                                  |
+| `KeepAlive`      | `active`; content is a function                        | —            |
+| `Scroll`         | `fill`, `gap`, `padding`, `overscroll`, `flick`        | —                                  |
 | `Text`           | `size`, `weight`, `color`, `markdown`, `elide`         | —                                  |
 | `Button`         | `variant`, `size`, `icon`, `badge`, `enabled`          | `onClick`, `onLongPress`           |
 | `IconButton`     | `icon`, `size`, `color`, `badge`                       | `onClick`                          |

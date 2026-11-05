@@ -22,6 +22,18 @@ Text({ size: 20, weight: "semibold" }, "Hello")
 Text({ size: 20, text: "Hello" })
 ```
 
+В файле `.tsx` те же вызовы можно писать тегами. Обе формы компилируются одинаково, а
+файлы `.ts` и `.tsx` импортируют друг друга. Настройка описана в разделе
+[JSX](../guide/web/#jsx).
+
+```tsx
+<Button icon="add" onClick={add}>Добавить задачу</Button>
+
+<Card padding={16}>
+  <Text size={14}>Карточка с одним ребёнком</Text>
+</Card>
+```
+
 ### Пропы, общие для каждого узла
 
 | Проп                       | Значение                                                              |
@@ -145,6 +157,10 @@ Card(
 `Column` укладывает дочерние элементы вертикально, `Row` — горизонтально. Оба
 принимают `gap`, `padding`, `fill`, `fillWidth`, `fillHeight` и `align`.
 
+При свободном месте дети держатся вместе в начале, как во flexbox. `fillWidth` и
+`fillHeight` всегда заполняют родителя. У окна нет своего отступа, поэтому задайте
+`padding` корневому узлу.
+
 ```ts
 Row(
   { gap: 8, fillWidth: true, padding: 12 },
@@ -194,7 +210,9 @@ Card(
 
 ### Scroll, Container, Spacer, Divider
 
-- `Scroll` делает страницу прокручиваемой, когда её контент выше окна.
+- `Scroll` делает страницу прокручиваемой, когда её контент выше окна. Он идёт по
+  кривой инерции Android и растягивается у краёв; `overscroll: false` и `flick: false`
+  отключают это.
 - `Container({ maxWidth, padding })` центрирует и ограничивает контент на
   широких окнах.
 - `Spacer` заполняет оставшееся пространство по главной оси.
@@ -231,6 +249,9 @@ When({
   else: () => For({ each: items(), keyOf: (item) => item.id, render: row }),
 })
 ```
+
+Чтобы сохранить целый экран между показами, используйте
+[`KeepAlive`](../guide/components/#sokhranit-ekran).
 
 `visible` — для скрытия одного узла, а не для переключения между целыми
 экранами.
@@ -369,6 +390,11 @@ TextArea({
   onInput: (value) => app.store.set("notes", value),
 })
 ```
+
+`value` работает и когда поле в фокусе, поэтому, чтобы очистить поле после отправки,
+достаточно записать в него пустую строку. Вводимый текст своим же отражением не
+затирается. Поле с `onSubmitted` показывает клавишу «Готово» вместо «Далее».
+`focusBorderColor` задаёт обводку в фокусе.
 
 - `variant`: `filled` или `outline`.
 - `password` маскирует значение.
@@ -879,7 +905,8 @@ Modal(
 | ---------------- | ------------------------------------------------------ | ---------------------------------- |
 | `Column`/`Row`   | `gap`, `padding`, `fill`, `fillWidth`, `align`         | —                                  |
 | `Card`/`Box`     | `padding`, `radius`, `elevation`, `gradient`, `border` | `onLongPress`                      |
-| `Scroll`         | `fill`, `gap`, `padding`                               | —                                  |
+| `KeepAlive`      | `active`; содержимое — функция                         | —            |
+| `Scroll`         | `fill`, `gap`, `padding`, `overscroll`, `flick`        | —                                  |
 | `Text`           | `size`, `weight`, `color`, `markdown`, `elide`         | —                                  |
 | `Button`         | `variant`, `size`, `icon`, `badge`, `enabled`          | `onClick`, `onLongPress`           |
 | `IconButton`     | `icon`, `size`, `color`, `badge`                       | `onClick`                          |

@@ -125,6 +125,25 @@ const Counter = component<{ label: string }>((props) => {
 
 Do not create a signal in the simple form: it would be recreated on each run.
 
+### In JSX
+
+Every form works the same in a `.tsx` file. A component takes its props as attributes,
+and children arrive as usual. See [JSX](../web/#jsx) for the setup.
+
+```tsx
+const Counter = component<{ label: string }>((props) => {
+  const count = signal(0)
+
+  return () => (
+    <Button onClick={() => count.set(count.peek() + 1)}>
+      {`${props.label}: ${count.get()}`}
+    </Button>
+  )
+})
+
+<Counter label="Taps" />
+```
+
 ### Props
 
 A component reruns when a prop changes, compared by reference. When its parent
@@ -172,6 +191,38 @@ const Clock = component(() => {
 and `onCleanup` run when the component leaves the tree. Both must be called during
 setup.
 
+## Keep a screen alive
+
+Normally a screen that leaves the tree is destroyed, and opening it again builds it
+from scratch. `KeepAlive` builds the content the first time it is active and only
+hides it after that, so it comes back at once with its scroll position and typed text.
+
+```ts
+Stack(
+  { fill: true },
+  KeepAlive({ key: "list", active: !ui.calendarOpen }, () => ListScreen({})),
+  KeepAlive({ key: "calendar", active: ui.calendarOpen }, () => CalendarScreen({})),
+)
+```
+
+In JSX, the content is a function too:
+
+```tsx
+<KeepAlive active={ui.calendarOpen}>{() => <CalendarScreen />}</KeepAlive>
+```
+
+The content is a function so that nothing is built before the first visit. While
+hidden it does not rerender: changes are recorded and applied when it is shown again,
+so a hidden screen costs memory, not time. It accepts the props of `Box` and fills the
+parent by default.
+
+- **Effects and timers keep running.** Only rendering is paused, so stop what you do
+  not need in a hidden screen.
+- **State stays.** Do not use it for a form that must start empty, such as an editor
+  opened for a different item. Render that one with a plain condition.
+- **Removing it frees everything.** When the `KeepAlive` leaves the tree, its content
+  is destroyed and `onCleanup` runs.
+
 ## Keep updates small
 
 A render reruns as a whole, so split a screen by what changes together:
@@ -208,3 +259,9 @@ Before this model, any store change reran the whole window.
 - `bind()` still works, and is read while the owning component renders.
 - `memo` still works, but it cannot see values read inside the component. Prefer
   `component`.
+- `fillWidth` and `fillHeight` always fill a `Row` or `Column`; they used to stop at
+  the size of the children.
+- A layout with spare space keeps its children at the start, and a tall `Box` no longer
+  centers its child. Use `Column({ justify: "center", alignItems: "center" })`.
+- A window has no margin of its own, so give the root node a `padding`.
+- `flickVelocity` and `flickDeceleration` are gone; `overscroll` now defaults to true.

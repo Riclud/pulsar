@@ -26,6 +26,8 @@ All notable changes to this project are documented here. The format follows
 
 - `focusBorderColor` on `Input` and `TextArea`.
 
+- `KeepAlive` builds a screen on first use and keeps it while hidden, with paused
+  rendering, so it reopens at once with its scroll and input intact.
 - JSX: write screens in `.tsx` with `jsxImportSource: "pulsar"`. Tags compile to the
   same component calls, and `.ts` and `.tsx` files import each other.
 - `signal`, `computed`, `effect`, `untracked` and `createState`.
@@ -72,6 +74,8 @@ All notable changes to this project are documented here. The format follows
 
 - `gradient` on `Box` and `Card` now draws; it used to paint nothing.
 - A tap reaches only the deepest clickable node, not every card around it.
+- A layout that updates while hidden keeps its padding.
+- A `flex` child keeps its size when only that child updates.
 - An input keeps focus when a sibling is inserted before it.
 - A focused field scrolls into view smoothly when the keyboard opens.
 - `flex` ignores children that are being removed.

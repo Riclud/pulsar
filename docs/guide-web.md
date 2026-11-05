@@ -139,6 +139,10 @@ header and footer that stay in place.
 Page({ padding: 16, gap: 12, header: Text({ text: "Tasks", size: 24 }) }, Text({ text: "This part scrolls" }))
 ```
 
+Scrolling follows the Android fling curve on every platform, a tap stops it without
+clicking anything, and content stretches at the edges. `overscroll: false` turns the
+stretch off, and `flick: false` stops the list as soon as the finger lifts.
+
 ## Layout, from CSS
 
 Most flexbox habits carry over.
@@ -205,8 +209,10 @@ This is the one surprise for web developers. A `div` fills its parent, but a
 - `fillWidth: true` takes the available width;
 - `Card`, `Scroll` and `Input` already fill the width by default.
 
-If a `justify` or a centered child seems to do nothing, the `Row` or its parent is
-probably narrower than you think, so add `fillWidth`.
+A `justify` other than `start` fills the width on its own, because it has nothing to
+do otherwise. Set a `width` or `fillWidth: false` if you want a narrow `Row`. If a
+centered child seems to do nothing, the `Row` or its parent is probably narrower than
+you think, so add `fillWidth`.
 
 ## Build a screen, step by step
 
@@ -375,6 +381,8 @@ There are no hook rules and no dependency arrays: whatever a render reads throug
 | `transition`, keyframes  | `enter`, `exit`, `transition`                       |
 | Swipe or drag            | `drag: { axis: "x", onRelease }`                    |
 | A long list              | `VirtualList`                                       |
+| `display: none` on a tab | `KeepAlive`, see [Keep a screen alive](../components/#keep-a-screen-alive) |
+| `stopPropagation`        | Not needed: a tap reaches only the deepest clickable node |
 | `localStorage`           | `storage`                                           |
 | Storing a token          | `secureStorage`                                     |
 | CSS variables and themes | `defineTheme`, and theme colors such as `"surface"` |

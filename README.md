@@ -1046,7 +1046,7 @@ app.window("main").render(() =>
 app.run()
 ```
 
-`render` takes a tree or a function; the function runs again whenever `Store`
+`render` takes a tree or a function; the function runs again when a value it read
 changes, and the host updates the existing QML objects in place, so focus,
 scroll and input state survive a re-render.
 
@@ -1139,7 +1139,16 @@ padding })` caps and centers content on large windows.
   max sizes, `clip`, `zIndex` and `absolute` lay out any node; `Row`, `Column`,
   `Wrap` and `Stack` accept the surface props of `Box`. See the
   [guide for web developers](docs/guide-web.md).
-- `pressed`, `enter`, `exit`, `transition` and `drag` animate in the renderer.
+- `hover`, `pressed` and `disabled` restyle a node, and `enter`, `exit`, `transition`
+  and `drag` animate in the renderer.
+- `KeepAlive({ active }, () => Screen({}))` builds a screen on first use and keeps it
+  while hidden, with paused rendering. See the
+  [components guide](docs/guide-components.md).
+- Screens can be written in `.tsx` with `jsxImportSource: "pulsar"`. See the
+  [guide for web developers](docs/guide-web.md).
+- Scrolling follows the Android fling curve on every platform.
+- A layout with spare space keeps its children at the start, and a window has no margin
+  of its own.
 - `Page` and `Scroll` accept `flick` and `overscroll` to turn off kinetic scrolling
   or the stretch at the edges per screen.
 - The lower-level `ui.column(...)`, `ui.button(...)` factories remain available;

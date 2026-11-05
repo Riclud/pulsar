@@ -145,6 +145,7 @@ Column(
 - `Spacer` pushes things apart; `fillWidth`/`fillHeight` decide in which axis.
 - Put content that can exceed the window inside `Scroll` rather than shrinking
   every text size.
+- A window has no margin of its own, and spare space stays at the end, as in flexbox.
 
 For wide windows, center the content instead of stretching it:
 
@@ -336,7 +337,9 @@ The system back button pops the stack; on an empty stack it quits. Pass
 `reset`, `current`, `entries`, `canGoBack` and `depth` cover most apps.
 
 For tab-like navigation inside one screen, use `Tabs` for a header strip,
-`Segmented` for a compact switcher, and `Pager` for swipeable pages.
+`Segmented` for a compact switcher, and `Pager` for swipeable pages. To keep a screen
+between visits, so that it reopens at once with its scroll intact, wrap it in
+[`KeepAlive`](components/#keep-a-screen-alive).
 
 ## Data and the operating system
 
