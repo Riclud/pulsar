@@ -193,6 +193,12 @@ interface CommonOptions {
   maxHeight?: number
   /** Share of the free space along the parent Row or Column. */
   flex?: number
+  /** Degrees. */
+  rotation?: number
+  /** Keep turning, in turns per minute. Runs without JavaScript. */
+  spinSpeed?: number
+  /** Blur the node and everything in it, by a radius in pixels. */
+  blur?: number
   /** Cut off content outside the node's bounds. */
   clip?: boolean
   zIndex?: number
@@ -221,7 +227,16 @@ export interface PaddingOptions {
   paddingLeft?: number
 }
 
+export interface GlassOptions {
+  /** Radius in pixels; the first request in a Stack sets it for all glass there. */
+  blur?: number
+  /** A color laid over the blur. Use a translucent one. */
+  tint?: ColorValue
+}
+
 export interface SurfaceOptions {
+  /** See-through surface that blurs the first child of the nearest Stack. */
+  glass?: GlassOptions
   color?: ColorValue
   hoverColor?: ColorValue
   radius?: number
@@ -943,6 +958,7 @@ const SURFACE_KEYS = [
   "borderColor",
   "borderWidth",
   "gradient",
+  "glass",
   "elevation",
   "shadowColor",
   "onClick",
@@ -2000,7 +2016,11 @@ export const Wave = (options: WaveOptions = {}): UiNode => {
 
 export interface LightningOptions extends CommonOptions {
   color?: ColorValue
-  /** How far the bolt reaches, from 0 to 1. */
+  /** Start of the bolt, as a share of the width and height. Defaults to the middle left. */
+  from?: [number, number]
+  /** End of the bolt, as a share of the width and height. Defaults to the middle right. */
+  to?: [number, number]
+  /** How far along the way the bolt reaches, from 0 to 1. */
   progress?: number
   /** New bolt shapes per second. */
   speed?: number
@@ -2015,7 +2035,7 @@ export interface LightningOptions extends CommonOptions {
 export const Lightning = (options: LightningOptions = {}): UiNode => {
   return effect(
     "lightning",
-    { color: "primary", progress: 1, speed: 14, jitter: 26, thickness: 1.5, glowRadius: 16 },
+    { color: "primary", from: [0, 0.5], to: [1, 0.5], progress: 1, speed: 14, jitter: 26, thickness: 1.5, glowRadius: 16 },
     options as Record<string, unknown>,
   )
 }

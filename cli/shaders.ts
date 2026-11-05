@@ -12,11 +12,19 @@ float wave(float x, float frequency, float speed) {
     return sin(6.28318530 * frequency * x - time * speed);
 }
 
+float hash(vec2 point) {
+    vec3 mixed = fract(vec3(point.xyx) * 0.1031);
+
+    mixed += dot(mixed, mixed.yzx + 33.33);
+
+    return fract((mixed.x + mixed.y) * mixed.z);
+}
+
 float noise(float x) {
     float cell = floor(x);
     float part = fract(x);
-    float a = fract(sin(cell * 127.1) * 43758.5453);
-    float b = fract(sin((cell + 1.0) * 127.1) * 43758.5453);
+    float a = hash(vec2(cell, 0.0));
+    float b = hash(vec2(cell + 1.0, 0.0));
 
     return mix(a, b, part * part * (3.0 - 2.0 * part));
 }
@@ -25,10 +33,10 @@ float noise(vec2 point) {
     vec2 cell = floor(point);
     vec2 part = fract(point);
     vec2 blend = part * part * (3.0 - 2.0 * part);
-    float a = fract(sin(dot(cell, vec2(127.1, 311.7))) * 43758.5453);
-    float b = fract(sin(dot(cell + vec2(1.0, 0.0), vec2(127.1, 311.7))) * 43758.5453);
-    float c = fract(sin(dot(cell + vec2(0.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);
-    float d = fract(sin(dot(cell + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);
+    float a = hash(cell);
+    float b = hash(cell + vec2(1.0, 0.0));
+    float c = hash(cell + vec2(0.0, 1.0));
+    float d = hash(cell + vec2(1.0, 1.0));
 
     return mix(mix(a, b, blend.x), mix(c, d, blend.x), blend.y);
 }
@@ -48,8 +56,8 @@ float fbm(vec2 point) {
 
 float zigzag(float x, float seed) {
     float cell = floor(x);
-    float a = fract(sin(dot(vec2(cell, seed), vec2(127.1, 311.7))) * 43758.5453);
-    float b = fract(sin(dot(vec2(cell + 1.0, seed), vec2(127.1, 311.7))) * 43758.5453);
+    float a = hash(vec2(cell, seed));
+    float b = hash(vec2(cell + 1.0, seed));
 
     return mix(a, b, fract(x)) * 2.0 - 1.0;
 }
@@ -146,7 +154,9 @@ export const compileShader = (inputPath: string, outputPath: string): void => {
 
   const wrapped = join(tmpdir(), `pulsar-${process.pid}-${Date.now()}.frag`)
 
-  writeFileSync(wrapped, wrapFragment(readFileSync(inputPath, "utf8")))
+  const source = readFileSync(inputPath, "utf8")
+
+  writeFileSync(wrapped, inputPath.endsWith(".raw.frag") ? source : wrapFragment(source))
 
   const result = spawnSync([qsb, "--glsl", "100 es,120,150", "--hlsl", "50", "--msl", "12", "-o", outputPath, wrapped])
 

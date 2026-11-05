@@ -5566,9 +5566,13 @@ ApplicationWindow {
         applyOrder(parent, desired);
     }
 
+    function isVector(value) {
+        return typeof value === "object" && value !== null && value.length !== undefined;
+    }
+
     function shaderProperty(name, value) {
         const type = typeof value === "number" ? "real"
-                : !Array.isArray(value) ? "color"
+                : !isVector(value) ? "color"
                 : value.length === 2 ? "vector2d"
                 : value.length === 3 ? "vector3d"
                 : "vector4d";
@@ -5604,7 +5608,7 @@ ApplicationWindow {
             return value;
         if (value === "primary")
             return view.themePrimary;
-        if (!Array.isArray(value))
+        if (!isVector(value))
             return resolveColor(value, "transparent");
         if (value.length === 2)
             return Qt.vector2d(value[0], value[1]);
@@ -5639,6 +5643,136 @@ ApplicationWindow {
                 console.log("PulsarView shader status " + item.status + " " + item.log);
             });
         }
+    }
+
+    function applySpin(item, speed) {
+        const extra = item.pulsarMeta.extra;
+
+        if (!speed && !extra.spinner)
+            return;
+
+        if (!extra.spinner) {
+            extra.spinner = make("import QtQuick; RotationAnimator { from: 0; to: 360; loops: Animation.Infinite }", item);
+            extra.spinner.target = item;
+        }
+
+        extra.spinner.running = false;
+
+        if (!speed)
+            return;
+
+        extra.spinner.duration = 60000 / Math.abs(speed);
+        extra.spinner.to = speed > 0 ? 360 : -360;
+        extra.spinner.running = true;
+    }
+
+    function blurEffect(radius) {
+        const code = "blur:" + radius;
+
+        if (!view.madeComponents[code]) {
+            view.madeComponents[code] = Qt.createQmlObject(
+                        "import QtQuick; import QtQuick.Effects; QtObject { property Component made: Component { "
+                        + "MultiEffect { blurEnabled: true; blur: 1; blurMax: " + Math.round(radius)
+                        + "; autoPaddingEnabled: false } } }", view, "pulsar-ui").made;
+        }
+
+        return view.madeComponents[code];
+    }
+
+    function applyBlur(item, radius) {
+        const extra = item.pulsarMeta.extra;
+
+        if (!radius && !extra.blurred)
+            return;
+
+        if (!view.effectsAvailable)
+            return;
+
+        extra.blurred = radius > 0;
+        item.layer.enabled = radius > 0;
+        item.layer.effect = radius > 0 ? blurEffect(radius) : null;
+    }
+
+    function glassStack(item) {
+        for (let parent = item.parent; parent; parent = parent.parent) {
+            if (parent.pulsarMeta && parent.pulsarMeta.type === "stack")
+                return parent;
+        }
+
+        return null;
+    }
+
+    function glassBackdrop(stack, radius) {
+        const extra = stack.pulsarMeta.extra;
+
+        if (extra.glassBackdrop)
+            return extra.glassBackdrop;
+
+        let background = null;
+
+        for (let i = 0; i < stack.children.length && !background; i++) {
+            if (stack.children[i].pulsarMeta && stack.children[i].pulsarMeta.node)
+                background = stack.children[i];
+        }
+
+        if (!background)
+            return null;
+
+        const effect = make("import QtQuick; import QtQuick.Effects; MultiEffect { blurEnabled: true; blur: 1; "
+                + "blurMax: " + Math.round(radius) + "; autoPaddingEnabled: false; visible: false; layer.enabled: true }", stack);
+
+        effect.source = background;
+        background.layer.enabled = true;
+        effect.width = Qt.binding(function () { return stack.width; });
+        effect.height = Qt.binding(function () { return stack.height; });
+        extra.glassBackdrop = effect;
+        extra.glassPanes = [];
+
+        const ticker = make("import QtQuick; FrameAnimation { running: true }", stack);
+
+        ticker.triggered.connect(function () {
+            if (!stack.visible)
+                return;
+
+            for (const pane of extra.glassPanes) {
+                if (pane.visible)
+                    pane.sync();
+            }
+        });
+
+        return effect;
+    }
+
+    function applyGlass(item, glass, radius) {
+        const extra = item.pulsarMeta.extra;
+
+        if (!glass || extra.glassPane || !view.effectsAvailable)
+            return;
+
+        const stack = glassStack(item);
+
+        Qt.callLater(function () {
+            const backdrop = stack ? glassBackdrop(stack, prop(glass, "blur", 32)) : null;
+
+            if (!backdrop || !item.pulsarMeta)
+                return;
+
+            const pane = make("import QtQuick; ShaderEffect { id: pane; z: -1; anchors.fill: parent; "
+                    + "property var backdrop; property vector4d area; property vector2d size: Qt.vector2d(width, height); "
+                    + "property real cornerRadius: 0; property color tint; property color base; property var stack; "
+                    + "fragmentShader: 'qrc:/runtime/shaders/glass.raw.frag.qsb'; "
+                    + "function sync() { const a = mapToItem(stack, 0, 0); const b = mapToItem(stack, width, height); "
+                    + "area = Qt.vector4d(a.x / stack.width, a.y / stack.height, (b.x - a.x) / stack.width, (b.y - a.y) / stack.height) } }", item);
+
+            pane.stack = stack;
+            pane.backdrop = backdrop;
+            pane.cornerRadius = radius;
+            pane.tint = resolveColor(prop(glass, "tint", "#14ffffff"), "#14ffffff");
+            pane.base = view.themeBackground;
+            pane.sync();
+            stack.pulsarMeta.extra.glassPanes.push(pane);
+            extra.glassPane = pane;
+        });
     }
 
     function createNode(node, parent, isRoot) {
@@ -6395,6 +6529,13 @@ ApplicationWindow {
 
         if (props.enabled !== undefined)
             item.enabled = props.enabled;
+
+        if (props.rotation !== undefined)
+            item.rotation = props.rotation;
+
+        applySpin(item, prop(props, "spinSpeed", 0));
+        applyBlur(item, prop(props, "blur", 0));
+        applyGlass(item, props.glass, prop(props, "radius", 0));
 
         ensureHover(item, props);
 

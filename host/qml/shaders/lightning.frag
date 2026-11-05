@@ -1,4 +1,6 @@
 uniform vec4 color;
+uniform vec2 from;
+uniform vec2 to;
 uniform float progress;
 uniform float speed;
 uniform float jitter;
@@ -7,32 +9,37 @@ uniform float glowRadius;
 
 const float STEP = 14.0;
 
-float boltY(float cell, float seed, float limit) {
-    float x = cell * STEP;
-    float pinned = fade(x, resolution.y * 0.5) * fade(limit - x, resolution.y * 0.5);
-    float shape = zigzag(cell * 0.45, seed) + 0.5 * zigzag(cell, seed + 7.0);
+float boltOffset(float cell, float seed, float limit) {
+    float along = cell * STEP;
+    float pinned = fade(along, 24.0) * fade(limit - along, 24.0);
 
-    return resolution.y / 2.0 + jitter * pinned * shape;
+    return jitter * pinned * (zigzag(cell * 0.45, seed) + 0.5 * zigzag(cell, seed + 7.0));
 }
 
 vec4 effect(vec2 uv) {
+    vec2 start = from * resolution;
+    vec2 way = to * resolution - start;
+    float full = max(length(way), 1.0);
+    vec2 forward = way / full;
+    vec2 local = vec2(dot(pixel - start, forward), dot(pixel - start, vec2(-forward.y, forward.x)));
+    float limit = progress * full;
     float seed = floor(time * speed);
-    float limit = progress * resolution.x;
-    float cell = floor(pixel.x / STEP);
-    float distance = 1000.0;
+    float cell = floor(local.x / STEP);
+    float nearest = 1000.0;
 
     for (float i = -1.0; i <= 1.0; i += 1.0) {
-        float from = cell + i;
-        float to = from + 1.0;
+        float a = cell + i;
+        float b = a + 1.0;
 
-        distance = min(distance, segment(pixel, vec2(from * STEP, boltY(from, seed, limit)), vec2(to * STEP, boltY(to, seed, limit))));
+        if (a * STEP > limit || b * STEP < 0.0) continue;
+
+        nearest = min(nearest, segment(local, vec2(a * STEP, boltOffset(a, seed, limit)), vec2(b * STEP, boltOffset(b, seed, limit))));
     }
 
-    distance -= thickness / 2.0;
+    nearest -= thickness / 2.0;
 
-    float visible = step(pixel.x, limit);
-    float core = line(distance) * visible;
-    float aura = glow(distance, glowRadius) * visible;
+    float core = line(nearest);
+    float aura = glow(nearest, glowRadius);
 
     return vec4(mix(color.rgb, vec3(1.0), core), max(aura * color.a, core));
 }

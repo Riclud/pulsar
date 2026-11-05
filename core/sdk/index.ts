@@ -87,6 +87,7 @@ export type {
   OrbitOptions,
   ShaderOptions,
   ShaderUniform,
+  GlassOptions,
   WaveOptions,
   LightningOptions,
   AuroraOptions,

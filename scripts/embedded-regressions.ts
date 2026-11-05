@@ -89,7 +89,7 @@ const scenarios: Scenario[] = [
   },
   {
     name: "motion",
-    env: { PULSAR_TRANSITION: "none" },
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "3200" },
     check: (output) => {
       return (
         output.includes("PulsarView enter /root/added") &&
@@ -178,7 +178,14 @@ const scenarios: Scenario[] = [
   },
   {
     name: "shader",
-    check: (output) => output.includes("SIZE wave 300") && !output.includes("Shader uniform"),
+    check: (output) => {
+      return (
+        output.includes("SIZE wave 300") &&
+        output.includes("SIZE pane 80") &&
+        !output.includes("Shader uniform") &&
+        !output.includes("Cannot assign")
+      )
+    },
   },
   {
     name: "arrange",
@@ -337,6 +344,8 @@ const runScenario = async (scenario: Scenario) => {
     const passed = exitCode === 0 && scenario.check(output) && !output.includes("recursive rearrange") && !output.includes("read-only property") && !output.includes("as the root of a QML document")
 
     console.log(`${passed ? "ok  " : "FAIL"} ${scenario.name} (exit ${exitCode})`)
+
+    if (!passed) console.log(output.split("\n").slice(-40).join("\n"))
 
     if (!passed && process.env.PULSAR_REGRESSION_VERBOSE) console.error(output)
 
