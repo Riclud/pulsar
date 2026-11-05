@@ -16,13 +16,26 @@
 ## Быстрый старт
 
 ```sh
+curl -fsSL https://get.pulsarjs.org | sh
+pulsar install
+```
+
+В Windows вместо первой строки выполните
+`iwr https://get.pulsarjs.org/install.ps1 -UseBasicParsing | iex`. Затем создайте
+приложение:
+
+```sh
 pulsar create my-app
 cd my-app
 pulsar dev
 ```
 
-Сохраните файл, и открытое окно обновится. Как получить CLI, описано в разделе
-[Установка](https://pulsarjs.org/ru/install/).
+Сохраните файл, и открытое окно обновится.
+
+> [!NOTE]
+> Эти команды ставят последний релиз, 1.4.0. JSX, пример ниже и перезагрузка с
+> сохранением окна есть в `main` и выйдут в версии 2.0. Чтобы попробовать их сейчас,
+> [соберите Pulsar из исходников](https://pulsarjs.org/ru/install/#из-исходников).
 
 ```tsx
 import { App, Button, Column, Text, signal } from "pulsar"

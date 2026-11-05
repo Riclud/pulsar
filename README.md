@@ -16,13 +16,25 @@ small Pulsar app too: [`examples/tasks/demo`](examples/tasks/demo).</sub>
 ## Quick start
 
 ```sh
+curl -fsSL https://get.pulsarjs.org | sh
+pulsar install
+```
+
+On Windows, use `iwr https://get.pulsarjs.org/install.ps1 -UseBasicParsing | iex`
+instead of the first line. Then create an app:
+
+```sh
 pulsar create my-app
 cd my-app
 pulsar dev
 ```
 
-Save a file and the open window updates. See [Install](https://pulsarjs.org/install/)
-for how to get the CLI.
+Save a file and the open window updates.
+
+> [!NOTE]
+> These commands install the latest release, 1.4.0. JSX, the example below and the
+> window-keeping reload are on `main` and arrive with 2.0. To try them now,
+> [build from source](https://pulsarjs.org/install/#from-source).
 
 ```tsx
 import { App, Button, Column, Text, signal } from "pulsar"
