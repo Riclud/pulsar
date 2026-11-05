@@ -512,12 +512,11 @@ ApplicationWindow {
         let stops = extra.gradientStops;
 
         if (!stops) {
-            const shape = make("import QtQuick; Gradient {}", item);
+            const shape = make(
+                        "import QtQuick; Gradient { GradientStop { position: 0 } GradientStop { position: 1 } }",
+                        item);
 
-            stops = [
-                make("import QtQuick; GradientStop { position: 0 }", shape),
-                make("import QtQuick; GradientStop { position: 1 }", shape)
-            ];
+            stops = [shape.stops[0], shape.stops[1]];
 
             extra.gradientShape = shape;
             extra.gradientStops = stops;
