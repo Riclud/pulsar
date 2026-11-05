@@ -48,8 +48,9 @@ jobs:
           xcrun simctl boot "$device"
           xcrun simctl bootstatus "$device"
           xcrun simctl install "$device" dist/ios-app.app
-          xcrun simctl launch --stdout="$PWD/app.log" --stderr="$PWD/app.log" "$device" com.pulsar.iosapp
-          sleep 20
+          SIMCTL_CHILD_QSG_INFO=1 SIMCTL_CHILD_QT_LOGGING_RULES="qt.scenegraph.general=true;qt.rhi.general=true;qt.qpa.window=true" \
+            xcrun simctl launch --stdout="$PWD/app.log" --stderr="$PWD/app.log" "$device" com.pulsar.iosapp
+          sleep 60
           xcrun simctl io "$device" screenshot simulator.png
           mkdir -p crashes
           cp ~/Library/Logs/DiagnosticReports/pulsar-ios* crashes/ 2>/dev/null || true
