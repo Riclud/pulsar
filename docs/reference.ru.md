@@ -45,24 +45,23 @@ Linux / macOS:
 
 ```sh
 curl -fsSL https://get.pulsarjs.org | sh
-pulsar install          # скачивает нативный toolchain (host + bridge + Qt)
 ```
 
 Windows:
 
 ```powershell
 iwr https://get.pulsarjs.org/install.ps1 -UseBasicParsing | iex
-pulsar install
 ```
 
 Bootstrap ставит CLI в `~/.local/share/pulsar` (или `%LOCALAPPDATA%\pulsar` в
-Windows) и шим `pulsar` в `PATH`. Затем `pulsar install` скачивает toolchain
-для платформы:
+Windows) и шим `pulsar` в `PATH`. Затем он запускает `pulsar install`, который
+скачивает toolchain для платформы:
 
 - по умолчанию: **fat** — со встроенным Qt, без настройки. Хост грузит Qt из
   бандла (через RPATH в Linux/macOS, либо из DLL рядом с exe в Windows), поэтому
   системный Qt не используется;
-- `--slim` — без Qt, использует системный.
+- `--slim` — без Qt, использует системный. Чтобы получить его через
+  bootstrap, задайте `PULSAR_SLIM=1`.
 
 Toolchain скачивается с GitHub Releases вместе с CLI; отдельно Qt не
 устанавливается. Системный Qt 6.8+ нужен только при сборке фреймворка из

@@ -19,12 +19,10 @@
 
 ```sh
 curl -fsSL https://get.pulsarjs.org | sh
-pulsar install
 ```
 
-В Windows вместо первой строки выполните
-`iwr https://get.pulsarjs.org/install.ps1 -UseBasicParsing | iex`. Затем создайте
-приложение:
+В Windows выполните `iwr https://get.pulsarjs.org/install.ps1 -UseBasicParsing | iex`.
+Затем создайте приложение:
 
 ```sh
 pulsar create my-app

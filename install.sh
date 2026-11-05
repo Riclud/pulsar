@@ -1,7 +1,7 @@
 #!/bin/sh
-# Pulsar bootstrap: installs the CLI from GitHub Releases for this platform.
-# Requires Bun (https://bun.sh). The toolchain (Qt host) is fetched separately
-# with `pulsar install`.
+# Pulsar bootstrap: installs the CLI from GitHub Releases for this platform, then
+# the toolchain (Qt host) with `pulsar install`. Requires Bun (https://bun.sh).
+# Set PULSAR_SLIM=1 for a toolchain that uses the system Qt.
 set -eu
 
 REPO="${PULSAR_REPO:-riclud/pulsar}"
@@ -72,4 +72,9 @@ case ":$PATH:" in
   *":$BIN_DIR:"*) ;;
   *) echo "  add $BIN_DIR to your PATH" ;;
 esac
-echo "  next: pulsar install"
+
+if [ "${PULSAR_SLIM:-}" = "1" ]; then
+  "$BIN_DIR/pulsar" install --slim
+else
+  "$BIN_DIR/pulsar" install
+fi

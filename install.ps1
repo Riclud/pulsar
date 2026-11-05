@@ -48,7 +48,11 @@ try {
     Write-Host "pulsar: installed $version to $dest"
     Write-Host "  binary: $shim"
     Write-Host "  add $BinDir to PATH if needed"
-    Write-Host "  next: pulsar install"
+
+    $toolchainArgs = if ($env:PULSAR_SLIM -eq "1") { @("install", "--slim") } else { @("install") }
+    & $shim @toolchainArgs
+
+    if ($LASTEXITCODE -ne 0) { throw "pulsar: toolchain install failed" }
 }
 finally {
     Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue

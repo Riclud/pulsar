@@ -19,11 +19,10 @@ You need [Bun](https://bun.sh) first, then:
 
 ```sh
 curl -fsSL https://get.pulsarjs.org | sh
-pulsar install
 ```
 
-On Windows, use `iwr https://get.pulsarjs.org/install.ps1 -UseBasicParsing | iex`
-instead of the first line. Then create an app:
+On Windows, use `iwr https://get.pulsarjs.org/install.ps1 -UseBasicParsing | iex`.
+Then create an app:
 
 ```sh
 pulsar create my-app

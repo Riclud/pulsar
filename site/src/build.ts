@@ -570,7 +570,7 @@ const homePage = (lang: Lang, md: ReturnType<typeof makeMarkdown>): Page => {
   const c = homeText[lang]
   const prefix = lang === "en" ? "" : "ru/"
   const local = (path: string) => sitePath(`${prefix}${path}`)
-  const install = "curl -fsSL https://get.pulsarjs.org | sh&#10;pulsar install"
+  const install = "curl -fsSL https://get.pulsarjs.org | sh"
 
   const content = `<section class="hero">
   <canvas class="pulsar-canvas" aria-hidden="true"></canvas>
@@ -584,8 +584,7 @@ const homePage = (lang: Lang, md: ReturnType<typeof makeMarkdown>): Page => {
     </div>
     <div class="install">
       <div class="install-head"><span>${t.install}</span><button class="copy" data-copy="${install}">${t.copy}</button></div>
-      <pre><code>curl -fsSL https://get.pulsarjs.org | sh
-pulsar install</code></pre>
+      <pre><code>curl -fsSL https://get.pulsarjs.org | sh</code></pre>
     </div>
     <p class="home-platforms">Linux · macOS · Windows · Android</p>
   </div>
