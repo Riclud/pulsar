@@ -325,6 +325,11 @@ static void reportCrashRemote(const QString &text)
 
 int main(int argc, char **argv)
 {
+#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
+    if (!qEnvironmentVariableIsSet("QSG_RENDER_LOOP"))
+        qputenv("QSG_RENDER_LOOP", "threaded");
+#endif
+
     QGuiApplication app(argc, argv);
 
     QFontDatabase::addApplicationFont(QStringLiteral(":/runtime/fonts/PaperMono-Regular.ttf"));

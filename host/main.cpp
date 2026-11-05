@@ -1355,6 +1355,11 @@ int main(int argc, char **argv)
 
     // QApplication (Widgets) so native dialogs and the tray work; QQml works
     // with it as well.
+#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
+    if (!qEnvironmentVariableIsSet("QSG_RENDER_LOOP"))
+        qputenv("QSG_RENDER_LOOP", "threaded");
+#endif
+
     QApplication app(argc, argv);
     app.setOrganizationName(QStringLiteral("Pulsar"));
 
