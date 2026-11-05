@@ -298,6 +298,63 @@ Shader({ source: "shaders/pulse.frag", height: 180, fillWidth: true, uniforms: {
 `Canvas` подходит для структурированных рисунков, например графика с подписями, а шейдер — для
 эффектов, которые двигаются постоянно.
 
+### Orbit и Arrange
+
+`Canvas` и `Shader` рисуют картинки. `Arrange` двигает **настоящие узлы** каждый кадр, поэтому
+клики, наведение и текст у них остаются, а через мост ничего не идёт.
+
+`Orbit` — готовый вариант. Он расставляет детей по кольцу и не требует математики:
+
+```ts
+Orbit(
+  { fill: true, radiusX: 260, radiusY: 120, speed: 1, depth: 0.25, spin: spin.get(), transition: { duration: 850 } },
+  ...hours.map((hour) => HourPill({ key: hour.time, hour })),
+)
+```
+
+В `Arrange` вы сами говорите, где стоит каждый ребёнок. Функция возвращает его центр и, по
+желанию, `scale`, `rotation`, `opacity` и `z`:
+
+```ts
+Arrange(
+  {
+    fill: true,
+    animated: true,
+    params: { spin: spin.get() },
+    transition: { duration: 850 },
+    arrange: (index, count, { width, height, time, params }) => {
+      const angle = (index / count) * 6.2831853 + params.spin - time * 0.1
+      const shown = Math.abs(Math.cos(params.spin / 2))
+      const near = (Math.sin(angle) + 1) / 2
+
+      return {
+        x: width / 2 + Math.cos(angle) * width * 0.4,
+        y: height / 2 + Math.sin(angle) * height * 0.36,
+        scale: (0.75 + 0.25 * near) * (0.8 + 0.2 * shown),
+        opacity: shown,
+        z: near,
+      }
+    },
+  },
+  ...hours.map((hour) => HourPill({ key: hour.time, hour })),
+)
+```
+
+Как и `Canvas`, `arrange` работает в рендерере и не видит внешние переменные. Данные передавайте
+через `params`. Задайте `animated`, если раскладка всё время движется; иначе функция запускается
+только при изменениях.
+
+Числа в `params` **плавно переходят** к новому значению за `transition`, поэтому один `set`
+запускает всю анимацию. В примере выше полный оборот `spin` заставляет кольцо резко провернуться,
+погаснуть и появиться снова. Чтобы незаметно сменить данные, подмените их, пока кольцо погасло:
+
+```ts
+const pickDay = (next: number) => {
+  spin.set(spin.peek() + 6.2831853)
+  setTimeout(() => shownDay.set(next), 170)
+}
+```
+
 ### Canvas
 
 `Canvas` рисует то, что не собрать из `Column`: волну в плеере, молнию, график. `ctx`
@@ -1073,6 +1130,8 @@ Sheet(
 | `Scroll`         | `fill`, `gap`, `padding`, `overscroll`, `flick`        | —                                  |
 | `Shader`         | `source`, `uniforms`, `animated`                       | —               |
 | `Wave`/`Lightning`/`Aurora` | `color`, `speed` и другие                   | —               |
+| `Orbit`          | `radiusX`, `radiusY`, `speed`, `spin`, `depth`         | —               |
+| `Arrange`        | `arrange`, `params`, `animated`, `transition`          | —               |
 | `Canvas`         | `draw`, `params`, `animated`, `fps`                    | —               |
 | `Text`           | `size`, `weight`, `color`, `markdown`, `elide`         | —                                  |
 | `Button`         | `variant`, `size`, `icon`, `badge`, `enabled`          | `onClick`, `onLongPress`           |

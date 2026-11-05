@@ -291,6 +291,63 @@ Things to know:
 Use `Canvas` when you draw something structured, such as a chart with labels. Use a shader for
 effects that move all the time.
 
+### Orbit and Arrange
+
+`Canvas` and `Shader` draw pictures. `Arrange` moves **real nodes** every frame, so they keep
+their clicks, hover and text, and nothing crosses the bridge.
+
+`Orbit` is the ready form. It places children on a ring and needs no math:
+
+```ts
+Orbit(
+  { fill: true, radiusX: 260, radiusY: 120, speed: 1, depth: 0.25, spin: spin.get(), transition: { duration: 850 } },
+  ...hours.map((hour) => HourPill({ key: hour.time, hour })),
+)
+```
+
+With `Arrange` you say where each child goes. It returns the child's center and, if you like,
+`scale`, `rotation`, `opacity` and `z`:
+
+```ts
+Arrange(
+  {
+    fill: true,
+    animated: true,
+    params: { spin: spin.get() },
+    transition: { duration: 850 },
+    arrange: (index, count, { width, height, time, params }) => {
+      const angle = (index / count) * 6.2831853 + params.spin - time * 0.1
+      const shown = Math.abs(Math.cos(params.spin / 2))
+      const near = (Math.sin(angle) + 1) / 2
+
+      return {
+        x: width / 2 + Math.cos(angle) * width * 0.4,
+        y: height / 2 + Math.sin(angle) * height * 0.36,
+        scale: (0.75 + 0.25 * near) * (0.8 + 0.2 * shown),
+        opacity: shown,
+        z: near,
+      }
+    },
+  },
+  ...hours.map((hour) => HourPill({ key: hour.time, hour })),
+)
+```
+
+Like `Canvas`, `arrange` runs in the renderer, so it cannot read outer variables. Pass data
+through `params`. Set `animated` when the layout keeps moving; otherwise it runs only when
+something changes.
+
+Numbers in `params` **glide** to a new value over `transition`, so one `set` starts the whole
+animation. In the example above, one full `spin` makes the ring whip around, fading out and
+back. To change the data unseen, swap it while the ring is faded out:
+
+```ts
+const pickDay = (next: number) => {
+  spin.set(spin.peek() + 6.2831853)
+  setTimeout(() => shownDay.set(next), 170)
+}
+```
+
 ### Canvas
 
 `Canvas` draws anything a `Column` cannot: a wave in a player, lightning, a chart. The
@@ -1051,6 +1108,8 @@ Sheet(
 | `Scroll`         | `fill`, `gap`, `padding`, `overscroll`, `flick`        | —                                  |
 | `Shader`         | `source`, `uniforms`, `animated`                       | —               |
 | `Wave`/`Lightning`/`Aurora` | `color`, `speed` and more                   | —               |
+| `Orbit`          | `radiusX`, `radiusY`, `speed`, `spin`, `depth`         | —               |
+| `Arrange`        | `arrange`, `params`, `animated`, `transition`          | —               |
 | `Canvas`         | `draw`, `params`, `animated`, `fps`                    | —               |
 | `Text`           | `size`, `weight`, `color`, `markdown`, `elide`         | —                                  |
 | `Button`         | `variant`, `size`, `icon`, `badge`, `enabled`          | `onClick`, `onLongPress`           |

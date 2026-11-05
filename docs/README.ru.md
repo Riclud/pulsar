@@ -1137,6 +1137,8 @@ intensity: 1.2 } })` или `Text({ neon: true })`. Компонент обор�
   См. [руководство для веб-разработчиков](guide-web.ru.md).
 - `Wave`, `Lightning` и `Aurora` — готовые эффекты на видеокарте, а `Shader({ source })`
   запускает ваш файл `.frag` с функциями `wave`, `noise`, `glow` и другими.
+- `Orbit` и `Arrange` двигают настоящие узлы в рендерере, поэтому кольца и карусели
+  сохраняют клики и текст, а через мост ничего не идёт.
 - `Canvas({ draw, params, animated })` рисует произвольную графику в рендерере. См.
   [руководство по UI](guide-ui.ru.md).
 - `hover`, `pressed` и `disabled` меняют вид узла, а `enter`, `exit`, `transition` и

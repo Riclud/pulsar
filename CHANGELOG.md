@@ -33,6 +33,8 @@ All notable changes to this project are documented here. The format follows
 
 - `focusBorderColor` on `Input` and `TextArea`.
 
+- `Orbit` and `Arrange` place real nodes from the renderer on every frame, and numbers in
+  `params` glide to new values over `transition`.
 - `Wave`, `Lightning` and `Aurora` are ready GPU effects. `Shader` runs an app's `.frag` file,
   written as one `effect` function with helpers such as `wave`, `noise` and `glow`. The CLI
   compiles it on run and build, and on save in `pulsar dev`.
