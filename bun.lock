@@ -14,14 +14,14 @@
     },
     "cli": {
       "name": "pulsar-cli",
-      "version": "0.1.0",
+      "version": "1.4.0",
       "bin": {
         "pulsar": "./index.ts",
       },
     },
     "core/sdk": {
       "name": "pulsar",
-      "version": "0.1.0",
+      "version": "1.4.0",
     },
     "examples/hello": {
       "name": "hello",
@@ -30,6 +30,12 @@
       },
       "devDependencies": {
         "pulsar-cli": "workspace:*",
+      },
+    },
+    "examples/tasks": {
+      "name": "tasks",
+      "dependencies": {
+        "pulsar": "*",
       },
     },
     "examples/windows": {
@@ -56,6 +62,8 @@
     "pulsar": ["pulsar@workspace:core/sdk"],
 
     "pulsar-cli": ["pulsar-cli@workspace:cli"],
+
+    "tasks": ["tasks@workspace:examples/tasks"],
 
     "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 

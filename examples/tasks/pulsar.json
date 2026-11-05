@@ -1,0 +1,9 @@
+{
+  "id": "com.pulsar.tasks",
+  "name": "tasks",
+  "version": "1.0.0",
+  "main": "src/main.tsx",
+  "targets": ["desktop", "android"],
+  "compat": "portable",
+  "windows": [{ "label": "main", "width": 420, "height": 720, "title": "Tasks" }]
+}

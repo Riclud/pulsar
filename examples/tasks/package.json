@@ -1,0 +1,11 @@
+{
+  "name": "tasks",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pulsar dev"
+  },
+  "dependencies": {
+    "pulsar": "*"
+  }
+}

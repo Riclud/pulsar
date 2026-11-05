@@ -1,0 +1,7 @@
+{
+  "id": "com.pulsar.tasks.stage",
+  "name": "stage",
+  "version": "1.0.0",
+  "main": "src/main.tsx",
+  "windows": [{ "label": "main", "width": 960, "height": 900, "title": "Stage" }]
+}
