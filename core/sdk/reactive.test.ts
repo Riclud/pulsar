@@ -337,6 +337,35 @@ describe("KeepAlive", () => {
     expect(JSON.stringify(patches.slice(sent))).toContain("inner b")
   })
 
+  test("preload builds hidden content that still defers updates", async () => {
+    const { app } = harness()
+    const value = signal("a")
+    const counts = { setup: 0, render: 0 }
+
+    const Screen = component(() => {
+      counts.setup++
+
+      return () => {
+        counts.render++
+
+        return Text({ text: value.get() })
+      }
+    })
+
+    app.window("main").render(() =>
+      Column({ key: "root" }, KeepAlive({ key: "screen", active: false, preload: true }, () => Screen({}))),
+    )
+
+    await tick()
+    expect(counts.setup).toBe(1)
+
+    const renders = counts.render
+
+    value.set("b")
+    await tick()
+    expect(counts.render).toBe(renders)
+  })
+
   test("disposes the content when it leaves the tree", async () => {
     const { active, present, counts } = setup()
 

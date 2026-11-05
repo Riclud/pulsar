@@ -214,7 +214,9 @@ In JSX, the content is a function too:
 The content is a function so that nothing is built before the first visit. While
 hidden it does not rerender: changes are recorded and applied when it is shown again,
 so a hidden screen costs memory, not time. It accepts the props of `Box` and fills the
-parent by default.
+parent by default, including `enter`, `exit` and `transition` for a smooth switch. Add
+`preload: true` to build the content ahead of time, so the first opening is instant as
+well.
 
 - **Effects and timers keep running.** Only rendering is paused, so stop what you do
   not need in a hidden screen.

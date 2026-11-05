@@ -28,7 +28,8 @@ All notable changes to this project are documented here. The format follows
 - `focusBorderColor` on `Input` and `TextArea`.
 
 - `KeepAlive` builds a screen on first use and keeps it while hidden, with paused
-  rendering, so it reopens at once with its scroll and input intact.
+  rendering, so it reopens at once with its scroll and input intact. `preload` builds it
+  ahead of time.
 - JSX: write screens in `.tsx` with `jsxImportSource: "pulsar"`. Tags compile to the
   same component calls, and `.ts` and `.tsx` files import each other.
 - `signal`, `computed`, `effect`, `untracked` and `createState`.
@@ -64,6 +65,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Linux uses the threaded render loop unless `QSG_RENDER_LOOP` is set, which paces
+  animation far more evenly than the basic loop Qt picks on NVIDIA under Wayland.
 - Creating nodes is much faster on a phone: QML snippets are compiled once instead of
   on every node.
 - UI events carry the window label and node path; handlers are rebuilt per

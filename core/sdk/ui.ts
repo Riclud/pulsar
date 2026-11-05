@@ -1926,6 +1926,8 @@ export const defineComponent = component
 export interface KeepAliveOptions extends CommonOptions, PaddingOptions, SurfaceOptions {
   /** Show the content. It is built the first time this is true and kept after that. */
   active: boolean
+  /** Build the content while hidden, so that the first opening is instant too. */
+  preload?: boolean
 }
 
 interface KeepAliveHolder {
@@ -1944,9 +1946,9 @@ const KeepAliveFrame = component<KeepAliveOptions & { render: () => UiNode }>((p
   let started = false
 
   return () => {
-    const { active, render, ...options } = props
+    const { active, preload, render, ...options } = props
 
-    if (!active && !started) return null as unknown as UiNode
+    if (!active && !preload && !started) return null as unknown as UiNode
 
     started = true
 
@@ -1958,7 +1960,11 @@ const KeepAliveFrame = component<KeepAliveOptions & { render: () => UiNode }>((p
       if (active) resumeInstance(content)
     }
 
-    return Box({ fill: true, ...options, visible: active }, KeepAliveContent({ holder, render }))
+    const body = KeepAliveContent({ holder, render })
+
+    if (!content && holder.instance) holder.instance.paused = !active
+
+    return Box({ fill: true, ...options, visible: active }, body)
   }
 })
 
