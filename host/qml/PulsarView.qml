@@ -4661,10 +4661,8 @@ ApplicationWindow {
 
         if (state.cursorPosition !== undefined && item.cursorPosition !== undefined)
             item.cursorPosition = state.cursorPosition;
-        if (state.selectionStart !== undefined && item.selectionStart !== undefined)
-            item.selectionStart = state.selectionStart;
-        if (state.selectionEnd !== undefined && item.selectionEnd !== undefined)
-            item.selectionEnd = state.selectionEnd;
+        if (item.select && state.selectionEnd > state.selectionStart)
+            item.select(state.selectionStart, state.selectionEnd);
     }
 
     function captureScrolls(items) {
