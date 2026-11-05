@@ -9,6 +9,7 @@ ApplicationWindow {
     id: view
 
     visible: true
+    font.family: fontFamily
     color: windowTransparent ? "transparent" : themeBackground
 
     LayoutMirroring.enabled: themeData && themeData.direction === "rtl"
