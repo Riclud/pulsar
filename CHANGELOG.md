@@ -33,6 +33,7 @@ All notable changes to this project are documented here. The format follows
 
 - `focusBorderColor` on `Input` and `TextArea`.
 
+- `blur`, `glass`, `rotation` and `spinSpeed` on any node, and `from` and `to` on `Lightning`.
 - `Orbit` and `Arrange` place real nodes from the renderer on every frame, and numbers in
   `params` glide to new values over `transition`.
 - `Wave`, `Lightning` and `Aurora` are ready GPU effects. `Shader` runs an app's `.frag` file,

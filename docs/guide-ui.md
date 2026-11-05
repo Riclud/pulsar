@@ -291,6 +291,41 @@ Things to know:
 Use `Canvas` when you draw something structured, such as a chart with labels. Use a shader for
 effects that move all the time.
 
+### Blur, glass and rotation
+
+`blur` softens a node and everything in it, for example a color backdrop from album art:
+
+```ts
+Image({ src: cover, fill: true, blur: 48 })
+```
+
+`glass` makes a surface see-through: it shows the **first child of the nearest `Stack`**, blurred,
+with a tint on top. Every pane in a `Stack` shares one blurred copy, so many panes cost about the
+same as one, and a pane may keep moving.
+
+```ts
+Stack(
+  { fill: true },
+  Image({ src: wallpaper, fill: true }),
+  Column({ width: 56, height: 92, radius: 26, glass: { blur: 48, tint: "#22ffffff" } }, Text({ text: "20:00" })),
+)
+```
+
+`rotation` sets an angle in degrees, and `spinSpeed` keeps turning in turns per minute, without
+running any JavaScript:
+
+```ts
+Image({ src: cover, width: 74, height: 74, spinSpeed: 12 })
+```
+
+`Lightning` can run between any two points, given as a share of the node's size:
+
+```ts
+Lightning({ fill: true, from: [0.5, 0.5], to: [0.1, 0.1], jitter: 10, glowRadius: 10 })
+```
+
+A node with `blur` does not show its `elevation` shadow. Without a GPU, `blur` and `glass` are skipped.
+
 ### Orbit and Arrange
 
 `Canvas` and `Shader` draw pictures. `Arrange` moves **real nodes** every frame, so they keep

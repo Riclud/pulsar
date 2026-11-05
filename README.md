@@ -1138,6 +1138,7 @@ padding })` caps and centers content on large windows.
   [guide for web developers](docs/guide-web.md).
 - `Wave`, `Lightning` and `Aurora` are ready GPU effects, and `Shader({ source })` runs your
   own `.frag` file with helpers such as `wave`, `noise` and `glow`.
+- `blur`, `glass`, `rotation` and `spinSpeed` work on any node.
 - `Orbit` and `Arrange` move real nodes in the renderer, so rings and carousels keep
   their clicks and text without traffic over the bridge.
 - `Canvas({ draw, params, animated })` draws custom graphics in the renderer. See the
