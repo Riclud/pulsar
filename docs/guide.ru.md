@@ -66,7 +66,7 @@ my-app/
 ## Минимальный экран
 
 ```ts
-import { App, bind, Button, Column, Header, Text } from "pulsar"
+import { App, Button, Column, Header, Text } from "pulsar"
 
 const app = new App()
 
@@ -76,7 +76,7 @@ app.window("main").render(() =>
   Column(
     { fill: true, padding: 24, gap: 16 },
     Header({ title: "Hello" }),
-    Text({ size: 20, text: bind(() => `Count: ${app.store.get("count")}`) }),
+    Text({ size: 20, text: `Count: ${app.store.get("count")}` }),
     Button(
       {
         onClick: () => app.store.set("count", (app.store.get("count") as number) + 1),
@@ -96,8 +96,7 @@ app.run()
 3. `render` запускается и создаёт новое дерево для этой части экрана.
 4. Хост патчит существующий `Text`, а не пересоздаёт окно.
 
-`bind(() => ...)` помечает значение, которое читается при рендере своего
-компонента. Обычная функция в пропе `on*` — это обработчик события, а не биндинг.
+Значение просто читается при рендере. Функция в свойстве `on*` — обработчик события.
 
 ## Выберите правильный строительный блок
 
@@ -105,7 +104,7 @@ app.run()
 | ------------------------------- | ------------------------------------------------- |
 | Страница                        | `Column({ fill: true, padding })` внутри `Scroll` |
 | Секция внутри страницы          | `Card` или `Box`                                  |
-| Панель заголовка с действиями   | `Header` (псевдоним `AppBar`) или `Toolbar`       |
+| Панель заголовка с действиями   | `Header` или `Toolbar`       |
 | Строки и колонки контента       | `Row`, `Column`, `Spacer`                         |
 | Небольшой фиксированный список  | `For`                                             |
 | Длинный или динамический список | `VirtualList`                                     |
@@ -233,7 +232,7 @@ const load = async () => {
 В приложении для задач используется массив в store и один компонент строки:
 
 ```ts
-import { App, bind, Button, Checkbox, Column, EmptyState, For, Header, IconButton, Input, Row, Spacer } from "pulsar"
+import { App, Button, Checkbox, Column, EmptyState, For, Header, IconButton, Input, Row, Spacer } from "pulsar"
 
 interface Task {
   id: string
@@ -262,13 +261,13 @@ app.window("main").render(() =>
     { fill: true, padding: 16, gap: 12 },
     Header({
       title: "Tasks",
-      subtitle: bind(() => `${tasks().filter((task) => !task.done).length} left`),
+      subtitle: `${tasks().filter((task) => !task.done).length} left`,
     }),
     Row(
       { gap: 8, fillWidth: true },
       Input({
         placeholder: "New task",
-        value: bind(() => String(app.store.get("draft"))),
+        value: String(app.store.get("draft")),
         onInput: (value) => app.store.set("draft", value),
         onSubmitted: add,
         expand: true,
@@ -424,8 +423,8 @@ pulsar build --target android # dist/<name>.apk
 - **Забытый `keyOf` в `For`.** Строки могут переиспользоваться с неверным
   состоянием.
 - **Использование `For` для огромного списка.** Используйте `VirtualList`.
-- **Все ветки в `visible`.** Используйте `When({ test, then, else })` или обычный
-  тернарный оператор для взаимоисключающих экранов.
+- **Все ветки в `visible`.** Используйте обычный тернарный оператор для
+  взаимоисключающих экранов.
 - **Блокировка UI длинным синхронным циклом.** Ожидайте нативные capability или
   разделяйте работу.
 - **Хранение экземпляров классов.** Сначала сериализуйте в обычный JSON.

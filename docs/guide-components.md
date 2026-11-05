@@ -255,12 +255,13 @@ rerender everything. Treat it as a last resort.
 Before this model, any store change reran the whole window.
 
 - Replace module-level state with `createState`.
-- Replace `defineComponent` with `component`. The old name still works.
+- Replace `defineComponent` with `component`.
 - `store.set` now compares objects by reference, so setting an equal copy counts
   as a change.
-- `bind()` still works, and is read while the owning component renders.
-- `memo` still works, but it cannot see values read inside the component. Prefer
-  `component`.
+- Replace `bind(() => value)` with `value`, since values are read while rendering.
+- `memo` is gone: `component` already skips a rerender when its props are equal.
+- `When` is gone: use a ternary. `AppBar` is now only `Header`, and `TextField` only
+  `Input`.
 - `fillWidth` and `fillHeight` always fill a `Row` or `Column`; they used to stop at
   the size of the children.
 - A layout with spare space keeps its children at the start, and a tall `Box` no longer

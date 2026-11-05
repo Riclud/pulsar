@@ -63,7 +63,7 @@ desktop and QuickJS on Android, so keep the app portable if you target Android
 ## The smallest screen
 
 ```ts
-import { App, bind, Button, Column, Header, Text } from "pulsar"
+import { App, Button, Column, Header, Text } from "pulsar"
 
 const app = new App()
 
@@ -73,7 +73,7 @@ app.window("main").render(() =>
   Column(
     { fill: true, padding: 24, gap: 16 },
     Header({ title: "Hello" }),
-    Text({ size: 20, text: bind(() => `Count: ${app.store.get("count")}`) }),
+    Text({ size: 20, text: `Count: ${app.store.get("count")}` }),
     Button(
       {
         onClick: () => app.store.set("count", (app.store.get("count") as number) + 1),
@@ -93,8 +93,7 @@ What happens when you press the button:
 3. `render` runs and produces a new tree for that part of the screen.
 4. The host patches the existing `Text` instead of recreating the window.
 
-`bind(() => ...)` marks a value read when the owning component renders. A plain
-function in an `on*` prop is an event handler, not a binding.
+A value is simply read while rendering. A function in an `on*` prop is an event handler.
 
 ## Choose the right building block
 
@@ -102,7 +101,7 @@ function in an `on*` prop is an event handler, not a binding.
 | --------------------------- | -------------------------------------------------- |
 | A page                      | `Column({ fill: true, padding })` under a `Scroll` |
 | A section inside a page     | `Card` or `Box`                                    |
-| A title bar with actions    | `Header` (alias `AppBar`) or `Toolbar`             |
+| A title bar with actions    | `Header` or `Toolbar`             |
 | Rows and columns of content | `Row`, `Column`, `Spacer`                          |
 | A small fixed list          | `For`                                              |
 | A long or dynamic list      | `VirtualList`                                      |
@@ -227,7 +226,7 @@ dev overlay but does not fix the screen state for you.
 The task app uses a store-backed array and one row component:
 
 ```ts
-import { App, bind, Button, Checkbox, Column, EmptyState, For, Header, IconButton, Input, Row, Spacer } from "pulsar"
+import { App, Button, Checkbox, Column, EmptyState, For, Header, IconButton, Input, Row, Spacer } from "pulsar"
 
 interface Task {
   id: string
@@ -256,13 +255,13 @@ app.window("main").render(() =>
     { fill: true, padding: 16, gap: 12 },
     Header({
       title: "Tasks",
-      subtitle: bind(() => `${tasks().filter((task) => !task.done).length} left`),
+      subtitle: `${tasks().filter((task) => !task.done).length} left`,
     }),
     Row(
       { gap: 8, fillWidth: true },
       Input({
         placeholder: "New task",
-        value: bind(() => String(app.store.get("draft"))),
+        value: String(app.store.get("draft")),
         onInput: (value) => app.store.set("draft", value),
         onSubmitted: add,
         expand: true,
@@ -415,8 +414,8 @@ Before shipping:
 - **Forgetting `key` on repeated components.** Rows can then swap their state.
 - **Forgetting `keyOf` in `For`.** Rows can then be reused with the wrong state.
 - **Using `For` for a huge list.** Use `VirtualList`.
-- **Putting every branch in `visible`.** Use `When({ test, then, else })` or a
-  normal ternary for mutually exclusive screens.
+- **Putting every branch in `visible`.** Use a normal ternary for mutually
+  exclusive screens.
 - **Blocking the UI with a long synchronous loop.** Await host capabilities or
   split the work.
 - **Storing class instances.** Serialize to plain JSON first.

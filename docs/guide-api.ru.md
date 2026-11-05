@@ -542,7 +542,6 @@ try {
 ```ts
 import {
   App,
-  bind,
   Button,
   Card,
   Column,
@@ -604,14 +603,14 @@ app.window("main").render(() =>
     Header({ title: "Notes" }),
     SearchField({
       placeholder: "Search",
-      value: bind(() => String(app.store.get("query"))),
+      value: String(app.store.get("query")),
       onInput: (query) => app.store.set("query", query),
     }),
     Row(
       { gap: 8, fillWidth: true },
       Input({
         placeholder: "Note title",
-        value: bind(() => String(app.store.get("title"))),
+        value: String(app.store.get("title")),
         onInput: (title) => app.store.set("title", title),
         onSubmitted: () => void add(),
         expand: true,

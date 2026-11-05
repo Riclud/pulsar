@@ -116,7 +116,7 @@ my-app/
 `main.ts`:
 
 ```ts
-import { App, bind, Button, Column, Header, Text } from "pulsar"
+import { App, Button, Column, Header, Text } from "pulsar"
 
 const app = new App()
 
@@ -128,7 +128,7 @@ app
     Column(
       { fill: true },
       Header({ title: "Hello from Pulsar" }),
-      Text({ size: 20, text: bind(() => `Count: ${app.store.get("count")}`) }),
+      Text({ size: 20, text: `Count: ${app.store.get("count")}` }),
       Button({ onClick: () => app.store.set("count", (app.store.get("count") as number) + 1) }, "+1"),
     ),
   )
@@ -956,7 +956,6 @@ plain functions, props are plain objects, and events use web names: `onClick`,
 ```ts
 import {
   App,
-  bind,
   component,
   Button,
   Card,
@@ -1019,7 +1018,7 @@ app.window("main").render(() =>
     { fill: true },
     Header({
       title: "My tasks",
-      subtitle: bind(() => `${tasks().filter((task) => !task.done).length} left`),
+      subtitle: `${tasks().filter((task) => !task.done).length} left`,
       actions: [IconButton({ icon: "add", onClick: () => app.store.set("editing", true) })],
     }),
     Text({ visible: tasks().length === 0, size: 16 }, "Nothing here yet"),
@@ -1032,7 +1031,7 @@ app.window("main").render(() =>
     }),
     Modal(
       {
-        open: bind(() => app.store.get("editing") === true),
+        open: app.store.get("editing") === true,
         title: "New task",
         fullscreen: true,
         onClose: () => app.store.set("editing", false),
@@ -1055,11 +1054,10 @@ scroll and input state survive a re-render.
 | Layout                 | `Column`, `Row`, `Box`, `Scroll`, `Spacer`, `Divider`, `Container`, `Grid`, `VirtualList`, `Zoomable`                                                                                     |
 | Content                | `Text` (Markdown too), `Image`, `Icon`, `Avatar`, `Badge`, `Chip`, `Progress`, `Spinner`, `Skeleton`, `EmptyState`                                                                        |
 | Actions                | `Button`, `IconButton`, `Fab`                                                                                                                                                             |
-| Input                  | `Input` (`TextField`), `TextArea`, `SearchField`, `Checkbox`, `Switch`, `RadioGroup`, `Slider`, `RangeSlider`, `Select`, `Segmented`                                                      |
-| Navigation & structure | `List` / `For`, `Card`, `Header` (`AppBar`), `Toolbar`, `NavigationRail`, `NavBar`, `Tabs`, `Pager`, `Modal` (`Sheet`, `BottomSheet`), `Popover`, `Snackbar`, `Menu`, `Accordion`, `When` |
+| Input                  | `Input`, `TextArea`, `SearchField`, `Checkbox`, `Switch`, `RadioGroup`, `Slider`, `RangeSlider`, `Select`, `Segmented`                                                      |
+| Navigation & structure | `List` / `For`, `Card`, `Header`, `Toolbar`, `NavigationRail`, `NavBar`, `Tabs`, `Pager`, `Modal` (`Sheet`, `BottomSheet`), `Popover`, `Snackbar`, `Menu`, `Accordion` |
 
-- `bind(() => expr)` marks a value that reads from `Store`; plain functions in
-  `on*` props are event handlers.
+- Values are read while rendering, and functions in `on*` props are event handlers.
 - `For({ each, keyOf, render })` builds a scrollable list and keeps rows stable by key.
 - `Modal` / `Sheet` is an in-tree overlay, so it behaves the same on desktop and
   Android. It fades in and out (opacity only, `duration` in ms), swallows taps
@@ -1133,8 +1131,7 @@ padding })` caps and centers content on large windows.
 - `a11yRole` and `a11yChecked` add screen-reader roles and state; `a11yLabel`
   and `a11yHint` still set the accessible name and description.
 - `component()` re-renders only when a signal, store key or prop it read changes.
-  See the [components guide](docs/guide-components.md). `memo(Component)` still
-  caches by non-function props, but cannot see values read inside the component.
+  See the [components guide](docs/guide-components.md).
 - `justify`, `alignItems`, `flex`, `paddingX`, `paddingY`, per-side padding, min and
   max sizes, `clip`, `zIndex` and `absolute` lay out any node; `Row`, `Column`,
   `Wrap` and `Stack` accept the surface props of `Box`. See the

@@ -116,7 +116,7 @@ my-app/
 `main.ts`:
 
 ```ts
-import { App, bind, Button, Column, Header, Text } from "pulsar"
+import { App, Button, Column, Header, Text } from "pulsar"
 
 const app = new App()
 
@@ -128,7 +128,7 @@ app
     Column(
       { fill: true },
       Header({ title: "Hello from Pulsar" }),
-      Text({ size: 20, text: bind(() => `Count: ${app.store.get("count")}`) }),
+      Text({ size: 20, text: `Count: ${app.store.get("count")}` }),
       Button({ onClick: () => app.store.set("count", (app.store.get("count") as number) + 1) }, "+1"),
     ),
   )
@@ -960,7 +960,6 @@ app.on("log", (params: { level: string; source: "qml" | "js"; message: string; f
 ```ts
 import {
   App,
-  bind,
   component,
   Button,
   Card,
@@ -1023,7 +1022,7 @@ app.window("main").render(() =>
     { fill: true },
     Header({
       title: "My tasks",
-      subtitle: bind(() => `${tasks().filter((task) => !task.done).length} left`),
+      subtitle: `${tasks().filter((task) => !task.done).length} left`,
       actions: [IconButton({ icon: "add", onClick: () => app.store.set("editing", true) })],
     }),
     Text({ visible: tasks().length === 0, size: 16 }, "Nothing here yet"),
@@ -1036,7 +1035,7 @@ app.window("main").render(() =>
     }),
     Modal(
       {
-        open: bind(() => app.store.get("editing") === true),
+        open: app.store.get("editing") === true,
         title: "New task",
         fullscreen: true,
         onClose: () => app.store.set("editing", false),
@@ -1059,11 +1058,10 @@ app.run()
 | Раскладка             | `Column`, `Row`, `Box`, `Scroll`, `Spacer`, `Divider`, `Container`, `Grid`, `VirtualList`, `Zoomable`                                                                                     |
 | Контент               | `Text` (включая Markdown), `Image`, `Icon`, `Avatar`, `Badge`, `Chip`, `Progress`, `Spinner`, `Skeleton`, `EmptyState`                                                                    |
 | Действия              | `Button`, `IconButton`, `Fab`                                                                                                                                                             |
-| Ввод                  | `Input` (`TextField`), `TextArea`, `SearchField`, `Checkbox`, `Switch`, `RadioGroup`, `Slider`, `RangeSlider`, `Select`, `Segmented`                                                      |
-| Навигация и структура | `List` / `For`, `Card`, `Header` (`AppBar`), `Toolbar`, `NavigationRail`, `NavBar`, `Tabs`, `Pager`, `Modal` (`Sheet`, `BottomSheet`), `Popover`, `Snackbar`, `Menu`, `Accordion`, `When` |
+| Ввод                  | `Input`, `TextArea`, `SearchField`, `Checkbox`, `Switch`, `RadioGroup`, `Slider`, `RangeSlider`, `Select`, `Segmented`                                                      |
+| Навигация и структура | `List` / `For`, `Card`, `Header`, `Toolbar`, `NavigationRail`, `NavBar`, `Tabs`, `Pager`, `Modal` (`Sheet`, `BottomSheet`), `Popover`, `Snackbar`, `Menu`, `Accordion` |
 
-- `bind(() => expr)` помечает значение, читающее `Store`; обычные функции в
-  `on*` — обработчики событий.
+- Значения читаются при рендере, а функции в свойствах `on*` — обработчики событий.
 - `For({ each, keyOf, render })` строит прокручиваемый список и сохраняет строки по ключу.
 - `Modal` / `Sheet` — оверлей внутри дерева, одинаково работает на десктопе и
   Android. Появляется и исчезает через opacity (`duration` в мс), не пропускает

@@ -67,13 +67,12 @@ Text({ size: 20, text: "Hello" })
 
 ```ts
 Input({
-  value: bind(() => String(app.store.get("query"))),
+  value: String(app.store.get("query")),
   onInput: (query) => app.store.set("query", query),
 })
 ```
 
-`bind(() => ...)` — для **чтения**. Обычная функция в пропе `on*` — это
-**запись**.
+Значение просто читается при рендере, а функция в свойстве `on*` выполняется при событии.
 
 ### Свойства раскладки
 
@@ -237,17 +236,15 @@ Grid(
 )
 ```
 
-### When и условия
+### Условия
 
-`When({ test, then, else })` — для взаимоисключающих ветвей. Обычный тернарный
-оператор подходит для небольшого выбора.
+Вызов компонента — обычный код, поэтому используйте тернарный оператор. `null` ничего
+не рисует.
 
 ```ts
-When({
-  test: () => app.store.get("loading") === true,
-  then: () => Spinner({ size: 24 }),
-  else: () => For({ each: items(), keyOf: (item) => item.id, render: row }),
-})
+app.store.get("loading") === true
+  ? Spinner({ size: 24 })
+  : For({ each: items(), keyOf: (item) => item.id, render: row })
 ```
 
 Чтобы сохранить целый экран между показами, используйте
@@ -377,7 +374,7 @@ Input({
   keyboardType: "email",
   autoFocus: true,
   maxLength: 120,
-  value: bind(() => String(app.store.get("email"))),
+  value: String(app.store.get("email")),
   onInput: (value) => app.store.set("email", value),
   onSubmitted: submit,
   onFocus: () => app.store.set("focused", true),
@@ -409,7 +406,7 @@ TextArea({
 SearchField({
   placeholder: "Search tasks",
   debounce: 200,
-  value: bind(() => String(app.store.get("query"))),
+  value: String(app.store.get("query")),
   onInput: (query) => app.store.set("query", query),
   onSubmit: search,
   onClear: () => app.store.set("query", ""),
@@ -424,7 +421,7 @@ SearchField({
 ```ts
 Checkbox({
   label: "Remember me",
-  checked: bind(() => app.store.get("remember") === true),
+  checked: app.store.get("remember") === true,
   onToggle: (checked) => app.store.set("remember", checked),
 })
 
@@ -441,7 +438,7 @@ RadioGroup({
     { value: "light", label: "Light" },
     { value: "dark", label: "Dark" },
   ],
-  value: bind(() => String(app.store.get("scheme"))),
+  value: String(app.store.get("scheme")),
   direction: "horizontal",
   onChange: (value) => app.store.set("scheme", value),
 })
@@ -456,7 +453,7 @@ RadioGroup({
 Slider({
   min: 0,
   max: 100,
-  value: bind(() => Number(app.store.get("volume"))),
+  value: Number(app.store.get("volume")),
   onChange: (value) => app.store.set("volume", value),
 })
 
@@ -477,13 +474,13 @@ RangeSlider({
 ```ts
 Select({
   options: ["Low", "Normal", "High"],
-  value: bind(() => String(app.store.get("priority"))),
+  value: String(app.store.get("priority")),
   onChange: (value) => app.store.set("priority", value),
 })
 
 Segmented({
   items: ["All", "Open", "Done"],
-  value: bind(() => Number(app.store.get("tab"))),
+  value: Number(app.store.get("tab")),
   onChange: (index) => app.store.set("tab", index),
 })
 ```
@@ -519,12 +516,12 @@ Toolbar(
 ```ts
 Tabs({
   items: ["Overview", "Activity", "Settings"],
-  index: bind(() => Number(app.store.get("tab"))),
+  index: Number(app.store.get("tab")),
   onChange: (index) => app.store.set("tab", index),
 })
 
 Pager(
-  { index: bind(() => Number(app.store.get("page"))), onPageChange: (page) => app.store.set("page", page) },
+  { index: Number(app.store.get("page")), onPageChange: (page) => app.store.set("page", page) },
   overview(),
   activity(),
   settings(),
@@ -545,13 +542,13 @@ const items = [
 
 NavBar({
   items,
-  value: bind(() => Number(app.store.get("section"))),
+  value: Number(app.store.get("section")),
   onChange: (index) => app.store.set("section", index),
 })
 
 NavigationRail({
   items,
-  index: bind(() => Number(app.store.get("section"))),
+  index: Number(app.store.get("section")),
   expanded: true,
   padding: 8,
   onChange: (index) => app.store.set("section", index),
@@ -568,7 +565,7 @@ NavigationRail({
 ```ts
 Modal(
   {
-    open: bind(() => app.store.get("editing") === true),
+    open: app.store.get("editing") === true,
     title: "New task",
     dismissible: true,
     duration: 140,
@@ -591,7 +588,7 @@ Modal(
 ```ts
 BottomSheet(
   {
-    open: bind(() => app.store.get("actions") === true),
+    open: app.store.get("actions") === true,
     title: "Task actions",
     handle: true,
     onClose: () => app.store.set("actions", false),
@@ -605,7 +602,7 @@ BottomSheet(
 
 ```ts
 Menu({
-  open: bind(() => app.store.get("menu") === true),
+  open: app.store.get("menu") === true,
   items: [
     { id: "rename", label: "Rename", icon: "edit" },
     { id: "duplicate", label: "Duplicate", icon: "content_copy", shortcut: "CmdOrCtrl+D" },
@@ -616,7 +613,7 @@ Menu({
   onClose: () => app.store.set("menu", false),
 })
 
-Popover({ open: bind(() => app.store.get("info") === true), x: 24, y: 64, onClose: closeInfo }, Text("Floating panel"))
+Popover({ open: app.store.get("info") === true, x: 24, y: 64, onClose: closeInfo }, Text("Floating panel"))
 ```
 
 `Menu` поддерживает значки, сочетания клавиш, разделители, отключённые элементы
@@ -639,7 +636,7 @@ Accordion(
 
 ```ts
 Snackbar({
-  open: bind(() => app.store.get("toast") === true),
+  open: app.store.get("toast") === true,
   text: "Task deleted",
   actionLabel: "Undo",
   duration: 3000,
@@ -825,7 +822,7 @@ app.window("main").render(() => {
 const field = (key: string, placeholder: string) =>
   Input({
     placeholder,
-    value: bind(() => String(app.store.get(key) ?? "")),
+    value: String(app.store.get(key) ?? ""),
     onInput: (value) => app.store.set(key, value),
     expand: true,
   })
@@ -837,7 +834,7 @@ Card(
   field("email", "Email"),
   Switch({
     label: "Email notifications",
-    checked: bind(() => app.store.get("notify") === true),
+    checked: app.store.get("notify") === true,
     onToggle: (value) => app.store.set("notify", value),
   }),
   Button({ enabled: valid(), onClick: save }, "Save"),
@@ -850,33 +847,32 @@ Card(
 Column(
   { fill: true, gap: 12, padding: 16 },
   SearchField({ placeholder: "Search", onInput: runSearch }),
-  When({
-    test: () => app.store.get("searching") === true,
-    then: () => Spinner({ size: 24 }),
-    else: () =>
-      When({
-        test: () => String(app.store.get("error")) !== "",
-        then: () => EmptyState({ icon: "error", title: "Search failed", text: String(app.store.get("error")) }),
-        else: () =>
-          When({
-            test: () => results().length === 0,
-            then: () => EmptyState({ title: "No matches" }),
-            else: () => For({ each: results(), keyOf: (item) => item.id, render: resultRow }),
-          }),
-      }),
-  }),
+  searchBody(),
 )
 ```
 
-Глубоко вложенный `When` трудно читать. Выносите каждую ветку в функцию, как
-только она разрастается.
+```ts
+const searchBody = () => {
+  if (app.store.get("searching") === true) return Spinner({ size: 24 })
+
+  const error = String(app.store.get("error"))
+
+  if (error !== "") return EmptyState({ icon: "error", title: "Search failed", text: error })
+  if (results().length === 0) return EmptyState({ title: "No matches" })
+
+  return For({ each: results(), keyOf: (item) => item.id, render: resultRow })
+}
+```
+
+Если ветвей больше двух, ранний `return` в функции читается лучше вложенных
+тернарных операторов.
 
 ### Подтверждение разрушительного действия
 
 ```ts
 Modal(
   {
-    open: bind(() => app.store.get("confirmDelete") === true),
+    open: app.store.get("confirmDelete") === true,
     title: "Delete task?",
     dismissible: true,
     onClose: () => app.store.set("confirmDelete", false),

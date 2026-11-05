@@ -8,6 +8,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Breaking
 
+- `bind`, `When`, `memo`, `defineComponent`, `AppBar` and `TextField` are gone. Read
+  values directly while rendering, use a ternary, and use `component`, `Header` and
+  `Input`.
 - `fillWidth` and `fillHeight` now always fill a `Row` or `Column`. They used to stop
   at the size of the children. A `Row` that relied on `align: "center"` to center its
   narrow self should use `justify: "center"`; use `alignItems` to center children.
