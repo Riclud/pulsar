@@ -114,6 +114,7 @@ if(IOS)
     pulsar_add_view_resources(pulsar-ios "pulsarview_ios")
 
     set_target_properties(pulsar-ios PROPERTIES
+        AUTORCC ON
         QT_QML_ROOT_PATH "${CMAKE_CURRENT_SOURCE_DIR}/host/qml"
         MACOSX_BUNDLE_BUNDLE_NAME "${PULSAR_IOS_APP_NAME}"
         MACOSX_BUNDLE_GUI_IDENTIFIER "${PULSAR_IOS_BUNDLE_ID}"
