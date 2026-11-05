@@ -449,7 +449,9 @@ const initPulsar = () => {
     const light = document.documentElement.dataset.theme === "light"
     const primary = light ? "69, 86, 232" : "127, 146, 255"
     const secondary = light ? "10, 147, 184" : "95, 227, 255"
-    const star = light ? "40, 45, 90" : "230, 235, 255"
+    const star = light ? "24, 30, 80" : "230, 235, 255"
+    const starAlpha = light ? 0.9 : 0.5
+    const starScale = light ? 1.35 : 1
     const center = size / 2
     const radius = size / 2
     const seconds = time / 1000
@@ -462,9 +464,9 @@ const initPulsar = () => {
       const x = center + Math.cos(item.angle + seconds * 0.012) * item.distance * radius
       const y = center + Math.sin(item.angle + seconds * 0.012) * item.distance * radius
 
-      context.fillStyle = `rgba(${star}, ${0.5 * twinkle})`
+      context.fillStyle = `rgba(${star}, ${starAlpha * twinkle})`
       context.beginPath()
-      context.arc(x, y, item.size, 0, Math.PI * 2)
+      context.arc(x, y, item.size * starScale, 0, Math.PI * 2)
       context.fill()
     }
 
