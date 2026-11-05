@@ -74,6 +74,8 @@ All notable changes to this project are documented here. The format follows
 
 - `gradient` on `Box` and `Card` now draws; it used to paint nothing.
 - A tap reaches only the deepest clickable node, not every card around it.
+- A click finishes the word being composed on the keyboard first, so a button next to
+  an input sees the whole text.
 - A layout that updates while hidden keeps its padding.
 - A `flex` child keeps its size when only that child updates.
 - An input keeps focus when a sibling is inserted before it.

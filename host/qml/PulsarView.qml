@@ -4448,6 +4448,10 @@ ApplicationWindow {
     function emitEvent(node, event, value) {
         if (!node)
             return;
+
+        if (event === "click")
+            Qt.inputMethod.commit();
+
         PulsarBridge.emit("ui-event", {
             target: typeof PulsarWindowLabel !== "undefined" ? PulsarWindowLabel : "main",
             path: node.path,
