@@ -307,10 +307,14 @@ Shader({ source: "shaders/pulse.frag", height: 180, fillWidth: true, uniforms: {
 
 ```ts
 Orbit(
-  { fill: true, radiusX: 260, radiusY: 120, speed: 1, depth: 0.25, spin: spin.get(), transition: { duration: 850 } },
+  { fill: true, radiusX: 260, radiusY: 120, speed: 1, depth: 0.35, spin: spin.get(), transition: { duration: 850 } },
   ...hours.map((hour) => HourPill({ key: hour.time, hour })),
 )
 ```
+
+Глубина складывается из трёх вещей сразу: сплющенный эллипс, сильнее `scale` и ниже `opacity`
+у дальней стороны и `z`, чтобы ближняя сторона перекрывала дальнюю. Если взять только что-то одно,
+кольцо выглядит плоским.
 
 В `Arrange` вы сами говорите, где стоит каждый ребёнок. Функция возвращает его центр и, по
 желанию, `scale`, `rotation`, `opacity` и `z`:
@@ -328,10 +332,10 @@ Arrange(
       const near = (Math.sin(angle) + 1) / 2
 
       return {
-        x: width / 2 + Math.cos(angle) * width * 0.4,
-        y: height / 2 + Math.sin(angle) * height * 0.36,
-        scale: (0.75 + 0.25 * near) * (0.8 + 0.2 * shown),
-        opacity: shown,
+        x: width / 2 + Math.cos(angle) * width * 0.42,
+        y: height / 2 + Math.sin(angle) * width * 0.22,
+        scale: (0.68 + 0.42 * near) * (0.8 + 0.2 * shown),
+        opacity: (0.55 + 0.45 * near) * shown,
         z: near,
       }
     },

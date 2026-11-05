@@ -2081,7 +2081,10 @@ export interface OrbitOptions extends CommonOptions {
   speed?: number
   /** Turn the whole ring, in degrees. Glides over `transition`. */
   spin?: number
-  /** How much smaller the far side gets, from 0 to 1. */
+  /**
+   * How far the ring leans back, from 0 to 1. The far side gets smaller and dimmer. It looks
+   * best with `radiusY` about half of `radiusX`.
+   */
   depth?: number
 }
 
@@ -2102,6 +2105,7 @@ export const Orbit = (options: OrbitOptions, ...children: UiChild[]): UiNode => 
           x: width / 2 + Math.cos(angle) * params.radiusX,
           y: height / 2 + Math.sin(angle) * params.radiusY,
           scale: 1 - params.depth * (1 - near),
+          opacity: 1 - params.depth * 1.3 * (1 - near),
           z: near,
         }
       },

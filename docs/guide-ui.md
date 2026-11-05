@@ -300,10 +300,14 @@ their clicks, hover and text, and nothing crosses the bridge.
 
 ```ts
 Orbit(
-  { fill: true, radiusX: 260, radiusY: 120, speed: 1, depth: 0.25, spin: spin.get(), transition: { duration: 850 } },
+  { fill: true, radiusX: 260, radiusY: 120, speed: 1, depth: 0.35, spin: spin.get(), transition: { duration: 850 } },
   ...hours.map((hour) => HourPill({ key: hour.time, hour })),
 )
 ```
+
+Depth comes from three things together: a flattened ellipse, a stronger `scale` and a lower
+`opacity` on the far side, and `z` so the near side overlaps. With only one of them the ring
+looks flat.
 
 With `Arrange` you say where each child goes. It returns the child's center and, if you like,
 `scale`, `rotation`, `opacity` and `z`:
@@ -321,10 +325,10 @@ Arrange(
       const near = (Math.sin(angle) + 1) / 2
 
       return {
-        x: width / 2 + Math.cos(angle) * width * 0.4,
-        y: height / 2 + Math.sin(angle) * height * 0.36,
-        scale: (0.75 + 0.25 * near) * (0.8 + 0.2 * shown),
-        opacity: shown,
+        x: width / 2 + Math.cos(angle) * width * 0.42,
+        y: height / 2 + Math.sin(angle) * width * 0.22,
+        scale: (0.68 + 0.42 * near) * (0.8 + 0.2 * shown),
+        opacity: (0.55 + 0.45 * near) * shown,
         z: near,
       }
     },
