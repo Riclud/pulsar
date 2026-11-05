@@ -24,6 +24,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `focusBorderColor` on `Input` and `TextArea`.
+
 - JSX: write screens in `.tsx` with `jsxImportSource: "pulsar"`. Tags compile to the
   same component calls, and `.ts` and `.tsx` files import each other.
 - `signal`, `computed`, `effect`, `untracked` and `createState`.
@@ -65,6 +67,12 @@ All notable changes to this project are documented here. The format follows
   move existing items instead of clearing the container.
 
 ### Fixed
+
+- `gradient` on `Box` and `Card` now draws; it used to paint nothing.
+- A tap reaches only the deepest clickable node, not every card around it.
+- Code can change the value of a focused input, so clearing it after a submit works.
+- A child with `elevation` no longer takes the end padding of its parent.
+- Sheets and `Segmented` use the theme font.
 
 - A timer callback that cleared its own timer crashed the embedded host.
 - `Pulsar.call` never resolved in the embedded host.
