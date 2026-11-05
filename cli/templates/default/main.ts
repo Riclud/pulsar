@@ -1,11 +1,11 @@
 import {
   App,
   bind,
-  defineComponent,
   Button,
   Card,
   Checkbox,
   Column,
+  component,
   For,
   Header,
   IconButton,
@@ -70,7 +70,7 @@ const add = (): void => {
   app.store.set("composing", false)
 }
 
-const TaskRow = defineComponent<{ task: Task }>(({ task }) =>
+const TaskRow = component<{ key: string; task: Task }>(({ task }) =>
   Card(
     { padding: 12 },
     Row(
@@ -103,7 +103,7 @@ app.window("main").render(() => {
       keyOf: (task) => task.id,
       spacing: 8,
       padding: 12,
-      render: (task) => TaskRow({ task }),
+      render: (task) => TaskRow({ key: task.id, task }),
     }),
     Modal(
       {
