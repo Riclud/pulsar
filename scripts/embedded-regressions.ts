@@ -130,7 +130,8 @@ const scenarios: Scenario[] = [
         output.includes("SIZE fixed 40") &&
         output.includes("SIZE after 360") &&
         output.includes("SIZE wide 400") &&
-        output.includes("SIZE padded 48")
+        output.includes("SIZE padded 48") &&
+        output.includes("SIZE around 40")
       )
     },
   },
@@ -249,7 +250,7 @@ const runScenario = async (scenario: Scenario) => {
     ])
     const hostOutput = existsSync(hostLog) ? readFileSync(hostLog, "utf8") : ""
     const output = `${stdout}\n${stderr}\n${hostOutput}`
-    const passed = exitCode === 0 && scenario.check(output)
+    const passed = exitCode === 0 && scenario.check(output) && !output.includes("recursive rearrange")
 
     console.log(`${passed ? "ok  " : "FAIL"} ${scenario.name} (exit ${exitCode})`)
 

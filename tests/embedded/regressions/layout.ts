@@ -37,6 +37,11 @@ app.window("main").render(() => {
           { key: "wide", alignItems: "center", fillWidth: true, onLayout: report("wide"), color: "#222" },
           Text({ text: "centered" }),
         ),
+        Row(
+          { key: "spread", justify: "around", color: "#222", fillWidth: true },
+          Box({ key: "around", width: 40, height: 10, onLayout: report("around") }),
+          Box({ key: "second", width: 40, height: 10 }),
+        ),
         Row({ key: "padding" }, Box({ key: "padded", paddingX: 24, width: undefined, onLayout: report("padded") })),
       ),
     ),

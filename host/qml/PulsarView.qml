@@ -4325,10 +4325,15 @@ ApplicationWindow {
             return Math.max(0, (available - used) * flex / total);
         });
 
-        if (horizontal)
-            kid.Layout.preferredWidth = size;
-        else
-            kid.Layout.preferredHeight = size;
+        if (horizontal) {
+            kid.Layout.preferredWidth = 0;
+            kid.Layout.fillWidth = true;
+            kid.Layout.maximumWidth = size;
+        } else {
+            kid.Layout.preferredHeight = 0;
+            kid.Layout.fillHeight = true;
+            kid.Layout.maximumHeight = size;
+        }
     }
 
     function applyFlex(layout, horizontal, edges) {
@@ -5443,6 +5448,12 @@ ApplicationWindow {
 
         item.Layout.fillWidth = fillWidth;
         item.Layout.fillHeight = fillHeight;
+
+        if ((node.type === "column" || node.type === "row") && fillWidth && props.maxWidth === undefined)
+            item.Layout.maximumWidth = Number.POSITIVE_INFINITY;
+
+        if ((node.type === "column" || node.type === "row") && fillHeight && props.maxHeight === undefined)
+            item.Layout.maximumHeight = Number.POSITIVE_INFINITY;
 
         if (props.alignItems !== undefined && fillWidth && props.maxWidth === undefined)
             item.Layout.maximumWidth = Number.POSITIVE_INFINITY;
