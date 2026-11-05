@@ -1,0 +1,26 @@
+--- a/QtInputDelegate.java	2026-11-05 20:37:21.635551365 +0800
++++ b/QtInputDelegate.java	2026-11-05 20:37:21.636559308 +0800
+@@ -145,23 +145,6 @@
+                               final int inputHints, final int enterKeyType)
+     {
+         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+-            activity.getWindow().getInsetsController().controlWindowInsetsAnimation(
+-                WindowInsets.Type.ime(), -1, null, null,
+-                    new WindowInsetsAnimationControlListener() {
+-                        @Override
+-                        public void onCancelled(WindowInsetsAnimationController controller) { }
+-
+-                        @Override
+-                        public void onReady(WindowInsetsAnimationController controller, int types) { }
+-
+-                        @Override
+-                        public void onFinished(WindowInsetsAnimationController controller) {
+-                            QtNativeInputConnection.updateCursorPosition();
+-                            if (m_softInputMode == 0)
+-                                probeForKeyboardHeight(activity, x, y, width, height,
+-                                                       inputHints, enterKeyType);
+-                        }
+-                    });
+             activity.getWindow().getInsetsController().show(Type.ime());
+         } else {
+             if (m_imm == null)

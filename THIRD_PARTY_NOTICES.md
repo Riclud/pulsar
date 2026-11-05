@@ -5,30 +5,37 @@ distributes the following third-party software.
 
 ## Qt 6 — host GUI (LGPL-3.0-only)
 
-The Pulsar host (`qml-host`) is written in C++ and links against Qt 6
-(`Qt6Core`, `Qt6Gui`, `Qt6Qml`, `Qt6Quick`, `Qt6Network`, `Qt6OpenGL`,
-`Qt6QmlIntegration`) **as shared libraries** (dynamic linking). The process
-supervisor (`bridge`) links against `Qt6Core` the same way.
+The Pulsar host (`qml-host`) is written in C++ and links against Qt 6 **as shared
+libraries** (dynamic linking). The process supervisor (`bridge`) links against `Qt6Core`
+the same way.
 
-To comply with the GNU Lesser General Public License v3:
-
-- Qt is loaded dynamically; the binaries are not statically linked against it.
-- The Qt libraries are **not** bundled with this source distribution; they are
-  supplied by the user (see the install instructions in the README, or
-  `PULSAR_QMAKE` / `PULSAR_QT` to point at a specific Qt installation).
-- Users may re-link or replace the Qt libraries used by the host.
-
+- Qt is loaded dynamically, and the binaries are not statically linked against it, so users
+  may replace the Qt libraries an app uses.
+- This source repository does not contain Qt. `pulsar install`, release assets, and apps built
+  with `pulsar build` **do bundle** Qt shared libraries, which are distributed under the LGPL.
+- Whoever distributes an app with Qt in it passes on these obligations: keep the license texts,
+  and keep users able to replace Qt.
 - Qt licensing overview: https://doc.qt.io/qt-6/lgpl.html
 - Full LGPL-3.0 text: https://www.gnu.org/licenses/lgpl-3.0.txt
+- Qt source: https://code.qt.io/cgit/qt/qtbase.git/
 
-When Pulsar starts bundling Qt binaries (product distribution), the Qt license
-texts must be shipped alongside the binaries and keep the above relink rights.
+### Modified Qt code
+
+Android builds replace `QtInputDelegate` in `Qt6Android.jar` with a patched version. Its source
+and the exact change are in `scripts/android-qt-patch-src`, under the same license as Qt.
 
 ## Bun — application runtime (MIT)
 
 Pulsar uses Bun as its application runtime.
 Bun: https://bun.sh
 License (MIT): https://github.com/oven-sh/bun/blob/main/LICENSE.md
+
+## QuickJS — JavaScript engine (MIT)
+
+The embedded runtime uses `quickjs-ng`, fetched when the host is built.
+
+- Source: https://github.com/quickjs-ng/quickjs
+- License (MIT): https://github.com/quickjs-ng/quickjs/blob/master/LICENSE
 
 ## Node.js dependency packages
 
@@ -45,6 +52,12 @@ Material Design Icons are licensed under the Apache License 2.0.
 - Source: https://github.com/google/material-design-icons
 - License text: `host/qml/fonts/LICENSE-MaterialIcons.txt`
 - Apache-2.0: https://www.apache.org/licenses/LICENSE-2.0
+
+## Paper Mono — UI font
+
+The JS UI renderer bundles the Paper Mono font (`host/qml/fonts/PaperMono-*.ttf`).
+
+- License text: `host/qml/fonts/LICENSE-PaperMono.txt`
 
 ## Acknowledgements
 
