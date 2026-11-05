@@ -1,0 +1,63 @@
+name: iOS (experimental)
+
+on:
+  push:
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "site/**"
+      - "edge/**"
+      - "LICENSE"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+jobs:
+  simulator:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt for iOS
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.9.3"
+          host: mac
+          target: ios
+          modules: qtwebsockets
+          cache: true
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install JS deps
+        run: bun install
+
+      - name: Build the test app
+        working-directory: tests/apps/ios-app
+        env:
+          PULSAR_IOS_QT: ${{ env.QT_ROOT_DIR }}
+        run: bun ../../../cli/index.ts build --target ios
+
+      - name: Start it in the simulator
+        working-directory: tests/apps/ios-app
+        run: |
+          device=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          runtimes = json.load(sys.stdin)['devices']
+          ios = sorted(k for k in runtimes if 'iOS' in k and runtimes[k])
+          print(next(d['udid'] for d in runtimes[ios[-1]] if 'iPhone' in d['name']))")
+          xcrun simctl boot "$device"
+          xcrun simctl bootstatus "$device"
+          xcrun simctl install "$device" dist/ios-app.app
+          xcrun simctl launch "$device" com.pulsar.iosapp
+          sleep 20
+          xcrun simctl io "$device" screenshot simulator.png
+          xcrun simctl spawn "$device" launchctl list | grep com.pulsar.iosapp
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-simulator
+          path: |
+            tests/apps/ios-app/simulator.png
+            tests/apps/ios-app/dist/ios-app.app/Info.plist
+          if-no-files-found: warn

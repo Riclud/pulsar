@@ -28,7 +28,7 @@ export interface FileAssociation {
   name?: string
 }
 
-export type Target = "desktop" | "android"
+export type Target = "desktop" | "android" | "ios"
 export type RuntimeKind = "bun" | "quickjs"
 export type Compat = "portable" | "desktop"
 
@@ -36,6 +36,7 @@ export interface RuntimeConfig {
   default?: RuntimeKind
   desktop?: RuntimeKind
   android?: RuntimeKind
+  ios?: RuntimeKind
 }
 
 /** The application manifest. One pulsar.json drives config and packaging. */
@@ -120,14 +121,16 @@ export const manifestTargets = (manifest: AppManifest | null): Target[] => {
   return manifest?.targets?.length ? manifest.targets : ["desktop"]
 }
 
-/** Runtime for a target, defaulting to bun on desktop and quickjs on android. */
+/** Runtime for a target, defaulting to bun on desktop and quickjs on mobile. */
 export const manifestRuntime = (manifest: AppManifest | null, target: Target): RuntimeKind => {
-  return manifest?.runtime?.[target] ?? manifest?.runtime?.default ?? (target === "android" ? "quickjs" : "bun")
+  return manifest?.runtime?.[target] ?? manifest?.runtime?.default ?? (target === "desktop" ? "bun" : "quickjs")
 }
 
-/** Portability mode, defaulting to portable when android is a target. */
+/** Portability mode, defaulting to portable when a mobile target is listed. */
 export const manifestCompat = (manifest: AppManifest | null): Compat => {
-  return manifest?.compat ?? (manifestTargets(manifest).includes("android") ? "portable" : "desktop")
+  const mobile = manifestTargets(manifest).some((target) => target !== "desktop")
+
+  return manifest?.compat ?? (mobile ? "portable" : "desktop")
 }
 
 /** Default label for the window at `index`. */

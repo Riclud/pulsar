@@ -607,7 +607,7 @@ QJsonObject QuickJsRuntime::paths() const
     QString config;
     QString cache;
 
-#if defined(Q_OS_ANDROID)
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
     data = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     config = data;
     cache = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
@@ -652,6 +652,9 @@ QJsonObject QuickJsRuntime::platformInfo() const
 #if defined(Q_OS_ANDROID)
     out.insert(QStringLiteral("kind"), QStringLiteral("mobile"));
     out.insert(QStringLiteral("os"), QStringLiteral("android"));
+#elif defined(Q_OS_IOS)
+    out.insert(QStringLiteral("kind"), QStringLiteral("mobile"));
+    out.insert(QStringLiteral("os"), QStringLiteral("ios"));
 #else
     out.insert(QStringLiteral("kind"), QStringLiteral("desktop"));
 #if defined(Q_OS_DARWIN)

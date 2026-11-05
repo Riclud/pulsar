@@ -30,8 +30,12 @@ hatch for advanced UI work.
 | Windows x64         | yes            | tested           |
 | Windows ARM64       | yes            | built in CI      |
 | Android ARM64       | APK only       | tested on device |
+| iOS Simulator       | from source    | experimental     |
 
-iOS is not supported yet. "Built in CI" means the toolchain and release assets
+iOS is experimental: `pulsar build --target ios` needs macOS with Xcode, and CI
+only builds it and starts it in the simulator. It has not run on an iPhone, and
+platform features such as dialogs and notifications are untested there.
+"Built in CI" means the toolchain and release assets
 are produced and packaged, but nobody has run them on real hardware.
 
 Documentation lives at [pulsarjs.org](https://pulsarjs.org). See

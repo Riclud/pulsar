@@ -322,7 +322,7 @@ const escapeXml = (value: string): string => {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;")
 }
 
-const writeQrc = (
+export const writeQrc = (
   path: string,
   files: string[],
   appDir: string,
@@ -345,7 +345,7 @@ const writeQrc = (
   return path
 }
 
-const hashFiles = (files: string[], appDir: string, extra: string): string => {
+export const hashFiles = (files: string[], appDir: string, extra: string): string => {
   const hash = createHash("sha256")
 
   for (const file of files.sort()) {

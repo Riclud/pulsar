@@ -243,15 +243,15 @@ static QString appDir()
     return QDir::currentPath();
 }
 
-#ifdef Q_OS_ANDROID
-static QString androidAppDir()
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
+static QString bundledAppDir()
 {
     const QString root = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
         + QStringLiteral("/app");
     QDir().mkpath(root);
 
     const QString markerPath = root + QStringLiteral("/.build-id");
-    const QString wanted = QStringLiteral(PULSAR_ANDROID_BUILD_ID);
+    const QString wanted = QStringLiteral(PULSAR_APP_BUILD_ID);
     QFile marker(markerPath);
 
     if (marker.open(QIODevice::ReadOnly) && QString::fromUtf8(marker.readAll()).trimmed() == wanted)
@@ -356,8 +356,8 @@ int main(int argc, char **argv)
 #endif
 
     QString dir =
-#ifdef Q_OS_ANDROID
-        androidAppDir();
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
+        bundledAppDir();
 #else
         appDir();
 #endif

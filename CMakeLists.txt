@@ -63,6 +63,66 @@ FetchContent_Declare(quickjs
 )
 FetchContent_MakeAvailable(quickjs)
 
+# Built-in renderer for JS-driven windows (loaded as qrc:/runtime/PulsarView.qml).
+# The same resources are linked into every host that can render JS windows.
+function(pulsar_add_view_resources target resource_name)
+    qt_add_resources(${target} ${resource_name}
+        PREFIX "/runtime"
+        BASE "${CMAKE_CURRENT_SOURCE_DIR}/host/qml"
+        FILES
+            "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/PulsarView.qml"
+            "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/shaders/wave.frag.qsb"
+            "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/shaders/lightning.frag.qsb"
+            "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/shaders/aurora.frag.qsb"
+            "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/shaders/glass.raw.frag.qsb"
+            "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/fonts/MaterialIcons.ttf"
+            "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/fonts/PaperMono-Regular.ttf"
+            "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/fonts/PaperMono-Medium.ttf"
+            "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/fonts/PaperMono-Bold.ttf"
+    )
+endfunction()
+
+# --- iOS host (experimental): the embedded QuickJS/QML engine as an app bundle ---
+if(IOS)
+    qt_add_executable(pulsar-ios MACOSX_BUNDLE
+        host/embedded/main.cpp
+        host/embedded/bridge.cpp
+        host/quickjs_runtime.cpp
+        host/net.cpp
+        host/embedded/bridge.h
+        host/quickjs_runtime.h
+        host/net.h
+        "${PULSAR_IOS_APP_QRC}"
+    )
+    target_include_directories(pulsar-ios PRIVATE host host/embedded)
+    target_compile_definitions(pulsar-ios PRIVATE
+        QT_NO_EMIT
+        PULSAR_VERSION="${PULSAR_VERSION}"
+        PULSAR_APP_BUILD_ID="${PULSAR_IOS_BUILD_ID}"
+    )
+    target_link_libraries(pulsar-ios PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Qml
+        Qt6::Quick
+        Qt6::QuickControls2
+        Qt6::Network
+        qjs
+    )
+
+    pulsar_link_websockets(pulsar-ios)
+    pulsar_add_view_resources(pulsar-ios "pulsarview_ios")
+
+    set_target_properties(pulsar-ios PROPERTIES
+        QT_QML_ROOT_PATH "${CMAKE_CURRENT_SOURCE_DIR}/host/qml"
+        MACOSX_BUNDLE_BUNDLE_NAME "${PULSAR_IOS_APP_NAME}"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "${PULSAR_IOS_BUNDLE_ID}"
+        XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${PULSAR_IOS_BUNDLE_ID}"
+    )
+
+    return()
+endif()
+
 # --- Qt host: renders QML, native dialogs/tray, window management ---
 add_executable(qml-host
     host/main.cpp
@@ -117,25 +177,6 @@ if(APPLE)
 elseif(WIN32)
     target_link_libraries(qml-host PRIVATE crypt32 shell32)
 endif()
-
-# Built-in renderer for JS-driven windows (loaded as qrc:/runtime/PulsarView.qml).
-# The same resources are linked into every host that can render JS windows.
-function(pulsar_add_view_resources target resource_name)
-    qt_add_resources(${target} ${resource_name}
-        PREFIX "/runtime"
-        BASE "${CMAKE_CURRENT_SOURCE_DIR}/host/qml"
-        FILES
-            "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/PulsarView.qml"
-            "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/shaders/wave.frag.qsb"
-            "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/shaders/lightning.frag.qsb"
-            "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/shaders/aurora.frag.qsb"
-            "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/shaders/glass.raw.frag.qsb"
-            "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/fonts/MaterialIcons.ttf"
-            "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/fonts/PaperMono-Regular.ttf"
-            "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/fonts/PaperMono-Medium.ttf"
-            "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/fonts/PaperMono-Bold.ttf"
-    )
-endfunction()
 
 pulsar_add_view_resources(qml-host "pulsarview")
 
@@ -237,7 +278,7 @@ if(ANDROID)
 
     if(PULSAR_ANDROID_BUILD_ID)
         target_compile_definitions(pulsar-android PRIVATE
-            PULSAR_ANDROID_BUILD_ID="${PULSAR_ANDROID_BUILD_ID}"
+            PULSAR_APP_BUILD_ID="${PULSAR_ANDROID_BUILD_ID}"
         )
     endif()
 

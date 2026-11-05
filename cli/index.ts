@@ -25,6 +25,7 @@ import {
 import { compileAppShaders, watchAppShaders } from "./shaders.ts"
 import { cliVersion, findBridge, findHost, findLauncher, linkSdk, pulsarRoot, toolchainVersion } from "./core.ts"
 import { ANDROID_QT_VERSION, buildAndroid, installAndroid } from "./android.ts"
+import { buildIos } from "./ios.ts"
 import { launcherName, readManifest, resolveEntry, type BuildTarget } from "./app.ts"
 import { create } from "./create.ts"
 import {
@@ -57,8 +58,8 @@ const NODE_BUILTIN =
 const buildTarget = (): BuildTarget => {
   const target = flagValue("--target") ?? "desktop"
 
-  if (target !== "desktop" && target !== "android" && target !== "portable") {
-    console.error(`pulsar: unknown target "${target}" (expected desktop, android or portable)`)
+  if (target !== "desktop" && target !== "android" && target !== "ios" && target !== "portable") {
+    console.error(`pulsar: unknown target "${target}" (expected desktop, android, ios or portable)`)
     process.exit(1)
   }
 
@@ -451,7 +452,17 @@ const build = async () => {
     process.exit(1)
   }
 
-  if (target !== "desktop" && target !== "android") {
+  if (target === "ios" && !manifestTargets(manifest).includes("ios")) {
+    console.error(`pulsar build: ios is not listed in targets (${manifestTargets(manifest).join(", ")})`)
+    process.exit(1)
+  }
+
+  if (target === "ios" && compat !== "portable") {
+    console.error('pulsar build: ios requires compat: "portable"')
+    process.exit(1)
+  }
+
+  if (target !== "desktop" && target !== "android" && target !== "ios") {
     console.error(`pulsar build: --target ${target} is not implemented yet (runtime: ${runtime})`)
     process.exit(1)
   }
@@ -470,6 +481,19 @@ const build = async () => {
 
     try {
       await buildAndroid({ appDir, manifest, entry, outDir, abi: flagValue("--abi"), dev: args.includes("--dev"), aab: args.includes("--aab") })
+    } catch (e) {
+      console.error(`pulsar build: ${e instanceof Error ? e.message : String(e)}`)
+      process.exit(1)
+    }
+
+    return
+  }
+
+  if (target === "ios") {
+    const outDir = resolve(flagValue("--out") ?? flagValue("-o") ?? "dist")
+
+    try {
+      await buildIos({ appDir, manifest, entry, outDir })
     } catch (e) {
       console.error(`pulsar build: ${e instanceof Error ? e.message : String(e)}`)
       process.exit(1)
@@ -593,7 +617,7 @@ const usage = () => {
       "  update         update the CLI to the latest release (--version <v>)",
       "  dev            run with hot reload (watch sources; --android for the dev APK)",
       "  run            run the app in the current directory",
-      "  build          build a single-file executable (--target desktop|android|portable, --dev, --aab)",
+      "  build          build a single-file executable (--target desktop|android|ios|portable, --dev, --aab)",
       "  check          audit a target for portable imports (--target android)",
       "  ui             dump the running dev app's UI tree (JSON; --system for uiautomator)",
       "  state          dump the running dev app's store (JSON)",

@@ -1,0 +1,9 @@
+{
+  "id": "com.pulsar.iosapp",
+  "name": "ios-app",
+  "version": "0.1.0",
+  "main": "main.ts",
+  "targets": ["ios"],
+  "compat": "portable",
+  "windows": [{ "label": "main", "width": 390, "height": 844, "title": "iOS" }]
+}
