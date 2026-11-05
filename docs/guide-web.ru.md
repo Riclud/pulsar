@@ -262,6 +262,68 @@ Column(
 )
 ```
 
+## JSX
+
+Если вам удобнее теги, пишите экран в файле `.tsx`. Новые проекты уже настроены для
+этого. В существующем нужны две строки в `compilerOptions`:
+
+```json
+"jsx": "react-jsx",
+"jsxImportSource": "pulsar"
+```
+
+JSX компилируется в те же вызовы функций, поэтому учить новое не нужно:
+
+```tsx
+const Contact = component<{ key: string; name: string }>((props) => {
+  return (
+    <Row color="surface" radius={12} padding={12} gap={12} alignItems="center" fillWidth>
+      <Avatar name={props.name} />
+      <Text flex={1} weight="semibold">
+        {props.name}
+      </Text>
+      <Button onClick={open}>Открыть</Button>
+    </Row>
+  )
+})
+```
+
+Используйте `.tsx` для экранов с большой разметкой, а `.ts` для логики и состояния.
+Они свободно импортируют друг друга, потому что компонент в обоих случаях — одна и
+та же функция:
+
+```ts
+// main.ts
+import { TasksScreen } from "./TasksScreen.tsx"
+
+app.window().render(() => TasksScreen({ title: "Задачи" }))
+```
+
+```tsx
+// TasksScreen.tsx
+import { TaskRow } from "./task-row.ts"
+
+export const TasksScreen = component<{ title: string }>((props) => {
+  return (
+    <Column fill gap={8} padding={16}>
+      <Text size={24}>{props.title}</Text>
+      {state.tasks.map((task) => (
+        <TaskRow key={task.id} task={task} />
+      ))}
+    </Column>
+  )
+})
+```
+
+Отличия от React:
+
+- HTML-тегов нет. `<div>` — это ошибка; используйте `<Box>`.
+- Свойства — это свойства Pulsar: `color` и `gap`, а не `className` и `style`.
+- Текст идёт внутрь `<Text>`. Текст прямо в `<Column>` игнорируется с предупреждением.
+- `{show && <Text>...</Text>}`, `items.map(...)` и `<>...</>` работают как обычно.
+- Дети приходят аргументами после `props`, а не в `props.children`:
+  `component((props, ...children) => ...)`.
+
 ## Состояние с точки зрения React
 
 Ближе всего к `useState` здесь `signal`. Разница в том, что функция настройки

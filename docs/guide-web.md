@@ -263,6 +263,68 @@ Column(
 )
 ```
 
+## JSX
+
+If you prefer tags, write the screen in a `.tsx` file. New projects are already set
+up for it. An existing project needs two lines in `compilerOptions`:
+
+```json
+"jsx": "react-jsx",
+"jsxImportSource": "pulsar"
+```
+
+JSX compiles to the same function calls, so there is nothing new to learn:
+
+```tsx
+const Contact = component<{ key: string; name: string }>((props) => {
+  return (
+    <Row color="surface" radius={12} padding={12} gap={12} alignItems="center" fillWidth>
+      <Avatar name={props.name} />
+      <Text flex={1} weight="semibold">
+        {props.name}
+      </Text>
+      <Button onClick={open}>Open</Button>
+    </Row>
+  )
+})
+```
+
+Use `.tsx` for screens with a lot of layout and `.ts` for logic and state. They
+import each other freely, because a component is one function either way:
+
+```ts
+// main.ts
+import { TasksScreen } from "./TasksScreen.tsx"
+
+app.window().render(() => TasksScreen({ title: "Tasks" }))
+```
+
+```tsx
+// TasksScreen.tsx
+import { TaskRow } from "./task-row.ts"
+
+export const TasksScreen = component<{ title: string }>((props) => {
+  return (
+    <Column fill gap={8} padding={16}>
+      <Text size={24}>{props.title}</Text>
+      {state.tasks.map((task) => (
+        <TaskRow key={task.id} task={task} />
+      ))}
+    </Column>
+  )
+})
+```
+
+The differences from React:
+
+- There are no HTML tags. `<div>` is an error; use `<Box>`.
+- Props are Pulsar props: `color` and `gap`, not `className` or `style`.
+- Text goes inside `<Text>`. Text placed directly in `<Column>` is ignored with a
+  warning.
+- `{show && <Text>...</Text>}`, `items.map(...)` and `<>...</>` work as usual.
+- Children arrive as arguments after `props`, not in `props.children`:
+  `component((props, ...children) => ...)`.
+
 ## State, from React
 
 The closest thing to `useState` is `signal`. The difference is that the setup

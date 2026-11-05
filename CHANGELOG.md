@@ -15,6 +15,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- JSX: write screens in `.tsx` with `jsxImportSource: "pulsar"`. Tags compile to the
+  same component calls, and `.ts` and `.tsx` files import each other.
 - `signal`, `computed`, `effect`, `untracked` and `createState`.
 - `component()` with local state, `onMount` and `onCleanup`. Only components that
   read a changed value re-render.
