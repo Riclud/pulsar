@@ -133,6 +133,15 @@ All notable changes to this project are documented here. The format follows
   `plugins/platforms/../../lib`, so `libQt6XcbQpa` no longer falls back to the
   system Qt and the xcb platform plugin starts.
 
+### Dev
+
+- `pulsar dev` keeps the window open and sized across a reload, instead of recreating
+  it on every save.
+
+### Platforms
+
+- Experimental iOS simulator build: `pulsar build --target ios`.
+
 ## [1.4.0] - 2026-11-04
 
 ### Added

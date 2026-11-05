@@ -199,6 +199,10 @@ const rewriteLinks = (html: string, page: Page, anchors: Map<string, { page: Pag
       "docs/README.ru.md": "ru/",
       "docs/guide-web.md": "guide/web/",
       "docs/guide-components.md": "guide/components/",
+      "guide-web.md": "guide/web/",
+      "guide-components.md": "guide/components/",
+      "guide-ui.md": "guide/ui/",
+      "guide-ui.ru.md": "ru/guide/ui/",
       "guide-web.ru.md": "ru/guide/web/",
       "guide-components.ru.md": "ru/guide/components/",
       LICENSE: "https://github.com/riclud/pulsar/blob/main/LICENSE",
@@ -279,9 +283,9 @@ const extractAnchors = (html: string, page: Page, anchors: Map<string, { page: P
 }
 
 const pagesFor = (lang: Lang): Page[] => {
-  const source = readFileSync(join(ROOT, lang === "en" ? "README.md" : "docs/README.ru.md"), "utf8")
+  const source = readFileSync(join(ROOT, lang === "en" ? "docs/reference.md" : "docs/reference.ru.md"), "utf8")
   const sections = splitSections(source).filter((section) => section.heading)
-  const enSections = splitSections(readFileSync(join(ROOT, "README.md"), "utf8")).filter((section) => section.heading)
+  const enSections = splitSections(readFileSync(join(ROOT, "docs/reference.md"), "utf8")).filter((section) => section.heading)
 
   return sections.map((section, index) => {
     const slug = slugs[index] ?? slugify((enSections[index]?.heading ?? section.heading).replace(/[`*]/g, ""))
@@ -852,7 +856,7 @@ const pageMain = (current: Page, sections: Page[]): string => {
   if (current.isHome) return current.html
 
   const editURL = `https://github.com/riclud/pulsar/edit/main/${
-    current.sourcePath ?? (current.lang === "en" ? "README.md" : "docs/README.ru.md")
+    current.sourcePath ?? (current.lang === "en" ? "docs/reference.md" : "docs/reference.ru.md")
   }`
 
   return `<article class="prose">
