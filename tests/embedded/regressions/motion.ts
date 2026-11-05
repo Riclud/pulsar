@@ -32,11 +32,11 @@ app.window("main").render(() => {
   )
 })
 
-setTimeout(() => app.store.set("step", 1), 200)
-setTimeout(() => app.store.set("step", 2), 500)
-setTimeout(() => app.store.set("step", 3), 800)
+setTimeout(() => app.store.set("step", 1), 1500)
+setTimeout(() => app.store.set("step", 2), 1800)
+setTimeout(() => app.store.set("step", 3), 2100)
 setTimeout(() => {
   app.store.set("step", 4)
 
   setTimeout(() => app.store.set("step", 5), 5)
-}, 1000)
+}, 2300)
