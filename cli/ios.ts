@@ -98,7 +98,7 @@ export const buildIos = async (options: IosBuildOptions): Promise<string> => {
       "-sdk",
       "iphonesimulator",
       "-arch",
-      "arm64",
+      "x86_64",
       "CODE_SIGNING_ALLOWED=NO",
     ],
     { stdio: "inherit" },
