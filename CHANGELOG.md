@@ -70,6 +70,10 @@ All notable changes to this project are documented here. The format follows
 
 - `gradient` on `Box` and `Card` now draws; it used to paint nothing.
 - A tap reaches only the deepest clickable node, not every card around it.
+- An input keeps focus when a sibling is inserted before it.
+- A focused field scrolls into view smoothly when the keyboard opens.
+- `flex` ignores children that are being removed.
+- A `SearchField` with `debounce` no longer loses typing to a stale `value`.
 - Code can change the value of a focused input, so clearing it after a submit works.
 - A child with `elevation` no longer takes the end padding of its parent.
 - Sheets and `Segmented` use the theme font.

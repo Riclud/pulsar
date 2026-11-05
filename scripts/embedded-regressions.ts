@@ -137,6 +137,17 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "focus",
+    check: (output) => {
+      return (
+        output.includes("FIELD focus") &&
+        output.includes("PulsarView reorder") &&
+        !output.includes("FIELD blur") &&
+        output.includes("SIZE flexed 400")
+      )
+    },
+  },
+  {
     name: "packing",
     check: (output) => {
       return (

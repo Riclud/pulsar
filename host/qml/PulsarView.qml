@@ -23,6 +23,8 @@ ApplicationWindow {
     property bool windowTransparent: false
     readonly property var flingCurve: makeFlingCurve()
     property var tappedItems: []
+    property bool reordering: false
+    property int revealTicks: 0
     property var tree: []
     property var uiTree: []
     property var uiPatch: null
@@ -285,6 +287,7 @@ ApplicationWindow {
                     return;
 
                 inertia.samples = [];
+                revealMotion.stop();
                 frames.stop();
                 absorbing.stop();
                 inertia.impulse = 0;
@@ -4635,7 +4638,7 @@ ApplicationWindow {
             const kid = layout.children[i];
             const kidNode = kid.pulsarMeta ? kid.pulsarMeta.node : null;
 
-            if (!kidNode)
+            if (!kidNode || kid.pulsarMeta.extra.discarded)
                 continue;
 
             kids.push(kid);
@@ -4667,7 +4670,7 @@ ApplicationWindow {
             const kid = layout.children[i];
             const kidNode = kid.pulsarMeta ? kid.pulsarMeta.node : null;
 
-            if (!kidNode || kidNode.props.visible === false)
+            if (!kidNode || kidNode.props.visible === false || kid.pulsarMeta.extra.discarded)
                 continue;
 
             if (horizontal ? kid.Layout.fillWidth : kid.Layout.fillHeight)
@@ -4839,6 +4842,9 @@ ApplicationWindow {
             return;
 
         const node = item.pulsarMeta ? item.pulsarMeta.node : null;
+
+        if (item.pulsarMeta)
+            item.pulsarMeta.extra.discarded = true;
 
         if (node) {
             view.uiStats.removed++;
@@ -5136,6 +5142,9 @@ ApplicationWindow {
         view.uiStats.reordered += direct.length;
 
         const scrolls = captureScrolls(direct);
+        const focused = view.activeFocusItem;
+
+        view.reordering = true;
 
         for (const item of direct) {
             item.parent = null;
@@ -5143,6 +5152,16 @@ ApplicationWindow {
         }
 
         restoreScrolls(scrolls);
+
+        if (focused && !focused.activeFocus)
+            focused.forceActiveFocus();
+
+        view.reordering = false;
+
+        if (view.revealTarget) {
+            view.revealTicks = 2;
+            keyboardRevealTimer.restart();
+        }
 
         if (PulsarBridge.env("PULSAR_DEBUG"))
             console.log("PulsarView reorder " + parent.pulsarMeta.type + " " + direct.length);
@@ -5373,6 +5392,7 @@ ApplicationWindow {
             item.activeFocusChanged.connect(function () {
                 if (item.activeFocus) {
                     view.revealTarget = item;
+                    view.revealTicks = 4;
                     keyboardRevealTimer.restart();
                 } else if (view.revealTarget === item) {
                     view.revealTarget = null;
@@ -5424,6 +5444,11 @@ ApplicationWindow {
             item.textEdited.connect(function () {
                 if (item.pulsarMeta.syncing === true)
                     return;
+
+                const extra = item.pulsarMeta.extra;
+
+                extra.typedTexts = (extra.typedTexts || []).concat(item.text).slice(-64);
+
                 if (item.debounce > 0) {
                     item.inputTimer.restart();
                     return;
@@ -5724,7 +5749,7 @@ ApplicationWindow {
     }
 
     function emitFocus(item, focused) {
-        if (!item || !item.pulsarMeta)
+        if (!item || !item.pulsarMeta || view.reordering)
             return;
 
         const event = focused ? "focus" : "blur";
@@ -6886,11 +6911,7 @@ ApplicationWindow {
             item.debounce = prop(props, "debounce", 0);
             item.enabled = prop(props, "enabled", true);
 
-            if (item.text !== searchValue) {
-                item.pulsarMeta.syncing = true;
-                item.text = searchValue;
-                item.pulsarMeta.syncing = false;
-            }
+            syncFieldText(item, searchValue);
 
             const focusWanted = prop(props, "focus", false);
 
@@ -7018,7 +7039,7 @@ ApplicationWindow {
 
         const flick = scrollAncestor(item);
 
-        if (!flick || flick.height <= 0)
+        if (!flick || flick.height <= 0 || flick.dragging)
             return;
 
         const top = item.mapToItem(flick, 0, 0).y;
@@ -7033,7 +7054,9 @@ ApplicationWindow {
                 ? flick.contentY + top - margin
                 : flick.contentY + bottom + margin - flick.height;
 
-        flick.contentY = Math.min(maxY, Math.max(0, target));
+        revealMotion.target = flick;
+        revealMotion.to = Math.min(maxY, Math.max(0, target));
+        revealMotion.restart();
     }
 
     function revealFocusedInput() {
@@ -7043,11 +7066,43 @@ ApplicationWindow {
         view.revealInput(view.revealTarget);
     }
 
+    NumberAnimation {
+        id: revealMotion
+
+        property: "contentY"
+        duration: 220
+        easing.type: Easing.OutCubic
+    }
+
     Timer {
         id: keyboardRevealTimer
 
-        interval: 220
-        onTriggered: view.revealFocusedInput()
+        interval: 80
+        repeat: true
+        onTriggered: {
+            view.revealFocusedInput();
+            view.revealTicks--;
+
+            if (view.revealTicks <= 0)
+                stop();
+        }
+    }
+
+    Timer {
+        id: keyboardHideTimer
+
+        interval: 150
+        onTriggered: {
+            if (Qt.inputMethod.visible)
+                return;
+
+            view.revealTarget = null;
+
+            const focused = view.activeFocusItem;
+
+            if (focused)
+                focused.focus = false;
+        }
     }
 
     Connections {
@@ -7058,16 +7113,12 @@ ApplicationWindow {
                 return;
 
             if (Qt.inputMethod.visible) {
+                view.revealTicks = 4;
                 keyboardRevealTimer.restart();
                 return;
             }
 
-            view.revealTarget = null;
-
-            const focused = view.activeFocusItem;
-
-            if (focused)
-                focused.focus = false;
+            keyboardHideTimer.restart();
         }
     }
 
