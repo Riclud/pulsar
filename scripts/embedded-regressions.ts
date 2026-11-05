@@ -181,6 +181,21 @@ const scenarios: Scenario[] = [
     check: (output) => output.includes("SIZE wave 300") && !output.includes("Shader uniform"),
   },
   {
+    name: "arrange",
+    check: (output) => {
+      const glide = (output.match(/ARRANGE glide (\d+)/g) ?? []).map((line) => Number(line.split(" ")[2]))
+      const between = glide.filter((value) => value > 5 && value < 95).length
+
+      return (
+        output.includes("SIZE placed 40") &&
+        between >= 3 &&
+        glide.at(-1) === 100 &&
+        output.includes("Arrange failed") &&
+        (output.match(/ARRANGE still/g) ?? []).length < 20
+      )
+    },
+  },
+  {
     name: "packing",
     check: (output) => {
       return (

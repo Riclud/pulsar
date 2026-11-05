@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test"
 import {
   Button,
+  Arrange,
   Canvas,
+  Orbit,
   Wave,
   component,
   Card,
@@ -570,6 +572,24 @@ describe("qml-like components", () => {
     expect(node.props.width).toBe(100)
     expect((node.props.uniforms as Record<string, unknown>).speed).toBe(2)
     expect((node.props.uniforms as Record<string, unknown>).amplitude).toBe(4)
+  })
+
+  test("Arrange sends its function as source and keeps children", () => {
+    const node = Arrange({ params: { n: 1 }, arrange: (index, _count, { params }) => ({ x: index * params.n }) }, Text({}, "a"))
+
+    expect(node.type).toBe("arrange")
+    expect(String(node.props.arrangeSource)).toContain("params.n")
+    expect(node.children?.length).toBe(1)
+  })
+
+  test("Orbit turns its options into params", () => {
+    const node = Orbit({ radiusX: 200, spin: 90 }, Text({}, "a"))
+    const params = node.props.params as Record<string, number>
+
+    expect(node.type).toBe("arrange")
+    expect(params.radiusY).toBe(200)
+    expect(params.spin).toBe(90)
+    expect(node.props.animated).toBe(false)
   })
 
   test("For builds a keyed list", () => {

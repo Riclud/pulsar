@@ -4,6 +4,7 @@ import type { ColorValue } from "./theme.ts"
 export type UiNodeType =
   | "canvas"
   | "shader"
+  | "arrange"
   | "column"
   | "row"
   | "wrap"
@@ -2031,6 +2032,82 @@ export interface AuroraOptions extends CommonOptions {
 /** A slow flowing background. */
 export const Aurora = (options: AuroraOptions = {}): UiNode => {
   return effect("aurora", { color: "primary", accent: "#5ce1e6", speed: 0.08, scale: 2.5 }, options as Record<string, unknown>)
+}
+
+export interface ArrangePlacement {
+  /** Center of the child, in pixels from the left. */
+  x?: number
+  /** Center of the child, in pixels from the top. */
+  y?: number
+  scale?: number
+  /** Degrees. */
+  rotation?: number
+  opacity?: number
+  z?: number
+}
+
+export interface ArrangeFrame<P> {
+  width: number
+  height: number
+  /** Seconds since it appeared. */
+  time: number
+  params: P
+}
+
+export interface ArrangeOptions<P> extends CommonOptions {
+  /**
+   * Places each child, in the renderer. It cannot read outer variables, so pass data
+   * through `params`. Write it as an arrow function.
+   */
+  arrange: (index: number, count: number, frame: ArrangeFrame<P>) => ArrangePlacement
+  /** Numbers glide to new values over `transition`. */
+  params?: P
+  /** Run `arrange` on every frame, for layouts that keep moving. */
+  animated?: boolean
+}
+
+export const Arrange = <P = Record<string, never>>(options: ArrangeOptions<P>, ...children: UiChild[]): UiNode => {
+  const { arrange, ...props } = options
+
+  return makeNode("arrange", { ...props, arrangeSource: arrange.toString() }, children)
+}
+
+export interface OrbitOptions extends CommonOptions {
+  /** Horizontal radius in pixels. */
+  radiusX?: number
+  /** Vertical radius in pixels. */
+  radiusY?: number
+  /** Turns per minute. */
+  speed?: number
+  /** Turn the whole ring, in degrees. Glides over `transition`. */
+  spin?: number
+  /** How much smaller the far side gets, from 0 to 1. */
+  depth?: number
+}
+
+/** Places children on a ring. They stay ordinary nodes, with clicks and hover. */
+export const Orbit = (options: OrbitOptions, ...children: UiChild[]): UiNode => {
+  const { radiusX = 120, radiusY = options.radiusX ?? 120, speed = 0, spin = 0, depth = 0, ...props } = options
+
+  return Arrange(
+    {
+      ...props,
+      animated: speed !== 0,
+      params: { radiusX, radiusY, speed, spin, depth },
+      arrange: (index, count, { width, height, time, params }) => {
+        const angle = (index / count) * 6.2831853 + ((params.spin + (time * params.speed * 360) / 60) * 3.1415927) / 180
+        const near = (Math.sin(angle) + 1) / 2
+
+        return {
+          x: width / 2 + Math.cos(angle) * params.radiusX,
+          y: height / 2 + Math.sin(angle) * params.radiusY,
+          scale: 1 - params.depth * (1 - near),
+          z: near,
+        }
+      },
+    },
+    ...children,
+  )
 }
 
 export interface KeepAliveOptions extends CommonOptions, PaddingOptions, SurfaceOptions {
