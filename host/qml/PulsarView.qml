@@ -4401,6 +4401,90 @@ ApplicationWindow {
         }
     }
 
+    function hasFillingChild(layout, horizontal) {
+        for (let i = 0; i < layout.children.length; i++) {
+            const kid = layout.children[i];
+            const kidNode = kid.pulsarMeta ? kid.pulsarMeta.node : null;
+
+            if (!kidNode || kidNode.props.visible === false)
+                continue;
+
+            if (horizontal ? kid.Layout.fillWidth : kid.Layout.fillHeight)
+                return true;
+        }
+
+        return false;
+    }
+
+    function ensureFiller(layout, horizontal) {
+        const extra = layout.pulsarMeta.extra;
+
+        if (!extra.filler) {
+            extra.filler = make("import QtQuick; Item {}", layout);
+            extra.filler.Layout.preferredWidth = 0;
+            extra.filler.Layout.preferredHeight = 0;
+            extra.filler.Layout.fillWidth = horizontal;
+            extra.filler.Layout.fillHeight = !horizontal;
+        }
+
+        extra.filler.visible = true;
+
+        if (PulsarBridge.env("PULSAR_DEBUG") && layout.pulsarMeta.node)
+            console.log("PulsarView packed " + layout.pulsarMeta.node.path);
+
+        if (layout.children[layout.children.length - 1] === extra.filler)
+            return;
+
+        extra.filler.parent = null;
+        extra.filler.parent = layout;
+    }
+
+    function refreshPacking(layout, horizontal) {
+        const extra = layout.pulsarMeta.extra;
+
+        if (extra.packing)
+            return;
+
+        extra.packing = true;
+
+        const shown = extra.filler && extra.filler.visible;
+        const size = horizontal ? layout.width : layout.height;
+        const implicit = horizontal ? layout.implicitWidth : layout.implicitHeight;
+        const content = implicit - (shown ? layout.spacing : 0);
+        const spare = size - content > layout.spacing + 0.5;
+
+        if (spare && !hasFillingChild(layout, horizontal))
+            ensureFiller(layout, horizontal);
+        else if (extra.filler)
+            extra.filler.visible = false;
+
+        extra.packing = false;
+    }
+
+    function packMainAxis(layout, horizontal) {
+        const extra = layout.pulsarMeta.extra;
+
+        refreshPacking(layout, horizontal);
+
+        if (extra.packWatched)
+            return;
+
+        extra.packWatched = true;
+
+        const refresh = function () {
+            refreshPacking(layout, horizontal);
+        };
+
+        if (horizontal) {
+            layout.widthChanged.connect(refresh);
+            layout.implicitWidthChanged.connect(refresh);
+            return;
+        }
+
+        layout.heightChanged.connect(refresh);
+        layout.implicitHeightChanged.connect(refresh);
+    }
+
     function applyLayoutLimits(item, props) {
         const extra = item.pulsarMeta.extra;
         const motion = extra.motion;
@@ -4429,8 +4513,10 @@ ApplicationWindow {
         const kids = layout.children;
         const active = [];
 
+        const filler = layout.pulsarMeta.extra.filler;
+
         for (let i = 0; i < kids.length; i++) {
-            if (kids[i].visible !== false)
+            if (kids[i].visible !== false && kids[i] !== filler)
                 active.push(i);
         }
 
@@ -4439,6 +4525,9 @@ ApplicationWindow {
 
         for (let i = 0; i < kids.length; i++) {
             const kid = kids[i];
+
+            if (kid === filler)
+                continue;
 
             if (horizontal) {
                 kid.Layout.topMargin = padding.top;
@@ -5571,6 +5660,7 @@ ApplicationWindow {
             applyPadding(item, paddingEdges(props, 0), node.type === "row");
             applyCrossAlign(item, props.alignItems, node.type === "row");
             applyFlex(item, node.type === "row", paddingEdges(props, 0));
+            packMainAxis(item, node.type === "row");
         } else if (node.type === "wrap") {
             const gap = prop(props, "gap", view.themeSpacing);
             const padding = prop(props, "padding", 0);
@@ -5653,6 +5743,7 @@ ApplicationWindow {
             });
             reconcile(inner, node.children || [], false);
             applyFlex(inner, false, ({ top: 0, right: 0, bottom: 0, left: 0 }));
+            packMainAxis(inner, false);
         } else if (node.type === "scroll" || node.type === "list") {
             item.maximumFlickVelocity = (prop(props, "flick", true) === false)
                     ? 0
@@ -5807,6 +5898,7 @@ ApplicationWindow {
             inner.spacing = view.themeSpacing;
             reconcile(inner, node.children || [], false);
             applyFlex(inner, false, ({ top: 0, right: 0, bottom: 0, left: 0 }));
+            packMainAxis(inner, false);
         } else if (node.type === "appBar") {
             const barText = prop(props, "textColor", undefined);
 
