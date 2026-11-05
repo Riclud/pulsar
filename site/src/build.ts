@@ -784,6 +784,7 @@ const pager = (current: Page, order: Page[]): string => {
 
 const shell = (current: Page, bodyClass: string, main: string, nav: string, tocHTML: string): string => {
   const t = ui[current.lang]
+  const local = (path: string) => sitePath(`${current.lang === "en" ? "" : "ru/"}${path}`)
   const title = current.isHome ? current.title : `${current.title} — Pulsar`
   const canonical = DOMAIN ? `https://${DOMAIN}${current.path}` : ""
   const altLang = current.lang === "en" ? "ru" : "en"
@@ -814,11 +815,11 @@ const shell = (current: Page, bodyClass: string, main: string, nav: string, tocH
   <a class="skip-link" href="#content">${escapeHTML(t.skip)}</a>
   <header class="topbar">
     <button class="icon-button nav-toggle" id="nav-toggle" aria-controls="sidebar" aria-expanded="false" aria-label="${escapeHTML(t.menu)}">${icon.menu}</button>
-    <a class="brand" href="${sitePath("")}"><span class="brand-mark">${icon.brand}</span><span>pulsar</span></a>
+    <a class="brand" href="${local("")}"><span class="brand-mark">${icon.brand}</span><span>pulsar</span></a>
     <nav class="topnav" aria-label="${escapeHTML(t.docs)}">
-      <a href="${sitePath("")}">${escapeHTML(t.docs)}</a>
-      <a href="${sitePath("guide/")}">${escapeHTML(t.guide)}</a>
-      <a href="${sitePath("changelog/")}">${escapeHTML(t.changelog)}</a>
+      <a href="${local("quick-start/")}">${escapeHTML(t.docs)}</a>
+      <a href="${local("guide/")}">${escapeHTML(t.guide)}</a>
+      <a href="${local("changelog/")}">${escapeHTML(t.changelog)}</a>
     </nav>
     <div class="top-actions">
       <button class="search-button" id="search-open" aria-label="${escapeHTML(t.search)}">
