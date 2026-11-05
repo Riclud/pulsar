@@ -4597,6 +4597,8 @@ ApplicationWindow {
     }
 
     function bindFlexSize(kid, layout, kids, total, flex, horizontal, edges) {
+        kid.pulsarMeta.extra.flexHorizontal = horizontal;
+
         const size = Qt.binding(function () {
             let used = (horizontal ? edges.left + edges.right : edges.top + edges.bottom);
             let shown = 0;
@@ -4788,7 +4790,8 @@ ApplicationWindow {
             item.Layout.minimumHeight = props.minHeight;
 
         extra.maxHeight = props.maxHeight !== undefined ? props.maxHeight : Number.POSITIVE_INFINITY;
-        item.Layout.maximumHeight = Math.min(extra.maxHeight, motion ? motion.heightLimit : Number.POSITIVE_INFINITY);
+        if (!extra.flexed || extra.flexHorizontal !== false)
+            item.Layout.maximumHeight = Math.min(extra.maxHeight, motion ? motion.heightLimit : Number.POSITIVE_INFINITY);
 
         if (props.zIndex !== undefined)
             item.z = props.zIndex;
@@ -5954,8 +5957,12 @@ ApplicationWindow {
             delete item.pulsarMeta.extra.animateFrom;
         }
 
-        item.Layout.fillWidth = fillWidth;
-        item.Layout.fillHeight = fillHeight;
+        const flexed = item.pulsarMeta.extra.flexed === true && props.flex > 0;
+        const flexedAcross = flexed && item.pulsarMeta.extra.flexHorizontal === true;
+        const flexedDown = flexed && item.pulsarMeta.extra.flexHorizontal === false;
+
+        item.Layout.fillWidth = fillWidth || flexedAcross;
+        item.Layout.fillHeight = fillHeight || flexedDown;
 
         if ((node.type === "column" || node.type === "row") && fillWidth && props.maxWidth === undefined)
             item.Layout.maximumWidth = Number.POSITIVE_INFINITY;

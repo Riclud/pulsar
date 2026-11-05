@@ -148,6 +148,15 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "flex-patch",
+    check: (output) => {
+      const lines = output.split("\n")
+      const last = (name: string) => lines.filter((line) => line.includes(`SIZE ${name} `)).at(-1) ?? ""
+
+      return last("across").includes("SIZE across 200 20") && last("down").includes("SIZE down 20 50")
+    },
+  },
+  {
     name: "packing",
     check: (output) => {
       return (
