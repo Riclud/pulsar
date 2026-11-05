@@ -42,6 +42,10 @@ app.window("main").render(() => {
           Box({ key: "around", width: 40, height: 10, onLayout: report("around") }),
           Box({ key: "second", width: 40, height: 10 }),
         ),
+        Row(
+          { key: "elevated-parent", padding: 16, onLayout: report("elevated") },
+          Box({ key: "elevated-child", width: 40, height: 40, elevation: 3 }),
+        ),
         Row({ key: "padding" }, Box({ key: "padded", paddingX: 24, width: undefined, onLayout: report("padded") })),
       ),
     ),

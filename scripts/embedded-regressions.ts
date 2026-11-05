@@ -131,7 +131,8 @@ const scenarios: Scenario[] = [
         output.includes("SIZE after 360") &&
         output.includes("SIZE wide 400") &&
         output.includes("SIZE padded 48") &&
-        output.includes("SIZE around 40")
+        output.includes("SIZE around 40") &&
+        output.includes("SIZE elevated 72")
       )
     },
   },

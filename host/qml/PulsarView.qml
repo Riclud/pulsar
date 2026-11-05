@@ -4689,7 +4689,14 @@ ApplicationWindow {
         if (PulsarBridge.env("PULSAR_DEBUG") && layout.pulsarMeta.node)
             console.log("PulsarView packed " + layout.pulsarMeta.node.path);
 
-        if (layout.children[layout.children.length - 1] === extra.filler)
+        let last = null;
+
+        for (let i = 0; i < layout.children.length; i++) {
+            if (layout.children[i].pulsarMeta || layout.children[i] === extra.filler)
+                last = layout.children[i];
+        }
+
+        if (last === extra.filler)
             return;
 
         extra.filler.parent = null;
@@ -4773,7 +4780,7 @@ ApplicationWindow {
         const filler = layout.pulsarMeta.extra.filler;
 
         for (let i = 0; i < kids.length; i++) {
-            if (kids[i].visible !== false && kids[i] !== filler)
+            if (kids[i].visible !== false && kids[i] !== filler && kids[i].pulsarMeta)
                 active.push(i);
         }
 
@@ -4783,7 +4790,7 @@ ApplicationWindow {
         for (let i = 0; i < kids.length; i++) {
             const kid = kids[i];
 
-            if (kid === filler)
+            if (kid === filler || !kid.pulsarMeta)
                 continue;
 
             if (horizontal) {
