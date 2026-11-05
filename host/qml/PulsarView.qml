@@ -355,7 +355,6 @@ ApplicationWindow {
     Item {
         id: host
         anchors.fill: parent
-        anchors.margins: view.themeSpacing
         property var pulsarMeta: null
     }
 
