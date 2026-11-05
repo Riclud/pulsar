@@ -15,6 +15,8 @@
 
 ## Быстрый старт
 
+Сначала нужен [Bun](https://bun.sh), затем:
+
 ```sh
 curl -fsSL https://get.pulsarjs.org | sh
 pulsar install

@@ -15,6 +15,8 @@ small Pulsar app too: [`examples/tasks/demo`](examples/tasks/demo).</sub>
 
 ## Quick start
 
+You need [Bun](https://bun.sh) first, then:
+
 ```sh
 curl -fsSL https://get.pulsarjs.org | sh
 pulsar install
