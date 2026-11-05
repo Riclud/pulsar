@@ -8,6 +8,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Breaking
 
+- `fillWidth` and `fillHeight` now always fill a `Row` or `Column`. They used to stop
+  at the size of the children. A `Row` that relied on `align: "center"` to center its
+  narrow self should use `justify: "center"`; use `alignItems` to center children.
 - A window no longer re-renders on every store change. Values read during a render
   must come from a signal, `createState` or the store; `app.invalidateUi()` covers
   anything else.
@@ -24,7 +27,10 @@ All notable changes to this project are documented here. The format follows
   padding, `minWidth`, `minHeight`, `maxHeight`, `clip`, `zIndex`, and `absolute`
   inside a `Stack`.
 - `Row`, `Column`, `Wrap` and `Stack` accept the surface props of `Box`.
-- Motion props: `pressed`, `enter`, `exit`, `transition` and `drag`.
+- Motion props: `enter`, `exit`, `transition` and `drag`.
+- State styles: `hover`, `pressed` and `disabled` set `color`, `borderColor`,
+  `opacity` and `scale`, and animate over `transition.duration`. `enabled` works on
+  any node.
 - `secureStorage` on Android, using the Keystore. `screen.list` and `theme.current`
   also work on Android.
 - `storage.setMany`, `net.fetch` options `bodyFile` and `maxBytes`, and

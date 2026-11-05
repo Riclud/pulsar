@@ -91,8 +91,7 @@ Row(
 )
 ```
 
-A `Row` or `Column` is as wide as its content. `fillWidth` takes effect together
-with `alignItems`, `justify` or a child with `flex`. See
+A `Row` or `Column` is as wide as its content unless it has `fillWidth`. See
 [Coming from the web](../guide/web/).
 
 ### Motion props
@@ -101,7 +100,10 @@ Motion runs in the renderer, so it stays smooth even while JavaScript is busy.
 
 | Prop         | Meaning                                                                         |
 | ------------ | ------------------------------------------------------------------------------- |
-| `pressed`    | `{ scale }` while the node is held down.                                        |
+| `hover`      | `{ color, borderColor, opacity, scale }` while the pointer is over the node.    |
+| `pressed`    | The same, while the node is held down.                                          |
+| `disabled`   | The same, while `enabled` is false.                                             |
+| `enabled`    | `false` ignores input on the node and everything inside it.                     |
 | `enter`      | `{ opacity, x, y, scale }` to animate from when it appears or becomes visible.  |
 | `exit`       | The same, to animate to before it is removed or hidden.                         |
 | `transition` | `{ duration, curve }`; `curve` is `spring`, `ease` or `linear`.                 |
@@ -125,6 +127,10 @@ Card(
   Text({ text: task.text }),
 )
 ```
+
+`color` and `borderColor` apply to `Box`, `Card` and layouts with a surface, while
+`opacity` and `scale` work on any node. States animate over `transition.duration`,
+120 ms by default. `hoverColor` is short for `hover: { color }`.
 
 `enter` does not run on the first render or for a node created with a new parent.
 `onRelease` fires only past `threshold`, 96 pixels by default.

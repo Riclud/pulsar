@@ -192,12 +192,11 @@ Box({ ...panel, color: "#333" }, Text({ text: "Two" }))
 This is the one surprise for web developers. A `div` fills its parent, but a
 `Row` or `Column` is **as wide as its content**, unless you say otherwise:
 
-- `fillWidth: true` asks the parent for the available width;
-- `alignItems`, `justify` or a child with `flex` make that width take effect;
+- `fillWidth: true` takes the available width;
 - `Card`, `Scroll` and `Input` already fill the width by default.
 
-If a `justify` or a centered child seems to do nothing, its parent is probably
-narrower than you think.
+If a `justify` or a centered child seems to do nothing, the `Row` or its parent is
+probably narrower than you think, so add `fillWidth`.
 
 ## Build a screen, step by step
 
@@ -360,8 +359,9 @@ There are no hook rules and no dependency arrays: whatever a render reads throug
 
 | You want                 | Use                                                 |
 | ------------------------ | --------------------------------------------------- |
-| `:hover` color           | `hoverColor` on `Box`, `Card` and layouts           |
-| `:active` scale          | `pressed: { scale: 0.98 }`                          |
+| `:hover`                 | `hover: { color: "#333" }`                          |
+| `:active`                | `pressed: { color: "#111", scale: 0.98 }`           |
+| `:disabled`              | `enabled: false`, `disabled: { opacity: 0.5 }`      |
 | `transition`, keyframes  | `enter`, `exit`, `transition`                       |
 | Swipe or drag            | `drag: { axis: "x", onRelease }`                    |
 | A long list              | `VirtualList`                                       |
@@ -371,8 +371,8 @@ There are no hook rules and no dependency arrays: whatever a render reads throug
 | Custom drawing           | `Qml({ source })` with a QML component              |
 
 Not every CSS feature has an equivalent. There is no selector cascade, no
-percentage size, no `transform` prop and no `canvas` node yet. Animated colors
-and states such as `:focus` on your own containers are not available either.
+percentage size, no `transform` prop and no `canvas` node yet. Your own containers
+have no `:focus` state either.
 
 ## Next
 
