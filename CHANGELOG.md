@@ -61,6 +61,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Creating nodes is much faster on a phone: QML snippets are compiled once instead of
+  on every node.
 - UI events carry the window label and node path; handlers are rebuilt per
   window instead of being dropped before each tree is applied.
 - Keyed children are reconciled in place: insertions, removals and reordering
