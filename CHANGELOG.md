@@ -33,6 +33,8 @@ All notable changes to this project are documented here. The format follows
 
 - `focusBorderColor` on `Input` and `TextArea`.
 
+- `Canvas` draws custom graphics. `draw` runs in the renderer, so an animation costs no
+  bridge traffic, and it takes data through `params`.
 - `KeepAlive` builds a screen on first use and keeps it while hidden, with paused
   rendering, so it reopens at once with its scroll and input intact. `preload` builds it
   ahead of time.

@@ -1136,6 +1136,8 @@ padding })` caps and centers content on large windows.
   max sizes, `clip`, `zIndex` and `absolute` lay out any node; `Row`, `Column`,
   `Wrap` and `Stack` accept the surface props of `Box`. See the
   [guide for web developers](docs/guide-web.md).
+- `Canvas({ draw, params, animated })` draws custom graphics in the renderer. See the
+  [UI guide](docs/guide-ui.md).
 - `hover`, `pressed` and `disabled` restyle a node, and `enter`, `exit`, `transition`
   and `drag` animate in the renderer.
 - `KeepAlive({ active }, () => Screen({}))` builds a screen on first use and keeps it

@@ -386,10 +386,10 @@ There are no hook rules and no dependency arrays: whatever a render reads throug
 | `localStorage`           | `storage`                                           |
 | Storing a token          | `secureStorage`                                     |
 | CSS variables and themes | `defineTheme`, and theme colors such as `"surface"` |
-| Custom drawing           | `Qml({ source })` with a QML component              |
+| Custom drawing           | `Canvas`, or `Qml({ source })` for raw QML |
 
 Not every CSS feature has an equivalent. There is no selector cascade, no
-percentage size, no `transform` prop and no `canvas` node yet. Your own containers
+percentage size and no `transform` prop. Your own containers
 have no `:focus` state either.
 
 ## Next

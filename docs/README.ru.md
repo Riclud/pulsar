@@ -1135,6 +1135,8 @@ intensity: 1.2 } })` или `Text({ neon: true })`. Компонент обор�
   минимальные и максимальные размеры, `clip`, `zIndex` и `absolute` работают для
   любого узла; `Row`, `Column`, `Wrap` и `Stack` принимают свойства оформления `Box`.
   См. [руководство для веб-разработчиков](guide-web.ru.md).
+- `Canvas({ draw, params, animated })` рисует произвольную графику в рендерере. См.
+  [руководство по UI](guide-ui.ru.md).
 - `hover`, `pressed` и `disabled` меняют вид узла, а `enter`, `exit`, `transition` и
   `drag` анимируются в рендерере.
 - `KeepAlive({ active }, () => Screen({}))` строит экран при первом показе и сохраняет

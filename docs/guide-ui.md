@@ -216,6 +216,100 @@ Scroll(
 )
 ```
 
+### Canvas
+
+`Canvas` draws anything a `Column` cannot: a wave in a player, lightning, a chart. The
+`ctx` works like the browser's 2D context.
+
+```ts
+const Wave = () =>
+  Canvas({
+    height: 40,
+    fillWidth: true,
+    animated: true,
+    params: { amplitude: 4, frequency: 6 },
+    draw: (ctx, { width, height, time, params, colors }) => {
+      ctx.strokeStyle = colors.primary
+      ctx.lineWidth = 4
+      ctx.lineCap = "round"
+      ctx.beginPath()
+
+      for (let x = 2; x <= width - 2; x += 1) {
+        const phase = (params.frequency * 2 * Math.PI * x) / width - time * 2.5
+
+        ctx.lineTo(x, height / 2 + params.amplitude * Math.sin(phase))
+      }
+
+      ctx.stroke()
+    },
+  })
+```
+
+In JSX it is the same:
+
+```tsx
+<Canvas height={40} fillWidth animated draw={(ctx, { width }) => ctx.fillRect(0, 0, width, 4)} />
+```
+
+`draw` runs in the renderer, not in your JavaScript, so a frame never crosses the bridge.
+A wave drawn this way cost a third of the CPU of the same wave computed in JavaScript and
+sent each frame. That has one rule:
+
+- **`draw` cannot read outer variables.** Pass data through `params`; when `params`
+  changes, it redraws. Reading an outer name logs a clear error. Write it as an arrow
+  function.
+
+`draw` receives `width`, `height`, `time` in seconds, `params` and the theme's `colors`.
+Without `animated` it redraws only when `params` changes. An animated canvas stops while
+hidden.
+
+**Keep it cheap.** The drawing runs on the CPU:
+
+- Avoid `shadowBlur`. In one test it tripled the cost of a shape. Layered translucent
+  strokes look like a glow for far less:
+
+```ts
+const Lightning = () =>
+  Canvas({
+    height: 80,
+    fillWidth: true,
+    animated: true,
+    fps: 20,
+    params: { color: "#8b9dff", progress: 0.7 },
+    draw: (ctx, { width, height, time, params }) => {
+      const seed = Math.floor(time * 14)
+      const noise = (n: number) => {
+        const value = Math.sin(n * 12.9898 + seed * 78.233) * 43758.5453
+
+        return value - Math.floor(value)
+      }
+      const end = width * params.progress
+      const strike = (color: string, lineWidth: number, alpha: number) => {
+        ctx.strokeStyle = color
+        ctx.lineWidth = lineWidth
+        ctx.globalAlpha = alpha
+        ctx.beginPath()
+        ctx.moveTo(0, height / 2)
+
+        for (let x = 12, i = 0; x < end; x += 12, i++) {
+          ctx.lineTo(x, height / 2 + (noise(i) - 0.5) * height * 0.7)
+        }
+
+        ctx.lineTo(end, height / 2)
+        ctx.stroke()
+      }
+
+      ctx.lineJoin = "round"
+      strike(params.color, 9, 0.15)
+      strike(params.color, 4, 0.35)
+      strike("#ffffff", 1.5, 1)
+    },
+  })
+```
+
+- Set `fps` when the picture changes slowly. Animated canvases are capped at 60 by default,
+  including on 120 Hz screens, and `fps: 0` removes the cap.
+
 ### Grid
 
 `Grid` places children in columns. A fixed number is fine for dashboards;
@@ -879,6 +973,7 @@ Sheet(
 | `Card`/`Box`     | `padding`, `radius`, `elevation`, `gradient`, `border` | `onLongPress`                      |
 | `KeepAlive`      | `active`; content is a function                        | —            |
 | `Scroll`         | `fill`, `gap`, `padding`, `overscroll`, `flick`        | —                                  |
+| `Canvas`         | `draw`, `params`, `animated`, `fps`                    | —               |
 | `Text`           | `size`, `weight`, `color`, `markdown`, `elide`         | —                                  |
 | `Button`         | `variant`, `size`, `icon`, `badge`, `enabled`          | `onClick`, `onLongPress`           |
 | `IconButton`     | `icon`, `size`, `color`, `badge`                       | `onClick`                          |

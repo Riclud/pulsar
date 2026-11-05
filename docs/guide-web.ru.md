@@ -386,7 +386,7 @@ const Counter = component(() => {
 | `localStorage`           | `storage`                                      |
 | Хранение токена          | `secureStorage`                                |
 | CSS-переменные и темы    | `defineTheme` и цвета темы вроде `"surface"`   |
-| Своё рисование           | `Qml({ source })` с компонентом на QML         |
+| Своё рисование           | `Canvas` или `Qml({ source })` для QML |
 
 Не у всего из CSS есть аналог. Нет каскада селекторов, размеров в процентах,
 свойства `transform` и узла `canvas`. Также у ваших собственных контейнеров нет

@@ -224,6 +224,100 @@ Scroll(
 )
 ```
 
+### Canvas
+
+`Canvas` рисует то, что не собрать из `Column`: волну в плеере, молнию, график. `ctx`
+работает как 2D-контекст в браузере.
+
+```ts
+const Wave = () =>
+  Canvas({
+    height: 40,
+    fillWidth: true,
+    animated: true,
+    params: { amplitude: 4, frequency: 6 },
+    draw: (ctx, { width, height, time, params, colors }) => {
+      ctx.strokeStyle = colors.primary
+      ctx.lineWidth = 4
+      ctx.lineCap = "round"
+      ctx.beginPath()
+
+      for (let x = 2; x <= width - 2; x += 1) {
+        const phase = (params.frequency * 2 * Math.PI * x) / width - time * 2.5
+
+        ctx.lineTo(x, height / 2 + params.amplitude * Math.sin(phase))
+      }
+
+      ctx.stroke()
+    },
+  })
+```
+
+В JSX то же самое:
+
+```tsx
+<Canvas height={40} fillWidth animated draw={(ctx, { width }) => ctx.fillRect(0, 0, width, 4)} />
+```
+
+`draw` выполняется в рендерере, а не в вашем JavaScript, поэтому кадр не идёт через мост.
+Волна, нарисованная так, потратила втрое меньше процессора, чем та же волна, которую
+считает JavaScript и отправляет каждый кадр. Из этого следует одно правило:
+
+- **`draw` не видит внешние переменные.** Передавайте данные через `params`: при их
+  изменении рисунок обновится. При чтении внешнего имени в логе будет понятная ошибка.
+  Пишите `draw` стрелочной функцией.
+
+`draw` получает `width`, `height`, `time` в секундах, `params` и `colors` темы. Без
+`animated` рисунок обновляется только при смене `params`. Анимация останавливается, пока
+`Canvas` скрыт.
+
+**Берегите процессор.** Рисование идёт на CPU:
+
+- Избегайте `shadowBlur`. В одном тесте он утроил стоимость фигуры. Полупрозрачные слои
+  линий выглядят как свечение и стоят намного меньше:
+
+```ts
+const Lightning = () =>
+  Canvas({
+    height: 80,
+    fillWidth: true,
+    animated: true,
+    fps: 20,
+    params: { color: "#8b9dff", progress: 0.7 },
+    draw: (ctx, { width, height, time, params }) => {
+      const seed = Math.floor(time * 14)
+      const noise = (n: number) => {
+        const value = Math.sin(n * 12.9898 + seed * 78.233) * 43758.5453
+
+        return value - Math.floor(value)
+      }
+      const end = width * params.progress
+      const strike = (color: string, lineWidth: number, alpha: number) => {
+        ctx.strokeStyle = color
+        ctx.lineWidth = lineWidth
+        ctx.globalAlpha = alpha
+        ctx.beginPath()
+        ctx.moveTo(0, height / 2)
+
+        for (let x = 12, i = 0; x < end; x += 12, i++) {
+          ctx.lineTo(x, height / 2 + (noise(i) - 0.5) * height * 0.7)
+        }
+
+        ctx.lineTo(end, height / 2)
+        ctx.stroke()
+      }
+
+      ctx.lineJoin = "round"
+      strike(params.color, 9, 0.15)
+      strike(params.color, 4, 0.35)
+      strike("#ffffff", 1.5, 1)
+    },
+  })
+```
+
+- Задавайте `fps`, если картинка меняется редко. По умолчанию анимация ограничена 60 кадрами
+  даже на экранах 120 Гц, а `fps: 0` снимает ограничение.
+
 ### Grid
 
 `Grid` размещает дочерние элементы по колонкам. Фиксированное число подходит для
@@ -902,6 +996,7 @@ Sheet(
 | `Card`/`Box`     | `padding`, `radius`, `elevation`, `gradient`, `border` | `onLongPress`                      |
 | `KeepAlive`      | `active`; содержимое — функция                         | —            |
 | `Scroll`         | `fill`, `gap`, `padding`, `overscroll`, `flick`        | —                                  |
+| `Canvas`         | `draw`, `params`, `animated`, `fps`                    | —               |
 | `Text`           | `size`, `weight`, `color`, `markdown`, `elide`         | —                                  |
 | `Button`         | `variant`, `size`, `icon`, `badge`, `enabled`          | `onClick`, `onLongPress`           |
 | `IconButton`     | `icon`, `size`, `color`, `badge`                       | `onClick`                          |
