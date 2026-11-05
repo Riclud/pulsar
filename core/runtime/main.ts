@@ -130,7 +130,6 @@ if (!bundled) {
     runtime.reportError("load " + entry, e)
   }
 
-  console.error(`[pulsar] app loaded: ${appDir}`)
   wireApp()
 }
 

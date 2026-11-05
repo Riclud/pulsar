@@ -774,28 +774,8 @@ export interface WhenOptions {
 
 type UiHandler = (value: unknown) => void
 
-const BINDING: unique symbol = Symbol("pulsar.binding")
-
-interface BindingBox<T> {
-  readonly [BINDING]: () => T
-}
-
-export const bind = <T>(read: () => T): T => {
-  return { [BINDING]: read } as unknown as T
-}
-
-const isBinding = (value: unknown): value is BindingBox<unknown> => {
-  return typeof value === "object" && value !== null && BINDING in value
-}
-
 const resolveValue = <T>(value: T | (() => T)): T => {
-  if (isBinding(value)) return (value as unknown as BindingBox<T>)[BINDING]()
-
   return typeof value === "function" ? (value as () => T)() : value
-}
-
-const resolveChild = (value: UiChild | (() => UiChild)): UiChild => {
-  return typeof value === "function" ? value() : value
 }
 
 const childSlots = (children: UiChild[], prefix = "", out: string[] = []): string[] => {
@@ -845,15 +825,6 @@ const textOf = (children: UiChild[]): string => {
     if (typeof child === "string" || typeof child === "number") out += String(child)
     else if (Array.isArray(child)) out += textOf(child)
   }
-
-  return out
-}
-
-const resolveProps = (props: Record<string, unknown>): Record<string, unknown> => {
-  const out: Record<string, unknown> = {}
-
-  for (const [key, value] of Object.entries(props))
-    out[key] = isBinding(value) ? (value as BindingBox<unknown>)[BINDING]() : value
 
   return out
 }
@@ -908,16 +879,6 @@ const makeNode = <P extends object>(
   if (release) {
     eventList.push("dragRelease")
     callbackMap.dragRelease = (value) => release(value as DragRelease)
-  }
-
-  if (currentInstance) {
-    const own = rest as Record<string, unknown>
-
-    for (const key of Object.keys(own)) {
-      const value = own[key]
-
-      if (isBinding(value)) own[key] = (value as unknown as BindingBox<unknown>)[BINDING]()
-    }
   }
 
   const node: UiNode = { id, type, props: rest as Record<string, unknown> }
@@ -1679,10 +1640,6 @@ export const For = <T>(options: ForOptions<T>): UiNode => {
   return list({ ...props, items: resolveValue(each), keyOf, render })
 }
 
-export const When = (options: WhenOptions): UiChild => {
-  return resolveValue(options.test) ? resolveChild(options.then) : resolveChild(options.else ?? null)
-}
-
 export type DefinedComponent<P> = (props: P, ...children: UiChild[]) => UiNode
 
 export type ComponentSetup<P> = (props: P, ...children: UiChild[]) => UiNode | (() => UiNode)
@@ -1921,8 +1878,6 @@ export const component = <P>(setup: ComponentSetup<P>): DefinedComponent<P> => {
   }
 }
 
-export const defineComponent = component
-
 export interface KeepAliveOptions extends CommonOptions, PaddingOptions, SurfaceOptions {
   /** Show the content. It is built the first time this is true and kept after that. */
   active: boolean
@@ -2088,59 +2043,6 @@ export const updateUiRoot = (root: UiRoot): UiRootUpdate | null => {
   return update
 }
 
-const resolveMemoValue = (value: unknown): unknown => {
-  if (isBinding(value)) return (value as unknown as BindingBox<unknown>)[BINDING]()
-
-  return value
-}
-
-const memoSignature = (props: Record<string, unknown>): string | null => {
-  const parts: string[] = []
-
-  try {
-    for (const key of Object.keys(props).sort()) {
-      const value = props[key]
-
-      if (typeof value === "function") continue
-
-      parts.push(`${key}:${JSON.stringify(resolveMemoValue(value))}`)
-    }
-  } catch {
-    return null
-  }
-
-  return parts.join("|")
-}
-
-export const memo = <P extends { key?: string | number }>(
-  component: DefinedComponent<P>,
-): DefinedComponent<P> => {
-  const cache = new Map<string, { signature: string; node: UiNode }>()
-
-  return (props, ...children) => {
-    if (props.key === undefined || children.length > 0)
-      return component(props, ...children)
-
-    const signature = memoSignature(props as Record<string, unknown>)
-    const key = String(props.key)
-    const cached = cache.get(key)
-
-    if (signature !== null && cached && cached.signature === signature)
-      return cached.node
-
-    const node = component(props, ...children)
-
-    if (signature !== null) {
-      node.cacheable = true
-
-      if (cache.size > 512) cache.clear()
-      cache.set(key, { signature, node })
-    }
-
-    return node
-  }
-}
-
 export const Column = (options: LayoutOptions = {}, ...children: UiChild[]): UiNode => column(options, ...children)
 
 export const Row = (options: LayoutOptions = {}, ...children: UiChild[]): UiNode => row(options, ...children)
@@ -2160,8 +2062,6 @@ export const Card = (options: CardOptions = {}, ...children: UiChild[]): UiNode 
 export const Header = (options: AppBarOptions = {}, ...children: UiChild[]): UiNode => {
   return appBar({ ...options, actions: options.actions ?? flatten(children) })
 }
-
-export const AppBar = Header
 
 export const Text = (options: TextOptions = {}, ...children: UiChild[]): UiNode => {
   return text({ ...options, text: options.text ?? textOf(children) })
@@ -2184,8 +2084,6 @@ export const Chip = (options: ChipOptions & { label?: string } = {}, ...children
 }
 
 export const Input = (options: TextInputOptions = {}): UiNode => textInput(options)
-
-export const TextField = Input
 
 export const TextArea = (options: Omit<TextInputOptions, "multiline"> = {}): UiNode => textArea(options)
 
@@ -2293,7 +2191,7 @@ const nodeSegment = (node: UiNode, index: number, keys?: Array<string | number>,
 const serializeNode = (node: UiNode, path: string): Record<string, unknown> => {
   if (node.cacheable && node.serialized?.path === path) return node.serialized.out
 
-  const out: Record<string, unknown> = { id: node.id, type: node.type, props: resolveProps(node.props), path }
+  const out: Record<string, unknown> = { id: node.id, type: node.type, props: node.props, path }
 
   if (node.children) {
     const childKeys = node.type === "list" ? (node.props.itemKeys as Array<string | number> | undefined) : undefined

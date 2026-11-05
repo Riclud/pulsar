@@ -1,11 +1,10 @@
 import {
   App,
-  bind,
-  defineComponent,
   Button,
   Card,
   Checkbox,
   Column,
+  component,
   For,
   Header,
   IconButton,
@@ -14,7 +13,6 @@ import {
   Row,
   Spacer,
   Text,
-  When,
 } from "../../../core/sdk/index.ts"
 
 interface Task {
@@ -49,7 +47,7 @@ const remove = (id: string): void => {
   )
 }
 
-const TaskRow = defineComponent<{ task: Task }>(({ task }) =>
+const TaskRow = component<{ task: Task }>(({ task }) =>
   Card(
     { padding: 12 },
     Row(
@@ -80,7 +78,7 @@ app.window("main").render(() => {
     { fill: true },
     Header({
       title: "Tasks",
-      subtitle: bind(() => `${left} left`),
+      subtitle: `${left} left`,
       actions: [
         IconButton({
           icon: "add",
@@ -91,21 +89,18 @@ app.window("main").render(() => {
         }),
       ],
     }),
-    When({
-      test: items.length === 0,
-      then: () => Text({ size: 16 }, "Nothing here yet"),
-      else: () =>
-        For({
-          each: items,
-          keyOf: (task) => task.id,
-          spacing: 8,
-          padding: 12,
-          render: (task) => TaskRow({ task }),
-        }),
-    }),
+    items.length === 0
+      ? Text({ size: 16 }, "Nothing here yet")
+      : For({
+        each: items,
+        keyOf: (task) => task.id,
+        spacing: 8,
+        padding: 12,
+        render: (task) => TaskRow({ task }),
+      }),
     Modal(
       {
-        open: bind(() => app.store.get("open") === true),
+        open: app.store.get("open") === true,
         title: "Edit task",
         fullscreen: true,
         onClose: () => app.store.set("open", false),

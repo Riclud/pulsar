@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import {
   Button,
+  component,
   Card,
   Checkbox,
   Column,
@@ -12,14 +13,11 @@ import {
   Stack,
   Text,
   Wrap,
-  TextField,
-  When,
   appBar,
   accordion,
   accordionSection,
   avatar,
   badge,
-  bind,
   box,
   button,
   card,
@@ -27,7 +25,6 @@ import {
   chip,
   collectUiHandlers,
   column,
-  defineComponent,
   diffUiTrees,
   dispatchUiEvent,
   dispatchWindowEvent,
@@ -39,7 +36,6 @@ import {
   iconButton,
   image,
   list,
-  memo,
   container,
   menu,
   navBar,
@@ -238,50 +234,6 @@ describe("ui", () => {
     expect(tree?.props.enter).toEqual({ opacity: 0, y: 12 })
     expect(tree?.events).toEqual(["dragRelease"])
     expect(releases).toEqual([{ direction: "left", distance: 50 }])
-  })
-
-  test("memo reuses a node for unchanged keyed props", () => {
-    let renders = 0
-    const Row = memo(
-      defineComponent<{ key: string; text: string }>(({ text: value }) => {
-        renders++
-
-        return text(value)
-      }),
-    )
-
-    const first = Row({ key: "a", text: "one" })
-    const second = Row({ key: "a", text: "one" })
-
-    expect(second).toBe(first)
-    expect(renders).toBe(1)
-
-    const third = Row({ key: "a", text: "two" })
-
-    expect(third).not.toBe(first)
-    expect(renders).toBe(2)
-  })
-
-  test("memoized nodes keep callbacks after forgetHandlers", () => {
-    let clicks = 0
-    const Go = memo(
-      defineComponent<{ key: string; label: string; onClick: () => void }>(({ label, onClick }) => {
-        return button(label, { onClick })
-      }),
-    )
-
-    const first = Go({ key: "go", label: "Go", onClick: () => clicks++ })
-    const second = Go({ key: "go", label: "Go", onClick: () => clicks++ })
-
-    expect(second).toBe(first)
-
-    forgetHandlers([first.id])
-
-    const { routes } = collectUiHandlers([second], "", undefined)
-
-    setWindowHandlers("memo", routes)
-    dispatchWindowEvent("memo", "/0", "click", undefined)
-    expect(clicks).toBe(1)
   })
 
   test("checkbox toggle forwards the value", () => {
@@ -602,21 +554,10 @@ describe("qml-like components", () => {
     expect(tree.children?.map((child) => child.type)).toEqual(["text", "text"])
   })
 
-  test("resolves bindings when the tree is serialized", () => {
-    let count = 0
-    const tree = Header({ title: bind(() => `Count ${count}`) })
-
-    count = 3
-
-    const out = serialize([tree]) as Array<{ props: Record<string, unknown> }>
-
-    expect(out[0]!.props.title).toBe("Count 3")
-  })
-
-  test("For builds a keyed list from a binding", () => {
+  test("For builds a keyed list", () => {
     const tasks = [{ id: "a" }, { id: "b" }]
     const node = For({
-      each: bind(() => tasks),
+      each: tasks,
       keyOf: (task) => task.id,
       render: (task) => Text({}, task.id),
     })
@@ -626,14 +567,6 @@ describe("qml-like components", () => {
     expect(node.props.itemKeys).toEqual(["a", "b"])
   })
 
-  test("When returns a branch or null", () => {
-    const shown = When({ test: true, then: () => Text({}, "yes"), else: () => Text({}, "no") })
-    const hidden = When({ test: false, then: () => Text({}, "yes") })
-
-    expect((shown as { props: Record<string, unknown> }).props.text).toBe("yes")
-    expect(hidden).toBeNull()
-  })
-
   test("web-named components map to the right nodes", () => {
     const row = Card({ padding: 12 }, Button({}, "Save"), Input({ placeholder: "Name" }), Checkbox({ label: "Done" }))
 
@@ -641,11 +574,10 @@ describe("qml-like components", () => {
     expect(row.children?.map((child) => child.type)).toEqual(["button", "textInput", "checkbox"])
     expect(Header({ title: "Tasks" }).type).toBe("appBar")
     expect(Modal({ title: "Edit" }).type).toBe("sheet")
-    expect(TextField({ placeholder: "x" }).type).toBe("textInput")
   })
 
-  test("defineComponent passes props and children", () => {
-    const Row = defineComponent<{ label: string }>(({ label }, ...children) => Column({}, Text({}, label), ...children))
+  test("component passes props and children", () => {
+    const Row = component<{ label: string }>(({ label }, ...children) => Column({}, Text({}, label), ...children))
     const node = Row({ label: "Title" }, Text({}, "Body"))
 
     expect(node.children?.length).toBe(2)

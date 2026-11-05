@@ -1,6 +1,5 @@
 import {
   App,
-  bind,
   Button,
   Card,
   Checkbox,
@@ -94,7 +93,7 @@ app.window("main").render(() => {
     { fill: true },
     Header({
       title: "My tasks",
-      subtitle: bind(() => `${left} left`),
+      subtitle: `${left} left`,
       actions: [IconButton({ icon: "add", onClick: () => app.store.set("composing", true) })],
     }),
     Text({ visible: items.length === 0, size: 16 }, "Nothing here yet"),
@@ -107,7 +106,7 @@ app.window("main").render(() => {
     }),
     Modal(
       {
-        open: bind(() => app.store.get("composing") === true),
+        open: app.store.get("composing") === true,
         title: "New task",
         fullscreen: true,
         onClose: () => app.store.set("composing", false),

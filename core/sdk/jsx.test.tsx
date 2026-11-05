@@ -1,7 +1,7 @@
 import { describe, expect, spyOn, test } from "bun:test"
 import { App } from "./app.ts"
 import { signal } from "./reactive.ts"
-import { Box, Button, KeepAlive, Column, For, Radio, Row, Text, When, component, serialize, type UiPatch } from "./ui.ts"
+import { Box, Button, KeepAlive, Column, For, Radio, Row, Text, component, serialize, type UiPatch } from "./ui.ts"
 import { Fragment, jsx } from "./jsx-runtime.ts"
 
 const tick = async () => {
@@ -58,7 +58,7 @@ describe("jsx", () => {
         <>
           <Text>In a fragment</Text>
         </>
-        <When test={true} then={() => <Text>Shown</Text>} />
+        {items.length > 0 ? <Text>Shown</Text> : null}
         <For each={items} keyOf={(item) => item} render={(item) => <Text>{item}</Text>} />
         <Radio label="Option" />
       </Column>,
