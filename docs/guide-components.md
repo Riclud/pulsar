@@ -231,9 +231,9 @@ A render reruns as a whole, so split a screen by what changes together:
 
 ```ts
 const Header = component(() => Text({ text: `Left: ${open.get().length}` }))
-const List = component(() => Column({}, ...rows()))
+const Tasks = component(() => Column({}, ...rows()))
 
-app.window().render(() => Column({}, Header({}), List({})))
+app.window().render(() => Column({}, Header({}), Tasks({})))
 ```
 
 Now a change to one list item does not touch the header, and typing in a search

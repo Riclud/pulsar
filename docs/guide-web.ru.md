@@ -120,7 +120,7 @@ Text({ text: longText, maxLines: 2, elide: "right", fillWidth: true })
 | `<select>`              | `Select`, `Segmented`           |
 | `<input type=range>`    | `Slider`                        |
 | `<img>`                 | `Image`, `Avatar`               |
-| `<dialog>`              | `Modal`, `Sheet`, `BottomSheet` |
+| `<dialog>`              | `Sheet`                         |
 
 События называются как в вебе: `onClick`, `onInput`, `onChange`. Они получают само
 значение, а не объект события.

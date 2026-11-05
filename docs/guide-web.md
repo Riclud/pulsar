@@ -120,7 +120,7 @@ focus and pressed states, and they follow the theme.
 | `<select>`              | `Select`, `Segmented`           |
 | `<input type=range>`    | `Slider`                        |
 | `<img>`                 | `Image`, `Avatar`               |
-| `<dialog>`              | `Modal`, `Sheet`, `BottomSheet` |
+| `<dialog>`              | `Sheet`                         |
 
 Events use web names: `onClick`, `onInput`, `onChange`. They receive the value
 itself, not an event object.

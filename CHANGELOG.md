@@ -11,6 +11,9 @@ All notable changes to this project are documented here. The format follows
 - `bind`, `When`, `memo`, `defineComponent`, `AppBar` and `TextField` are gone. Read
   values directly while rendering, use a ternary, and use `component`, `Header` and
   `Input`.
+- `List`, `Modal`, `BottomSheet` and the `ui` object with its lower-case factories are
+  gone. Use `For`, `Sheet`, `Sheet({ placement: "bottom" })` and the capitalized
+  components.
 - `fillWidth` and `fillHeight` now always fill a `Row` or `Column`. They used to stop
   at the size of the children. A `Row` that relied on `align: "center"` to center its
   narrow self should use `justify: "center"`; use `alignItems` to center children.

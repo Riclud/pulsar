@@ -235,9 +235,9 @@ Stack(
 
 ```ts
 const Header = component(() => Text({ text: `Осталось: ${open.get().length}` }))
-const List = component(() => Column({}, ...rows()))
+const Tasks = component(() => Column({}, ...rows()))
 
-app.window().render(() => Column({}, Header({}), List({})))
+app.window().render(() => Column({}, Header({}), Tasks({})))
 ```
 
 Теперь изменение одной строки не трогает шапку, а ввод в поиске перезапускает

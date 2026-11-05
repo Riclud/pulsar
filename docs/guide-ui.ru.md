@@ -560,10 +560,10 @@ NavigationRail({
 
 ## Оверлеи
 
-### Modal и Sheet
+### Sheet
 
 ```ts
-Modal(
+Sheet(
   {
     open: app.store.get("editing") === true,
     title: "New task",
@@ -576,18 +576,18 @@ Modal(
 )
 ```
 
-`Modal` — оверлей внутри дерева. Он появляется через изменение opacity, держит
+`Sheet` — оверлей внутри дерева. Он появляется через изменение opacity, держит
 нажатия внутри панели и не закрывается от жеста, которым был открыт.
 `dismissible: false` оставляет его открытым при нажатии на подложку.
 
-### BottomSheet
+### Размещение снизу
 
-`BottomSheet` — это `Sheet` с `placement: "bottom"`. Это удобная для телефона
-альтернатива центрированному диалогу:
+`placement: "bottom"` — удобная для телефона альтернатива диалогу по центру:
 
 ```ts
-BottomSheet(
+Sheet(
   {
+    placement: "bottom",
     open: app.store.get("actions") === true,
     title: "Task actions",
     handle: true,
@@ -679,7 +679,7 @@ EmptyState({
 
 ## Списки
 
-### For и List
+### For
 
 `For` строит прокручиваемый список из массива:
 
@@ -696,7 +696,6 @@ For({
 - `keyOf` обязателен для стабильных строк при вставке, удалении или перемещении
   элементов.
 - `render` получает элемент и его индекс.
-- `List` — низкоуровневая форма с теми же опциями.
 
 Для десятков тысяч строк используйте `VirtualList`; не рендерите их все.
 
@@ -726,7 +725,7 @@ VirtualList({
 
 Виртуальные списки используют фиксированную форму элемента (`title`, `subtitle`,
 `icon`, `trailing`, `section`). Если строке нужны произвольные компоненты,
-используйте `For`/`List`.
+используйте `For`.
 
 ### Grid
 
@@ -870,7 +869,7 @@ const searchBody = () => {
 ### Подтверждение разрушительного действия
 
 ```ts
-Modal(
+Sheet(
   {
     open: app.store.get("confirmDelete") === true,
     title: "Delete task?",
@@ -889,8 +888,8 @@ Modal(
 
 ### Какой оверлей использовать?
 
-- **Modal** — блокирующее решение или короткая форма на desktop.
-- **BottomSheet** — то же самое на телефоне, с ручкой перетаскивания.
+- **Sheet** — блокирующее решение или короткая форма. На телефоне используйте
+  `placement: "bottom"` с ручкой перетаскивания.
 - **Popover** — небольшая плавающая панель, привязанная к точке.
 - **Menu** — список действий; поддерживает сочетания клавиш и опасные элементы.
 - **Snackbar** — временное подтверждение, но никогда не обязательное решение.
@@ -919,7 +918,7 @@ Modal(
 | `Pager`          | `index`, `interactive`                                 | `onPageChange`                     |
 | `NavBar`         | `items`, `value`, `activeColor`, `showLabels`          | `onChange`                         |
 | `NavigationRail` | `items`, `index`, `expanded`, `padding`                | `onChange`                         |
-| `Modal`/`Sheet`  | `open`, `title`, `dismissible`, `duration`             | `onClose`                          |
+| `Sheet`          | `open`, `title`, `dismissible`, `duration`             | `onClose`                          |
 | `Menu`           | `open`, `items`                                        | `onSelect(id)`, `onClose`          |
 | `Snackbar`       | `open`, `text`, `actionLabel`, `duration`              | `onAction`, `onClose`              |
 | `For`            | `each`, `keyOf`, `render`, `spacing`                   | —                                  |

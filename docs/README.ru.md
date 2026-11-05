@@ -969,7 +969,7 @@ import {
   Header,
   IconButton,
   Input,
-  Modal,
+  Sheet,
   Row,
   Spacer,
   Text,
@@ -1033,7 +1033,7 @@ app.window("main").render(() =>
       padding: 12,
       render: (task) => TaskRow({ key: task.id, task }),
     }),
-    Modal(
+    Sheet(
       {
         open: app.store.get("editing") === true,
         title: "New task",
@@ -1059,11 +1059,11 @@ app.run()
 | Контент               | `Text` (включая Markdown), `Image`, `Icon`, `Avatar`, `Badge`, `Chip`, `Progress`, `Spinner`, `Skeleton`, `EmptyState`                                                                    |
 | Действия              | `Button`, `IconButton`, `Fab`                                                                                                                                                             |
 | Ввод                  | `Input`, `TextArea`, `SearchField`, `Checkbox`, `Switch`, `RadioGroup`, `Slider`, `RangeSlider`, `Select`, `Segmented`                                                      |
-| Навигация и структура | `List` / `For`, `Card`, `Header`, `Toolbar`, `NavigationRail`, `NavBar`, `Tabs`, `Pager`, `Modal` (`Sheet`, `BottomSheet`), `Popover`, `Snackbar`, `Menu`, `Accordion` |
+| Навигация и структура | `For`, `Card`, `Header`, `Toolbar`, `NavigationRail`, `NavBar`, `Tabs`, `Pager`, `Modal` (`Sheet`, `BottomSheet`), `Popover`, `Snackbar`, `Menu`, `Accordion` |
 
 - Значения читаются при рендере, а функции в свойствах `on*` — обработчики событий.
 - `For({ each, keyOf, render })` строит прокручиваемый список и сохраняет строки по ключу.
-- `Modal` / `Sheet` — оверлей внутри дерева, одинаково работает на десктопе и
+- `Sheet` — оверлей внутри дерева, одинаково работает на десктопе и
   Android. Появляется и исчезает через opacity (`duration` в мс), не пропускает
   тапы из панели наружу и не закрывается тем же жестом, которым открыли.
   `dismissible: false` запрещает закрытие тапом по фону.
@@ -1109,7 +1109,7 @@ padding })` ограничивает ширину и центрирует кон
 - `Tabs({ items, index })` — полоса вкладок; `Segmented` — компактная
   альтернатива. `Pager({ index, interactive })` листает дочерние элементы
   свайпом и сообщает `onPageChange`.
-- `BottomSheet` — это `Sheet` с `placement: "bottom"`; `handle: true` показывает
+- `Sheet({ placement: "bottom" })` выезжает снизу; `handle: true` показывает
   ручку для перетаскивания. `Popover` привязывает плавающую панель к `x`/`y`;
   `Snackbar({ open, text, actionLabel })` — временная плашка с необязательным
   действием.
@@ -1129,8 +1129,6 @@ intensity: 1.2 } })` или `Text({ neon: true })`. Компонент обор�
   `intensity`, `glow` (сила), `padding` (место под ореол) и `effects`
   (`false` — обычный контур вместо свечения). Контент остаётся резким.
   Без GPU (software rendering) свечение автоматически заменяется контуром.
-- Низкоуровневые фабрики `ui.column(...)`, `ui.button(...)` остаются доступны;
-  компоненты выше — тонкие обёртки над ними.
 - `component()` перерисовывается, только когда изменился прочитанный им сигнал, ключ
   store или свойство. См. [руководство по компонентам](guide-components.ru.md).
 - `justify`, `alignItems`, `flex`, `paddingX`, `paddingY`, отступы по сторонам,

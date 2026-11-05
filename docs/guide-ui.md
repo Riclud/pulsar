@@ -543,10 +543,10 @@ NavigationRail({
 
 ## Overlays
 
-### Modal and Sheet
+### Sheet
 
 ```ts
-Modal(
+Sheet(
   {
     open: app.store.get("editing") === true,
     title: "New task",
@@ -559,18 +559,18 @@ Modal(
 )
 ```
 
-`Modal` is an in-tree overlay. It fades on opacity, keeps taps inside the panel
+`Sheet` is an in-tree overlay. It fades on opacity, keeps taps inside the panel
 and does not close from the gesture that opened it. `dismissible: false` keeps
 it open on a backdrop tap.
 
-### BottomSheet
+### Bottom placement
 
-`BottomSheet` is `Sheet` with `placement: "bottom"`. It is the phone-friendly
-alternative to a centered dialog:
+`placement: "bottom"` is the phone-friendly alternative to a centered dialog:
 
 ```ts
-BottomSheet(
+Sheet(
   {
+    placement: "bottom",
     open: app.store.get("actions") === true,
     title: "Task actions",
     handle: true,
@@ -661,7 +661,7 @@ retry action in a `Card` or `EmptyState`.
 
 ## Lists
 
-### For and List
+### For
 
 `For` builds a scrollable list from an array:
 
@@ -677,7 +677,6 @@ For({
 
 - `keyOf` is required for stable rows when items are inserted, removed or moved.
 - `render` receives the item and its index.
-- `List` is the lower-level form with the same options.
 
 For tens of thousands of rows use `VirtualList`; do not render them all.
 
@@ -706,7 +705,7 @@ VirtualList({
 ```
 
 Virtual lists use a fixed item shape (`title`, `subtitle`, `icon`, `trailing`,
-`section`). If a row needs arbitrary components, use `For`/`List` instead.
+`section`). If a row needs arbitrary components, use `For` instead.
 
 ### Grid
 
@@ -847,7 +846,7 @@ ternaries.
 ### Confirm a destructive action
 
 ```ts
-Modal(
+Sheet(
   {
     open: app.store.get("confirmDelete") === true,
     title: "Delete task?",
@@ -866,8 +865,8 @@ Modal(
 
 ### Which overlay should I use?
 
-- **Modal** — blocking decision or short form on desktop.
-- **BottomSheet** — the same on a phone, with a drag handle.
+- **Sheet** — blocking decision or short form. On a phone, use `placement: "bottom"`
+  with a drag handle.
 - **Popover** — a small floating panel anchored to a point.
 - **Menu** — a list of actions; supports shortcuts and danger items.
 - **Snackbar** — a transient confirmation, never a required decision.
@@ -896,7 +895,7 @@ Modal(
 | `Pager`          | `index`, `interactive`                                 | `onPageChange`                     |
 | `NavBar`         | `items`, `value`, `activeColor`, `showLabels`          | `onChange`                         |
 | `NavigationRail` | `items`, `index`, `expanded`, `padding`                | `onChange`                         |
-| `Modal`/`Sheet`  | `open`, `title`, `dismissible`, `duration`             | `onClose`                          |
+| `Sheet`          | `open`, `title`, `dismissible`, `duration`             | `onClose`                          |
 | `Menu`           | `open`, `items`                                        | `onSelect(id)`, `onClose`          |
 | `Snackbar`       | `open`, `text`, `actionLabel`, `duration`              | `onAction`, `onClose`              |
 | `For`            | `each`, `keyOf`, `render`, `spacing`                   | —                                  |

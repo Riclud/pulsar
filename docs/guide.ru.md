@@ -114,7 +114,7 @@ app.run()
 | Булев выбор                     | `Checkbox` или `Switch`                           |
 | Один из нескольких вариантов    | `RadioGroup`, `Select`, `Segmented`               |
 | Диапазон чисел                  | `Slider`, `RangeSlider`                           |
-| Диалог                          | `Modal` на desktop, `BottomSheet` на телефонах    |
+| Диалог                          | `Sheet`, на телефонах с `placement: "bottom"`    |
 | Меню или плавающая панель       | `Menu`, `Popover`                                 |
 | Основная навигация              | `NavBar` (телефон), `NavigationRail` (desktop)    |
 | Вкладки внутри экрана           | `Tabs`, `Segmented`, `Pager`                      |

@@ -188,7 +188,7 @@ app builds the tree with the `ui` helpers and renders it:
 app
   .window("main")
   .render(() =>
-    ui.column({ gap: 8 }, [ui.text("Hello"), ui.button("+1", { onClick: () => app.store.set("n", n + 1) })]),
+    Column({ gap: 8 }, Text({ text: "Hello" }), Button({ onClick: () => app.store.set("n", n + 1) }, "+1")),
   )
 ```
 

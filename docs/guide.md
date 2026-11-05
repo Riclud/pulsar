@@ -111,7 +111,7 @@ A value is simply read while rendering. A function in an `on*` prop is an event 
 | A boolean choice            | `Checkbox` or `Switch`                             |
 | One of several options      | `RadioGroup`, `Select`, `Segmented`                |
 | A number range              | `Slider`, `RangeSlider`                            |
-| A dialog                    | `Modal` on desktop, `BottomSheet` on phones        |
+| A dialog                    | `Sheet`, with `placement: "bottom"` on phones        |
 | A menu or floating panel    | `Menu`, `Popover`                                  |
 | Primary navigation          | `NavBar` (phone), `NavigationRail` (desktop)       |
 | Tabs inside a screen        | `Tabs`, `Segmented`, `Pager`                       |

@@ -965,7 +965,7 @@ import {
   Header,
   IconButton,
   Input,
-  Modal,
+  Sheet,
   Row,
   Spacer,
   Text,
@@ -1029,7 +1029,7 @@ app.window("main").render(() =>
       padding: 12,
       render: (task) => TaskRow({ key: task.id, task }),
     }),
-    Modal(
+    Sheet(
       {
         open: app.store.get("editing") === true,
         title: "New task",
@@ -1055,11 +1055,11 @@ scroll and input state survive a re-render.
 | Content                | `Text` (Markdown too), `Image`, `Icon`, `Avatar`, `Badge`, `Chip`, `Progress`, `Spinner`, `Skeleton`, `EmptyState`                                                                        |
 | Actions                | `Button`, `IconButton`, `Fab`                                                                                                                                                             |
 | Input                  | `Input`, `TextArea`, `SearchField`, `Checkbox`, `Switch`, `RadioGroup`, `Slider`, `RangeSlider`, `Select`, `Segmented`                                                      |
-| Navigation & structure | `List` / `For`, `Card`, `Header`, `Toolbar`, `NavigationRail`, `NavBar`, `Tabs`, `Pager`, `Modal` (`Sheet`, `BottomSheet`), `Popover`, `Snackbar`, `Menu`, `Accordion` |
+| Navigation & structure | `For`, `Card`, `Header`, `Toolbar`, `NavigationRail`, `NavBar`, `Tabs`, `Pager`, `Modal` (`Sheet`, `BottomSheet`), `Popover`, `Snackbar`, `Menu`, `Accordion` |
 
 - Values are read while rendering, and functions in `on*` props are event handlers.
 - `For({ each, keyOf, render })` builds a scrollable list and keeps rows stable by key.
-- `Modal` / `Sheet` is an in-tree overlay, so it behaves the same on desktop and
+- `Sheet` is an in-tree overlay, so it behaves the same on desktop and
   Android. It fades in and out (opacity only, `duration` in ms), swallows taps
   inside the panel, and does not close from the gesture that opened it. Pass
   `dismissible: false` to disable closing on a backdrop tap.
@@ -1102,7 +1102,7 @@ padding })` caps and centers content on large windows.
 - `Tabs({ items, index })` is a tab strip; `Segmented` is the compact
   alternative. `Pager({ index, interactive })` swipes between children and
   reports `onPageChange`.
-- `BottomSheet` is `Sheet` with `placement: "bottom"`; set `handle: true` to show
+- `Sheet({ placement: "bottom" })` slides from the bottom; set `handle: true` to show
   a drag handle. `Popover` anchors a floating panel at `x`/`y`;
   `Snackbar({ open, text, actionLabel })` is a transient bar with an optional
   action.
@@ -1148,8 +1148,6 @@ padding })` caps and centers content on large windows.
   of its own.
 - `Page` and `Scroll` accept `flick` and `overscroll` to turn off kinetic scrolling
   or the stretch at the bottom edge per screen.
-- The lower-level `ui.column(...)`, `ui.button(...)` factories remain available;
-  the components above are thin wrappers over them.
 - QML windows keep working as before — mix freely (some windows in QML, some in
   TypeScript).
 
