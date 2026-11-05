@@ -138,6 +138,14 @@ export interface DragOptions {
   onRelease?: (release: DragRelease) => void
 }
 
+export interface StateStyle {
+  /** Background of `Box`, `Card` and layouts with a surface. */
+  color?: ColorValue
+  borderColor?: ColorValue
+  opacity?: number
+  scale?: number
+}
+
 interface CommonOptions {
   key?: string | number
   width?: number
@@ -161,8 +169,14 @@ interface CommonOptions {
   maxWidth?: number
   /** Fade opacity changes over this many milliseconds. */
   animate?: number
-  /** Visual state while the node is held down. Runs in the renderer. */
-  pressed?: { scale?: number }
+  /** Look while the pointer is over the node. */
+  hover?: StateStyle
+  /** Look while the node is held down. */
+  pressed?: StateStyle
+  /** Look while `enabled` is false. */
+  disabled?: StateStyle
+  /** Set to false to ignore input on the node and everything inside it. */
+  enabled?: boolean
   /** State the node animates from when it appears or becomes visible. */
   enter?: MotionState
   /** State the node animates to before it is removed or hidden. */
@@ -974,8 +988,18 @@ const SURFACE_KEYS = [
 
 const INNER_KEYS = ["gap", "justify", "alignItems"]
 
+const STATE_KEYS = ["hover", "pressed", "disabled"]
+
 const hasSurface = (options: object): boolean => {
-  return SURFACE_KEYS.some((key) => (options as Record<string, unknown>)[key] !== undefined)
+  const own = options as Record<string, unknown>
+
+  if (SURFACE_KEYS.some((key) => own[key] !== undefined)) return true
+
+  return STATE_KEYS.some((key) => {
+    const style = own[key] as StateStyle | undefined
+
+    return style?.color !== undefined || style?.borderColor !== undefined
+  })
 }
 
 const splitSurface = (options: object) => {

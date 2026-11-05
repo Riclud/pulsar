@@ -161,6 +161,12 @@ describe("ui", () => {
     expect(tree.children?.[0]?.props.gap).toBe(4)
   })
 
+  test("a colored state wraps a layout in a box, and a scale does not", () => {
+    expect(row({ hover: { color: "#333" } }, text("a")).type).toBe("box")
+    expect(row({ disabled: { borderColor: "#333" } }, text("a")).type).toBe("box")
+    expect(row({ pressed: { scale: 0.98 } }, text("a")).type).toBe("row")
+  })
+
   test("justify keeps child paths stable when a sibling appears", () => {
     const paths = (extra: boolean) => {
       const tree = serialize([

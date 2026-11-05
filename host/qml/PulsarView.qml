@@ -460,7 +460,7 @@ ApplicationWindow {
             property real offsetX: 0
             property real offsetY: 0
             property real zoomValue: 1
-            property real pressScale: 1
+            property real stateScale: 1
             property real heightLimit: Number.POSITIVE_INFINITY
             property real fullHeight: 0
             property int duration: view.motionFast
@@ -497,7 +497,7 @@ ApplicationWindow {
             }
 
             readonly property Scale zoom: Scale {
-                readonly property real value: motion.zoomValue * (motion.holding ? motion.pressScale : 1)
+                readonly property real value: motion.zoomValue * motion.stateScale
 
                 origin.x: motion.host ? motion.host.width / 2 : 0
                 origin.y: motion.host ? motion.host.height / 2 : 0
@@ -631,6 +631,8 @@ ApplicationWindow {
 
             readonly property bool animating: enterAnimation.running || exitAnimation.running
 
+            onHoldingChanged: view.refreshStates(host)
+
             onHeightLimitChanged: {
                 const limit = host.pulsarMeta.extra.maxHeight;
 
@@ -641,7 +643,6 @@ ApplicationWindow {
                 const transition = props.transition || ({});
                 const curve = transition.curve || "spring";
 
-                pressScale = props.pressed && props.pressed.scale !== undefined ? props.pressed.scale : 1;
                 duration = transition.duration !== undefined ? transition.duration : view.motionFast;
                 easingType = curve === "linear" ? Easing.Linear
                         : curve === "ease" ? Easing.OutCubic
@@ -894,6 +895,20 @@ ApplicationWindow {
         Rectangle {
             id: boxShadowHost
 
+            property int pulsarColorMs: 0
+
+            Behavior on color {
+                enabled: boxShadowHost.pulsarColorMs > 0
+
+                ColorAnimation { duration: boxShadowHost.pulsarColorMs }
+            }
+
+            Behavior on border.color {
+                enabled: boxShadowHost.pulsarColorMs > 0
+
+                ColorAnimation { duration: boxShadowHost.pulsarColorMs }
+            }
+
             property var pulsarMeta: null
             property int pulsarElevation: 0
             property color pulsarShadowColor: "#000000"
@@ -914,6 +929,20 @@ ApplicationWindow {
 
         Rectangle {
             id: cardShadowHost
+
+            property int pulsarColorMs: 0
+
+            Behavior on color {
+                enabled: cardShadowHost.pulsarColorMs > 0
+
+                ColorAnimation { duration: cardShadowHost.pulsarColorMs }
+            }
+
+            Behavior on border.color {
+                enabled: cardShadowHost.pulsarColorMs > 0
+
+                ColorAnimation { duration: cardShadowHost.pulsarColorMs }
+            }
 
             border.width: 1
             property var pulsarMeta: null
@@ -4473,7 +4502,8 @@ ApplicationWindow {
         const props = node.props;
         const extra = item.pulsarMeta.extra;
 
-        if (!extra.motion && !props.pressed && !props.enter && !props.exit && !props.drag)
+        if (!extra.motion && !props.pressed && !props.hover && !props.disabled
+                && !props.enter && !props.exit && !props.drag)
             return;
 
         if (!extra.motion) {
@@ -5152,43 +5182,86 @@ ApplicationWindow {
         tip.text = text;
     }
 
-    function applyHover(item, props, base) {
-        const hover = prop(props, "hoverColor", undefined);
+    function stateHasColor(node) {
+        return node.type === "box" || node.type === "card";
+    }
+
+    function ensureHover(item, props) {
         const extra = item.pulsarMeta.extra;
 
-        if (hover === undefined) {
-            if (extra.hoverBound === true)
-                item.color = base;
-
-            extra.hoverBound = false;
-
+        if (extra.hover || (props.hover === undefined && props.hoverColor === undefined))
             return;
-        }
 
-        let handler = extra.hover;
-
-        if (!handler) {
-            handler = make("import QtQuick; HoverHandler {}", item);
-            handler.cursorShape = Qt.PointingHandCursor;
-            extra.hover = handler;
-        }
-
-        extra.hoverBound = true;
-        item.color = Qt.binding(function () {
-            const node = item.pulsarMeta.node;
-
-            if (!node)
-                return base;
-
-            const fallback = node.type === "card" ? view.themeSurface : "transparent";
-            const currentBase = resolveColor(prop(node.props, "color", fallback), fallback);
-            const currentHover = prop(node.props, "hoverColor", undefined);
-
-            if (currentHover === undefined)
-                return currentBase;
-
-            return handler.hovered ? resolveColor(currentHover, currentBase) : currentBase;
+        extra.hover = make("import QtQuick; HoverHandler {}", item);
+        extra.hover.cursorShape = Qt.PointingHandCursor;
+        extra.hover.hoveredChanged.connect(function () {
+            refreshStates(item);
         });
+    }
+
+    function activeState(item, props) {
+        const extra = item.pulsarMeta.extra;
+
+        if (props.enabled === false)
+            return "disabled";
+        if (extra.motion && extra.motion.holding && props.pressed)
+            return "pressed";
+        if (extra.hover && extra.hover.hovered && (props.hover || props.hoverColor !== undefined))
+            return "hover";
+
+        return "normal";
+    }
+
+    function refreshStates(item) {
+        const meta = item.pulsarMeta;
+
+        if (!meta || !meta.node)
+            return;
+
+        const node = meta.node;
+        const props = node.props;
+        const extra = meta.extra;
+        const styled = props.hover || props.pressed || props.disabled || props.hoverColor !== undefined;
+
+        if (!styled && !extra.styled)
+            return;
+
+        extra.styled = styled;
+
+        const state = activeState(item, props);
+        const style = (state !== "normal" && props[state]) || ({});
+        const duration = props.transition && props.transition.duration !== undefined ? props.transition.duration : 120;
+
+        if (extra.lastState !== state) {
+            extra.lastState = state;
+            logMotion("state " + state, node.path);
+        }
+
+        if (stateHasColor(node)) {
+            const fallback = node.type === "card" ? view.themeSurface : "transparent";
+            const base = prop(props, "color", fallback);
+            const hoverColor = state === "hover" && style.color === undefined ? props.hoverColor : undefined;
+            const color = style.color !== undefined ? style.color : (hoverColor !== undefined ? hoverColor : base);
+
+            item.pulsarColorMs = duration;
+            item.color = resolveColor(color, fallback);
+            item.border.color = resolveColor(prop(style, "borderColor", prop(props, "borderColor", view.themeBorder)), view.themeBorder);
+        }
+
+        if (extra.motion)
+            extra.motion.stateScale = prop(style, "scale", 1);
+
+        if (extra.motion && extra.motion.animating)
+            return;
+
+        const opacity = prop(style, "opacity", prop(props, "opacity", 1));
+
+        if (extra.stateOpacity !== undefined && extra.stateOpacity !== opacity)
+            animateOpacity(item, opacity, duration);
+        else
+            item.opacity = opacity;
+
+        extra.stateOpacity = opacity;
     }
 
     function emitLayout(item) {
@@ -5455,11 +5528,13 @@ ApplicationWindow {
         if ((node.type === "column" || node.type === "row") && fillHeight && props.maxHeight === undefined)
             item.Layout.maximumHeight = Number.POSITIVE_INFINITY;
 
-        if (props.alignItems !== undefined && fillWidth && props.maxWidth === undefined)
-            item.Layout.maximumWidth = Number.POSITIVE_INFINITY;
+        if (props.enabled !== undefined)
+            item.enabled = props.enabled;
 
-        if (props.alignItems !== undefined && fillHeight && props.maxHeight === undefined)
-            item.Layout.maximumHeight = Number.POSITIVE_INFINITY;
+        ensureHover(item, props);
+
+        if (!stateHasColor(node))
+            refreshStates(item);
 
         if (props.maxWidth !== undefined)
             item.Layout.maximumWidth = props.maxWidth;
@@ -5554,11 +5629,12 @@ ApplicationWindow {
             }
         } else if (node.type === "box") {
             item.color = resolveColor(prop(props, "color", "transparent"), "transparent");
-            applyHover(item, props, item.color);
+            ensureHover(item, props);
             item.radius = prop(props, "radius", 0);
             item.border.width = prop(props, "borderWidth", 0);
             item.border.color = resolveColor(prop(props, "borderColor", view.themeBorder), view.themeBorder);
             applyGradient(item, prop(props, "gradient", null));
+            refreshStates(item);
 
             let inner = item.pulsarMeta.content;
             const edges = paddingEdges(props, 0);
@@ -5707,11 +5783,12 @@ ApplicationWindow {
             list.updateSticky();
         } else if (node.type === "card") {
             item.color = resolveColor(prop(props, "color", view.themeSurface), view.themeSurface);
-            applyHover(item, props, item.color);
+            ensureHover(item, props);
             item.radius = prop(props, "radius", view.themeRadius);
             item.border.width = prop(props, "borderWidth", 1);
             item.border.color = resolveColor(prop(props, "borderColor", view.themeBorder), view.themeBorder);
             applyGradient(item, prop(props, "gradient", null));
+            refreshStates(item);
 
             let inner = item.pulsarMeta.content;
             const edges = paddingEdges(props, 16);

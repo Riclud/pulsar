@@ -79,6 +79,7 @@ export type {
   DragRelease,
   MotionState,
   MotionTransition,
+  StateStyle,
   UiPatch,
   UiChild,
   UiNode,

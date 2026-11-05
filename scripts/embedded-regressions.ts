@@ -136,6 +136,19 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "states",
+    check: (output) => {
+      return (
+        output.includes("PulsarView state disabled /root/panel") &&
+        output.includes("PulsarView state normal /root/panel") &&
+        output.includes("SIZE filled 400") &&
+        !/PulsarView\.qml:\d+: (?!TypeError: Cannot (read property 'colorScheme'|call method '(devMode|env)') of null)/.test(
+          output,
+        )
+      )
+    },
+  },
+  {
     name: "jsx",
     check: (output) => output.includes("PulsarView built 1") && output.includes("JSX_OK 2"),
   },
