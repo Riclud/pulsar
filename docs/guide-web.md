@@ -386,7 +386,7 @@ There are no hook rules and no dependency arrays: whatever a render reads throug
 | `localStorage`           | `storage`                                           |
 | Storing a token          | `secureStorage`                                     |
 | CSS variables and themes | `defineTheme`, and theme colors such as `"surface"` |
-| Custom drawing           | `Canvas`, or `Qml({ source })` for raw QML |
+| Custom drawing           | `Canvas`, `Shader`, or `Qml({ source })` for raw QML |
 
 Not every CSS feature has an equivalent. There is no selector cascade, no
 percentage size and no `transform` prop. Your own containers

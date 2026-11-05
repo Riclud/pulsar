@@ -216,6 +216,81 @@ Scroll(
 )
 ```
 
+### Shader
+
+A shader draws on the GPU, so animation costs almost no CPU, and a real glow is cheap. In
+one test a screen with a full-screen background, two waves, a bolt and a pulse used 28% of
+a core on a phone, where a wave and a bolt on `Canvas` used 81%. There are three levels, and
+you do not need the math for the first two.
+
+**Ready effects.** Options only.
+
+```ts
+Wave({ height: 40, fillWidth: true, color: "#c084fc", amplitude: 4, frequency: 6, speed: 3 })
+
+Wave({ height: 40, fillWidth: true, color: "#5ce1e6", glowRadius: 8 })
+
+Lightning({ height: 90, fillWidth: true, color: "#8b9dff", progress: 0.7, jitter: 26 })
+
+Aurora({ fill: true, color: "#2b1055", accent: "#0f766e", speed: 0.08 })
+```
+
+**Your own effect from ready parts.** Put a `.frag` file in the app. Pulsar compiles it when
+you run `pulsar dev` or `pulsar build`, and recompiles it on save. You write one function
+that returns a color for a point:
+
+```glsl
+// shaders/pulse.frag
+uniform vec4 color;
+uniform float rings;
+
+vec4 effect(vec2 uv) {
+    float radius = length(pixel - resolution / 2.0);
+    float ring = wave(radius / resolution.y, rings, 4.0) * 0.5 + 0.5;
+
+    return vec4(color.rgb, ring * glow(radius, resolution.y / 2.0));
+}
+```
+
+```ts
+Shader({ source: "shaders/pulse.frag", height: 180, fillWidth: true, uniforms: { color: "#ff6ac1", rings: 3 } })
+```
+
+`uniform` lines become values you pass from TypeScript: a number, a color string, or an
+array of 2 to 4 numbers. Return a plain color, and Pulsar handles the alpha.
+
+| Name                         | What it gives you                                      |
+| ---------------------------- | ------------------------------------------------------ |
+| `uv`                         | The point, from 0 to 1 across the node.                |
+| `pixel`                      | The same point in pixels.                              |
+| `resolution`                 | The size of the node in pixels.                        |
+| `time`                       | Seconds since it appeared. Stops with `animated: false`. |
+| `wave(x, frequency, speed)`  | A moving wave from -1 to 1. No need for `sin` and pi.  |
+| `noise(x)`, `noise(point)`   | Smooth randomness from 0 to 1.                         |
+| `fbm(point)`                 | Cloud-like randomness, for smoke and flow.             |
+| `zigzag(x, seed)`            | Sharp randomness from -1 to 1, for bolts.              |
+| `segment(point, from, to)`   | Distance to a line segment.                            |
+| `line(distance)`             | A crisp edge from a distance.                          |
+| `glow(distance, radius)`     | A soft light that fades over `radius`.                 |
+| `fade(distance, size)`       | A ramp from 0 to 1 over `size`.                        |
+
+Most effects follow the same recipe: find the **distance** from the point to your shape, then
+turn it into light with `line` and `glow`.
+
+**Any GLSL.** Inside `effect` you have the whole language. A mistake is reported with the line
+number in your file.
+
+Things to know:
+
+- A uniform cannot be added to a node after it is created. To change the set, give the node a
+  new `key`.
+- Shaders need a GPU. Under software rendering, such as some virtual machines, the node is empty.
+  `Canvas` is the fallback.
+- Commit the `.frag.qsb` file or let the build create it. It is what ships in the app.
+
+Use `Canvas` when you draw something structured, such as a chart with labels. Use a shader for
+effects that move all the time.
+
 ### Canvas
 
 `Canvas` draws anything a `Column` cannot: a wave in a player, lightning, a chart. The
@@ -265,6 +340,7 @@ hidden.
 
 **Keep it cheap.** The drawing runs on the CPU:
 
+- For a glow or anything that moves all the time, prefer a [`Shader`](#shader).
 - Avoid `shadowBlur`. In one test it tripled the cost of a shape. Layered translucent
   strokes look like a glow for far less:
 
@@ -973,6 +1049,8 @@ Sheet(
 | `Card`/`Box`     | `padding`, `radius`, `elevation`, `gradient`, `border` | `onLongPress`                      |
 | `KeepAlive`      | `active`; content is a function                        | —            |
 | `Scroll`         | `fill`, `gap`, `padding`, `overscroll`, `flick`        | —                                  |
+| `Shader`         | `source`, `uniforms`, `animated`                       | —               |
+| `Wave`/`Lightning`/`Aurora` | `color`, `speed` and more                   | —               |
 | `Canvas`         | `draw`, `params`, `animated`, `fps`                    | —               |
 | `Text`           | `size`, `weight`, `color`, `markdown`, `elide`         | —                                  |
 | `Button`         | `variant`, `size`, `icon`, `badge`, `enabled`          | `onClick`, `onLongPress`           |

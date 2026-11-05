@@ -1136,6 +1136,8 @@ padding })` caps and centers content on large windows.
   max sizes, `clip`, `zIndex` and `absolute` lay out any node; `Row`, `Column`,
   `Wrap` and `Stack` accept the surface props of `Box`. See the
   [guide for web developers](docs/guide-web.md).
+- `Wave`, `Lightning` and `Aurora` are ready GPU effects, and `Shader({ source })` runs your
+  own `.frag` file with helpers such as `wave`, `noise` and `glow`.
 - `Canvas({ draw, params, animated })` draws custom graphics in the renderer. See the
   [UI guide](docs/guide-ui.md).
 - `hover`, `pressed` and `disabled` restyle a node, and `enter`, `exit`, `transition`

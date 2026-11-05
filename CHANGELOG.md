@@ -33,6 +33,9 @@ All notable changes to this project are documented here. The format follows
 
 - `focusBorderColor` on `Input` and `TextArea`.
 
+- `Wave`, `Lightning` and `Aurora` are ready GPU effects. `Shader` runs an app's `.frag` file,
+  written as one `effect` function with helpers such as `wave`, `noise` and `glow`. The CLI
+  compiles it on run and build, and on save in `pulsar dev`.
 - `Canvas` draws custom graphics. `draw` runs in the renderer, so an animation costs no
   bridge traffic, and it takes data through `params`.
 - `KeepAlive` builds a screen on first use and keeps it while hidden, with paused
