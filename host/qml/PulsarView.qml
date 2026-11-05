@@ -22,8 +22,8 @@ ApplicationWindow {
     Material.accent: themePrimary
     property bool windowTransparent: false
     readonly property var flingCurve: makeFlingCurve()
-    property var tree: []
     property var tappedItems: []
+    property var tree: []
     property var uiTree: []
     property var uiPatch: null
     property string treeShape: ""
@@ -5479,6 +5479,31 @@ ApplicationWindow {
         }
     }
 
+    function itemDepth(item) {
+        let depth = 0;
+
+        for (let parent = item.parent; parent; parent = parent.parent)
+            depth++;
+
+        return depth;
+    }
+
+    function flushTap() {
+        const items = tappedItems;
+
+        tappedItems = [];
+
+        let deepest = null;
+
+        for (const item of items) {
+            if (!deepest || itemDepth(item) > itemDepth(deepest))
+                deepest = item;
+        }
+
+        if (deepest && deepest.pulsarMeta)
+            emitEvent(deepest.pulsarMeta.node, "click");
+    }
+
     function animateOpacity(item, to, duration) {
         const anim = make("import QtQuick; NumberAnimation { property: 'opacity'; easing.type: Easing.OutCubic }", item);
 
@@ -5509,31 +5534,6 @@ ApplicationWindow {
         if (!badge) {
             badge = make("import QtQuick; import QtQuick.Controls; Rectangle { property alias label: badgeLabel; z: 20; Label { id: badgeLabel; anchors.centerIn: parent } }", item);
             badge.label.font.family = view.fontFamily;
-    function itemDepth(item) {
-        let depth = 0;
-
-        for (let parent = item.parent; parent; parent = parent.parent)
-            depth++;
-
-        return depth;
-    }
-
-    function flushTap() {
-        const items = tappedItems;
-
-        tappedItems = [];
-
-        let deepest = null;
-
-        for (const item of items) {
-            if (!deepest || itemDepth(item) > itemDepth(deepest))
-                deepest = item;
-        }
-
-        if (deepest && deepest.pulsarMeta)
-            emitEvent(deepest.pulsarMeta.node, "click");
-    }
-
             badge.label.font.pixelSize = view.fs(10);
             badge.label.font.weight = 600;
             badge.label.color = "#ffffff";
