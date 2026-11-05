@@ -3,7 +3,6 @@ export { computed, createState, effect, signal, untracked } from "./reactive.ts"
 export type { Computed, Signal } from "./reactive.ts"
 export type { AppConfig, EventHandler, PulsarEventMap, KnownEvent, UiSource, UiTimings } from "./app.ts"
 export {
-  ui,
   component,
   KeepAlive,
   onCleanup,
@@ -57,8 +56,6 @@ export {
   Snackbar,
   Popover,
   Zoomable,
-  Modal,
-  List,
   Spacer,
   Divider,
   Image,
@@ -66,7 +63,6 @@ export {
   Badge,
   Skeleton,
   Spinner,
-  BottomSheet,
 } from "./ui.ts"
 export type {
   A11yRole,

@@ -1412,10 +1412,6 @@ export const sheet = (options: SheetOptions = {}, ...children: UiChild[]): UiNod
   return makeNode("sheet", props, children, ["close"], { close: () => onClose() })
 }
 
-export const bottomSheet = (options: SheetOptions = {}, ...children: UiChild[]): UiNode => {
-  return sheet({ ...options, placement: "bottom" }, ...children)
-}
-
 export const pager = (options: PagerOptions = {}, ...children: UiChild[]): UiNode => {
   const { onPageChange, ...props } = options
 
@@ -2152,23 +2148,6 @@ export const Container = (options: ContainerOptions = {}, ...children: UiChild[]
   container(options, ...children)
 export const Page = (options: PageOptions = {}, ...children: UiChild[]): UiNode => page(options, ...children)
 
-export const Modal = (options: SheetOptions = {}, ...children: UiChild[]): UiNode => {
-  return sheet({ ...options, fullscreen: options.fullscreen ?? false }, ...children)
-}
-
-export const List = <T>(
-  options: Omit<ListOptions<T>, "render"> & { render?: (item: T, index: number) => UiNode },
-  ...children: UiChild[]
-): UiNode => {
-  const { render, ...props } = options
-
-  if (render) return list({ ...props, render })
-
-  const rows = flatten(children)
-
-  return list({ ...props, render: (_item, index) => rows[index] ?? box({}) })
-}
-
 export const Spacer = spacer
 export const Divider = divider
 export const Image = image
@@ -2176,9 +2155,6 @@ export const Avatar = (options: AvatarOptions = {}): UiNode => avatar(options)
 export const Badge = (options: BadgeOptions = {}): UiNode => badge(options)
 export const Skeleton = (options: SkeletonOptions = {}): UiNode => skeleton(options)
 export const Spinner = (options: SpinnerOptions = {}): UiNode => spinner(options)
-export const BottomSheet = (options: SheetOptions = {}, ...children: UiChild[]): UiNode =>
-  bottomSheet(options, ...children)
-
 const nodeSegment = (node: UiNode, index: number, keys?: Array<string | number>, slots?: string[]): string => {
   const explicit = node.props.key
 
@@ -2353,61 +2329,4 @@ export const collectUiHandlers = (
   })
 
   return { routes, ids }
-}
-
-export const ui = {
-  column,
-  row,
-  wrap,
-  stack,
-  page,
-  box,
-  scroll,
-  list,
-  grid,
-  virtualList,
-  card,
-  appBar,
-  text,
-  icon,
-  image,
-  avatar,
-  badge,
-  skeleton,
-  spinner,
-  spacer,
-  divider,
-  button,
-  iconButton,
-  chip,
-  textInput,
-  textArea,
-  checkbox,
-  switch: switchControl,
-  slider,
-  rangeSlider,
-  radio,
-  radioGroup,
-  searchField,
-  select,
-  progress,
-  menu,
-  accordion,
-  accordionSection,
-  fab,
-  toolbar,
-  emptyState,
-  neon,
-  navBar,
-  container,
-  sheet,
-  bottomSheet,
-  pager,
-  tabs,
-  navRail,
-  segmented,
-  snackbar,
-  popover,
-  zoomable,
-  qml: Qml,
 }

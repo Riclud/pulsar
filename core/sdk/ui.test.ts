@@ -8,7 +8,6 @@ import {
   For,
   Header,
   Input,
-  Modal,
   Page,
   Stack,
   Text,
@@ -52,7 +51,7 @@ import {
   segmented,
   serialize,
   sheet,
-  bottomSheet,
+  spacer,
   skeleton,
   snackbar,
   spinner,
@@ -60,14 +59,13 @@ import {
   text,
   textInput,
   toolbar,
-  ui,
   virtualList,
   zoomable,
 } from "./ui.ts"
 
 describe("ui", () => {
   test("serializes a tree without callbacks", () => {
-    const tree = column({ gap: 4 }, [ui.text("hi"), button("go", { onClick: () => {} })])
+    const tree = column({ gap: 4 }, [text("hi"), button("go", { onClick: () => {} })])
     const out = serialize([tree]) as Array<{ type: string; children: unknown[] }>
 
     expect(out[0]!.type).toBe("column")
@@ -433,7 +431,7 @@ describe("small components", () => {
   })
 
   test("bottom sheet sets bottom placement", () => {
-    const node = bottomSheet({ open: true, title: "Actions" })
+    const node = sheet({ open: true, title: "Actions", placement: "bottom" })
 
     expect(node.type).toBe("sheet")
     expect(node.props.placement).toBe("bottom")
@@ -573,7 +571,6 @@ describe("qml-like components", () => {
     expect(row.type).toBe("card")
     expect(row.children?.map((child) => child.type)).toEqual(["button", "textInput", "checkbox"])
     expect(Header({ title: "Tasks" }).type).toBe("appBar")
-    expect(Modal({ title: "Edit" }).type).toBe("sheet")
   })
 
   test("component passes props and children", () => {
@@ -708,8 +705,8 @@ describe("qml-like components", () => {
   test("toolbar is a surface row with actions", () => {
     const node = toolbar(
       { gap: 6, padding: 10, actions: [button("Save", {})] },
-      ui.text("Inbox"),
-      ui.spacer({ fillWidth: true }),
+      text("Inbox"),
+      spacer({ fillWidth: true }),
     )
 
     expect(node.type).toBe("box")

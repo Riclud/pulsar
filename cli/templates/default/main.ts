@@ -9,7 +9,7 @@ import {
   Header,
   IconButton,
   Input,
-  Modal,
+  Sheet,
   Row,
   Spacer,
   Text,
@@ -104,7 +104,7 @@ app.window("main").render(() => {
       padding: 12,
       render: (task) => TaskRow({ key: task.id, task }),
     }),
-    Modal(
+    Sheet(
       {
         open: app.store.get("composing") === true,
         title: "New task",

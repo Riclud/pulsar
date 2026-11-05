@@ -31,7 +31,16 @@ import {
   permissions,
   share,
   theme,
-  ui,
+  Avatar,
+  Badge,
+  Button,
+  Icon,
+  IconButton,
+  Scroll,
+  Sheet,
+  Skeleton,
+  Spacer,
+  Spinner,
 } from "../../../core/sdk/index.ts"
 
 const app = new App()
@@ -86,8 +95,8 @@ const Section = (title: string, icon: string, ...children: ReturnType<typeof Col
     { gap: 6, fillWidth: true },
     Row(
       { gap: 8, fillWidth: true },
-      ui.icon(icon, { size: 20, color: "mauve" }),
-      ui.text({ text: title, size: 17, weight: "semibold", color: "text" }),
+      Icon({ name: icon, size: 20, color: "mauve" }),
+      Text({ text: title, size: 17, weight: "semibold", color: "text" }),
     ),
     ...children,
   )
@@ -97,20 +106,20 @@ const ToggleRow = (label: string, checked: boolean, onToggle: (value: boolean) =
     { padding: 12, fillWidth: true },
     Row(
       { gap: 12, fillWidth: true },
-      ui.text({ text: label, size: 15, color: "text" }),
-      ui.spacer({ fillWidth: true }),
-      ui.switch("", { checked, onToggle }),
+      Text({ text: label, size: 15, color: "text" }),
+      Spacer({ fillWidth: true }),
+      Switch({ checked, onToggle }),
     ),
   )
 
 const page = (...children: ReturnType<typeof Column>[]) =>
   Box(
     { color: "surface", radius: 17, borderWidth: 1, borderColor: "overlay", fillWidth: true, fillHeight: true },
-    ui.scroll({}, Column({ padding: 16, gap: 16, fillWidth: true }, ...children)),
+    Scroll({}, Column({ padding: 16, gap: 16, fillWidth: true }, ...children)),
   )
 
 const quickPage = page(
-  ui.text({ text: "Settings", size: 26, weight: "semibold", color: "text" }),
+  Text({ text: "Settings", size: 26, weight: "semibold", color: "text" }),
   Section(
     "Appearance",
     "palette",
@@ -140,16 +149,16 @@ const quickPage = page(
 )
 
 const interfacePage = page(
-  ui.text({ text: "Interface", size: 26, weight: "semibold", color: "text" }),
+  Text({ text: "Interface", size: 26, weight: "semibold", color: "text" }),
   Section(
     "Buttons",
     "buttons_alt",
     Row(
       { gap: 8, fillWidth: true },
-      ui.button("Solid", { variant: "solid", color: "mauve", textColor: "crust" }),
-      ui.button("Soft", { variant: "soft", color: "teal" }),
-      ui.button("Outline", { variant: "outline", color: "peach" }),
-      ui.button("Ghost", { variant: "ghost", color: "blue" }),
+      Button({ variant: "solid", color: "mauve", textColor: "crust" }, "Solid"),
+      Button({ variant: "soft", color: "teal" }, "Soft"),
+      Button({ variant: "outline", color: "peach" }, "Outline"),
+      Button({ variant: "ghost", color: "blue" }, "Ghost"),
     ),
   ),
   Section(
@@ -169,7 +178,7 @@ const interfacePage = page(
         borderColor: "overlay",
         padding: 16,
       },
-      ui.text({ text: "Gradient surface", size: 16, weight: "semibold", color: "crust" }),
+      Text({ text: "Gradient surface", size: 16, weight: "semibold", color: "crust" }),
     ),
     Card(
       { color: "surface", borderColor: "mauve", borderWidth: 1, padding: 16 },
@@ -178,8 +187,8 @@ const interfacePage = page(
         Box({ color: "mauve", radius: 999, width: 36, height: 36 }),
         Column(
           { gap: 2, fillWidth: true },
-          ui.text({ text: "Pulsar", size: 15, weight: "semibold", color: "text" }),
-          ui.text({ text: "Paper Mono · Catppuccin", size: 12, color: "subtext" }),
+          Text({ text: "Pulsar", size: 15, weight: "semibold", color: "text" }),
+          Text({ text: "Paper Mono · Catppuccin", size: 12, color: "subtext" }),
         ),
       ),
     ),
@@ -187,7 +196,7 @@ const interfacePage = page(
 )
 
 const formsPage = page(
-  ui.text({ text: "Forms", size: 26, weight: "semibold", color: "text" }),
+  Text({ text: "Forms", size: 26, weight: "semibold", color: "text" }),
   Section(
     "Search",
     "search",
@@ -231,12 +240,12 @@ const formsPage = page(
       { multiple: false },
       AccordionSection(
         { title: "Appearance", subtitle: "Theme, colours, motion", icon: "palette", defaultOpen: true },
-        ui.text({ text: "Catppuccin Frappe with Paper Mono.", color: "subtext" }),
+        Text({ text: "Catppuccin Frappe with Paper Mono.", color: "subtext" }),
         Switch({ label: "Transparency", checked: true }),
       ),
       AccordionSection(
         { title: "Notifications", icon: "notifications" },
-        ui.text({ text: "Desktop and Android notifications.", color: "subtext" }),
+        Text({ text: "Desktop and Android notifications.", color: "subtext" }),
         Switch({ label: "Enabled", checked: true }),
       ),
     ),
@@ -246,11 +255,11 @@ const formsPage = page(
     "view_agenda",
     Toolbar(
       {},
-      ui.iconButton("arrow_back"),
-      ui.text({ text: "Inbox", size: 16, weight: "semibold", color: "text" }),
-      ui.spacer({ fillWidth: true }),
-      ui.iconButton("refresh"),
-      ui.iconButton("more_vert", { onClick: () => app.store.set("menu", true) }),
+      IconButton({ icon: "arrow_back" }),
+      Text({ text: "Inbox", size: 16, weight: "semibold", color: "text" }),
+      Spacer({ fillWidth: true }),
+      IconButton({ icon: "refresh" }),
+      IconButton({ icon: "more_vert", onClick: () => app.store.set("menu", true) }),
     ),
   ),
   Section(
@@ -262,7 +271,7 @@ const formsPage = page(
         icon: "inbox",
         title: "Nothing here yet",
         text: "Messages you receive will show up in this list.",
-        action: ui.button("Refresh", { variant: "soft", color: "mauve" }),
+        action: Button({ variant: "soft", color: "mauve" }, "Refresh"),
       }),
     ),
   ),
@@ -271,12 +280,12 @@ const formsPage = page(
     "layers",
     Card(
       { padding: 16, elevation: 4, fillWidth: true },
-      ui.text({ text: "Elevated card", size: 15, weight: "semibold", color: "text" }),
+      Text({ text: "Elevated card", size: 15, weight: "semibold", color: "text" }),
     ),
     Row(
       { gap: 8, fillWidth: true },
-      ui.button("Elevated", { variant: "elevated", color: "mauve", textColor: "crust" }),
-      ui.button("Flat", { variant: "solid", color: "teal" }),
+      Button({ variant: "elevated", color: "mauve", textColor: "crust" }, "Elevated"),
+      Button({ variant: "solid", color: "teal" }, "Flat"),
     ),
   ),
   Menu({
@@ -300,16 +309,16 @@ const formsPage = page(
 )
 
 const kitPage = page(
-  ui.text({ text: "Component kit", size: 26, weight: "semibold", color: "text" }),
+  Text({ text: "Component kit", size: 26, weight: "semibold", color: "text" }),
   Section(
     "Avatars",
     "account_circle",
     Row(
       { gap: 12, fillWidth: true },
-      ui.avatar({ name: "Иван Майор", size: 44, status: "online", badge: 3 }),
-      ui.avatar({ name: "Макс", size: 36, status: "away" }),
-      ui.avatar({ name: "Pulsar", size: 44 }),
-      ui.avatar({ name: "AI", size: 36, status: "busy", radius: 12 }),
+      Avatar({ name: "Иван Майор", size: 44, status: "online", badge: 3 }),
+      Avatar({ name: "Макс", size: 36, status: "away" }),
+      Avatar({ name: "Pulsar", size: 44 }),
+      Avatar({ name: "AI", size: 36, status: "busy", radius: 12 }),
     ),
   ),
   Section(
@@ -317,10 +326,10 @@ const kitPage = page(
     "notifications",
     Row(
       { gap: 12, fillWidth: true },
-      ui.badge({ count: 12 }),
-      ui.badge({ dot: true }),
-      ui.iconButton("notifications", { badge: 5 }),
-      ui.iconButton("mail", { badge: "dot" }),
+      Badge({ count: 12 }),
+      Badge({ dot: true }),
+      IconButton({ icon: "notifications", badge: 5 }),
+      IconButton({ icon: "mail", badge: "dot" }),
     ),
   ),
   Section(
@@ -328,17 +337,17 @@ const kitPage = page(
     "hourglass",
     Row(
       { gap: 16, fillWidth: true },
-      ui.spinner({ size: 24 }),
-      ui.spinner({ size: 40, value: 0.6, color: "teal" }),
-      ui.skeleton({ variant: "circle", width: 40, height: 40 }),
-      ui.skeleton({ variant: "text", width: 180 }),
-      ui.skeleton({ variant: "rect", width: 120, height: 48 }),
+      Spinner({ size: 24 }),
+      Spinner({ size: 40, value: 0.6, color: "teal" }),
+      Skeleton({ variant: "circle", width: 40, height: 40 }),
+      Skeleton({ variant: "text", width: 180 }),
+      Skeleton({ variant: "rect", width: 120, height: 48 }),
     ),
   ),
   Section(
     "Bottom sheet",
     "vertical_align_bottom",
-    ui.button("Open sheet", { onClick: () => app.store.set("sheet", true) }),
+    Button({ onClick: () => app.store.set("sheet", true) }, "Open sheet"),
   ),
   Section(
     "Virtual list",
@@ -384,13 +393,13 @@ const kitPage = page(
         },
         Column(
           { gap: 4 },
-          ui.text({ text: "Neon card", size: 16, weight: "semibold", color: "crust" }),
-          ui.text({ text: "soft glow", size: 12, color: "crust" }),
+          Text({ text: "Neon card", size: 16, weight: "semibold", color: "crust" }),
+          Text({ text: "soft glow", size: 12, color: "crust" }),
         ),
       ),
       Column(
         { gap: 14, fillWidth: true },
-        ui.text({
+        Text({
           text: "Neon text",
           size: 24,
           weight: "bold",
@@ -399,14 +408,13 @@ const kitPage = page(
         }),
         Row(
           { gap: 10, fillWidth: true },
-          ui.button("Glow", {
+          Button({
             variant: "solid",
             color: "teal",
             textColor: "crust",
             neon: { color: "teal", intensity: 1.15, glow: 0.9, padding: 22 },
-          }),
-          ui.icon("bolt", {
-            size: 28,
+          }, "Glow"),
+          Icon({ name: "bolt", size: 28,
             color: "pink",
             neon: { color: "pink", intensity: 1.2, glow: 1, padding: 18 },
           }),
@@ -423,22 +431,15 @@ const kitPage = page(
       Switch({ label: "Disabled", checked: false }),
     ),
   ),
-  ui.bottomSheet(
-    {
-      open: app.store.get("sheet") === true,
+  Sheet({ placement: "bottom", open: app.store.get("sheet") === true,
       title: "Actions",
-      placement: "bottom",
       onClose: () => app.store.set("sheet", false),
-    },
-    ui.text({ text: "Pick an action", color: "subtext" }),
-    ui.button("Share", { variant: "soft", color: "blue", onClick: () => app.store.set("sheet", false) }),
-    ui.button("Delete", { variant: "soft", color: "red", onClick: () => app.store.set("sheet", false) }),
-  ),
+    }, Text({ text: "Pick an action", color: "subtext" }), Button({ variant: "soft", color: "blue", onClick: () => app.store.set("sheet", false) }, "Share"), Button({ variant: "soft", color: "red", onClick: () => app.store.set("sheet", false) }, "Delete")),
   Section(
     "Text",
     "text_fields",
     Text({ text: "Bold and *italic*", markdown: true, selectable: true, color: "text" }),
-    ui.text({ text: "A very long line that should elide", elide: "right", width: 180, color: "subtext" }),
+    Text({ text: "A very long line that should elide", elide: "right", width: 180, color: "subtext" }),
   ),
 )
 
