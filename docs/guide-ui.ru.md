@@ -211,7 +211,7 @@ Card(
 ### Scroll, Container, Spacer, Divider
 
 - `Scroll` делает страницу прокручиваемой, когда её контент выше окна. Он идёт по
-  кривой инерции Android и растягивается у краёв; `overscroll: false` и `flick: false`
+  кривой инерции Android и растягивается у нижнего края; `overscroll: false` и `flick: false`
   отключают это.
 - `Container({ maxWidth, padding })` центрирует и ограничивает контент на
   широких окнах.

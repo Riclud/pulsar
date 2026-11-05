@@ -202,10 +202,10 @@ ApplicationWindow {
         }
 
         function absorb(velocity) {
-            if (!stretch || flick.boundsBehavior === Flickable.StopAtBounds)
+            if (!stretch || velocity < 0 || flick.boundsBehavior === Flickable.StopAtBounds)
                 return;
 
-            edge = velocity < 0 ? -1 : 1;
+            edge = 1;
             absorbPeak.to = Math.min(320, Math.abs(velocity) * 0.06);
             absorbing.restart();
         }
@@ -6189,7 +6189,9 @@ ApplicationWindow {
         } else if (node.type === "scroll" || node.type === "list") {
             item.maximumFlickVelocity = prop(props, "flick", true) === false ? 0 : 8000;
             item.boundsBehavior = Qt.binding(function () {
-                return prop(item.pulsarMeta.node.props, "overscroll", true) && item.contentHeight > item.height
+                return prop(item.pulsarMeta.node.props, "overscroll", true)
+                        && item.contentHeight > item.height
+                        && item.contentY > item.originY + 1
                         ? Flickable.DragOverBounds
                         : Flickable.StopAtBounds;
             });

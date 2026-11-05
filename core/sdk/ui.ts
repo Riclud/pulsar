@@ -263,7 +263,7 @@ export interface PageOptions extends CommonOptions {
   footer?: UiChild
   /** Allow kinetic fling after a drag; false stops the list as soon as the finger lifts. */
   flick?: boolean
-  /** Stretch the content at the edges of the list. */
+  /** Stretch the content at the bottom edge of the list. */
   overscroll?: boolean
   onScroll?: (state: ScrollState) => void
 }

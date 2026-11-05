@@ -204,7 +204,7 @@ Card(
 ### Scroll, Container, Spacer, Divider
 
 - `Scroll` makes a page scroll when its content is taller than the window. It follows
-  the Android fling curve and stretches at the edges; `overscroll: false` and
+  the Android fling curve and stretches at the bottom edge; `overscroll: false` and
   `flick: false` turn those off.
 - `Container({ maxWidth, padding })` centers and caps content on wide windows.
 - `Spacer` fills leftover space in the main axis.

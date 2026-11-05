@@ -1150,7 +1150,7 @@ padding })` caps and centers content on large windows.
 - A layout with spare space keeps its children at the start, and a window has no margin
   of its own.
 - `Page` and `Scroll` accept `flick` and `overscroll` to turn off kinetic scrolling
-  or the stretch at the edges per screen.
+  or the stretch at the bottom edge per screen.
 - The lower-level `ui.column(...)`, `ui.button(...)` factories remain available;
   the components above are thin wrappers over them.
 - QML windows keep working as before — mix freely (some windows in QML, some in

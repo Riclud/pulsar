@@ -140,7 +140,7 @@ Page({ padding: 16, gap: 12, header: Text({ text: "Tasks", size: 24 }) }, Text({
 ```
 
 Scrolling follows the Android fling curve on every platform, a tap stops it without
-clicking anything, and content stretches at the edges. `overscroll: false` turns the
+clicking anything, and content stretches at the bottom edge. `overscroll: false` turns the
 stretch off, and `flick: false` stops the list as soon as the finger lifts.
 
 ## Layout, from CSS
