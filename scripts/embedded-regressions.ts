@@ -303,7 +303,7 @@ const runScenario = async (scenario: Scenario) => {
     ])
     const hostOutput = existsSync(hostLog) ? readFileSync(hostLog, "utf8") : ""
     const output = `${stdout}\n${stderr}\n${hostOutput}`
-    const passed = exitCode === 0 && scenario.check(output) && !output.includes("recursive rearrange") && !output.includes("read-only property")
+    const passed = exitCode === 0 && scenario.check(output) && !output.includes("recursive rearrange") && !output.includes("read-only property") && !output.includes("as the root of a QML document")
 
     console.log(`${passed ? "ok  " : "FAIL"} ${scenario.name} (exit ${exitCode})`)
 

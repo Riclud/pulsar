@@ -185,7 +185,8 @@ ApplicationWindow {
         }
 
         function fling(velocity) {
-            const speed = Math.abs(velocity);
+            const limit = flick.maximumFlickVelocity;
+            const speed = Math.min(Math.abs(velocity), limit);
 
             if (speed < 50)
                 return;
@@ -4510,9 +4511,9 @@ ApplicationWindow {
             const parts = code.match(/^((?:import [^;]+; *)*)(.*)$/);
 
             component = Qt.createQmlObject(
-                        "import QtQml; " + parts[1] + "Component { " + parts[2] + " }",
+                        "import QtQml; " + parts[1] + "QtObject { property Component made: Component { " + parts[2] + " } }",
                         view,
-                        "pulsar-ui");
+                        "pulsar-ui").made;
             view.madeComponents[code] = component;
         }
 
