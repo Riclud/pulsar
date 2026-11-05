@@ -45,6 +45,7 @@ const DOMAIN = (process.env.DOCS_DOMAIN ?? (existsSync(CNAME) ? readFileSync(CNA
   .trim()
   .replace(/^https?:\/\//, "")
   .replace(/\/+$/, "")
+const BUILD_ID = Date.now().toString(36)
 const VERSION = (JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as { version: string }).version
 
 const sitePath = (path: string): string => {
@@ -803,7 +804,7 @@ const shell = (current: Page, bodyClass: string, main: string, nav: string, tocH
   ${canonical ? `<link rel="canonical" href="${canonical}">` : ""}
   <link rel="alternate" hreflang="${altLang}" href="${current.alt}">
   <link rel="icon" href="${sitePath("favicon.svg")}" type="image/svg+xml">
-  <link rel="stylesheet" href="${sitePath("assets/styles.css")}">
+  <link rel="stylesheet" href="${sitePath("assets/styles.css")}?v=${BUILD_ID}">
   <script>
     (function () {
       try {
@@ -845,7 +846,7 @@ const shell = (current: Page, bodyClass: string, main: string, nav: string, tocH
     ${tocHTML}
   </div>
   <div id="search-root"></div>
-  <script type="module" src="${sitePath("assets/app.js")}"></script>
+  <script type="module" src="${sitePath("assets/app.js")}?v=${BUILD_ID}"></script>
 </body>
 </html>`
 }
