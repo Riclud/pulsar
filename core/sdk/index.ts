@@ -5,6 +5,7 @@ export type { AppConfig, EventHandler, PulsarEventMap, KnownEvent, UiSource, UiT
 export {
   component,
   KeepAlive,
+  Canvas,
   onCleanup,
   onMount,
   diffUiTrees,
@@ -71,6 +72,9 @@ export type {
   MotionState,
   MotionTransition,
   KeepAliveOptions,
+  CanvasContext,
+  CanvasFrame,
+  CanvasOptions,
   StateStyle,
   UiPatch,
   UiChild,

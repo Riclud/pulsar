@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import {
   Button,
+  Canvas,
   component,
   Card,
   Checkbox,
@@ -550,6 +551,14 @@ describe("qml-like components", () => {
     const tree = Column({}, Text({}, "a"), null, false, [Text({}, "b")])
 
     expect(tree.children?.map((child) => child.type)).toEqual(["text", "text"])
+  })
+
+  test("Canvas sends its draw function as source", () => {
+    const node = Canvas({ width: 10, height: 10, params: { n: 1 }, draw: (ctx, { params }) => ctx.fillRect(0, 0, params.n, 1) })
+
+    expect(node.type).toBe("canvas")
+    expect(String(node.props.drawSource)).toContain("fillRect")
+    expect(node.props.draw).toBeUndefined()
   })
 
   test("For builds a keyed list", () => {

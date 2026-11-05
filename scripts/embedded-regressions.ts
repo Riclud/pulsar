@@ -165,6 +165,18 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "canvas",
+    check: (output) => {
+      return (
+        output.includes("CANVAS still 300 40 #123456") &&
+        output.includes("CANVAS still 300 40 #654321") &&
+        (output.match(/CANVAS moving/g) ?? []).length > 5 &&
+        output.includes("Canvas draw failed") &&
+        output.includes("SIZE sized 300")
+      )
+    },
+  },
+  {
     name: "packing",
     check: (output) => {
       return (

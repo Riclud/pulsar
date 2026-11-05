@@ -2,6 +2,7 @@ import { Computation } from "./reactive.ts"
 import type { ColorValue } from "./theme.ts"
 
 export type UiNodeType =
+  | "canvas"
   | "column"
   | "row"
   | "wrap"
@@ -1872,6 +1873,78 @@ export const component = <P>(setup: ComponentSetup<P>): DefinedComponent<P> => {
 
     return instance.node as UiNode
   }
+}
+
+export interface CanvasContext {
+  fillStyle: string
+  strokeStyle: string
+  lineWidth: number
+  lineCap: "butt" | "round" | "square"
+  lineJoin: "bevel" | "round" | "miter"
+  globalAlpha: number
+  shadowColor: string
+  shadowBlur: number
+  shadowOffsetX: number
+  shadowOffsetY: number
+  font: string
+  textAlign: "left" | "right" | "center" | "start" | "end"
+  textBaseline: "top" | "middle" | "bottom" | "alphabetic"
+  save(): void
+  restore(): void
+  translate(x: number, y: number): void
+  rotate(angle: number): void
+  scale(x: number, y: number): void
+  beginPath(): void
+  closePath(): void
+  moveTo(x: number, y: number): void
+  lineTo(x: number, y: number): void
+  quadraticCurveTo(cx: number, cy: number, x: number, y: number): void
+  bezierCurveTo(c1x: number, c1y: number, c2x: number, c2y: number, x: number, y: number): void
+  arc(x: number, y: number, radius: number, start: number, end: number, counterClockwise?: boolean): void
+  rect(x: number, y: number, width: number, height: number): void
+  fill(): void
+  stroke(): void
+  clip(): void
+  clearRect(x: number, y: number, width: number, height: number): void
+  fillRect(x: number, y: number, width: number, height: number): void
+  strokeRect(x: number, y: number, width: number, height: number): void
+  fillText(text: string, x: number, y: number): void
+  strokeText(text: string, x: number, y: number): void
+}
+
+export interface CanvasFrame<P> {
+  width: number
+  height: number
+  /** Seconds since the canvas appeared. */
+  time: number
+  params: P
+  colors: {
+    primary: string
+    text: string
+    textSecondary: string
+    background: string
+    surface: string
+    border: string
+  }
+}
+
+export interface CanvasOptions<P> extends CommonOptions {
+  /**
+   * Runs in the renderer, so it cannot read outer variables. Pass data through `params`.
+   * Write it as an arrow function.
+   */
+  draw: (ctx: CanvasContext, frame: CanvasFrame<P>) => void
+  params?: P
+  /** Redraw on every frame while the canvas is visible. */
+  animated?: boolean
+  /** Cap the redraw rate of an animated canvas. Defaults to 60; 0 means every frame. */
+  fps?: number
+}
+
+export const Canvas = <P = Record<string, never>>(options: CanvasOptions<P>): UiNode => {
+  const { draw, ...props } = options
+
+  return makeNode("canvas", { ...props, drawSource: draw.toString() })
 }
 
 export interface KeepAliveOptions extends CommonOptions, PaddingOptions, SurfaceOptions {
