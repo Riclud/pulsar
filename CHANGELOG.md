@@ -74,6 +74,7 @@ All notable changes to this project are documented here. The format follows
 
 - `gradient` on `Box` and `Card` now draws; it used to paint nothing.
 - A tap reaches only the deepest clickable node, not every card around it.
+- `SearchField` reports text while a word is still being composed on the keyboard.
 - A click finishes the word being composed on the keyboard first, so a button next to
   an input sees the whole text.
 - A layout that updates while hidden keeps its padding.

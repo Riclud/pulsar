@@ -3436,7 +3436,7 @@ ApplicationWindow {
 
                 interval: Math.max(0, searchRoot.debounce)
 
-                onTriggered: view.emitNodeEvent(searchRoot.nodeData, "input", searchRoot.text)
+                onTriggered: view.emitNodeEvent(searchRoot.nodeData, "input", searchRoot.displayText)
             }
         }
     }
@@ -5463,20 +5463,20 @@ ApplicationWindow {
                     emitEvent(item.pulsarMeta.node, "select", true);
             });
         } else if (node.type === "searchField") {
-            item.textEdited.connect(function () {
+            item.displayTextChanged.connect(function () {
                 if (item.pulsarMeta.syncing === true)
                     return;
 
                 const extra = item.pulsarMeta.extra;
 
-                extra.typedTexts = (extra.typedTexts || []).concat(item.text).slice(-64);
+                extra.typedTexts = (extra.typedTexts || []).concat(item.displayText).slice(-64);
 
                 if (item.debounce > 0) {
                     item.inputTimer.restart();
                     return;
                 }
                 if (hasEvent(item.pulsarMeta.node, "input"))
-                    emitEvent(item.pulsarMeta.node, "input", item.text);
+                    emitEvent(item.pulsarMeta.node, "input", item.displayText);
             });
             item.accepted.connect(function () {
                 if (hasEvent(item.pulsarMeta.node, "submit"))
