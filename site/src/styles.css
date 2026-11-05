@@ -1282,6 +1282,11 @@ body { font-size: 15.5px; line-height: 1.7; }
 .sample { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(250px, 300px); gap: 32px; align-items: center; }
 .sample-code { max-width: none; min-width: 0; }
 .sample-code pre { margin: 0; }
+.sample-tabs { display: inline-flex; gap: 2px; margin-bottom: 10px; padding: 3px; border: 1px solid var(--border); border-radius: 10px; }
+.sample-tab { padding: 5px 14px; border: 0; border-radius: 7px; background: transparent; color: var(--text-dim); font: inherit; font-size: 13px; cursor: pointer; }
+.sample-tab:hover { color: var(--text-strong); }
+.sample-tab.is-active { background: var(--bg-hover); color: var(--text-strong); }
+.sample-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .phone { justify-self: center; width: 100%; max-width: 280px; padding: 9px; border: 1px solid var(--border-strong); border-radius: 30px; background: var(--bg-elevated); box-shadow: var(--glow); }
 .phone-screen { padding: 22px 13px 26px; border-radius: 22px; background: #0f1117; overflow: hidden; color: #e7e9f0; font-size: 13.5px; }

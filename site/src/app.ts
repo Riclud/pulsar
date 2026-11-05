@@ -608,6 +608,28 @@ const initStarfield = () => {
 }
 
 const initCopyButtons = (root: ParentNode = document) => {
+  root.querySelectorAll<HTMLElement>("[data-sample]").forEach((sample) => {
+    if (sample.dataset.bound === "1") return
+    sample.dataset.bound = "1"
+
+    const tabs = sample.querySelectorAll<HTMLButtonElement>("[data-sample-tab]")
+
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        tabs.forEach((other) => {
+          const active = other === tab
+
+          other.classList.toggle("is-active", active)
+          other.setAttribute("aria-selected", String(active))
+        })
+
+        sample.querySelectorAll<HTMLElement>("[data-sample-panel]").forEach((panel) => {
+          panel.hidden = panel.dataset.samplePanel !== tab.dataset.sampleTab
+        })
+      })
+    })
+  })
+
   root.querySelectorAll<HTMLButtonElement>("[data-copy]").forEach((button) => {
     if (button.dataset.bound === "1") return
     button.dataset.bound = "1"

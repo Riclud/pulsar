@@ -218,7 +218,7 @@ const rewriteLinks = (html: string, page: Page, anchors: Map<string, { page: Pag
 const buildHighlighter = async () => {
   return createHighlighter({
     themes: ["github-dark-default", "github-light-default"],
-    langs: ["ts", "json", "sh", "bash", "powershell", "qml", "ini", "yaml", "markdown", "cpp", "plaintext"],
+    langs: ["tsx", "ts", "json", "sh", "bash", "powershell", "qml", "ini", "yaml", "markdown", "cpp", "plaintext"],
   })
 }
 
@@ -416,7 +416,8 @@ const homeText = {
     fromWeb: "Coming from the web",
     sampleKicker: "Familiar from day one",
     sampleTitle: "If you know flexbox, you can already read this",
-    sampleText: "Functions instead of tags and props instead of CSS. Controls come ready, with their states and theme.",
+    sampleText: "Functions or JSX tags, whichever you prefer, and props instead of CSS. Controls come ready, with their states and theme.",
+    sampleTabs: "Code style",
     tasks: ["Buy coffee", "Call Anna", "Ship the update"],
     tasksTitle: "Tasks",
     tasksLeft: "2 left",
@@ -458,7 +459,8 @@ const homeText = {
     fromWeb: "Если вы пришли из веба",
     sampleKicker: "Знакомо с первого дня",
     sampleTitle: "Если вы знаете flexbox, вы уже можете это читать",
-    sampleText: "Функции вместо тегов и свойства вместо CSS. Элементы управления уже готовы, с состояниями и темой.",
+    sampleText: "Функции или JSX-теги, как вам удобнее, и свойства вместо CSS. Элементы управления уже готовы, с состояниями и темой.",
+    sampleTabs: "Стиль кода",
     tasks: ["Купить кофе", "Позвонить Анне", "Выпустить обновление"],
     tasksTitle: "Задачи",
     tasksLeft: "Осталось: 2",
@@ -522,6 +524,38 @@ app.window().render(() => {
 })`
 }
 
+const homeSampleJsx = (title: string, left: string): string => {
+  return `const TaskRow = component<{ key: string; task: Task }>(({ task }) => {
+  return (
+    <Row
+      color="surface"
+      radius={10}
+      padding={12}
+      gap={10}
+      alignItems="center"
+      fillWidth
+      pressed={{ scale: 0.98 }}
+      drag={{ axis: "x", onRelease: () => toggle(task) }}
+    >
+      <Checkbox checked={task.done} onToggle={() => toggle(task)} />
+      <Text text={task.text} strike={task.done} flex={1} />
+    </Row>
+  )
+})
+
+app.window().render(() => {
+  return (
+    <Column fill padding={16} gap={8}>
+      <Text text="${title}" size={24} weight="semibold" />
+      <Text text={\`${left}\`} size={12} />
+      {state.tasks.map((task) => (
+        <TaskRow key={task.id} task={task} />
+      ))}
+    </Column>
+  )
+})`
+}
+
 const homePage = (lang: Lang, md: ReturnType<typeof makeMarkdown>): Page => {
   const t = ui[lang]
   const c = homeText[lang]
@@ -555,7 +589,14 @@ pulsar install</code></pre>
     <p>${c.sampleText}</p>
   </div>
   <div class="sample">
-    <div class="sample-code prose">${md.render("```ts\n" + homeSample(c.tasksTitle, lang === "en" ? "${open.get()} left" : "Осталось: ${open.get()}") + "\n```")}</div>
+    <div class="sample-code prose" data-sample>
+      <div class="sample-tabs" role="tablist" aria-label="${c.sampleTabs}">
+        <button class="sample-tab is-active" role="tab" aria-selected="true" data-sample-tab="ts">TypeScript</button>
+        <button class="sample-tab" role="tab" aria-selected="false" data-sample-tab="jsx">JSX</button>
+      </div>
+      <div data-sample-panel="ts">${md.render("```ts\n" + homeSample(c.tasksTitle, lang === "en" ? "${open.get()} left" : "Осталось: ${open.get()}") + "\n```")}</div>
+      <div data-sample-panel="jsx" hidden>${md.render("```tsx\n" + homeSampleJsx(c.tasksTitle, lang === "en" ? "${open.get()} left" : "Осталось: ${open.get()}") + "\n```")}</div>
+    </div>
     <div class="phone" aria-hidden="true">
       <div class="phone-screen">
         <p class="phone-title">${c.tasksTitle}</p>
