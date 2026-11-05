@@ -4825,7 +4825,9 @@ ApplicationWindow {
         const filler = layout.pulsarMeta.extra.filler;
 
         for (let i = 0; i < kids.length; i++) {
-            if (kids[i].visible !== false && kids[i] !== filler && kids[i].pulsarMeta)
+            const meta = kids[i].pulsarMeta;
+
+            if (meta && meta.node && !meta.extra.discarded && meta.node.props.visible !== false)
                 active.push(i);
         }
 

@@ -157,6 +157,14 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "hidden-padding",
+    check: (output) => {
+      const sizes = output.split("\n").filter((line) => line.includes("SIZE padded "))
+
+      return (sizes.at(-1) ?? "").includes("SIZE padded 112")
+    },
+  },
+  {
     name: "packing",
     check: (output) => {
       return (
