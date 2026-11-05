@@ -23,6 +23,7 @@ ApplicationWindow {
     property bool windowTransparent: false
     readonly property var flingCurve: makeFlingCurve()
     property var tappedItems: []
+    property var madeComponents: ({})
     property bool reordering: false
     property int revealTicks: 0
     property var tree: []
@@ -4495,7 +4496,19 @@ ApplicationWindow {
     }
 
     function make(code, parent) {
-        return Qt.createQmlObject(code, parent, "pulsar-ui");
+        let component = view.madeComponents[code];
+
+        if (!component) {
+            const parts = code.match(/^((?:import [^;]+; *)*)(.*)$/);
+
+            component = Qt.createQmlObject(
+                        "import QtQml; " + parts[1] + "Component { " + parts[2] + " }",
+                        view,
+                        "pulsar-ui");
+            view.madeComponents[code] = component;
+        }
+
+        return component.createObject(parent);
     }
 
     function contentMeta() {
