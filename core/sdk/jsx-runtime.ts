@@ -47,7 +47,7 @@ export namespace JSX {
   }
 
   export type LibraryManagedAttributes<_Component, Props> = Props & {
-    children?: UiChild
+    children?: UiChild | (() => UiNode)
   }
 
   export interface IntrinsicElements {}

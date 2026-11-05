@@ -1,7 +1,7 @@
 import { describe, expect, spyOn, test } from "bun:test"
 import { App } from "./app.ts"
 import { signal } from "./reactive.ts"
-import { Box, Button, Column, For, Radio, Row, Text, When, component, serialize, type UiPatch } from "./ui.ts"
+import { Box, Button, KeepAlive, Column, For, Radio, Row, Text, When, component, serialize, type UiPatch } from "./ui.ts"
 import { Fragment, jsx } from "./jsx-runtime.ts"
 
 const tick = async () => {
@@ -144,5 +144,17 @@ describe("jsx", () => {
     expect(warn).toHaveBeenCalledTimes(1)
 
     warn.mockRestore()
+  })
+})
+
+describe("KeepAlive in JSX", () => {
+  test("takes its content as a function", () => {
+    const hidden = <KeepAlive active={false}>{() => <Text text="later" />}</KeepAlive>
+
+    expect(hidden).toBeNull()
+
+    const shown = <KeepAlive active>{() => <Text text="now" />}</KeepAlive>
+
+    expect(JSON.stringify(shown)).toContain("now")
   })
 })

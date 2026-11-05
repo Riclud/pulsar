@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { App } from "./app.ts"
 import { computed, createState, effect, signal } from "./reactive.ts"
-import { Column, Text, collectUiHandlers, component, onCleanup, onMount, type UiPatch } from "./ui.ts"
+import { Column, KeepAlive, Text, collectUiHandlers, component, onCleanup, onMount, type UiPatch } from "./ui.ts"
 
 const tick = async () => {
   await Promise.resolve()
@@ -242,5 +242,109 @@ describe("components", () => {
     await tick()
 
     expect((patches.at(-1)?.[0]?.node.props as { text: string }).text).toBe("b")
+  })
+})
+
+describe("KeepAlive", () => {
+  const setup = () => {
+    const { app, trees, patches } = harness()
+    const active = signal(false)
+    const value = signal("a")
+    const counts = { setup: 0, render: 0, cleanup: 0, inner: 0 }
+
+    const Inner = component(() => {
+      counts.inner++
+
+      return Text({ text: `inner ${value.get()}` })
+    })
+
+    const Screen = component(() => {
+      counts.setup++
+
+      onCleanup(() => {
+        counts.cleanup++
+      })
+
+      return () => {
+        counts.render++
+
+        return Column({}, Text({ text: value.get() }), Inner({}))
+      }
+    })
+
+    const present = signal(true)
+
+    app.window("main").render(() =>
+      Column(
+        { key: "root" },
+        present.get() ? KeepAlive({ key: "screen", active: active.get() }, () => Screen({})) : null,
+      ),
+    )
+
+    return { active, value, counts, present, trees, patches }
+  }
+
+  test("builds the content only when first shown", async () => {
+    const { active, counts } = setup()
+
+    await tick()
+    expect(counts.setup).toBe(0)
+
+    active.set(true)
+    await tick()
+    expect(counts.setup).toBe(1)
+  })
+
+  test("keeps the instance while hidden", async () => {
+    const { active, counts } = setup()
+
+    active.set(true)
+    await tick()
+    active.set(false)
+    await tick()
+    active.set(true)
+    await tick()
+
+    expect(counts.setup).toBe(1)
+    expect(counts.cleanup).toBe(0)
+  })
+
+  test("applies changes only when shown again", async () => {
+    const { active, value, counts, patches } = setup()
+
+    active.set(true)
+    await tick()
+    active.set(false)
+    await tick()
+
+    const renders = counts.render
+    const inner = counts.inner
+    const sent = patches.length
+
+    value.set("b")
+    await tick()
+
+    expect(counts.render).toBe(renders)
+    expect(counts.inner).toBe(inner)
+    expect(patches.length).toBe(sent)
+
+    active.set(true)
+    await tick()
+    await tick()
+
+    expect(counts.render).toBe(renders + 1)
+    expect(counts.inner).toBe(inner + 1)
+    expect(JSON.stringify(patches.slice(sent))).toContain("inner b")
+  })
+
+  test("disposes the content when it leaves the tree", async () => {
+    const { active, present, counts } = setup()
+
+    active.set(true)
+    await tick()
+    present.set(false)
+    await tick()
+
+    expect(counts.cleanup).toBe(1)
   })
 })

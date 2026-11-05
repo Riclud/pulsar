@@ -1703,6 +1703,7 @@ export interface ComponentInstance {
   calls: Map<unknown, number>
   cleanups: Cleanup[]
   root: UiRoot
+  paused: boolean
 }
 
 export interface UiRoot {
@@ -1722,6 +1723,9 @@ const createInstance = (root: UiRoot | null, parent: ComponentInstance | null, p
     render: () => null,
     computation: new Computation(() => {
       instance.dirty = true
+
+      if (isPaused(instance)) return
+
       instance.root.dirty.add(instance)
       instance.root.schedule()
     }),
@@ -1734,9 +1738,29 @@ const createInstance = (root: UiRoot | null, parent: ComponentInstance | null, p
     calls: new Map(),
     cleanups: [],
     root: (root ?? parent?.root) as UiRoot,
+    paused: false,
   }
 
   return instance
+}
+
+const isPaused = (instance: ComponentInstance): boolean => {
+  for (let current: ComponentInstance | null = instance; current; current = current.parent) {
+    if (current.paused) return true
+  }
+
+  return false
+}
+
+const resumeInstance = (instance: ComponentInstance): void => {
+  if (instance.dirty) {
+    instance.root.dirty.add(instance)
+    instance.root.schedule()
+  }
+
+  for (const group of instance.instances.values()) {
+    for (const child of group.values()) resumeInstance(child)
+  }
 }
 
 const disposeInstance = (instance: ComponentInstance): void => {
@@ -1891,13 +1915,61 @@ export const component = <P>(setup: ComponentSetup<P>): DefinedComponent<P> => {
     instance.args = children
     parent.seen.add(instance)
 
-    if (changed || instance.dirty) renderInstance(instance)
+    if ((changed || instance.dirty) && !isPaused(instance)) renderInstance(instance)
 
     return instance.node as UiNode
   }
 }
 
 export const defineComponent = component
+
+export interface KeepAliveOptions extends CommonOptions, PaddingOptions, SurfaceOptions {
+  /** Show the content. It is built the first time this is true and kept after that. */
+  active: boolean
+}
+
+interface KeepAliveHolder {
+  instance: ComponentInstance | null
+}
+
+const KeepAliveContent = component<{ holder: KeepAliveHolder; render: () => UiNode }>((props) => {
+  props.holder.instance = currentInstance
+
+  return () => props.render()
+})
+
+const KeepAliveFrame = component<KeepAliveOptions & { render: () => UiNode }>((props) => {
+  const holder: KeepAliveHolder = { instance: null }
+
+  let started = false
+
+  return () => {
+    const { active, render, ...options } = props
+
+    if (!active && !started) return null as unknown as UiNode
+
+    started = true
+
+    const content = holder.instance
+
+    if (content && content.paused === active) {
+      content.paused = !active
+
+      if (active) resumeInstance(content)
+    }
+
+    return Box({ fill: true, ...options, visible: active }, KeepAliveContent({ holder, render }))
+  }
+})
+
+/**
+ * Keep a screen alive while it is hidden, so that it opens again at once with its
+ * scroll and input intact. Content is built on first use, and while hidden it only
+ * records changes, which are applied when it is shown again.
+ */
+export const KeepAlive = (options: KeepAliveOptions, render: () => UiNode): UiNode => {
+  return KeepAliveFrame({ ...options, render })
+}
 
 /** Run after this component's first render has reached the host; may return a cleanup. */
 export const onMount = (run: () => void | Cleanup): void => {
