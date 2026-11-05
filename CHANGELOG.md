@@ -15,6 +15,8 @@ All notable changes to this project are documented here. The format follows
   the start, as flexbox does. They used to spread out, and a child of a tall `Box` sat
   in the middle. Use `Column({ justify: "center", alignItems: "center" })` to center.
 - A window no longer has a margin around its content. Add `padding` to the root node.
+- `flickVelocity` and `flickDeceleration` are gone. Scrolling now follows the Android
+  fling curve, and `overscroll` stretches the content and defaults to true.
 - A window no longer re-renders on every store change. Values read during a render
   must come from a signal, `createState` or the store; `app.invalidateUi()` covers
   anything else.

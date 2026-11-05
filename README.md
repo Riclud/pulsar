@@ -1140,8 +1140,8 @@ padding })` caps and centers content on large windows.
   `Wrap` and `Stack` accept the surface props of `Box`. See the
   [guide for web developers](docs/guide-web.md).
 - `pressed`, `enter`, `exit`, `transition` and `drag` animate in the renderer.
-- `Page` and `Scroll` accept `flickVelocity`, `flickDeceleration` and
-  `overscroll` to tune or disable kinetic scrolling per screen.
+- `Page` and `Scroll` accept `flick` and `overscroll` to turn off kinetic scrolling
+  or the stretch at the edges per screen.
 - The lower-level `ui.column(...)`, `ui.button(...)` factories remain available;
   the components above are thin wrappers over them.
 - QML windows keep working as before — mix freely (some windows in QML, some in

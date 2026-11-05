@@ -263,8 +263,7 @@ export interface PageOptions extends CommonOptions {
   footer?: UiChild
   /** Allow kinetic fling after a drag; false stops the list as soon as the finger lifts. */
   flick?: boolean
-  flickVelocity?: number
-  flickDeceleration?: number
+  /** Stretch the content at the edges of the list. */
   overscroll?: boolean
   onScroll?: (state: ScrollState) => void
 }
@@ -281,8 +280,7 @@ export interface ScrollOptions extends CommonOptions {
   gap?: number
   padding?: number
   flick?: boolean
-  flickVelocity?: number
-  flickDeceleration?: number
+  /** Stretch the content at the edges of the list. */
   overscroll?: boolean
   onScroll?: (state: ScrollState) => void
 }
@@ -1658,8 +1656,6 @@ export const page = (options: PageOptions = {}, ...children: UiChild[]): UiNode 
     header,
     footer,
     flick,
-    flickVelocity,
-    flickDeceleration,
     overscroll,
     onScroll,
     ...props
@@ -1669,7 +1665,7 @@ export const page = (options: PageOptions = {}, ...children: UiChild[]): UiNode 
     { ...props, fill: true, gap, padding },
     header ?? null,
     scroll(
-      { fill: true, flick, flickVelocity, flickDeceleration, overscroll, onScroll },
+      { fill: true, flick, overscroll, onScroll },
       column({ gap, fillWidth: true }, ...children),
     ),
     footer ?? null,
