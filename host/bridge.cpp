@@ -85,6 +85,9 @@ Bridge::Bridge(QJSEngine *engine, QQmlPropertyMap *store, QObject *parent)
     connect(&process_, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &Bridge::onProcessFinished);
     connect(&process_, &QProcess::errorOccurred, this, [this](QProcess::ProcessError e) {
+        if (restarting_)
+            return;
+
         qInfo() << "bridge proc error:" << int(e);
     });
     connect(&process_, &QProcess::stateChanged, this, [this](QProcess::ProcessState s) {

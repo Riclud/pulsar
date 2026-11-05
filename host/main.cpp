@@ -786,6 +786,35 @@ static void showWindow(QQmlApplicationEngine &engine, const WindowConfig &cfg)
     applyUiTree(cfg.label);
 }
 
+// A kept window has been resized or tiled by now, so only what the config
+// actually changed is applied to it.
+static WindowConfig changesFrom(const WindowConfig &previous, const WindowConfig &next)
+{
+    WindowConfig change = next;
+
+    change.hasWidth = next.hasWidth && (!previous.hasWidth || previous.width != next.width);
+    change.hasHeight = next.hasHeight && (!previous.hasHeight || previous.height != next.height);
+    change.hasFrameless = next.hasFrameless
+        && (!previous.hasFrameless || previous.frameless != next.frameless);
+    change.hasTransparent = next.hasTransparent
+        && (!previous.hasTransparent || previous.transparent != next.transparent);
+
+    return change;
+}
+
+static bool canKeepWindows(const QList<WindowConfig> &configs)
+{
+    if (configs.size() != g_roots.size())
+        return false;
+
+    for (const WindowConfig &cfg : configs) {
+        if (!g_roots.contains(cfg.label) || resolveUi(cfg.ui).scheme() != QLatin1String("qrc"))
+            return false;
+    }
+
+    return true;
+}
+
 static void destroyWindows(QQmlApplicationEngine &engine)
 {
     for (QObject *root : std::as_const(g_roots))
@@ -1621,18 +1650,25 @@ int main(int argc, char **argv)
                              }
 
                              // In watch mode a repeated __config means the runtime restarted.
-                             if (gWatch && gShownAny)
+                             // Windows built from JS stay open and take the new tree; only QML
+                             // windows have to be recreated to pick up their files.
+                             if (gWatch && gShownAny && !canKeepWindows(configs))
                                  destroyWindows(engine);
 
                              for (const WindowConfig &cfg : std::as_const(configs)) {
                                  if (gPrimaryLabel.isEmpty())
                                      gPrimaryLabel = cfg.label;
 
+                                 const bool kept = g_requested.contains(cfg.label);
+                                 const WindowConfig change = kept
+                                     ? changesFrom(g_configs.value(cfg.label), cfg)
+                                     : cfg;
+
                                  g_configs.insert(cfg.label, cfg);
                                  logWindowConfig(cfg);
 
-                                 if (g_requested.contains(cfg.label))
-                                     applyConfig(g_roots.value(cfg.label), cfg);
+                                 if (kept)
+                                     applyConfig(g_roots.value(cfg.label), change);
                                  else
                                      showWindow(engine, cfg);
                              }
