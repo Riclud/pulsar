@@ -65,6 +65,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- The mouse wheel adds up: fast notches speed a list up instead of bogging it down, and
+  a touchpad follows the fingers.
 - Linux uses the threaded render loop unless `QSG_RENDER_LOOP` is set, which paces
   animation far more evenly than the basic loop Qt picks on NVIDIA under Wayland.
 - Creating nodes is much faster on a phone: QML snippets are compiled once instead of

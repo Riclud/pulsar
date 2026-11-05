@@ -124,9 +124,12 @@ ApplicationWindow {
         parent: flick
         anchors.fill: parent
         z: 1
-        visible: frames.running || pressed
+        visible: frames.running || wheeling.running || pressed
 
-        onPressed: frames.stop()
+        onPressed: {
+            frames.stop()
+            wheeling.stop()
+        }
 
         function minY() {
             return flick.originY - flick.topMargin;
@@ -203,6 +206,30 @@ ApplicationWindow {
             frames.restart();
         }
 
+        function scrollByWheel(event) {
+            if (flick.contentHeight <= flick.height) {
+                event.accepted = false;
+                return;
+            }
+
+            frames.stop();
+
+            const touchpad = event.pixelDelta.y !== 0;
+            const distance = touchpad ? -event.pixelDelta.y : -event.angleDelta.y;
+            const base = wheeling.running ? wheeling.to : flick.contentY;
+            const target = Math.max(minY(), Math.min(maxY(), base + distance));
+
+            if (touchpad) {
+                wheeling.stop();
+                flick.contentY = target;
+                return;
+            }
+
+            wheeling.stop();
+            wheeling.to = target;
+            wheeling.start();
+        }
+
         function absorb(velocity) {
             if (!stretch || velocity < 0 || flick.boundsBehavior === Flickable.StopAtBounds)
                 return;
@@ -234,6 +261,26 @@ ApplicationWindow {
             flick.contentY = next < low ? low : high;
             frames.stop();
             absorb(velocity);
+        }
+
+        MouseArea {
+            parent: inertia.flick
+            anchors.fill: parent
+            acceptedButtons: Qt.NoButton
+            z: 1
+
+            onWheel: function (event) {
+                inertia.scrollByWheel(event);
+            }
+        }
+
+        NumberAnimation {
+            id: wheeling
+
+            target: inertia.flick
+            property: "contentY"
+            duration: 180
+            easing.type: Easing.OutCubic
         }
 
         FrameAnimation {
@@ -291,6 +338,7 @@ ApplicationWindow {
                     return;
 
                 inertia.samples = [];
+                wheeling.stop();
                 revealMotion.stop();
                 frames.stop();
                 absorbing.stop();
