@@ -502,22 +502,19 @@ const initPulsar = () => {
     context.fill()
   }
 
+  const pace = reduced ? 0.25 : 1
+
   const loop = (time: number) => {
-    draw(time)
+    draw(time * pace)
     frame = requestAnimationFrame(loop)
   }
 
-  const observer = new ResizeObserver(() => {
-    resize()
-
-    if (reduced) draw(1200)
-  })
+  const observer = new ResizeObserver(resize)
 
   observer.observe(canvas)
   resize()
 
-  if (reduced) draw(1200)
-  else frame = requestAnimationFrame(loop)
+  frame = requestAnimationFrame(loop)
 
   stopStarfield = () => {
     cancelAnimationFrame(frame)
