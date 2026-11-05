@@ -497,7 +497,16 @@ const homeText = {
 const homeSample = (title: string, left: string): string => {
   return `const TaskRow = component<{ key: string; task: Task }>(({ task }) => {
   return Row(
-    { color: "surface", radius: 10, padding: 12, gap: 10, alignItems: "center", fillWidth: true },
+    {
+      color: "surface",
+      radius: 10,
+      padding: 12,
+      gap: 10,
+      alignItems: "center",
+      fillWidth: true,
+      pressed: { scale: 0.98 },
+      drag: { axis: "x", onRelease: () => toggle(task) },
+    },
     Checkbox({ checked: task.done, onToggle: () => toggle(task) }),
     Text({ text: task.text, strike: task.done, flex: 1 }),
   )
