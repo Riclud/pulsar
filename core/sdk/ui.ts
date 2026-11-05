@@ -3,6 +3,7 @@ import type { ColorValue } from "./theme.ts"
 
 export type UiNodeType =
   | "canvas"
+  | "shader"
   | "column"
   | "row"
   | "wrap"
@@ -1945,6 +1946,91 @@ export const Canvas = <P = Record<string, never>>(options: CanvasOptions<P>): Ui
   const { draw, ...props } = options
 
   return makeNode("canvas", { ...props, drawSource: draw.toString() })
+}
+
+export type ShaderUniform = number | ColorValue | "primary" | [number, number] | [number, number, number] | [number, number, number, number]
+
+export interface ShaderOptions extends CommonOptions {
+  /** A `.frag` file of the app, relative to its directory. */
+  source: string
+  /** Values for the `uniform`s the shader declares. A string is a color. */
+  uniforms?: Record<string, ShaderUniform>
+  /** Stop `time` to draw a still picture. */
+  animated?: boolean
+}
+
+/** Runs a fragment shader on the GPU. See the UI guide for the short form it is written in. */
+export const Shader = (options: ShaderOptions): UiNode => {
+  return makeNode("shader", options)
+}
+
+const effect = (name: string, defaults: Record<string, ShaderUniform>, options: Record<string, unknown>): UiNode => {
+  const uniforms = { ...defaults }
+  const rest: Record<string, unknown> = {}
+
+  for (const [key, value] of Object.entries(options)) {
+    if (key in defaults) uniforms[key] = value as ShaderUniform
+    else rest[key] = value
+  }
+
+  return makeNode("shader", { ...rest, source: `qrc:/runtime/shaders/${name}.frag`, uniforms })
+}
+
+export interface WaveOptions extends CommonOptions {
+  color?: ColorValue
+  /** Height of the wave in pixels. */
+  amplitude?: number
+  /** Number of waves across the width. */
+  frequency?: number
+  speed?: number
+  thickness?: number
+  glowRadius?: number
+  animated?: boolean
+}
+
+/** An animated wave, as in a music player. */
+export const Wave = (options: WaveOptions = {}): UiNode => {
+  return effect(
+    "wave",
+    { color: "primary", amplitude: 4, frequency: 6, speed: 3, thickness: 3, glowRadius: 0 },
+    options as Record<string, unknown>,
+  )
+}
+
+export interface LightningOptions extends CommonOptions {
+  color?: ColorValue
+  /** How far the bolt reaches, from 0 to 1. */
+  progress?: number
+  /** New bolt shapes per second. */
+  speed?: number
+  /** How far the bolt strays from the middle, in pixels. */
+  jitter?: number
+  thickness?: number
+  glowRadius?: number
+  animated?: boolean
+}
+
+/** A flickering bolt with a glow. */
+export const Lightning = (options: LightningOptions = {}): UiNode => {
+  return effect(
+    "lightning",
+    { color: "primary", progress: 1, speed: 14, jitter: 26, thickness: 1.5, glowRadius: 16 },
+    options as Record<string, unknown>,
+  )
+}
+
+export interface AuroraOptions extends CommonOptions {
+  color?: ColorValue
+  accent?: ColorValue
+  speed?: number
+  /** Size of the shapes; larger means more and smaller. */
+  scale?: number
+  animated?: boolean
+}
+
+/** A slow flowing background. */
+export const Aurora = (options: AuroraOptions = {}): UiNode => {
+  return effect("aurora", { color: "primary", accent: "#5ce1e6", speed: 0.08, scale: 2.5 }, options as Record<string, unknown>)
 }
 
 export interface KeepAliveOptions extends CommonOptions, PaddingOptions, SurfaceOptions {

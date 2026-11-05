@@ -18,6 +18,7 @@ import {
 } from "./android.ts"
 import { readManifest, resolveEntry } from "./app.ts"
 import { createIgnoreFilter } from "./ignore.ts"
+import { compileAppShaders } from "./shaders.ts"
 import { mapErrorText, parseInlineSourceMap, type SourceMapper } from "./sourcemap.ts"
 import { pulsarRoot } from "./core.ts"
 
@@ -198,6 +199,8 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
   const appDir = options.appDir
   const manifest = readManifest(appDir)
   const ignore = createIgnoreFilter(appDir, manifest)
+
+  compileAppShaders(appDir, manifest ?? undefined)
 
   if (!manifestTargets(manifest).includes("android"))
     throw new Error(`android is not listed in targets (${manifestTargets(manifest).join(", ")})`)

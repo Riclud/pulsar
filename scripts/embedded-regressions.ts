@@ -177,6 +177,10 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "shader",
+    check: (output) => output.includes("SIZE wave 300") && !output.includes("Shader uniform"),
+  },
+  {
     name: "packing",
     check: (output) => {
       return (

@@ -5433,6 +5433,81 @@ ApplicationWindow {
         applyOrder(parent, desired);
     }
 
+    function shaderProperty(name, value) {
+        const type = typeof value === "number" ? "real"
+                : !Array.isArray(value) ? "color"
+                : value.length === 2 ? "vector2d"
+                : value.length === 3 ? "vector3d"
+                : "vector4d";
+
+        return "property " + type + " " + name + "; ";
+    }
+
+    function shaderUrl(source) {
+        const base = PulsarBridge.env("PULSAR_APP") || "";
+
+        return /^[a-z][a-z0-9+.-]*:/i.test(source) ? source + ".qsb"
+                : "file://" + (source.charAt(0) === "/" ? source : base + "/" + source) + ".qsb";
+    }
+
+    function makeShader(node, parent) {
+        const uniforms = prop(node.props, "uniforms", {});
+        const url = shaderUrl(prop(node.props, "source", ""));
+
+        let declared = "";
+
+        for (const name of Object.keys(uniforms).sort())
+            declared += shaderProperty(name, uniforms[name]);
+
+        return make("import QtQuick; ShaderEffect { id: root; fragmentShader: " + JSON.stringify(url) + "; property var pulsarMeta: null; "
+                + "property bool animated: true; property real pulsar_time: 0; "
+                + "property vector2d pulsar_resolution: Qt.vector2d(width, height); " + declared
+                + "FrameAnimation { running: root.animated && root.visible; "
+                + "onTriggered: root.pulsar_time += frameTime } }", parent);
+    }
+
+    function shaderUniform(value) {
+        if (typeof value === "number")
+            return value;
+        if (value === "primary")
+            return view.themePrimary;
+        if (!Array.isArray(value))
+            return resolveColor(value, "transparent");
+        if (value.length === 2)
+            return Qt.vector2d(value[0], value[1]);
+        if (value.length === 3)
+            return Qt.vector3d(value[0], value[1], value[2]);
+
+        return Qt.vector4d(value[0], value[1], value[2], value[3]);
+    }
+
+    function applyShader(item, props) {
+        const url = shaderUrl(prop(props, "source", ""));
+
+        if (item.fragmentShader.toString() !== url)
+            item.fragmentShader = url;
+
+        item.animated = prop(props, "animated", true);
+
+        const uniforms = prop(props, "uniforms", {});
+
+        for (const name of Object.keys(uniforms)) {
+            if (item[name] === undefined) {
+                console.error("[pulsar] Shader uniform " + name + " was added after the shader was created; give the node a new key");
+                continue;
+            }
+
+            item[name] = shaderUniform(uniforms[name]);
+        }
+
+        if (PulsarBridge.env("PULSAR_DEBUG") && item.pulsarMeta && item.pulsarMeta.extra.shaderWatched !== true) {
+            item.pulsarMeta.extra.shaderWatched = true;
+            item.statusChanged.connect(function () {
+                console.log("PulsarView shader status " + item.status + " " + item.log);
+            });
+        }
+    }
+
     function createNode(node, parent, isRoot) {
         let item = null;
 
@@ -5442,6 +5517,8 @@ ApplicationWindow {
             item = rowComponent.createObject(parent);
         } else if (node.type === "canvas") {
             item = canvasComponent.createObject(parent);
+        } else if (node.type === "shader") {
+            item = makeShader(node, parent);
         } else if (node.type === "wrap" || node.type === "stack") {
             item = itemComponent.createObject(parent);
         } else if (node.type === "box") {
@@ -6282,6 +6359,8 @@ ApplicationWindow {
                 if (child.pulsarMeta)
                     child.pulsarMeta.extra.stackAnchored = true;
             }
+        } else if (node.type === "shader") {
+            applyShader(item, props);
         } else if (node.type === "canvas") {
             item.setSource(prop(props, "drawSource", ""));
             item.params = prop(props, "params", ({}));

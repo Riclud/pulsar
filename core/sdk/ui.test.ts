@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import {
   Button,
   Canvas,
+  Wave,
   component,
   Card,
   Checkbox,
@@ -559,6 +560,16 @@ describe("qml-like components", () => {
     expect(node.type).toBe("canvas")
     expect(String(node.props.drawSource)).toContain("fillRect")
     expect(node.props.draw).toBeUndefined()
+  })
+
+  test("effects split their options into uniforms and node props", () => {
+    const node = Wave({ width: 100, color: "#fff", speed: 2 })
+
+    expect(node.type).toBe("shader")
+    expect(node.props.source).toBe("qrc:/runtime/shaders/wave.frag")
+    expect(node.props.width).toBe(100)
+    expect((node.props.uniforms as Record<string, unknown>).speed).toBe(2)
+    expect((node.props.uniforms as Record<string, unknown>).amplitude).toBe(4)
   })
 
   test("For builds a keyed list", () => {

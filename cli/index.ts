@@ -22,6 +22,7 @@ import {
   type Compat,
   type RuntimeKind,
 } from "../core/sdk/manifest.ts"
+import { compileAppShaders, watchAppShaders } from "./shaders.ts"
 import { cliVersion, findBridge, findHost, findLauncher, linkSdk, pulsarRoot, toolchainVersion } from "./core.ts"
 import { ANDROID_QT_VERSION, buildAndroid, installAndroid } from "./android.ts"
 import { launcherName, readManifest, resolveEntry, type BuildTarget } from "./app.ts"
@@ -218,6 +219,7 @@ const run = () => {
 
   warnToolchain()
   linkSdk(appDir, join(pulsarRoot(), "core", "sdk"))
+  compileAppShaders(appDir)
 
   const host = findHost()
   const r = spawnSync(host, [], {
@@ -260,6 +262,8 @@ const dev = async () => {
 
   warnToolchain()
   linkSdk(appDir, join(pulsarRoot(), "core", "sdk"))
+  compileAppShaders(appDir)
+  watchAppShaders(appDir)
 
   const host = findHost()
 
@@ -429,6 +433,8 @@ const encodeContainer = (entries: PayloadEntry[], buildId: bigint): Buffer => {
 
 const build = async () => {
   const appDir = process.cwd()
+
+  compileAppShaders(appDir)
   const target = buildTarget()
   const manifest = readManifest(appDir)
   const compat = manifestCompat(manifest)
@@ -476,6 +482,7 @@ const build = async () => {
   const runtimeTs = join(root, "core", "runtime", "main.ts")
 
   linkSdk(appDir, join(root, "core", "sdk"))
+  compileAppShaders(appDir)
 
   if (!existsSync(runtimeTs)) {
     console.error(`pulsar build: runtime not found at ${runtimeTs}`)

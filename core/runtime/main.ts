@@ -107,6 +107,7 @@ const setupReloadWatcher = (): void => {
     { path: appDir, recursive: false },
     { path: dirname(resolve(appDir, manifest?.main ?? "main.ts")), recursive: true },
     { path: join(appDir, "ui"), recursive: false },
+    { path: join(appDir, "shaders"), recursive: false },
     { path: resolve(import.meta.dir, ".."), recursive: true },
   ]
 
