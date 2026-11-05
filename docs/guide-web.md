@@ -166,6 +166,16 @@ Most flexbox habits carry over.
 | `flex-wrap: wrap`                | `Wrap`                              |
 | `@media (min-width: ...)`        | `createBreakpoints(app)`            |
 
+### Children start at the start
+
+As in flexbox, a `Row`, `Column` or `Box` with spare space keeps its children together
+at the start. A window has no margin of its own, so give the root node a `padding`. A
+`Box` has no centering of its own: to center something, use a `Column`.
+
+```ts
+Column({ width: 44, height: 44, color: "#222", justify: "center", alignItems: "center" }, Icon({ name: "add" }))
+```
+
 ### There is no margin
 
 Space between siblings comes from the parent's `gap`. For one-off space, use

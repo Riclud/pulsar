@@ -11,6 +11,10 @@ All notable changes to this project are documented here. The format follows
 - `fillWidth` and `fillHeight` now always fill a `Row` or `Column`. They used to stop
   at the size of the children. A `Row` that relied on `align: "center"` to center its
   narrow self should use `justify: "center"`; use `alignItems` to center children.
+- A `Row`, `Column` or `Box` with more space than its children need now packs them at
+  the start, as flexbox does. They used to spread out, and a child of a tall `Box` sat
+  in the middle. Use `Column({ justify: "center", alignItems: "center" })` to center.
+- A window no longer has a margin around its content. Add `padding` to the root node.
 - A window no longer re-renders on every store change. Values read during a render
   must come from a signal, `createState` or the store; `app.invalidateUi()` covers
   anything else.

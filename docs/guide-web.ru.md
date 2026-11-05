@@ -165,6 +165,16 @@ Page({ padding: 16, gap: 12, header: Text({ text: "Задачи", size: 24 }) },
 | `flex-wrap: wrap`                | `Wrap`                                  |
 | `@media (min-width: ...)`        | `createBreakpoints(app)`                |
 
+### Дети начинаются с начала
+
+Как во flexbox, `Row`, `Column` или `Box` со свободным местом держит детей вместе в
+начале. У окна нет своего отступа, поэтому задайте `padding` корневому узлу. В `Box`
+нет своего центрирования: чтобы что-то отцентрировать, используйте `Column`.
+
+```ts
+Column({ width: 44, height: 44, color: "#222", justify: "center", alignItems: "center" }, Icon({ name: "add" }))
+```
+
 ### Margin нет
 
 Расстояние между соседями задаёт `gap` родителя. Для разового отступа используйте
