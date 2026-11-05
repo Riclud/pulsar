@@ -3,7 +3,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync
 import { join, relative, resolve } from "path"
 import { flag, linkSdk, pulsarRoot } from "./core.ts"
 
-const TEXT_EXT = new Set([".ts", ".js", ".json", ".qml", ".md", ".txt", ".html", ".css", ".yml", ".yaml"])
+const TEXT_EXT = new Set([".ts", ".tsx", ".js", ".json", ".qml", ".md", ".txt", ".html", ".css", ".yml", ".yaml"])
 
 const isTextFile = (name: string): boolean => {
   if (name.startsWith(".")) return true

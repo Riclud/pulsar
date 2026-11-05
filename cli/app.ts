@@ -15,10 +15,10 @@ export const readManifest = (appDir: string): AppManifest | null => {
 }
 
 export const resolveEntry = (appDir: string, manifest: AppManifest | null, target: BuildTarget): string => {
-  const base = manifest?.main ?? "main.ts"
+  const base = manifest?.main ?? (existsSync(join(appDir, "main.tsx")) ? "main.tsx" : "main.ts")
   const dir = dirname(base)
   const file = basename(base)
-  const ext = file.endsWith(".ts") ? ".ts" : file.endsWith(".js") ? ".js" : ""
+  const ext = [".tsx", ".ts", ".js"].find((value) => file.endsWith(value)) ?? ""
   const stem = ext ? file.slice(0, -ext.length) : file
   const suffixes =
     target === "desktop"

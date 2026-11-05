@@ -806,6 +806,12 @@ const childSlots = (children: UiChild[], prefix = "", out: string[] = []): strin
 
 const flatten = (children: UiChild[], out: UiNode[] = []): UiNode[] => {
   for (const child of children) {
+    if (typeof child === "string" || typeof child === "number") {
+      console.warn(`[pulsar] text must be inside Text, this was ignored: ${String(child).slice(0, 40)}`)
+
+      continue
+    }
+
     if (!child) continue
 
     if (Array.isArray(child)) {
@@ -1777,9 +1783,12 @@ const startInstance = <P>(instance: ComponentInstance, setup: ComponentSetup<P>)
   }
 
   instance.render = () => setup(instance.props as P, ...instance.args) as UiNode
-  node.cacheable = true
 
-  if (instance.props.key !== undefined && node.props.key === undefined) node.props.key = instance.props.key
+  if (!Array.isArray(node)) {
+    node.cacheable = true
+
+    if (instance.props.key !== undefined && node.props.key === undefined) node.props.key = instance.props.key
+  }
 
   instance.node = node
   removeUnseenInstances(instance)
@@ -1943,6 +1952,9 @@ export const updateUiRoot = (root: UiRoot): UiRootUpdate | null => {
     if (!instance.dirty) continue
 
     const previous = instance.node as UiNode | null
+
+    if (Array.isArray(previous)) return null
+
     const before = previous?.serialized
 
     if (!before || !previous) return null
@@ -1951,7 +1963,7 @@ export const updateUiRoot = (root: UiRoot): UiRootUpdate | null => {
 
     const next = instance.node as UiNode | null
 
-    if (!next) return null
+    if (!next || Array.isArray(next)) return null
     if (next === previous) continue
 
     const out = serializeNode(next, before.path)
@@ -2109,7 +2121,13 @@ export const Zoomable = (options: ZoomableOptions = {}, ...children: UiChild[]):
 
 export const RangeSlider = (options: RangeSliderOptions = {}): UiNode => rangeSlider(options)
 
-export const Radio = (label: string, options: RadioOptions = {}): UiNode => radio(label, options)
+export const Radio = (first: string | (RadioOptions & { label?: string }) = {}, options: RadioOptions = {}): UiNode => {
+  if (typeof first === "string") return radio(first, options)
+
+  const { label = "", ...rest } = first
+
+  return radio(label, rest)
+}
 
 export const RadioGroup = (options: RadioGroupOptions): UiNode => radioGroup(options)
 

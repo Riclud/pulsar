@@ -120,7 +120,7 @@ const setupReloadWatcher = (): void => {
 }
 
 if (!bundled) {
-  const main = manifest?.main ?? "main.ts"
+  const main = manifest?.main ?? (existsSync(join(appDir, "main.tsx")) ? "main.tsx" : "main.ts")
   const entryTs = resolve(appDir, main)
   const entry = existsSync(entryTs) ? entryTs : resolve(appDir, "main.js")
 

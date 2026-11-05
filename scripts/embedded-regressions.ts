@@ -135,6 +135,15 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "jsx",
+    check: (output) => output.includes("PulsarView built 1") && output.includes("JSX_OK 2"),
+  },
+  {
+    name: "jsx-desktop",
+    desktop: true,
+    check: (output) => output.includes("PulsarView built 1") && output.includes("JSX_OK 2"),
+  },
+  {
     name: "late-window",
     desktop: true,
     check: (output) => lastBuilt(output)?.includes(" +3 ~0 -0 ") === true,
@@ -169,8 +178,14 @@ const buildHost = () => {
   return build.exitCode === 0 && existsSync(binary)
 }
 
+const fixtureOf = (name: string) => {
+  const tsx = join(fixtures, `${name}.tsx`)
+
+  return existsSync(tsx) ? tsx : join(fixtures, `${name}.ts`)
+}
+
 const buildBundle = (scenario: Scenario, dir: string) => {
-  const entry = join(fixtures, `${scenario.name}.ts`)
+  const entry = fixtureOf(scenario.name)
 
   if (!scenario.standalone) return bundleRuntime(entry, dir).result
 
@@ -192,7 +207,7 @@ const bundle = async (scenario: Scenario, dir: string) => {
 }
 
 const prepareDesktop = (scenario: Scenario, dir: string) => {
-  writeFileSync(join(dir, "main.ts"), `import ${JSON.stringify(join(fixtures, `${scenario.name}.ts`))}\n`)
+  writeFileSync(join(dir, "main.ts"), `import ${JSON.stringify(fixtureOf(scenario.name))}\n`)
   writeFileSync(join(dir, "pulsar.json"), JSON.stringify(manifest))
 }
 

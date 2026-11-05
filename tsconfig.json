@@ -6,6 +6,7 @@
     "module": "Preserve",
     "moduleDetection": "force",
     "jsx": "react-jsx",
+    "jsxImportSource": "pulsar",
     "allowJs": true,
 
     // Bundler mode

@@ -5,6 +5,8 @@
     "module": "Preserve",
     "moduleDetection": "force",
     "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "jsxImportSource": "pulsar",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,

@@ -395,6 +395,9 @@ export const bundleRuntime = (entry: string, assembly: string, sourcemap = false
       builder.onResolve({ filter: /^pulsar$/ }, () => ({
         path: join(root, "core", "sdk", "index.ts"),
       }))
+      builder.onResolve({ filter: /^pulsar\/jsx-(dev-)?runtime$/ }, (args) => ({
+        path: join(root, "core", "sdk", `${args.path.slice("pulsar/".length)}.ts`),
+      }))
       builder.onResolve({ filter: NODE_BUILTIN }, (args) => ({ path: args.path, external: true }))
     },
   }
