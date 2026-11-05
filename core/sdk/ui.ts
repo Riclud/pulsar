@@ -480,6 +480,7 @@ export interface TextInputOptions extends CommonOptions {
   color?: ColorValue
   textColor?: ColorValue
   borderColor?: ColorValue
+  focusBorderColor?: ColorValue
   radius?: number
   expand?: boolean
   /** Render a multi-line TextArea instead of a single-line field. */

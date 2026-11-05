@@ -1548,6 +1548,7 @@ ApplicationWindow {
             property var pulsarMeta: null
             property color fieldColor: view.themeSurfaceVariant
             property color fieldBorderColor: view.themeBorder
+            property color fieldFocusColor: view.themePrimary
             property int fieldRadius: 8
             property bool outlined: false
             property Item floatingLabel: null
@@ -1567,7 +1568,7 @@ ApplicationWindow {
                 control: fieldRoot
                 floatLabel: fieldRoot.floatingLabel
                 borderColor: fieldRoot.fieldBorderColor
-                focusColor: view.themePrimary
+                focusColor: fieldRoot.fieldFocusColor
                 cornerRadius: fieldRoot.fieldRadius
             }
         }
@@ -1582,6 +1583,7 @@ ApplicationWindow {
             property var pulsarMeta: null
             property color fieldColor: view.themeSurfaceVariant
             property color fieldBorderColor: view.themeBorder
+            property color fieldFocusColor: view.themePrimary
             property int fieldRadius: 8
             property bool outlined: false
             property Item floatingLabel: null
@@ -1604,7 +1606,7 @@ ApplicationWindow {
                 control: areaRoot
                 floatLabel: areaRoot.floatingLabel
                 borderColor: areaRoot.fieldBorderColor
-                focusColor: view.themePrimary
+                focusColor: areaRoot.fieldFocusColor
                 cornerRadius: areaRoot.fieldRadius
             }
         }
@@ -4751,6 +4753,28 @@ ApplicationWindow {
         layout.implicitHeightChanged.connect(refresh);
     }
 
+    function syncFieldText(item, value) {
+        const extra = item.pulsarMeta.extra;
+        const typed = extra.typedTexts || [];
+        const echo = typed.lastIndexOf(value);
+        const changed = value !== extra.lastValue;
+
+        extra.lastValue = value;
+
+        if (echo >= 0)
+            extra.typedTexts = typed.slice(echo + 1);
+
+        if (item.activeFocus && (echo >= 0 || !changed))
+            return;
+
+        if (item.text === value)
+            return;
+
+        item.pulsarMeta.syncing = true;
+        item.text = value;
+        item.pulsarMeta.syncing = false;
+    }
+
     function applyLayoutLimits(item, props) {
         const extra = item.pulsarMeta.extra;
         const motion = extra.motion;
@@ -5338,6 +5362,11 @@ ApplicationWindow {
             item.textChanged.connect(function () {
                 if (item.pulsarMeta.syncing === true)
                     return;
+
+                const extra = item.pulsarMeta.extra;
+
+                extra.typedTexts = (extra.typedTexts || []).concat(item.text).slice(-64);
+
                 if (hasEvent(item.pulsarMeta.node, "input"))
                     emitEvent(item.pulsarMeta.node, "input", item.text);
             });
@@ -6547,6 +6576,7 @@ ApplicationWindow {
                     : resolveColor(prop(props, "color", view.themeSurfaceVariant), view.themeSurfaceVariant);
             item.fieldRadius = prop(props, "radius", 8);
             item.fieldBorderColor = resolveColor(prop(props, "borderColor", view.themeBorder), view.themeBorder);
+            item.fieldFocusColor = resolveColor(prop(props, "focusBorderColor", view.themePrimary), view.themePrimary);
             item.color = resolveColor(prop(props, "textColor", view.themeText), view.themeText);
             item.placeholderTextColor = view.themeTextSecondary;
 
@@ -6557,6 +6587,9 @@ ApplicationWindow {
                 item.selectByMouse = props.selectable;
 
             if (node.type === "textInput") {
+                if (hasEvent(node, "submit"))
+                    item.EnterKey.type = Qt.EnterKeyDone;
+
                 item.echoMode = prop(props, "password", false) ? TextInput.Password : TextInput.Normal;
                 item.inputMethodHints = keyboard === "email" ? Qt.ImhEmailCharactersOnly
                         : keyboard === "number" ? Qt.ImhDigitsOnly
@@ -6572,11 +6605,7 @@ ApplicationWindow {
                     item.Layout.preferredHeight = props.lines * 24;
             }
 
-            if (!item.activeFocus) {
-                item.pulsarMeta.syncing = true;
-                item.text = prop(props, "value", "");
-                item.pulsarMeta.syncing = false;
-            }
+            syncFieldText(item, prop(props, "value", ""));
 
             if (prop(props, "autoFocus", false) && item.pulsarMeta.extra.autoFocused !== true) {
                 item.pulsarMeta.extra.autoFocused = true;
