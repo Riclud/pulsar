@@ -8,6 +8,10 @@ type Scenario = {
   name: string
   standalone?: boolean
   desktop?: boolean
+  /** Fixture file name, when it differs from the scenario name. */
+  fixture?: string
+  /** Run the desktop host with the bundle on its in-process QuickJS runtime. */
+  quickjsDesktop?: boolean
   env?: Record<string, string>
   check: (output: string) => boolean
 }
@@ -240,6 +244,12 @@ const scenarios: Scenario[] = [
     check: (output) => output.includes("PulsarView built 1") && output.includes("JSX_OK 2"),
   },
   {
+    name: "jsx-quickjs-desktop",
+    fixture: "jsx",
+    quickjsDesktop: true,
+    check: (output) => output.includes("PulsarView built 1") && output.includes("JSX_OK 2"),
+  },
+  {
     name: "late-window",
     desktop: true,
     check: (output) => lastBuilt(output)?.includes(" +3 ~0 -0 ") === true,
@@ -281,7 +291,7 @@ const fixtureOf = (name: string) => {
 }
 
 const buildBundle = (scenario: Scenario, dir: string) => {
-  const entry = fixtureOf(scenario.name)
+  const entry = fixtureOf(scenario.fixture ?? scenario.name)
 
   if (!scenario.standalone) return bundleRuntime(entry, dir).result
 
@@ -303,12 +313,12 @@ const bundle = async (scenario: Scenario, dir: string) => {
 }
 
 const prepareDesktop = (scenario: Scenario, dir: string) => {
-  writeFileSync(join(dir, "main.ts"), `import ${JSON.stringify(fixtureOf(scenario.name))}\n`)
+  writeFileSync(join(dir, "main.ts"), `import ${JSON.stringify(fixtureOf(scenario.fixture ?? scenario.name))}\n`)
   writeFileSync(join(dir, "pulsar.json"), JSON.stringify(manifest))
 }
 
 const runScenario = async (scenario: Scenario) => {
-  if (scenario.desktop && override) return true
+  if ((scenario.desktop || scenario.quickjsDesktop) && override) return true
 
   const dir = mkdtempSync(join(tmpdir(), "pulsar-regression-"))
   const hostLog = join(dir, "host.log")
@@ -318,7 +328,7 @@ const runScenario = async (scenario: Scenario) => {
     else await bundle(scenario, dir)
 
     const run = Bun.spawn({
-      cmd: [scenario.desktop ? desktopBinary : binary],
+      cmd: [scenario.desktop || scenario.quickjsDesktop ? desktopBinary : binary],
       cwd: dir,
       env: {
         ...process.env,
@@ -329,6 +339,7 @@ const runScenario = async (scenario: Scenario) => {
         QT_QPA_PLATFORM: "offscreen",
         AUTO_QUIT_MS: "1500",
         ...scenario.env,
+        ...(scenario.quickjsDesktop ? { PULSAR_QUICKJS_BUNDLE: join(dir, "runtime.js") } : {}),
         QT_LOG_FILE: hostLog,
         XDG_DATA_HOME: join(dir, "data"),
         XDG_CONFIG_HOME: join(dir, "config"),

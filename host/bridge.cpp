@@ -1,5 +1,6 @@
 #include "bridge.h"
 #include "log.h"
+#include "quickjs_runtime.h"
 
 #include <QAction>
 #include <QClipboard>
@@ -146,6 +147,13 @@ Bridge::~Bridge()
 
 void Bridge::startBridge()
 {
+    const QString bundle = qEnvironmentVariable("PULSAR_QUICKJS_BUNDLE");
+
+    if (!bundle.isEmpty()) {
+        startQuickJs(bundle);
+        return;
+    }
+
     const QString appDir = QCoreApplication::applicationDirPath();
 
     QString qmlRootDir;
@@ -213,6 +221,85 @@ void Bridge::startBridge()
     process_.start(chosen, QStringList{ qmlRootDir });
 }
 
+// The app's JavaScript runs in this process on QuickJS instead of in Bun. The
+// messages are the same, so everything the desktop host offers keeps working.
+void Bridge::startQuickJs(const QString &bundle)
+{
+    const QString appDir = qEnvironmentVariable("PULSAR_APP", QFileInfo(bundle).absolutePath());
+    QFile manifestFile(appDir + QStringLiteral("/pulsar.json"));
+    QString manifest = QStringLiteral("null");
+
+    if (manifestFile.open(QIODevice::ReadOnly))
+        manifest = QString::fromUtf8(manifestFile.readAll());
+
+    if (!quickjs_) {
+        quickjs_ = new pulsar::QuickJsRuntime(this);
+
+        connect(quickjs_, &pulsar::QuickJsRuntime::message, this, [this](const QJsonObject &message) {
+            handleResponse(QJsonDocument(message).toJson(QJsonDocument::Compact));
+        });
+        connect(quickjs_, &pulsar::QuickJsRuntime::binary, this, [this](quint32 id, const QByteArray &bytes) {
+            Q_EMIT data(id, bytes);
+        });
+        connect(quickjs_, &pulsar::QuickJsRuntime::failed, this, [this](const QString &message) {
+            pulsar::forwardLine(QStringLiteral("[error] [pulsar] ") + message);
+            Q_EMIT response(-1, QJSValue(QJSValue::NullValue), engine_->toScriptValue(message));
+        });
+    }
+
+    quickjsStarted_ = quickjs_->restart(bundle, manifest, appDir);
+
+    if (!quickjsStarted_)
+        return;
+
+    const QList<QByteArray> writes = pendingWrites_;
+
+    pendingWrites_.clear();
+
+    for (const QByteArray &frame : writes)
+        deliver(frame);
+
+    if (!synced_) {
+        synced_ = true;
+        invoke(QStringLiteral("__sync"), QJSValue());
+    }
+
+    if (!readyEmitted_) {
+        readyEmitted_ = true;
+        Q_EMIT ready();
+    }
+}
+
+bool Bridge::runtimeRunning() const
+{
+    if (quickjs_)
+        return quickjsStarted_;
+
+    return process_.state() == QProcess::Running;
+}
+
+void Bridge::deliver(const QByteArray &frame)
+{
+    if (!quickjs_) {
+        process_.write(frame);
+        return;
+    }
+
+    if (frame.size() < 5)
+        return;
+
+    const quint8 type = quint8(frame.at(0));
+    const QByteArray payload = frame.mid(5);
+
+    if (type == kFrameControl) {
+        quickjs_->receive(QJsonDocument::fromJson(payload).object());
+        return;
+    }
+
+    if (type == kFrameData && payload.size() >= 4)
+        quickjs_->receiveBinary(readU32LE(payload.constData()), payload.mid(4));
+}
+
 void Bridge::devReload()
 {
     restart();
@@ -225,6 +312,15 @@ bool Bridge::devMode() const
 
 void Bridge::restart()
 {
+    if (quickjs_) {
+        quickjsStarted_ = false;
+        synced_ = false;
+        readyEmitted_ = false;
+        pendingWrites_.clear();
+        startBridge();
+        return;
+    }
+
     restarting_ = true;
 
     if (process_.state() != QProcess::NotRunning) {
@@ -593,12 +689,12 @@ qint64 Bridge::invoke(const QString &method, const QJSValue &params)
 
     const QByteArray frame = encodeFrame(kFrameControl, QJsonDocument(body).toJson(QJsonDocument::Compact));
 
-    if (process_.state() != QProcess::Running) {
+    if (!runtimeRunning()) {
         pendingWrites_.append(frame);
         return id;
     }
 
-    process_.write(frame);
+    deliver(frame);
 
     return id;
 }
@@ -617,12 +713,12 @@ void Bridge::notify(const QString &method, const QJsonObject &params)
 
     const QByteArray frame = encodeFrame(kFrameControl, QJsonDocument(body).toJson(QJsonDocument::Compact));
 
-    if (process_.state() != QProcess::Running) {
+    if (!runtimeRunning()) {
         pendingWrites_.append(frame);
         return;
     }
 
-    process_.write(frame);
+    deliver(frame);
 }
 
 void Bridge::sendBinary(quint32 streamId, const QByteArray &data)
@@ -634,12 +730,12 @@ void Bridge::sendBinary(quint32 streamId, const QByteArray &data)
 
     const QByteArray frame = encodeFrame(kFrameData, payload);
 
-    if (process_.state() != QProcess::Running) {
+    if (!runtimeRunning()) {
         pendingWrites_.append(frame);
         return;
     }
 
-    process_.write(frame);
+    deliver(frame);
 }
 
 void Bridge::postLog(const QString &level, const QString &message, const QString &source)

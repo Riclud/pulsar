@@ -128,6 +128,8 @@ endif()
 add_executable(qml-host
     host/main.cpp
     host/bridge.cpp
+    host/quickjs_runtime.cpp
+    host/quickjs_runtime.h
     host/log.cpp
     host/embedded.cpp
     host/secure.cpp
@@ -153,6 +155,7 @@ target_link_libraries(qml-host PRIVATE
     Qt6::Quick
     Qt6::Network
     Qt6::QuickControls2
+    qjs
 )
 
 pulsar_link_websockets(qml-host)

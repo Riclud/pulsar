@@ -11,6 +11,10 @@
 #include <QVariantList>
 
 class QQmlPropertyMap;
+
+namespace pulsar {
+class QuickJsRuntime;
+}
 class QMenu;
 class QMenuBar;
 class QSystemTrayIcon;
@@ -101,12 +105,17 @@ private:
     };
 
     void startBridge();
+    void startQuickJs(const QString &bundle);
+    bool runtimeRunning() const;
+    void deliver(const QByteArray &frame);
     void ensurePromiseFactory();
     void failPending(const QString &reason);
     void handleResponse(const QByteArray &payload);
     void handleDataFrame(const QByteArray &payload);
 
     QProcess process_;
+    pulsar::QuickJsRuntime *quickjs_ = nullptr;
+    bool quickjsStarted_ = false;
     QJSEngine *engine_;
     QQmlPropertyMap *store_ = nullptr;
     QByteArray stdoutBuffer_;
