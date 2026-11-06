@@ -16,6 +16,7 @@
     "test": "bun test core cli && bun scripts/portable.ts && bun scripts/embedded.ts && bun scripts/embedded-qml.ts && bun scripts/embedded-regressions.ts && bun scripts/error-overlay.ts && bun scripts/smoke.ts",
     "test:unit": "bun test core",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
     "version:check": "bun scripts/version-check.ts",
     "fmt": "bun run fmt:ts && bun run fmt:qml",
     "fmt:ts": "prettier --write .",
@@ -35,7 +36,9 @@
   ],
   "devDependencies": {
     "@types/bun": "latest",
-    "prettier": "^3.9.9"
+    "eslint": "9",
+    "prettier": "^3.9.9",
+    "typescript-eslint": "8"
   },
   "peerDependencies": {
     "typescript": "^5"
