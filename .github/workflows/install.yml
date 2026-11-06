@@ -46,3 +46,19 @@ jobs:
           $env:PATH = "$env:LOCALAPPDATA\pulsar\bin;$env:PATH"
           pulsar doctor | Tee-Object -FilePath doctor.log
           if (-not (Select-String -Path doctor.log -Pattern '^ok +toolchain')) { throw "toolchain missing" }
+
+  windows-command:
+    runs-on: windows-latest
+    steps:
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Run the command from the website
+        shell: cmd
+        run: powershell -c "irm https://get.pulsarjs.org/install.ps1 | iex"
+
+      - name: Check the toolchain
+        shell: pwsh
+        run: |
+          $env:PATH = "$env:LOCALAPPDATA\pulsar\bin;$env:PATH"
+          pulsar doctor | Tee-Object -FilePath doctor.log
+          if (-not (Select-String -Path doctor.log -Pattern '^ok +toolchain')) { throw "toolchain missing" }
