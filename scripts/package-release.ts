@@ -9,7 +9,7 @@ import { createHash } from "crypto"
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "fs"
 import { dirname, join, relative, resolve, sep } from "path"
 import { platformId } from "../cli/core.ts"
-import { qtConfText, qtFiles } from "../cli/qt.ts"
+import { qtConfText, qtFiles, qtTools } from "../cli/qt.ts"
 
 const root = resolve(import.meta.dir, "..")
 const out = join(root, "dist")
@@ -73,6 +73,16 @@ const validateToolchain = (stage: string): void => {
   }
 }
 
+const checkQsb = (stage: string): void => {
+  const qsb = [join(stage, "lib", "Qt", "bin", "qsb"), join(stage, "bin", "qsb.exe")].find((path) => existsSync(path))
+
+  if (!qsb) throw new Error("toolchain is missing qsb")
+
+  const r = spawnSync(qsb, ["--version"], { encoding: "utf8" })
+
+  if (r.status !== 0) throw new Error(`staged qsb does not run: ${r.stderr || r.error}`)
+}
+
 const stageToolchain = (withQt: boolean, name: string): string => {
   const stage = join(out, `.stage-${withQt ? "fat" : "slim"}`)
 
@@ -83,7 +93,11 @@ const stageToolchain = (withQt: boolean, name: string): string => {
   cpSync(launcher, join(stage, "bin", `launcher${exe}`))
 
   if (withQt) {
-    const files = qtFiles(qmlHost)
+    const tools = qtTools(["qsb"])
+
+    if (tools.length === 0) throw new Error("qsb not found next to qmake; install the Qt Shader Tools module")
+
+    const files = qtFiles(qmlHost, tools)
 
     if (!files) throw new Error("Qt not found (qmake); cannot build a fat toolchain")
 
@@ -97,6 +111,7 @@ const stageToolchain = (withQt: boolean, name: string): string => {
     writeFileSync(join(stage, "bin", "qt.conf"), qtConfText())
 
     validateToolchain(stage)
+    checkQsb(stage)
   }
 
   return tar(name, stage, ["."])

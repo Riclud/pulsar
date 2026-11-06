@@ -1,7 +1,7 @@
 import { spawnSync } from "child_process"
 import { existsSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, statSync } from "fs"
 import { tmpdir } from "os"
-import { dirname, join, resolve } from "path"
+import { basename, dirname, join, resolve } from "path"
 
 export type PayloadEntry = {
   path: string
@@ -186,7 +186,13 @@ const filesFromRoot = (root: string): QtFile[] => {
   return files
 }
 
-const linuxQtFiles = (hostPath: string, libsDir: string, pluginsDir: string, qmlDir: string): QtFile[] => {
+const linuxQtFiles = (
+  hostPath: string,
+  libsDir: string,
+  pluginsDir: string,
+  qmlDir: string,
+  tools: string[],
+): QtFile[] => {
   const files: QtFile[] = []
   const seen = new Set<string>()
 
@@ -206,6 +212,12 @@ const linuxQtFiles = (hostPath: string, libsDir: string, pluginsDir: string, qml
   }
 
   for (const lib of neededLibs(hostPath)) addLib(lib)
+
+  for (const tool of tools) {
+    files.push({ rel: `lib/Qt/bin/${basename(tool)}`, src: tool })
+
+    for (const lib of neededLibs(tool)) addLib(lib)
+  }
 
   for (const group of PLUGIN_GROUPS) {
     const groupFiles: QtFile[] = []
@@ -230,7 +242,13 @@ const linuxQtFiles = (hostPath: string, libsDir: string, pluginsDir: string, qml
   return files
 }
 
-const appleQtFiles = (hostPath: string, libsDir: string, pluginsDir: string, qmlDir: string): QtFile[] => {
+const appleQtFiles = (
+  hostPath: string,
+  libsDir: string,
+  pluginsDir: string,
+  qmlDir: string,
+  tools: string[],
+): QtFile[] => {
   const files: QtFile[] = []
   const seen = new Set<string>()
 
@@ -281,6 +299,12 @@ const appleQtFiles = (hostPath: string, libsDir: string, pluginsDir: string, qml
 
   for (const lib of appleDeps(hostPath, libsDir)) addDep(lib)
 
+  for (const tool of tools) {
+    files.push({ rel: `lib/Qt/bin/${basename(tool)}`, src: tool })
+
+    for (const lib of appleDeps(tool, libsDir)) addDep(lib)
+  }
+
   for (const group of PLUGIN_GROUPS) {
     const groupFiles: QtFile[] = []
 
@@ -304,7 +328,7 @@ const appleQtFiles = (hostPath: string, libsDir: string, pluginsDir: string, qml
   return files
 }
 
-const windowsQtFiles = (hostPath: string): QtFile[] | null => {
+const windowsQtFiles = (hostPath: string, tools: string[]): QtFile[] | null => {
   const binsDir = qmakeQuery("QT_INSTALL_BINS")
   const windeployqt = binsDir ? join(binsDir, "windeployqt.exe") : "windeployqt"
   const stage = mkdtempSync(join(tmpdir(), "pulsar-qt-"))
@@ -349,23 +373,40 @@ const windowsQtFiles = (hostPath: string): QtFile[] | null => {
     else stageTree(join(stage, entry.name), `bin/plugins/${entry.name}`)
   }
 
+  for (const tool of tools) {
+    push({ rel: `bin/${basename(tool)}`, src: tool })
+
+    const shaderTools = join(dirname(tool), "Qt6ShaderTools.dll")
+
+    if (existsSync(shaderTools)) push({ rel: "bin/Qt6ShaderTools.dll", src: shaderTools })
+  }
+
   return files
 }
 
-export const qtFiles = (hostPath: string): QtFile[] | null => {
+/** Paths of Qt command-line tools, such as qsb, found next to qmake. */
+export const qtTools = (names: string[]): string[] => {
+  const binsDir = qmakeQuery("QT_INSTALL_BINS")
+
+  if (!binsDir) return []
+
+  return names.map((name) => join(binsDir, isWindows ? `${name}.exe` : name)).filter((path) => existsSync(path))
+}
+
+export const qtFiles = (hostPath: string, tools: string[] = []): QtFile[] | null => {
   const root = bundledQtRoot(hostPath)
 
   if (root) return filesFromRoot(root)
-  if (isWindows) return windowsQtFiles(hostPath)
+  if (isWindows) return windowsQtFiles(hostPath, tools)
 
   const libsDir = qmakeQuery("QT_INSTALL_LIBS")
   const pluginsDir = qmakeQuery("QT_INSTALL_PLUGINS")
   const qmlDir = qmakeQuery("QT_INSTALL_QML")
 
   if (!libsDir || !existsSync(libsDir)) return null
-  if (isMac) return appleQtFiles(hostPath, libsDir, pluginsDir ?? "", qmlDir ?? "")
+  if (isMac) return appleQtFiles(hostPath, libsDir, pluginsDir ?? "", qmlDir ?? "", tools)
 
-  return linuxQtFiles(hostPath, libsDir, pluginsDir ?? "", qmlDir ?? "")
+  return linuxQtFiles(hostPath, libsDir, pluginsDir ?? "", qmlDir ?? "", tools)
 }
 
 export const collectQt = (entries: PayloadEntry[], hostPath: string): boolean => {

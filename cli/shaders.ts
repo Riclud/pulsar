@@ -2,6 +2,7 @@ import { spawnSync } from "bun"
 import { existsSync, globSync, readdirSync, readFileSync, rmSync, statSync, watch, writeFileSync } from "fs"
 import { homedir, tmpdir } from "os"
 import { dirname, join } from "path"
+import { toolchainCurrent } from "./core.ts"
 import { createIgnoreFilter } from "./ignore.ts"
 import type { AppManifest } from "../core/sdk/manifest.ts"
 
@@ -130,7 +131,8 @@ void main() {
 export const findQsb = (): string | null => {
   const candidates = [
     process.env.PULSAR_QSB,
-    join(homedir(), ".local/share/pulsar/toolchain/current/bin/qsb"),
+    join(toolchainCurrent(), "lib", "Qt", "bin", "qsb"),
+    join(toolchainCurrent(), "bin", "qsb.exe"),
     ...globSync(join(homedir(), ".local/share/pulsar/android/qt/*/gcc_64/bin/qsb")),
     "/usr/lib/qt6/bin/qsb",
     "/usr/lib/qt6/qsb",
