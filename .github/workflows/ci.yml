@@ -88,6 +88,14 @@ jobs:
             exit "$status"
           fi
 
+      - name: Keep the Linux x64 assets for pre-release checks
+        if: runner.os == 'Linux' && runner.arch == 'X64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-linux-x64
+          path: dist/*
+          retention-days: 3
+
       - name: Smoke test (Linux x64)
         if: runner.os == 'Linux' && runner.arch == 'X64'
         run: bun run test
