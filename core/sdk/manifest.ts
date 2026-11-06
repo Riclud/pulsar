@@ -121,6 +121,11 @@ export const manifestTargets = (manifest: AppManifest | null): Target[] => {
   return manifest?.targets?.length ? manifest.targets : ["desktop"]
 }
 
+/** Runtime the manifest asks for on a target, if it asks at all. */
+export const explicitRuntime = (manifest: AppManifest | null, target: Target): RuntimeKind | undefined => {
+  return manifest?.runtime?.[target] ?? manifest?.runtime?.default
+}
+
 /** Runtime for a target, defaulting to bun on desktop and quickjs on mobile. */
 export const manifestRuntime = (manifest: AppManifest | null, target: Target): RuntimeKind => {
   return manifest?.runtime?.[target] ?? manifest?.runtime?.default ?? (target === "desktop" ? "bun" : "quickjs")

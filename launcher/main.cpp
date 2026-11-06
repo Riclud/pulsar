@@ -283,6 +283,10 @@ int main(int argc, char **argv)
     setEnv("PULSAR_APP", (root / "app").string());
     setEnv("PULSAR_RUNTIME", (root / (std::string("runtime") + kExe)).string());
 
+    // Apps built for QuickJS ship a script bundle instead of the Bun runtime.
+    if (fs::exists(root / "runtime.js", ec))
+        setEnv("PULSAR_QUICKJS_BUNDLE", (root / "runtime.js").string());
+
     const std::string hostStr = host.string();
     changeDir(root.string());
 

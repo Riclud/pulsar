@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "fs"
 import { basename, dirname, join } from "path"
-import type { AppManifest, Target } from "../core/sdk/manifest.ts"
+import type { AppManifest, RuntimeKind, Target } from "../core/sdk/manifest.ts"
 
 export type BuildTarget = Target | "portable"
 
@@ -14,18 +14,19 @@ export const readManifest = (appDir: string): AppManifest | null => {
   return null
 }
 
-export const resolveEntry = (appDir: string, manifest: AppManifest | null, target: BuildTarget): string => {
+export const resolveEntry = (
+  appDir: string,
+  manifest: AppManifest | null,
+  target: BuildTarget,
+  engine: RuntimeKind = target === "desktop" ? "bun" : "quickjs",
+): string => {
   const base = manifest?.main ?? (existsSync(join(appDir, "main.tsx")) ? "main.tsx" : "main.ts")
   const dir = dirname(base)
   const file = basename(base)
   const ext = [".tsx", ".ts", ".js"].find((value) => file.endsWith(value)) ?? ""
   const stem = ext ? file.slice(0, -ext.length) : file
-  const suffixes =
-    target === "desktop"
-      ? [".desktop", ".bun"]
-      : target === "android"
-        ? [".android", ".quickjs"]
-        : [".portable", ".quickjs"]
+  const platform = target === "desktop" ? ".desktop" : target === "android" ? ".android" : ".portable"
+  const suffixes = [platform, engine === "bun" ? ".bun" : ".quickjs"]
 
   const candidates = [
     ...suffixes.map((suffix) => join(appDir, dir, `${stem}${suffix}${ext || ".ts"}`)),

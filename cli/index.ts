@@ -8,14 +8,17 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  renameSync,
   rmSync,
   statSync,
+  watch,
   writeFileSync,
 } from "fs"
 import { tmpdir } from "os"
 import { basename, dirname, join, resolve } from "path"
 import {
   manifestCompat,
+  explicitRuntime,
   manifestRuntime,
   manifestTargets,
   type AppManifest,
@@ -24,7 +27,7 @@ import {
 } from "../core/sdk/manifest.ts"
 import { compileAppShaders, watchAppShaders } from "./shaders.ts"
 import { cliVersion, findBridge, findHost, findLauncher, linkSdk, pulsarRoot, toolchainVersion } from "./core.ts"
-import { ANDROID_QT_VERSION, buildAndroid, installAndroid } from "./android.ts"
+import { ANDROID_QT_VERSION, buildAndroid, bundleRuntime, installAndroid } from "./android.ts"
 import { buildIos } from "./ios.ts"
 import { launcherName, readManifest, resolveEntry, type BuildTarget } from "./app.ts"
 import { create } from "./create.ts"
@@ -72,6 +75,57 @@ const runtimeFor = (target: BuildTarget, manifest: AppManifest | null): RuntimeK
   return manifestRuntime(manifest, target)
 }
 
+/**
+ * Picks the engine for a desktop build. QuickJS is the default, so the app
+ * ships without Bun; Bun is bundled only when the code imports Node or Bun
+ * APIs, or when the manifest or `--runtime` asks for it.
+ */
+const chooseDesktopEngine = async (
+  appDir: string,
+  manifest: AppManifest | null,
+): Promise<{ engine: RuntimeKind; entry: string; reasons: string[] }> => {
+  const flag = flagValue("--runtime")
+  const forced = flag === "bun" || flag === "quickjs" ? flag : explicitRuntime(manifest, "desktop")
+
+  if (forced === "bun") {
+    return {
+      engine: "bun",
+      entry: resolveEntry(appDir, manifest, "desktop", "bun"),
+      reasons: ["the manifest or --runtime asks for it"],
+    }
+  }
+
+  const entry = resolveEntry(appDir, manifest, "desktop", "quickjs")
+  const violations = await auditPortable(entry)
+
+  if (violations.length === 0) return { engine: "quickjs", entry, reasons: [] }
+
+  if (forced === "quickjs") {
+    for (const violation of violations) console.error(`pulsar: not available on QuickJS: ${violation}`)
+    process.exit(1)
+  }
+
+  return { engine: "bun", entry: resolveEntry(appDir, manifest, "desktop", "bun"), reasons: violations }
+}
+
+/** Says which engine the build uses, and why Bun is bundled when it is. */
+const describeEngine = (chosen: { engine: RuntimeKind; reasons: string[] }): void => {
+  if (chosen.engine === "quickjs") {
+    console.log("  engine: QuickJS, Bun is not bundled")
+    return
+  }
+
+  console.log("  engine: Bun, bundled into the app (adds about 95 MB)")
+
+  for (const reason of chosen.reasons.slice(0, 5)) console.log(`    because of ${reason}`)
+
+  if (chosen.reasons.length > 5) console.log(`    and ${chosen.reasons.length - 5} more`)
+
+  console.log('  to drop Bun, use Pulsar APIs in those places; to keep it quietly, set "runtime": { "desktop": "bun" }')
+}
+
+const BUN_GLOBAL = /(^|[^.\w])Bun\.[a-zA-Z]/m
+
 const auditPortable = async (entry: string): Promise<string[]> => {
   const violations: string[] = []
 
@@ -79,12 +133,36 @@ const auditPortable = async (entry: string): Promise<string[]> => {
     const plugin: BunPlugin = {
       name: "pulsar-portable-audit",
       setup(builder) {
+        const sdk = join(pulsarRoot(), "core")
+
         builder.onResolve({ filter: /^pulsar$/ }, () => ({
-          path: join(pulsarRoot(), "core", "sdk", "index.ts"),
+          path: join(sdk, "sdk", "index.ts"),
+        }))
+        builder.onResolve({ filter: /^(pulsar|react)\/jsx-(dev-)?runtime$/ }, (args) => ({
+          path: join(sdk, "sdk", `${args.path.slice(args.path.indexOf("/") + 1)}.ts`),
         }))
         builder.onResolve({ filter: NODE_BUILTIN }, (args) => {
           violations.push(`${args.path} (from ${args.importer})`)
           return { path: args.path, external: true }
+        })
+        builder.onLoad({ filter: /\.(m?[jt]sx?)$/ }, (args) => {
+          const contents = readFileSync(args.path, "utf8")
+
+          if (!args.path.startsWith(sdk) && BUN_GLOBAL.test(contents)) {
+            violations.push(`the Bun global (in ${args.path})`)
+          }
+
+          const extension = args.path.split(".").pop() ?? "js"
+          const loader =
+            extension.startsWith("ts") || extension.startsWith("mts")
+              ? extension.endsWith("x")
+                ? "tsx"
+                : "ts"
+              : extension.endsWith("x")
+                ? "jsx"
+                : "js"
+
+          return { contents, loader }
         })
       },
     }
@@ -121,6 +199,8 @@ const checkTarget = async (appDir: string, target: BuildTarget): Promise<void> =
   console.log(`  runtime: ${runtime}`)
   console.log(`  compat: ${compat}`)
   console.log(`  targets: ${targets.join(", ")}`)
+
+  if (target === "desktop") describeEngine(await chooseDesktopEngine(appDir, manifest))
 
   if (target === "android" && !targets.includes("android")) {
     console.error(`FAIL  android is not listed in targets (${targets.join(", ")})`)
@@ -267,15 +347,91 @@ const dev = async () => {
   watchAppShaders(appDir)
 
   const host = findHost()
+  const manifest = readManifest(appDir)
+  const chosen = await chooseDesktopEngine(appDir, manifest)
 
   console.log(`pulsar: dev mode (watching for changes, host ${host})`)
+  describeEngine(chosen)
 
-  const r = spawnSync(host, [], {
-    stdio: "inherit",
-    env: { ...process.env, PULSAR_APP: appDir, PULSAR_ROOT: pulsarRoot(), PULSAR_WATCH: "1" },
+  if (chosen.engine === "bun") {
+    const r = spawnSync(host, [], {
+      stdio: "inherit",
+      env: { ...process.env, PULSAR_APP: appDir, PULSAR_ROOT: pulsarRoot(), PULSAR_WATCH: "1" },
+    })
+
+    process.exit(r.status ?? 0)
+  }
+
+  // The same engine as the build: bundle for QuickJS, and bundle again on save.
+  // The host watches the bundle and restarts the runtime when it changes.
+  const assembly = mkdtempSync(join(tmpdir(), "pulsar-dev-"))
+  const bundleFile = join(assembly, "runtime.js")
+
+  const rebundle = async (): Promise<boolean> => {
+    const bundle = await bundleRuntime(chosen.entry, assembly, true).result
+
+    if (!bundle.success) {
+      for (const log of bundle.logs) console.error(`[error] [pulsar] ${log.message}`)
+      return false
+    }
+
+    writeFileSync(`${bundleFile}.tmp`, await bundle.outputs[0]!.text())
+    renameSync(`${bundleFile}.tmp`, bundleFile)
+
+    return true
+  }
+
+  await rebundle()
+  watchSources(appDir, manifest, () => {
+    console.error("[pulsar] change detected; reloading")
+    void rebundle()
   })
 
-  process.exit(r.status ?? 0)
+  const child = Bun.spawn([host], {
+    stdio: ["inherit", "inherit", "inherit"],
+    env: {
+      ...process.env,
+      PULSAR_APP: appDir,
+      PULSAR_ROOT: pulsarRoot(),
+      PULSAR_WATCH: "1",
+      PULSAR_QUICKJS_BUNDLE: bundleFile,
+    },
+  })
+  const code = await child.exited
+
+  rmSync(assembly, { recursive: true, force: true })
+  process.exit(code)
+}
+
+/** Calls `onChange` shortly after a source file of the app changes. */
+const watchSources = (appDir: string, manifest: AppManifest | null, onChange: () => void): void => {
+  const ignored = (name: string | null) =>
+    !name || name === "storage.json" || name.startsWith(".") || name.endsWith(".lock") || name.endsWith(".qml")
+
+  let timer: ReturnType<typeof setTimeout> | null = null
+
+  const schedule = () => {
+    if (timer) return
+
+    timer = setTimeout(() => {
+      timer = null
+      onChange()
+    }, 150)
+  }
+
+  const dirs = [
+    { path: appDir, recursive: false },
+    { path: dirname(resolve(appDir, manifest?.main ?? "main.ts")), recursive: true },
+    { path: join(appDir, "ui"), recursive: false },
+  ]
+
+  for (const dir of dirs) {
+    try {
+      watch(dir.path, { recursive: dir.recursive }, (_event, filename) => {
+        if (!ignored(filename)) schedule()
+      })
+    } catch {}
+  }
 }
 
 const version = () => {
@@ -320,9 +476,7 @@ const doctor = () => {
   const desktopQt = qt.status === 0 && qt.stdout ? qt.stdout.trim() : ""
 
   lines.push(
-    desktopQt
-      ? `ok    Qt6: ${desktopQt}`
-      : `warn  Qt6: not found via pkg-config (the host may still be built)`,
+    desktopQt ? `ok    Qt6: ${desktopQt}` : `warn  Qt6: not found via pkg-config (the host may still be built)`,
   )
 
   if (desktopQt) {
@@ -369,19 +523,9 @@ const fnv1a64 = (parts: string[]): bigint => {
 }
 
 /** The native host/bridge, runtime and every app file (except build noise). */
-const collectPayload = (
-  appDir: string,
-  manifest: AppManifest | null,
-  runtime: string,
-  bridge: string,
-  host: string,
-  skipOut: string,
-): PayloadEntry[] => {
-  const entries: PayloadEntry[] = [
-    { path: "bin/qml-host", data: readFileSync(host) },
-    { path: "bin/bridge", data: readFileSync(bridge) },
-    { path: "runtime", data: readFileSync(runtime) },
-  ]
+/** The app's own files, placed under `app/` in the payload. */
+const collectPayload = (appDir: string, manifest: AppManifest | null, skipOut: string): PayloadEntry[] => {
+  const entries: PayloadEntry[] = []
   const ignore = createIgnoreFilter(appDir, manifest, skipOut ? [skipOut] : [])
 
   const walk = (dir: string, rel: string): void => {
@@ -480,7 +624,15 @@ const build = async () => {
     const outDir = resolve(flagValue("--out") ?? flagValue("-o") ?? "dist")
 
     try {
-      await buildAndroid({ appDir, manifest, entry, outDir, abi: flagValue("--abi"), dev: args.includes("--dev"), aab: args.includes("--aab") })
+      await buildAndroid({
+        appDir,
+        manifest,
+        entry,
+        outDir,
+        abi: flagValue("--abi"),
+        dev: args.includes("--dev"),
+        aab: args.includes("--aab"),
+      })
     } catch (e) {
       console.error(`pulsar build: ${e instanceof Error ? e.message : String(e)}`)
       process.exit(1)
@@ -514,54 +666,22 @@ const build = async () => {
   }
 
   const host = findHost()
-  const bridge = findBridge(host)
   const launcher = findLauncher()
   const slim = args.includes("--slim")
   const outDir = resolve(flagValue("--out") ?? flagValue("-o") ?? "dist")
   const name = launcherName(appDir)
+  const chosen = await chooseDesktopEngine(appDir, manifest)
 
   console.log(`pulsar: building ${basename(appDir)} -> ${join(outDir, name)}`)
+  describeEngine(chosen)
 
   const assembly = mkdtempSync(join(tmpdir(), "pulsar-build-"))
 
-  try {
-    // One entry pulls the runtime and the app into a single module graph, so
-    // App.current and the capability registry are shared, then wires the host.
-    const spec = (p: string) => JSON.stringify(p.replace(/\\/g, "/"))
-    const entryPath = join(assembly, "entry.ts")
-
-    writeFileSync(
-      entryPath,
-      [
-        `process.env.PULSAR_BUNDLED = "1";`,
-        `globalThis.__PULSAR_SDK_VERSION = ${JSON.stringify(cliVersion())};`,
-        `const { wireApp } = await import(${spec(runtimeTs)});`,
-        `await import(${spec(entry)});`,
-        `wireApp();`,
-        ``,
-      ].join("\n"),
-    )
-
-    const runtimeOut = join(assembly, process.platform === "win32" ? "runtime.exe" : "runtime")
-    const compile = spawnSync(process.execPath, ["build", entryPath, "--compile", "--outfile", runtimeOut], {
-      cwd: appDir,
-      stdio: "inherit",
-    })
-
-    if (compile.status !== 0 || !existsSync(runtimeOut)) {
-      console.error("pulsar build: runtime compilation failed")
-      process.exit(1)
-    }
-
-    const entries = collectPayload(appDir, manifest, runtimeOut, bridge, host, basename(outDir))
-
+  const pack = (entries: PayloadEntry[]) => {
     if (!slim) collectQt(entries, host)
 
     const buildId = fnv1a64(entries.map((e) => `${e.path}:${e.data.length}`))
     const container = encodeContainer(entries, buildId)
-
-    // The outer binary is the Qt-free launcher; it extracts the payload and
-    // exec()s the bundled host (which loads the bundled Qt via its RPATH).
     const outerBytes = readFileSync(launcher)
     const trailer = Buffer.alloc(16)
 
@@ -580,6 +700,68 @@ const build = async () => {
 
     console.log(`pulsar: built ${finalPath} (${mb} MB)`)
     console.log(`  run it with ./${fileName}`)
+  }
+
+  if (chosen.engine === "quickjs") {
+    try {
+      const bundle = await bundleRuntime(chosen.entry, assembly).result
+
+      if (!bundle.success) {
+        for (const log of bundle.logs) console.error(log.message)
+        process.exit(1)
+      }
+
+      pack([
+        { path: "bin/qml-host", data: readFileSync(host) },
+        { path: "runtime.js", data: Buffer.from(await bundle.outputs[0]!.text()) },
+        ...collectPayload(appDir, manifest, basename(outDir)),
+      ])
+    } finally {
+      rmSync(assembly, { recursive: true, force: true })
+    }
+
+    return
+  }
+
+  const bridge = findBridge(host)
+
+  try {
+    // One entry pulls the runtime and the app into a single module graph, so
+    // App.current and the capability registry are shared, then wires the host.
+    const spec = (p: string) => JSON.stringify(p.replace(/\\/g, "/"))
+    const entryPath = join(assembly, "entry.ts")
+
+    writeFileSync(
+      entryPath,
+      [
+        `process.env.PULSAR_BUNDLED = "1";`,
+        `globalThis.__PULSAR_SDK_VERSION = ${JSON.stringify(cliVersion())};`,
+        `const { wireApp } = await import(${spec(runtimeTs)});`,
+        `await import(${spec(chosen.entry)});`,
+        `wireApp();`,
+        ``,
+      ].join("\n"),
+    )
+
+    const runtimeOut = join(assembly, process.platform === "win32" ? "runtime.exe" : "runtime")
+    const compile = spawnSync(process.execPath, ["build", entryPath, "--compile", "--outfile", runtimeOut], {
+      cwd: appDir,
+      stdio: "inherit",
+    })
+
+    if (compile.status !== 0 || !existsSync(runtimeOut)) {
+      console.error("pulsar build: runtime compilation failed")
+      process.exit(1)
+    }
+
+    // The outer binary is the Qt-free launcher; it extracts the payload and
+    // exec()s the bundled host (which loads the bundled Qt via its RPATH).
+    pack([
+      { path: "bin/qml-host", data: readFileSync(host) },
+      { path: "bin/bridge", data: readFileSync(bridge) },
+      { path: "runtime", data: readFileSync(runtimeOut) },
+      ...collectPayload(appDir, manifest, basename(outDir)),
+    ])
   } finally {
     rmSync(assembly, { recursive: true, force: true })
   }
@@ -618,7 +800,7 @@ const usage = () => {
       "  dev            run with hot reload (watch sources; --android for the dev APK)",
       "  run            run the app in the current directory",
       "  build          build a single-file executable (--target desktop|android|ios|portable, --dev, --aab)",
-      "  check          audit a target for portable imports (--target android)",
+      "  check          show the engine a build uses and whether Bun is bundled (--target desktop|android)",
       "  ui             dump the running dev app's UI tree (JSON; --system for uiautomator)",
       "  state          dump the running dev app's store (JSON)",
       "  tap <text>     press a node by text (--path|--id|--event|--at x,y)",
