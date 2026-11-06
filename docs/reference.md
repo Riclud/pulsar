@@ -166,12 +166,12 @@ same engine:
 | The app                                                   | Engine  | Bun in the app |
 | --------------------------------------------------------- | ------- | -------------- |
 | Uses Pulsar APIs and npm packages in plain JavaScript     | QuickJS | no             |
-| Imports Node or Bun APIs: `fs`, `child_process`, `bun:sqlite`, the `Bun` global | Bun | yes, about 27 MB compressed |
+| Imports Node or Bun APIs: `fs`, `child_process`, `bun:sqlite`, the `Bun` global | Bun | yes, about 40 MB compressed |
 
 `pulsar check` shows the choice before you build, and why:
 
 ```
-  engine: Bun, bundled into the app (adds about 95 MB)
+  engine: Bun, bundled into the app (adds about 40 MB)
     because of fs (from src/main.ts)
   to drop Bun, use Pulsar APIs in those places; to keep it quietly, set "runtime": { "desktop": "bun" }
 ```

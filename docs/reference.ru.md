@@ -167,12 +167,12 @@ Pulsar решает это при сборке, а `pulsar dev`, `pulsar run` и
 | Приложение                                                  | Движок  | Bun в приложении |
 | ----------------------------------------------------------- | ------- | ---------------- |
 | Использует API Pulsar и npm-пакеты на чистом JavaScript     | QuickJS | нет              |
-| Импортирует API Node или Bun: `fs`, `child_process`, `bun:sqlite`, глобальный `Bun` | Bun | да, около 27 МБ в сжатом виде |
+| Импортирует API Node или Bun: `fs`, `child_process`, `bun:sqlite`, глобальный `Bun` | Bun | да, около 40 МБ в сжатом виде |
 
 `pulsar check` показывает выбор до сборки и объясняет его:
 
 ```
-  engine: Bun, bundled into the app (adds about 95 MB)
+  engine: Bun, bundled into the app (adds about 40 MB)
     because of fs (from src/main.ts)
   to drop Bun, use Pulsar APIs in those places; to keep it quietly, set "runtime": { "desktop": "bun" }
 ```
