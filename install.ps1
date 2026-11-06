@@ -51,7 +51,7 @@ try {
     Write-Host "  add $BinDir to PATH if needed"
 
     $toolchainArgs = if ($env:PULSAR_SLIM -eq "1") { @("install", "--slim") } else { @("install") }
-    & $shim @toolchainArgs
+    & bun (Join-Path $current "cli\index.ts") @toolchainArgs
 
     if ($LASTEXITCODE -ne 0) { throw "pulsar: toolchain install failed" }
 }
