@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, 
 import { tmpdir } from "os"
 import { dirname, join } from "path"
 import { REPO, cliVersion, fileSha256, flag, linkSdk, platformId, pulsarHome, releaseUrl } from "./core.ts"
+import { ui } from "./ui.ts"
 
 const latestVersion = async (): Promise<string> => {
   const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
@@ -38,7 +39,7 @@ const verifyChecksum = async (tag: string, asset: string, archive: string): Prom
     if (expected && fileSha256(archive) !== expected) throw new Error("checksum mismatch")
   } catch (e) {
     if (e instanceof Error && e.message === "checksum mismatch") throw e
-    console.warn("pulsar: could not verify checksum (SHA256SUMS not available)")
+    ui.warn("could not verify checksum (SHA256SUMS not available)")
   }
 }
 
@@ -68,13 +69,13 @@ export const update = async (args: string[] = []): Promise<void> => {
     try {
       latest = await latestVersion()
     } catch (e) {
-      console.error(`pulsar update: could not check the latest release (${e instanceof Error ? e.message : e})`)
+      ui.error(`could not check the latest release (${e instanceof Error ? e.message : e})`)
       process.exit(1)
     }
   }
 
   if (!latest) {
-    console.error("pulsar update: no releases found")
+    ui.error("no releases found")
     process.exit(1)
   }
 
@@ -83,12 +84,12 @@ export const update = async (args: string[] = []): Promise<void> => {
   if (latest === current) {
     const linked = relinkApp()
 
-    console.log(`pulsar: already up to date (${current})`)
+    ui.step(`already up to date (${current})`)
     if (linked) console.log("  relinked node_modules/pulsar")
     return
   }
 
-  console.log(`pulsar: updating ${current} -> ${latest}`)
+  ui.step(`updating ${current} -> ${latest}`)
 
   const tag = `v${latest}`
   const asset = `pulsar-cli-${platformId()}.tar.gz`
@@ -115,7 +116,7 @@ export const update = async (args: string[] = []): Promise<void> => {
 
     const linked = relinkApp()
 
-    console.log(`pulsar: updated to ${latest}`)
+    ui.step(`updated to ${latest}`)
     if (linked) console.log("  relinked node_modules/pulsar")
     console.log(`  run \`pulsar install\` to fetch the matching toolchain`)
   } finally {

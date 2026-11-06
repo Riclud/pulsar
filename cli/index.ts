@@ -15,7 +15,7 @@ import {
   writeFileSync,
 } from "fs"
 import { tmpdir } from "os"
-import { basename, dirname, join, resolve } from "path"
+import { basename, dirname, join, relative, resolve } from "path"
 import {
   manifestCompat,
   explicitRuntime,
@@ -34,6 +34,7 @@ import {
   findLauncher,
   installDependencies,
   linkSdk,
+  platformId,
   pulsarRoot,
   toolchainVersion,
 } from "./core.ts"
@@ -62,6 +63,7 @@ import { install } from "./install.ts"
 import { collectQt } from "./qt.ts"
 import { createIgnoreFilter } from "./ignore.ts"
 import { update } from "./update.ts"
+import { ui } from "./ui.ts"
 
 const [cmd, ...args] = process.argv.slice(2)
 
@@ -72,7 +74,7 @@ const buildTarget = (): BuildTarget => {
   const target = flagValue("--target") ?? "desktop"
 
   if (target !== "desktop" && target !== "android" && target !== "ios" && target !== "portable") {
-    console.error(`pulsar: unknown target "${target}" (expected desktop, android, ios or portable)`)
+    ui.error(`unknown target "${target}" (expected desktop, android, ios or portable)`)
     process.exit(1)
   }
 
@@ -115,13 +117,13 @@ const chooseDesktopEngine = async (
   if (violations.length === 0) return { engine: "quickjs", entry, reasons: [] }
 
   if (manifestCompat(manifest) === "portable") {
-    for (const violation of violations) console.error(`pulsar: not portable: ${violation}`)
+    for (const violation of violations) ui.error(`not portable: ${violation}`)
     console.error('  the manifest sets "compat": "portable", usually because it targets Android')
     process.exit(1)
   }
 
   if (forced === "quickjs") {
-    for (const violation of violations) console.error(`pulsar: not available on QuickJS: ${violation}`)
+    for (const violation of violations) ui.error(`not available on QuickJS: ${violation}`)
     process.exit(1)
   }
 
@@ -152,11 +154,11 @@ const usesMedia = (appDir: string): boolean => {
 
 const describeVideo = (video: boolean): void => {
   if (video) {
-    console.log("  video: the in-app player is bundled (FFmpeg, about 20 MB)")
+    ui.detail("video", "in-app player bundled (FFmpeg, about 20 MB)")
     return
   }
 
-  console.log('  video: not bundled, videos open in the system player; set "video": true for the in-app player')
+  ui.detail("video", `not bundled, videos open in the system player ${ui.dim('("video": true adds the player)')}`)
 }
 
 /** The Node binary to run and ship: `PULSAR_NODE`, or `node` on the PATH. */
@@ -189,10 +191,8 @@ const warnSharedNode = (node: string): void => {
 
   if (shared.length === 0) return
 
-  console.warn(
-    `pulsar: this Node needs system libraries (${shared.slice(0, 4).join(", ")}${shared.length > 4 ? ", ..." : ""})`,
-  )
-  console.warn("  the app may not start on other machines; point PULSAR_NODE at an official build from nodejs.org")
+  ui.warn(`this Node needs system libraries (${shared.slice(0, 4).join(", ")}${shared.length > 4 ? ", ..." : ""})`)
+  ui.note("the app may not start on other machines; point PULSAR_NODE at an official build from nodejs.org")
 }
 
 interface NativePackages {
@@ -324,22 +324,22 @@ const bundleForNode = async (entry: string, assembly: string, external: string[]
 /** Says which engine the build uses, and why Bun is bundled when it is. */
 const describeEngine = (chosen: { engine: RuntimeKind; reasons: string[] }): void => {
   if (chosen.engine === "quickjs") {
-    console.log("  engine: QuickJS, Bun is not bundled")
+    ui.detail("engine", "QuickJS, Bun is not bundled")
     return
   }
 
   if (chosen.engine === "node") {
-    console.log("  engine: Node from this machine, bundled into the app (roughly 20 to 40 MB compressed)")
+    ui.detail("engine", "Node from this machine, bundled into the app (roughly 20 to 40 MB)")
     return
   }
 
-  console.log("  engine: Bun, bundled into the app (adds about 95 MB)")
+  ui.detail("engine", "Bun, bundled into the app (adds about 40 MB)")
 
-  for (const reason of chosen.reasons.slice(0, 5)) console.log(`    because of ${reason}`)
+  for (const reason of chosen.reasons.slice(0, 5)) ui.note(`  because of ${reason}`)
 
-  if (chosen.reasons.length > 5) console.log(`    and ${chosen.reasons.length - 5} more`)
+  if (chosen.reasons.length > 5) ui.note(`  and ${chosen.reasons.length - 5} more`)
 
-  console.log('  to drop Bun, use Pulsar APIs in those places; to keep it quietly, set "runtime": { "desktop": "bun" }')
+  ui.note('to drop Bun, use Pulsar APIs there; to keep it quietly, set "runtime": { "desktop": "bun" }')
 }
 
 const BUN_GLOBAL = /(^|[^.\w])Bun\.[a-zA-Z]/m
@@ -412,11 +412,12 @@ const checkTarget = async (appDir: string, target: BuildTarget): Promise<void> =
   const runtime = runtimeFor(target, manifest)
   const entry = resolveEntry(appDir, manifest, target)
 
-  console.log(`pulsar check --target ${target}`)
-  console.log(`  entry: ${entry}`)
-  console.log(`  runtime: ${runtime}`)
-  console.log(`  compat: ${compat}`)
-  console.log(`  targets: ${targets.join(", ")}`)
+  ui.header("check", target)
+  ui.detail("entry", relative(appDir, entry))
+  ui.detail("compat", compat)
+  ui.detail("targets", targets.join(", "))
+
+  if (target !== "desktop") ui.detail("runtime", runtime)
 
   if (target === "desktop") {
     describeEngine(await chooseDesktopEngine(appDir, manifest))
@@ -424,33 +425,33 @@ const checkTarget = async (appDir: string, target: BuildTarget): Promise<void> =
   }
 
   if (target === "android" && !targets.includes("android")) {
-    console.error(`FAIL  android is not listed in targets (${targets.join(", ")})`)
+    ui.error(`android is not listed in targets (${targets.join(", ")})`)
     process.exit(1)
   }
 
   if (target === "android" && compat !== "portable") {
-    console.error('FAIL  android requires compat: "portable"')
+    ui.error('android requires compat: "portable"')
     process.exit(1)
   }
 
   if (compat !== "portable" && target !== "android" && target !== "portable") {
-    console.log("ok    desktop compat, node/bun imports allowed")
+    ui.done("desktop compat, Node and Bun imports allowed")
     return
   }
 
   const violations = await auditPortable(entry)
 
   if (violations.length > 0) {
-    for (const violation of violations) console.error(`FAIL  non-portable import: ${violation}`)
+    for (const violation of violations) ui.error(`non-portable import: ${violation}`)
     process.exit(1)
   }
 
-  console.log("ok    portable")
+  ui.done("portable")
 }
 
 // Model B: the CLI needs Bun. Fail clearly instead of crashing under Node.
 if (!(process.versions as { bun?: string }).bun) {
-  console.error("pulsar: requires the Bun runtime (https://bun.sh). Install Bun, then run `pulsar` again.")
+  ui.error("requires the Bun runtime (https://bun.sh). Install Bun, then run `pulsar` again.")
   process.exit(1)
 }
 
@@ -503,7 +504,7 @@ const runDevice = async (action: () => Promise<void>): Promise<void> => {
   try {
     await action()
   } catch (e) {
-    console.error(`pulsar: ${e instanceof Error ? e.message : String(e)}`)
+    ui.error(`${e instanceof Error ? e.message : String(e)}`)
     process.exit(1)
   }
 }
@@ -513,7 +514,7 @@ const warnToolchain = (): void => {
   const cli = cliVersion()
 
   if (toolchain && toolchain !== cli)
-    console.warn(`pulsar: toolchain ${toolchain} != CLI ${cli}; run \`pulsar update\` or set PULSAR_SOURCE`)
+    ui.warn(`toolchain ${toolchain} != CLI ${cli}; run \`pulsar update\` or set PULSAR_SOURCE`)
 }
 
 /** Run the app once, on the engine its build would use. */
@@ -530,7 +531,7 @@ const dev = async () => {
     const port = portFlag ? Number.parseInt(portFlag, 10) : undefined
 
     if (portFlag && (!Number.isFinite(port) || port! <= 0)) {
-      console.error(`pulsar dev: invalid --port ${portFlag}`)
+      ui.error(`invalid --port ${portFlag}`)
       process.exit(1)
     }
 
@@ -544,7 +545,7 @@ const dev = async () => {
         keepAwake: !args.includes("--no-keep-awake"),
       })
     } catch (e) {
-      console.error(`pulsar dev: ${e instanceof Error ? e.message : String(e)}`)
+      ui.error(`${e instanceof Error ? e.message : String(e)}`)
       process.exit(1)
     }
 
@@ -567,7 +568,7 @@ const runDesktop = async (appDir: string, watchMode: boolean): Promise<void> => 
   const manifest = readManifest(appDir)
   const chosen = await chooseDesktopEngine(appDir, manifest)
 
-  if (watchMode) console.log(`pulsar: dev mode (watching for changes, host ${host})`)
+  ui.header(watchMode ? "dev" : "run", basename(appDir), watchMode ? "watching for changes" : "")
   describeEngine(chosen)
 
   if (chosen.engine === "bun") {
@@ -622,7 +623,7 @@ const runDesktop = async (appDir: string, watchMode: boolean): Promise<void> => 
 
   if (watchMode) {
     watchSources(appDir, manifest, () => {
-      console.error("[pulsar] change detected; reloading")
+      ui.step("change detected, reloading")
       void rebundle()
     })
   }
@@ -747,7 +748,10 @@ const doctor = () => {
     existsSync(manifest) ? `ok    pulsar.json: ${manifest}` : `warn  pulsar.json: not found in ${process.cwd()}`,
   )
 
-  console.log(lines.join("\n"))
+  ui.header("doctor", platformId())
+
+  for (const line of lines) ui.status(line)
+
   process.exit(critical ? 0 : 1)
 }
 
@@ -859,7 +863,7 @@ const build = async () => {
   const entry = resolveEntry(appDir, manifest, target)
 
   if (target === "android" && !manifestTargets(manifest).includes("android")) {
-    console.error(`pulsar build: android is not listed in targets (${manifestTargets(manifest).join(", ")})`)
+    ui.error(`android is not listed in targets (${manifestTargets(manifest).join(", ")})`)
     process.exit(1)
   }
 
@@ -869,7 +873,7 @@ const build = async () => {
   }
 
   if (target === "ios" && !manifestTargets(manifest).includes("ios")) {
-    console.error(`pulsar build: ios is not listed in targets (${manifestTargets(manifest).join(", ")})`)
+    ui.error(`ios is not listed in targets (${manifestTargets(manifest).join(", ")})`)
     process.exit(1)
   }
 
@@ -879,7 +883,7 @@ const build = async () => {
   }
 
   if (target !== "desktop" && target !== "android" && target !== "ios") {
-    console.error(`pulsar build: --target ${target} is not implemented yet (runtime: ${runtime})`)
+    ui.error(`--target ${target} is not implemented yet (runtime: ${runtime})`)
     process.exit(1)
   }
 
@@ -887,7 +891,7 @@ const build = async () => {
     const violations = await auditPortable(entry)
 
     if (violations.length > 0) {
-      for (const violation of violations) console.error(`pulsar build: non-portable import: ${violation}`)
+      for (const violation of violations) ui.error(`non-portable import: ${violation}`)
       process.exit(1)
     }
   }
@@ -906,7 +910,7 @@ const build = async () => {
         aab: args.includes("--aab"),
       })
     } catch (e) {
-      console.error(`pulsar build: ${e instanceof Error ? e.message : String(e)}`)
+      ui.error(`${e instanceof Error ? e.message : String(e)}`)
       process.exit(1)
     }
 
@@ -919,7 +923,7 @@ const build = async () => {
     try {
       await buildIos({ appDir, manifest, entry, outDir })
     } catch (e) {
-      console.error(`pulsar build: ${e instanceof Error ? e.message : String(e)}`)
+      ui.error(`${e instanceof Error ? e.message : String(e)}`)
       process.exit(1)
     }
 
@@ -934,7 +938,7 @@ const build = async () => {
   compileAppShaders(appDir)
 
   if (!existsSync(runtimeTs)) {
-    console.error(`pulsar build: runtime not found at ${runtimeTs}`)
+    ui.error(`runtime not found at ${runtimeTs}`)
     process.exit(1)
   }
 
@@ -946,7 +950,7 @@ const build = async () => {
   const chosen = await chooseDesktopEngine(appDir, manifest)
   const video = manifest?.video ?? usesMedia(appDir)
 
-  console.log(`pulsar: building ${basename(appDir)} -> ${join(outDir, name)}`)
+  ui.header("build", basename(appDir), platformId())
   describeEngine(chosen)
   describeVideo(video)
 
@@ -973,8 +977,8 @@ const build = async () => {
 
     const mb = (statSync(finalPath).size / (1024 * 1024)).toFixed(1)
 
-    console.log(`pulsar: built ${finalPath} (${mb} MB)`)
-    console.log(`  run it with ./${fileName}`)
+    ui.done(`built ${finalPath} (${mb} MB)`)
+    ui.note(`run it with ./${relative(process.cwd(), finalPath)}`)
   }
 
   if (chosen.engine === "quickjs") {
@@ -1011,7 +1015,7 @@ const build = async () => {
 
       if (script === null) process.exit(1)
 
-      if (native.external.length > 0) console.log(`  native packages shipped as files: ${native.external.join(", ")}`)
+      if (native.external.length > 0) ui.detail("native", native.external.join(", "))
 
       await pack([
         { path: "bin/qml-host", data: readFileSync(host) },
@@ -1054,7 +1058,7 @@ const build = async () => {
     })
 
     if (compile.status !== 0 || !existsSync(runtimeOut)) {
-      console.error("pulsar build: runtime compilation failed")
+      ui.error("runtime compilation failed")
       process.exit(1)
     }
 
@@ -1078,53 +1082,64 @@ const init = () => {
   create([name, "--dir", dirname(process.cwd()), "--force"])
 }
 
-const LOGO = String.raw`
-                     /$$                              
-                    | $$                              
-  /$$$$$$  /$$   /$$| $$  /$$$$$$$  /$$$$$$   /$$$$$$ 
- /$$__  $$| $$  | $$| $$ /$$_____/ |____  $$ /$$__  $$
-| $$  \ $$| $$  | $$| $$|  $$$$$$   /$$$$$$$| $$  \__/
-| $$  | $$| $$  | $$| $$ \____  $$ /$$$$$$$| $$      
-| $$$$$$$/|  $$$$$$/| $$ /$$$$$$$/|  $$$$$$$| $$      
-| $$____/  \______/ |__/|_______/  \_______/|__/      
-| $$                                                  
-| $$                                                  
-|__/ 
-`
+const COMMANDS: Array<[string, Array<[string, string]>]> = [
+  [
+    "Start",
+    [
+      ["create <name>", "scaffold a new app (--template default|js|qml|windows|tray)"],
+      ["dev", "run with live reload (--android for the dev APK)"],
+      ["run", "run the app in the current directory"],
+    ],
+  ],
+  [
+    "Build",
+    [
+      ["build", "build one file (--target desktop|android|ios, --runtime bun|quickjs|node, --slim)"],
+      ["check", "show the engine a build uses and whether Bun is bundled"],
+    ],
+  ],
+  [
+    "Device",
+    [
+      ["ui", "dump the running dev app's UI tree (--system for uiautomator)"],
+      ["state", "dump the running dev app's store"],
+      ["tap <text>", "press a node by text (--path|--id|--event|--at x,y)"],
+      ["type <text>", "send input to a field (--into <label>)"],
+      ["toggle <text>", "toggle a checkbox or switch"],
+      ["select <t> <v>", "choose a select option"],
+      ["expect <text>", "wait until the text appears (--timeout ms)"],
+      ["shot", "screenshot the device (--out, --window)"],
+      ["swipe x1 y1 x2 y2", "swipe on the screen (--duration ms)"],
+      ["key <name>", "send an Android key (back, home, enter, ... or a code)"],
+      ["eval <code>", "evaluate JS in the running app"],
+      ["back", "send the Android back event"],
+      ["reload", "restart the running app"],
+    ],
+  ],
+  [
+    "Toolchain",
+    [
+      ["install", "download the native toolchain (--android for the APK toolchain)"],
+      ["update", "update the CLI to the latest release (--version <v>)"],
+      ["doctor", "check the toolchain"],
+      ["version", "print the version"],
+    ],
+  ],
+]
 
 const usage = () => {
-  console.log(LOGO)
-  console.log(
-    [
-      "pulsar <command>",
-      "",
-      "  create <name>  scaffold a new app (--template default|js|qml|windows|tray)",
-      "  install        download the native toolchain for this platform (--android for the APK toolchain)",
-      "  update         update the CLI to the latest release (--version <v>)",
-      "  dev            run with hot reload (watch sources; --android for the dev APK)",
-      "  run            run the app in the current directory",
-      "  build          build a single-file executable (--target desktop|android|ios|portable, --dev, --aab)",
-      "  check          show the engine a build uses and whether Bun is bundled (--target desktop|android)",
-      "  ui             dump the running dev app's UI tree (JSON; --system for uiautomator)",
-      "  state          dump the running dev app's store (JSON)",
-      "  tap <text>     press a node by text (--path|--id|--event|--at x,y)",
-      "  type <text>    send input to a field (--into <label>)",
-      "  toggle <text>  toggle a checkbox or switch",
-      "  select <t> <v> choose a select option",
-      "  expect <text>  wait until the text appears (--timeout ms)",
-      "  shot           screenshot the device (--out, --window)",
-      "  swipe x1 y1 x2 y2  swipe on the screen (--duration ms)",
-      "  key <name>     send an Android key (back, home, enter, ... or a code)",
-      "  eval <code>    evaluate JS in the running app",
-      "  back           send the Android back event",
-      "  reload         restart the running app",
-      "  doctor         check the toolchain (host, bridge, Qt, Bun)",
-      "  version        print the version",
-      "",
-      "  -h, --help     show this help",
-      "  -v, --version  print the version",
-    ].join("\n"),
-  )
+  ui.banner(cliVersion())
+
+  for (const [title, commands] of COMMANDS) {
+    console.log(`  ${ui.bold(title)}`)
+
+    for (const [name, text] of commands) console.log(`    ${ui.code(name.padEnd(18))} ${ui.dim(text)}`)
+
+    console.log("")
+  }
+
+  console.log(`  ${ui.dim("Docs:")} https://pulsarjs.org`)
+  console.log("")
 }
 
 switch (cmd) {
@@ -1135,9 +1150,9 @@ switch (cmd) {
     if (args.includes("--android")) {
       try {
         const tools = await installAndroid(flagValue("--version"))
-        console.log(`pulsar: android toolchain ready (qt ${tools.qt})`)
+        ui.step(`android toolchain ready (qt ${tools.qt})`)
       } catch (e) {
-        console.error(`pulsar install: ${e instanceof Error ? e.message : String(e)}`)
+        ui.error(`${e instanceof Error ? e.message : String(e)}`)
         process.exit(1)
       }
     } else {
@@ -1175,7 +1190,7 @@ switch (cmd) {
       const [x, y] = at.split(",").map((part) => Number.parseFloat(part.trim()))
 
       if (!Number.isFinite(x) || !Number.isFinite(y)) {
-        console.error(`pulsar tap: invalid --at ${at} (expected x,y)`)
+        ui.error(`invalid --at ${at} (expected x,y)`)
         process.exit(1)
       }
 
@@ -1202,7 +1217,7 @@ switch (cmd) {
     const duration = durationFlag ? Number.parseInt(durationFlag, 10) : undefined
 
     if (points.length < 4 || points.some((value) => !Number.isFinite(value))) {
-      console.error("pulsar swipe: expected x1 y1 x2 y2 [--duration ms]")
+      ui.error("expected x1 y1 x2 y2 [--duration ms]")
       process.exit(1)
     }
 

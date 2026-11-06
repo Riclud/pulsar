@@ -21,6 +21,7 @@ import { createIgnoreFilter } from "./ignore.ts"
 import { compileAppShaders } from "./shaders.ts"
 import { mapErrorText, parseInlineSourceMap, type SourceMapper } from "./sourcemap.ts"
 import { pulsarRoot } from "./core.ts"
+import { ui } from "./ui.ts"
 
 export interface DevAndroidOptions {
   appDir: string
@@ -239,7 +240,7 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
     options.install !== false && (options.forceInstall || !existsSync(apk) || previous !== fingerprint || !installed())
 
   if (needsBuild) {
-    console.log(`pulsar: dev APK is stale (${previous ? "native inputs changed" : "first build"})`)
+    ui.step(`dev APK is stale (${previous ? "native inputs changed" : "first build"})`)
 
     await buildAndroid({ appDir, manifest, entry, outDir: join(appDir, "dist"), dev: true })
 
@@ -331,7 +332,7 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
       if (url.pathname === "/__dev/payload.json") return json(payload)
 
       if (url.pathname === "/__dev/hello") {
-        if (!connected) console.log("pulsar: device connected")
+        if (!connected) ui.step("device connected")
 
         connected = true
 
@@ -456,16 +457,16 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
       payload = next
       mapper = mapperForPayload(next, appDir)
 
-      console.log(`pulsar: bundle ${next.version.slice(0, 8)}; reloading ${packageName}`)
+      ui.step(`bundle ${next.version.slice(0, 8)}; reloading ${packageName}`)
 
       try {
         await control({ cmd: "reload" })
       } catch (e) {
-        console.log(`pulsar: in-process reload failed (${e instanceof Error ? e.message : String(e)}); restarting`)
+        ui.step(`in-process reload failed (${e instanceof Error ? e.message : String(e)}); restarting`)
         launch()
       }
     } catch (e) {
-      console.error(`pulsar: rebuild failed: ${e instanceof Error ? e.message : String(e)}`)
+      ui.error(`rebuild failed: ${e instanceof Error ? e.message : String(e)}`)
     } finally {
       rebuilding = false
 
@@ -485,7 +486,7 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
       if (filename && !skipped(String(filename))) schedule()
     })
   } catch (e) {
-    console.warn(`pulsar: cannot watch ${appDir}: ${e instanceof Error ? e.message : String(e)}`)
+    ui.warn(`cannot watch ${appDir}: ${e instanceof Error ? e.message : String(e)}`)
   }
 
   let stopping = false
@@ -516,14 +517,14 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
         { stdio: "ignore" },
       )
 
-    console.log("pulsar: dev stopped")
+    ui.step("dev stopped")
     process.exit(0)
   }
 
   process.on("SIGINT", stop)
   process.on("SIGTERM", stop)
 
-  console.log(`pulsar: dev ${name} on ${device}`)
+  ui.step(`dev ${name} on ${device}`)
   console.log(`  package: ${packageName}`)
   console.log(`  server:  http://127.0.0.1:${port}/`)
   console.log(`  app:     ${apk}`)

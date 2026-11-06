@@ -5,6 +5,7 @@ import { dirname, join } from "path"
 import { toolchainCurrent } from "./core.ts"
 import { createIgnoreFilter } from "./ignore.ts"
 import type { AppManifest } from "../core/sdk/manifest.ts"
+import { ui } from "./ui.ts"
 
 const LIBRARY = `
 vec2 pixel;
@@ -203,7 +204,7 @@ export const watchAppShaders = (appDir: string): void => {
     try {
       compileAppShaders(appDir)
     } catch (error) {
-      console.error(`pulsar: ${error instanceof Error ? error.message : String(error)}`)
+      ui.error(`${error instanceof Error ? error.message : String(error)}`)
     }
   })
 }
@@ -218,6 +219,6 @@ export const compileAppShaders = (appDir: string, manifest?: AppManifest): void 
     if (existsSync(output) && statSync(output).mtimeMs >= statSync(input).mtimeMs) continue
 
     compileShader(input, output)
-    console.log(`pulsar: compiled ${input.slice(dirname(appDir).length + 1)}`)
+    ui.step(`compiled ${input.slice(dirname(appDir).length + 1)}`)
   }
 }

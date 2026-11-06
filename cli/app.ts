@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "fs"
 import { basename, dirname, join } from "path"
 import type { AppManifest, RuntimeKind, Target } from "../core/sdk/manifest.ts"
+import { ui } from "./ui.ts"
 
 export type BuildTarget = Target | "portable"
 
@@ -35,7 +36,7 @@ export const resolveEntry = (
 
   for (const candidate of candidates) if (existsSync(candidate)) return candidate
 
-  console.error(`pulsar: no entry point for ${target} (looked for ${candidates.join(", ")})`)
+  ui.error(`no entry point for ${target} (looked for ${candidates.join(", ")})`)
   process.exit(1)
 }
 

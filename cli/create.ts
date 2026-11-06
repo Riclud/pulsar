@@ -1,6 +1,7 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "fs"
 import { join, relative, resolve } from "path"
-import { flag, installDependencies, linkSdk, pulsarRoot } from "./core.ts"
+import { cliVersion, flag, installDependencies, linkSdk, pulsarRoot } from "./core.ts"
+import { ui } from "./ui.ts"
 
 const TEXT_EXT = new Set([".ts", ".tsx", ".js", ".json", ".qml", ".md", ".txt", ".html", ".css", ".yml", ".yaml"])
 
@@ -64,14 +65,14 @@ export const create = (args: string[]): void => {
   const templateDir = join(templatesDir, templateName)
 
   if (!existsSync(templateDir)) {
-    console.error(`pulsar create: unknown template "${template}" (have: ${listTemplates(templatesDir).join(", ")})`)
+    ui.error(`unknown template "${template}" (have: ${listTemplates(templatesDir).join(", ")})`)
     process.exit(1)
   }
 
   const target = resolve(flag(args, "--dir") ?? ".", name)
 
   if (existsSync(target) && readdirSync(target).length > 0 && !args.includes("--force")) {
-    console.error(`pulsar create: ${target} already exists (use --force)`)
+    ui.error(`${target} already exists (use --force)`)
     process.exit(1)
   }
 
@@ -90,6 +91,10 @@ export const create = (args: string[]): void => {
   installDependencies(target, true)
   linkSdk(target)
 
-  console.log(`pulsar: created ${target} (template: ${template})`)
-  console.log(`  cd ${relative(process.cwd(), target) || "."} && pulsar dev`)
+  ui.banner(cliVersion())
+  ui.done(`created ${ui.code(relative(process.cwd(), target) || ".")} from the ${template} template`)
+  ui.note("next:")
+  console.log(`    ${ui.code(`cd ${relative(process.cwd(), target) || "."}`)}`)
+  console.log(`    ${ui.code("pulsar dev")}`)
+  console.log("")
 }

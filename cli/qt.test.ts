@@ -47,27 +47,31 @@ const pluginsDir = linux ? qmakeQuery("QT_INSTALL_PLUGINS") : undefined
 const hasQt = Boolean(qmlDir && libsDir && pluginsDir && existsSync(qmlDir) && existsSync(libsDir))
 
 describe("linux Qt bundle", () => {
-  test.skipIf(!hasQt)("includes the Qt libraries needed by QML modules", () => {
-    const files = qtFiles("/nonexistent/qml-host")
+  test.skipIf(!hasQt)(
+    "includes the Qt libraries needed by QML modules",
+    () => {
+      const files = qtFiles("/nonexistent/qml-host")
 
-    expect(files).not.toBeNull()
+      expect(files).not.toBeNull()
 
-    const bundled = new Set(files!.map((file) => file.rel.split("/").pop()))
+      const bundled = new Set(files!.map((file) => file.rel.split("/").pop()))
 
-    for (const module of ["QtQuick", "QtQml", "QtMultimedia"]) {
-      const dir = join(qmlDir!, module)
+      for (const module of ["QtQuick", "QtQml", "QtMultimedia"]) {
+        const dir = join(qmlDir!, module)
 
-      if (!existsSync(dir)) continue
+        if (!existsSync(dir)) continue
 
-      for (const plugin of walk(dir)) {
-        for (const lib of needed(plugin)) {
-          if (!lib.startsWith("libQt6") || !existsSync(join(libsDir!, lib))) continue
+        for (const plugin of walk(dir)) {
+          for (const lib of needed(plugin)) {
+            if (!lib.startsWith("libQt6") || !existsSync(join(libsDir!, lib))) continue
 
-          expect(bundled.has(lib)).toBe(true)
+            expect(bundled.has(lib)).toBe(true)
+          }
         }
       }
-    }
-  }, 30000)
+    },
+    30000,
+  )
 
   test.skipIf(!hasQt)("includes the QML modules and plugins used by the runtime", () => {
     const rels = qtFiles("/nonexistent/qml-host")!.map((file) => file.rel)

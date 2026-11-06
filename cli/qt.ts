@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realp
 import { tmpdir } from "os"
 import { basename, dirname, join, resolve } from "path"
 import { pulsarRoot } from "./core.ts"
+import { ui } from "./ui.ts"
 
 export type PayloadEntry = {
   path: string
@@ -410,9 +411,11 @@ export const qtFiles = (hostPath: string, tools: string[] = []): QtFile[] | null
   return linuxQtFiles(hostPath, libsDir, pluginsDir ?? "", qmlDir ?? "", tools)
 }
 
-const UNUSED_STYLE = /QuickControls2(Imagine|Fusion|Universal|FluentWinUI3|IOS|MacOS|Windows)|QtQuick\/Controls\/(Imagine|Fusion|Universal|FluentWinUI3|iOS|macOS|Windows)\//
+const UNUSED_STYLE =
+  /QuickControls2(Imagine|Fusion|Universal|FluentWinUI3|IOS|MacOS|Windows)|QtQuick\/Controls\/(Imagine|Fusion|Universal|FluentWinUI3|iOS|macOS|Windows)\//
 const SHADER_TOOLS = /ShaderTools|^lib\/Qt\/bin\/|^bin\/qsb\.exe$/
-const VIDEO = /(^|\/)(lib)?(av(codec|format|util|device|filter)|sw(scale|resample))[-.]|\/plugins\/multimedia\/|\/qml\/QtMultimedia\//
+const VIDEO =
+  /(^|\/)(lib)?(av(codec|format|util|device|filter)|sw(scale|resample))[-.]|\/plugins\/multimedia\/|\/qml\/QtMultimedia\//
 
 /**
  * Whether a toolchain file belongs in an app. Apps never need the shader
@@ -429,7 +432,7 @@ export const collectQt = (entries: PayloadEntry[], hostPath: string, video = tru
   const files = qtFiles(hostPath)?.filter((file) => keepForApp(file.rel, video))
 
   if (!files) {
-    console.warn("pulsar: Qt not found (no bundled tree and qmake missing); building a slim app that needs a system Qt")
+    ui.warn("Qt not found (no bundled tree and qmake missing); building a slim app that needs a system Qt")
     return false
   }
 
@@ -438,7 +441,7 @@ export const collectQt = (entries: PayloadEntry[], hostPath: string, video = tru
 
   const mb = files.reduce((sum, file) => sum + readFileSync(file.src).length, 0) / (1024 * 1024)
 
-  console.log(`pulsar: bundled Qt (~${mb.toFixed(0)} MB)`)
+  ui.step(`bundled Qt (~${mb.toFixed(0)} MB)`)
 
   return true
 }

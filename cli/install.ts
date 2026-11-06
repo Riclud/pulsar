@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from "os"
 import { join } from "path"
 import { cliVersion, fileSha256, flag, platformId, pulsarHome, releaseUrl, toolchainDir } from "./core.ts"
+import { ui } from "./ui.ts"
 
 const download = async (url: string, dest: string): Promise<void> => {
   const res = await fetch(url)
@@ -24,7 +25,7 @@ export const install = async (args: string[]): Promise<void> => {
   const asset = `${slim ? "pulsar-toolchain-slim" : "pulsar-toolchain"}-${platform}.tar.gz`
   const dest = toolchainDir(version)
 
-  console.log(`pulsar: installing toolchain for ${platform} (${version}${slim ? ", slim" : ""})`)
+  ui.step(`installing toolchain for ${platform} (${version}${slim ? ", slim" : ""})`)
 
   const tmp = mkdtempSync(join(tmpdir(), "pulsar-install-"))
 
@@ -47,7 +48,7 @@ export const install = async (args: string[]): Promise<void> => {
       if (expected && fileSha256(archive) !== expected) throw new Error("checksum mismatch")
     } catch (e) {
       if (e instanceof Error && e.message === "checksum mismatch") throw e
-      console.warn("pulsar: could not verify checksum (SHA256SUMS not available)")
+      ui.warn("could not verify checksum (SHA256SUMS not available)")
     }
 
     rmSync(dest, { recursive: true, force: true })
@@ -62,7 +63,7 @@ export const install = async (args: string[]): Promise<void> => {
     rmSync(link, { recursive: true, force: true })
     symlinkSync(version, link, "dir")
 
-    console.log(`pulsar: installed toolchain ${version} -> ${dest}`)
+    ui.step(`installed toolchain ${version} -> ${dest}`)
   } finally {
     rmSync(tmp, { recursive: true, force: true })
   }

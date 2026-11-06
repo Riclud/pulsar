@@ -4,6 +4,7 @@ import { basename, join, resolve } from "path"
 import type { AppManifest } from "../core/sdk/manifest.ts"
 import { appFiles, bundleRuntime, hashFiles, writeQrc } from "./android.ts"
 import { pulsarRoot } from "./core.ts"
+import { ui } from "./ui.ts"
 
 export interface IosBuildOptions {
   appDir: string
@@ -47,7 +48,7 @@ export const buildIos = async (options: IosBuildOptions): Promise<string> => {
   const buildDir = join(appDir, "build", "ios-simulator")
   const assembly = join(buildDir, "app")
 
-  console.log(`pulsar: ios simulator (experimental) -> ${name}.app`)
+  ui.step(`ios simulator (experimental) -> ${name}.app`)
 
   mkdirSync(assembly, { recursive: true })
 
@@ -118,7 +119,7 @@ export const buildIos = async (options: IosBuildOptions): Promise<string> => {
 
   cpSync(app, finalPath, { recursive: true, verbatimSymlinks: true })
 
-  console.log(`pulsar: built ${finalPath}`)
+  ui.done(`built ${finalPath}`)
 
   return finalPath
 }

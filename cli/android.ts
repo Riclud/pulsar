@@ -7,6 +7,7 @@ import { basename, dirname, join, resolve } from "path"
 import type { AppManifest } from "../core/sdk/manifest.ts"
 import { cliVersion, platformId, pulsarHome, pulsarRoot, releaseUrl } from "./core.ts"
 import { createIgnoreFilter } from "./ignore.ts"
+import { ui } from "./ui.ts"
 
 export const ANDROID_QT_VERSION = "6.9.3"
 export const ANDROID_ABI = "arm64-v8a"
@@ -163,7 +164,7 @@ export const installAndroid = async (version?: string): Promise<AndroidTools> =>
   const javaHome = installedJdk()
 
   if (!existsSync(join(javaHome, "bin", "java"))) {
-    console.log("pulsar: installing JDK 17")
+    ui.step("installing JDK 17")
 
     const archive = join(base, `jdk-17-${platform}.tar.gz`)
 
@@ -192,7 +193,7 @@ export const installAndroid = async (version?: string): Promise<AndroidTools> =>
   const sdkmanager = join(sdk, "cmdline-tools", "latest", "bin", "sdkmanager")
 
   if (!existsSync(sdkmanager)) {
-    console.log("pulsar: installing Android command-line tools")
+    ui.step("installing Android command-line tools")
 
     const archive = join(base, "cmdline-tools.zip")
 
@@ -214,7 +215,7 @@ export const installAndroid = async (version?: string): Promise<AndroidTools> =>
 
   const env = { ...process.env, JAVA_HOME: javaHome }
 
-  console.log("pulsar: accepting Android SDK licenses")
+  ui.step("accepting Android SDK licenses")
   spawnSync(sdkmanager, ["--licenses"], { input: "y\n".repeat(64), stdio: ["pipe", "inherit", "inherit"], env })
 
   const packages = [
@@ -224,7 +225,7 @@ export const installAndroid = async (version?: string): Promise<AndroidTools> =>
     `ndk;${ANDROID_NDK_VERSION}`,
   ]
 
-  console.log(`pulsar: installing ${packages.join(", ")}`)
+  ui.step(`installing ${packages.join(", ")}`)
 
   const install = spawnSync(sdkmanager, packages, { stdio: "inherit", env })
 
@@ -233,7 +234,7 @@ export const installAndroid = async (version?: string): Promise<AndroidTools> =>
   const qt = installedQt()
 
   if (!androidQtComplete(qt)) {
-    console.log(`pulsar: installing Qt ${ANDROID_QT_VERSION} for Android`)
+    ui.step(`installing Qt ${ANDROID_QT_VERSION} for Android`)
 
     const asset = `pulsar-android-qt-${ANDROID_QT_VERSION}-${platform}.tar.gz`
     const archive = join(base, asset)
@@ -512,18 +513,7 @@ const signAab = (aab: string, target: string, tools: AndroidTools): void => {
 
   const sign = spawnSync(
     signer,
-    [
-      "-keystore",
-      keystore,
-      "-storepass",
-      storePass,
-      "-keypass",
-      keyPass,
-      "-signedjar",
-      target,
-      aab,
-      alias,
-    ],
+    ["-keystore", keystore, "-storepass", storePass, "-keypass", keyPass, "-signedjar", target, aab, alias],
     { stdio: "inherit" },
   )
 
@@ -568,8 +558,8 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
   } catch (e) {
     if (process.env.PULSAR_NO_INSTALL === "1") throw e
 
-    console.log(`pulsar: ${e instanceof Error ? e.message : String(e)}`)
-    console.log("pulsar: installing the Android toolchain (one time, ~2 GB)")
+    ui.step(`${e instanceof Error ? e.message : String(e)}`)
+    ui.step("installing the Android toolchain (one time, ~2 GB)")
 
     tools = await installAndroid(cliVersion())
   }
@@ -579,7 +569,7 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
   const appLabel = dev ? `${name} (dev)` : name
   const versionName = manifest?.version ?? "0.1.0"
 
-  console.log(`pulsar: android ${abi} ${dev ? "dev " : ""}-> ${name}${dev ? "-dev" : ""}.apk`)
+  ui.step(`android ${abi} ${dev ? "dev " : ""}-> ${name}${dev ? "-dev" : ""}.apk`)
   console.log(`  qt:  ${tools.qt}`)
   console.log(`  host: ${tools.hostQt}`)
   console.log(`  sdk: ${tools.sdk}`)
@@ -589,7 +579,7 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
   const buildDir = join(appDir, "build", `android-${abi}${dev ? "-dev" : ""}`)
 
   if (clearStaleBuildDir(buildDir, sourceDir)) {
-    console.log("pulsar: cleared the Android build cache from another Pulsar version")
+    ui.step("cleared the Android build cache from another Pulsar version")
   }
 
   const assembly = join(buildDir, "app")
@@ -701,7 +691,7 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
 
   const mb = (statSync(finalPath).size / (1024 * 1024)).toFixed(1)
 
-  console.log(`pulsar: built ${resolve(finalPath)} (${mb} MB)`)
+  ui.done(`built ${resolve(finalPath)} (${mb} MB)`)
 
   if (options.aab) {
     const androidBuildDir = join(buildDir, "android-build")
@@ -719,7 +709,7 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
 
     signAab(join(bundleDir, file), aabPath, tools)
 
-    console.log(`pulsar: built ${resolve(aabPath)} (${(statSync(aabPath).size / (1024 * 1024)).toFixed(1)} MB)`)
+    ui.done(`built ${resolve(aabPath)} (${(statSync(aabPath).size / (1024 * 1024)).toFixed(1)} MB)`)
   }
 
   return finalPath
