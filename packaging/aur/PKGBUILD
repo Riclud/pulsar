@@ -1,0 +1,29 @@
+# Maintainer: Riclud <riclud666@gmail.com>
+pkgname=pulsarjs-bin
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc="Native desktop and Android apps in TypeScript, drawn by Qt on the GPU"
+arch=('x86_64' 'aarch64')
+url="https://pulsarjs.org"
+license=('MIT')
+provides=('pulsarjs')
+conflicts=('pulsarjs' 'pulsar-bin')
+depends=('glibc' 'fontconfig' 'freetype2' 'libglvnd' 'libxkbcommon' 'wayland')
+# The CLI is a Bun single-file binary; stripping it removes the embedded program.
+options=('!strip' '!debug')
+noextract=("pulsar-linux-x64-${pkgver}.tar.gz" "pulsar-linux-arm64-${pkgver}.tar.gz")
+source_x86_64=("pulsar-linux-x64-${pkgver}.tar.gz::https://github.com/riclud/pulsar/releases/download/v${pkgver}/pulsar-linux-x64.tar.gz")
+source_aarch64=("pulsar-linux-arm64-${pkgver}.tar.gz::https://github.com/riclud/pulsar/releases/download/v${pkgver}/pulsar-linux-arm64.tar.gz")
+sha256sums_x86_64=('@SHA_LINUX_X64@')
+sha256sums_aarch64=('@SHA_LINUX_ARM64@')
+
+package() {
+  local platform=x64
+
+  [ "$CARCH" = "aarch64" ] && platform=arm64
+
+  install -d "$pkgdir/opt/pulsarjs" "$pkgdir/usr/bin"
+  bsdtar -xf "$srcdir/pulsar-linux-$platform-$pkgver.tar.gz" -C "$pkgdir/opt/pulsarjs"
+  ln -s /opt/pulsarjs/bin/pulsar "$pkgdir/usr/bin/pulsar"
+  install -Dm644 "$pkgdir/opt/pulsarjs/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

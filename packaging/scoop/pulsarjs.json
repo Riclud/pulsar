@@ -1,0 +1,33 @@
+{
+  "version": "@VERSION@",
+  "description": "Native desktop and Android apps in TypeScript, drawn by Qt on the GPU",
+  "homepage": "https://pulsarjs.org",
+  "license": "MIT",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/riclud/pulsar/releases/download/v@VERSION@/pulsar-windows-x64.zip",
+      "hash": "@SHA_WINDOWS_X64@"
+    },
+    "arm64": {
+      "url": "https://github.com/riclud/pulsar/releases/download/v@VERSION@/pulsar-windows-arm64.zip",
+      "hash": "@SHA_WINDOWS_ARM64@"
+    }
+  },
+  "bin": "bin\\pulsar.exe",
+  "checkver": {
+    "github": "https://github.com/riclud/pulsar"
+  },
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/riclud/pulsar/releases/download/v$version/pulsar-windows-x64.zip"
+      },
+      "arm64": {
+        "url": "https://github.com/riclud/pulsar/releases/download/v$version/pulsar-windows-arm64.zip"
+      }
+    },
+    "hash": {
+      "url": "$baseurl/SHA256SUMS"
+    }
+  }
+}

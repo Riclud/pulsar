@@ -1,0 +1,16 @@
+PackageIdentifier: Riclud.Pulsar
+PackageVersion: @VERSION@
+InstallerType: zip
+NestedInstallerType: portable
+NestedInstallerFiles:
+  - RelativeFilePath: bin\pulsar.exe
+    PortableCommandAlias: pulsar
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/riclud/pulsar/releases/download/v@VERSION@/pulsar-windows-x64.zip
+    InstallerSha256: @SHA_WINDOWS_X64_UPPER@
+  - Architecture: arm64
+    InstallerUrl: https://github.com/riclud/pulsar/releases/download/v@VERSION@/pulsar-windows-arm64.zip
+    InstallerSha256: @SHA_WINDOWS_ARM64_UPPER@
+ManifestType: installer
+ManifestVersion: 1.9.0

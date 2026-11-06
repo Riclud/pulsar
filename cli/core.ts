@@ -11,7 +11,8 @@ export const pulsarRoot = (): string => {
   const source = process.env.PULSAR_SOURCE
 
   if (source) return resolve(source)
-  if (isCompiled()) return resolve(dirname(process.execPath), "..")
+  // Package managers start the CLI through a symlink or shim; the files sit beside the real binary.
+  if (isCompiled()) return resolve(dirname(realpathSync(process.execPath)), "..")
 
   return resolve(import.meta.dir, "..")
 }
@@ -120,6 +121,12 @@ export const toolchainCurrent = (): string => {
 }
 
 /** Version of the active toolchain, or null when none is installed. */
+/**
+ * Whether the toolchain ships beside the CLI, as in system packages (AUR,
+ * Homebrew, Scoop, winget), instead of being installed with `pulsar install`.
+ */
+export const bundledToolchain = (): boolean => existsSync(join(pulsarRoot(), "bin", exe("qml-host")))
+
 export const toolchainVersion = (): string | null => {
   try {
     return basename(realpathSync(toolchainCurrent()))
@@ -148,8 +155,8 @@ export const findHost = (): string => {
   const candidates = [
     resolve(pulsarRoot(), "build", "bin", exe("qml-host")),
     resolve(process.cwd(), "build", "bin", exe("qml-host")),
-    join(toolchainCurrent(), "bin", exe("qml-host")),
     join(pulsarRoot(), "bin", exe("qml-host")),
+    join(toolchainCurrent(), "bin", exe("qml-host")),
     resolve("/usr/local/bin", exe("pulsar-host")),
   ]
 
@@ -192,8 +199,8 @@ export const findLauncher = (): string => {
 
   const candidates = [
     resolve(pulsarRoot(), "build", "bin", exe("launcher")),
-    join(toolchainCurrent(), "bin", exe("launcher")),
     join(pulsarRoot(), "bin", exe("launcher")),
+    join(toolchainCurrent(), "bin", exe("launcher")),
   ]
 
   for (const c of candidates) if (existsSync(c)) return c

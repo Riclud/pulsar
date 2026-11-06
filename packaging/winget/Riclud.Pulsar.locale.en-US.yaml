@@ -1,0 +1,18 @@
+PackageIdentifier: Riclud.Pulsar
+PackageVersion: @VERSION@
+PackageLocale: en-US
+Publisher: Riclud
+PublisherUrl: https://github.com/riclud
+PackageName: Pulsar
+PackageUrl: https://pulsarjs.org
+License: MIT
+LicenseUrl: https://github.com/riclud/pulsar/blob/main/LICENSE
+ShortDescription: Native desktop and Android apps in TypeScript, drawn by Qt on the GPU
+Moniker: pulsar
+Tags:
+  - typescript
+  - qt
+  - cross-platform
+  - gui
+ManifestType: defaultLocale
+ManifestVersion: 1.9.0

@@ -53,20 +53,9 @@ if (!readFileSync(join(root, "tsconfig.json"), "utf8").includes('"jsxImportSourc
   throw new Error("tsconfig.json must set jsxImportSource to pulsar")
 }
 
-tar(`pulsar-cli-${platform}.tar.gz`, root, [
-  "cli",
-  "core",
-  "CMakeLists.txt",
-  "package.json",
-  "tsconfig.json",
-  "host",
-  "bridge",
-  "launcher",
-  "android",
-  "-C",
-  cliStage,
-  "bin",
-])
+const CLI_PATHS = ["cli", "core", "CMakeLists.txt", "package.json", "tsconfig.json", "host", "bridge", "launcher", "android"]
+
+tar(`pulsar-cli-${platform}.tar.gz`, root, [...CLI_PATHS, "-C", cliStage, "bin"])
 
 // --- Toolchain ---
 const qmlHost = join(root, "build", "bin", `qml-host${exe}`)
@@ -155,6 +144,28 @@ const stageToolchain = (withQt: boolean, name: string): string => {
 stageToolchain(true, `pulsar-toolchain-${platform}.tar.gz`)
 stageToolchain(false, `pulsar-toolchain-slim-${platform}.tar.gz`)
 
+// --- Full package: CLI and toolchain in one folder, for system package managers ---
+const full = join(out, ".stage-full")
+
+rmSync(full, { recursive: true, force: true })
+mkdirSync(full, { recursive: true })
+
+for (const path of [...CLI_PATHS, "LICENSE", "THIRD_PARTY_NOTICES.md"]) {
+  cpSync(join(root, path), join(full, path), { recursive: true })
+}
+
+cpSync(join(cliStage, "bin"), join(full, "bin"), { recursive: true })
+cpSync(join(out, ".stage-fat"), full, { recursive: true })
+
+// winget needs a zip, so Windows gets one; tar on Windows runners writes zip with -a.
+if (process.platform === "win32") {
+  const zip = spawnSync("tar", ["-a", "-cf", join(out, `pulsar-${platform}.zip`), "-C", full, "."], { stdio: "inherit" })
+
+  if (zip.status !== 0) throw new Error("zip failed for the full package")
+} else {
+  tar(`pulsar-${platform}.tar.gz`, full, ["."])
+}
+
 // --- Checksums ---
 const lines: string[] = []
 
@@ -172,5 +183,6 @@ writeFileSync(join(out, "SHA256SUMS"), lines.join("\n") + "\n")
 rmSync(join(out, ".stage-fat"), { recursive: true, force: true })
 rmSync(join(out, ".stage-slim"), { recursive: true, force: true })
 rmSync(cliStage, { recursive: true, force: true })
+rmSync(full, { recursive: true, force: true })
 
 console.log(`packaged ${platform} -> ${out}`)

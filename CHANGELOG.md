@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Release assets `pulsar-<platform>.tar.gz` (and `.zip` on Windows) hold the CLI and the
+  toolchain together, for system package managers. `packaging/` has the AUR, Homebrew,
+  Scoop and winget files, and `bun scripts/packaging.ts <version>` fills them in.
+- The CLI finds a toolchain shipped beside it, so packages need no `pulsar install`.
+
 ## [2.0.0] - 2026-11-06
 
 ### Breaking

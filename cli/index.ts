@@ -28,6 +28,7 @@ import {
 import { compileAppShaders, watchAppShaders } from "./shaders.ts"
 import {
   bunCommand,
+  bundledToolchain,
   cliVersion,
   findBridge,
   findHost,
@@ -533,7 +534,7 @@ const warnToolchain = (): void => {
   const toolchain = toolchainVersion()
   const cli = cliVersion()
 
-  if (toolchain && toolchain !== cli)
+  if (!bundledToolchain() && toolchain && toolchain !== cli)
     ui.warn(`toolchain ${toolchain} != CLI ${cli}; run \`pulsar update\` or set PULSAR_SOURCE`)
 }
 
@@ -732,7 +733,8 @@ const doctor = () => {
   const toolchain = toolchainVersion()
   const version = cliVersion()
 
-  if (!toolchain) lines.push("warn  toolchain: not installed (run `pulsar install`)")
+  if (bundledToolchain()) lines.push(`ok    toolchain: ${version}, bundled with the CLI`)
+  else if (!toolchain) lines.push("warn  toolchain: not installed (run `pulsar install`)")
   else if (toolchain !== version) lines.push(`warn  toolchain: ${toolchain} != CLI ${version} (run \`pulsar update\`)`)
   else lines.push(`ok    toolchain: ${toolchain}`)
 
