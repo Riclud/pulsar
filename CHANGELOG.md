@@ -8,6 +8,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Breaking
 
+- Desktop apps run on QuickJS unless their code imports Node or Bun APIs, in which
+  case Bun is bundled as before. `pulsar dev`, `pulsar run` and `pulsar build` use the
+  same engine. Set `"runtime": { "desktop": "bun" }` to keep Bun for every build.
+- The `pulsar` CLI is one file with Bun inside. You no longer install Bun to use it.
+- Entry suffixes split platform from engine: a desktop build on QuickJS looks for
+  `main.desktop.ts`, then `main.quickjs.ts`, then `main.ts`.
+
 - `bind`, `When`, `memo`, `defineComponent`, `AppBar` and `TextField` are gone. Read
   values directly while rendering, use a ternary, and use `component`, `Header` and
   `Input`.
@@ -30,6 +37,15 @@ All notable changes to this project are documented here. The format follows
 - `store.set` compares objects by reference, so setting an equal copy is a change.
 
 ### Added
+
+- `pulsar check` and `pulsar build` say which engine a build uses and why Bun is
+  bundled when it is.
+- `platform()` returns the OS, `desktop` or `mobile`, and the engine.
+- Desktop builds are compressed with zstd and leave out what the app does not use: the
+  shader compiler, unused Controls styles and, unless the app uses `media`, FFmpeg.
+  `"video"` in `pulsar.json` overrides that.
+- `pulsar dev` and `pulsar build` install missing packages with the project's own
+  package manager, found from its lock file.
 
 - `focusBorderColor` on `Input` and `TextArea`.
 

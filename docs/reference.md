@@ -24,7 +24,9 @@ Documentation lives at [pulsarjs.org](https://pulsarjs.org). See
 
 ## Requirements
 
-- **[Bun](https://bun.sh) ≥ 1.2** — the CLI and every app run on Bun.
+- **Nothing for the CLI.** `pulsar` is one file with Bun inside, so you do not
+  install Bun or Node. To work on Pulsar itself from source you need
+  [Bun](https://bun.sh) ≥ 1.2.
 - **Qt 6.8+** (Qt **6.9.2+** on macOS — older 6.8.x links the removed AGL
   framework) — only if you build the host from source or use the `--slim`
   toolchain (`pulsar build --slim` / `pulsar install --slim`). The default
@@ -135,7 +137,8 @@ pulsar <command>
   update         update the CLI to the latest release
   dev            run with live reload (watch sources)
   run            run the app in the current directory
-  build          build a single-file executable (--target desktop|android|ios|portable)
+  build          build a single-file executable (--target desktop|android|ios|portable, --runtime bun|quickjs)
+  check          show the engine a build uses and whether Bun is bundled
   doctor         check the toolchain (host, bridge, Qt, Bun)
   version        print the version
   help           show help
@@ -151,9 +154,50 @@ Useful flags and aliases:
 | `run`, `dev`    | env `PULSAR_APP` (app dir), `PULSAR_WATCH` (`dev` sets it) |
 | `init`          | legacy alias for `create` in the current directory         |
 
-`pulsar build` writes `dist/<name>` — one executable containing the Bun
-runtime, your app and (unless `--slim`) the Qt runtime. Run it directly:
-`./dist/<name>`.
+`pulsar build` writes `dist/<name>` — one compressed executable with the engine,
+your app and (unless `--slim`) the Qt runtime. Run it directly: `./dist/<name>`.
+
+### Engines
+
+A desktop app runs on **QuickJS** unless its code needs **Bun**. Pulsar decides
+when you build, and `pulsar dev`, `pulsar run` and `pulsar build` always use the
+same engine:
+
+| The app                                                   | Engine  | Bun in the app |
+| --------------------------------------------------------- | ------- | -------------- |
+| Uses Pulsar APIs and npm packages in plain JavaScript     | QuickJS | no             |
+| Imports Node or Bun APIs: `fs`, `child_process`, `bun:sqlite`, the `Bun` global | Bun | yes, about 27 MB compressed |
+
+`pulsar check` shows the choice before you build, and why:
+
+```
+  engine: Bun, bundled into the app (adds about 95 MB)
+    because of fs (from src/main.ts)
+  to drop Bun, use Pulsar APIs in those places; to keep it quietly, set "runtime": { "desktop": "bun" }
+```
+
+Set `"runtime": { "desktop": "bun" }` or `"quickjs"` in `pulsar.json`, or pass
+`--runtime`, to choose yourself. With `"compat": "portable"`, which apps that target
+Android use, Node and Bun imports are an error instead.
+
+Install packages with npm, pnpm, yarn or Bun as you like. When `node_modules` is
+missing, `pulsar dev` and `pulsar build` install them with the manager whose lock
+file the project has, or with the Bun inside `pulsar`.
+
+An entry file can have a version per platform or engine. For `"main": "src/main.ts"`
+Pulsar looks for `main.desktop.ts`, then `main.quickjs.ts` or `main.bun.ts` for the
+chosen engine, then `main.ts`; on Android it looks for `main.android.ts` and
+`main.quickjs.ts`. In code, `platform()` tells you where the app runs:
+
+```ts
+import { platform } from "pulsar"
+
+const { os, kind, engine } = platform() // "linux" | "darwin" | "win32" | "android" | "ios", "desktop" | "mobile", "bun" | "quickjs"
+```
+
+Apps get the in-app video player (FFmpeg, about 20 MB) only when they use `media`.
+Without it, videos open in the system player. Set `"video": true` or `false` in
+`pulsar.json` to decide yourself.
 
 ### Live reload
 
@@ -297,6 +341,8 @@ One file drives the app config and packaging.
 | `protocols`        | Custom URL schemes (deep links) the app handles.                                                                                                               |
 | `fileAssociations` | File types the app opens: `ext` (without the dot), `mime`, `name`.                                                                                             |
 | `singleInstance`   | Forward a second launch to the running instance and exit (default `false`).                                                                                    |
+| `runtime`          | Engine per target, such as `{ "desktop": "bun" }`. See [Engines](#engines).                                         |
+| `video`            | Bundle the in-app video player in desktop builds. Defaults to whether the app uses `media`.                        |
 | `ignore`           | Extra paths left out of builds, in `.gitignore` syntax.                                                                                                        |
 
 Builds always skip `.git`, `node_modules`, `dist`, `build`, `.cache`,
@@ -1288,9 +1334,10 @@ builds on Linux, macOS and Windows and packages Qt per platform (`ldd` on Linux,
 `pulsar build` appends a payload to `launcher`:
 
 ```
-[ launcher ][ payload container ][ payload offset + magic ]
-             ├─ bin/qml-host, bin/bridge, bin/qt.conf
-             ├─ runtime                  (Bun standalone: runtime + app + SDK)
+[ launcher ][ payload container, each file zstd-compressed ][ payload offset + magic ]
+             ├─ bin/qml-host, bin/qt.conf
+             ├─ runtime.js               (QuickJS bundle: runtime + app + SDK)
+             │  or bin/bridge + runtime  (Bun standalone, for apps that need Bun)
              ├─ app/…                     (QML, assets, manifest)
              └─ lib/Qt/…                  (bundled Qt, Linux/macOS)
                                           or Qt DLLs beside the host on Windows

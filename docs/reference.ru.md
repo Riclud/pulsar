@@ -24,7 +24,9 @@ iOS экспериментальна: `pulsar build --target ios` требует
 
 ## Требования
 
-- **[Bun](https://bun.sh) ≥ 1.2** — на нём работают CLI и каждое приложение.
+- **Для CLI ничего.** `pulsar` — один файл с Bun внутри, поэтому ни Bun, ни Node
+  ставить не нужно. Чтобы работать над самим Pulsar из исходников, нужен
+  [Bun](https://bun.sh) ≥ 1.2.
 - **Qt 6.8+** (на macOS — Qt **6.9.2+**: более старые 6.8.x линкуют удалённый
   фреймворк AGL) — только если вы собираете хост из исходников или используете
   `--slim`-toolchain (`pulsar build --slim` / `pulsar install --slim`).
@@ -136,7 +138,8 @@ pulsar <command>
   update         обновить CLI до последнего релиза
   dev            запуск с живой перезагрузкой (следит за исходниками)
   run            запустить приложение в текущем каталоге
-  build          собрать один исполняемый файл (--target desktop|android|ios|portable)
+  build          собрать один исполняемый файл (--target desktop|android|ios|portable, --runtime bun|quickjs)
+  check          показать движок сборки и попадёт ли в неё Bun
   doctor         проверить toolchain (host, bridge, Qt, Bun)
   version        показать версию
   help           показать справку
@@ -152,9 +155,50 @@ pulsar <command>
 | `run`, `dev`    | env `PULSAR_APP` (каталог приложения), `PULSAR_WATCH` (`dev`) |
 | `init`          | устаревший алиас `create` для текущего каталога               |
 
-`pulsar build` пишет `dist/<name>` — один исполняемый файл со встроенным
-рантаймом Bun, вашим приложением и (если не `--slim`) рантаймом Qt. Запуск:
-`./dist/<name>`.
+`pulsar build` пишет `dist/<name>` — один сжатый исполняемый файл с движком,
+вашим приложением и (если не `--slim`) рантаймом Qt. Запуск: `./dist/<name>`.
+
+### Движки
+
+Приложение для компьютера работает на **QuickJS**, если его коду не нужен **Bun**.
+Pulsar решает это при сборке, а `pulsar dev`, `pulsar run` и `pulsar build` всегда
+используют один и тот же движок:
+
+| Приложение                                                  | Движок  | Bun в приложении |
+| ----------------------------------------------------------- | ------- | ---------------- |
+| Использует API Pulsar и npm-пакеты на чистом JavaScript     | QuickJS | нет              |
+| Импортирует API Node или Bun: `fs`, `child_process`, `bun:sqlite`, глобальный `Bun` | Bun | да, около 27 МБ в сжатом виде |
+
+`pulsar check` показывает выбор до сборки и объясняет его:
+
+```
+  engine: Bun, bundled into the app (adds about 95 MB)
+    because of fs (from src/main.ts)
+  to drop Bun, use Pulsar APIs in those places; to keep it quietly, set "runtime": { "desktop": "bun" }
+```
+
+Чтобы выбрать самому, задайте в `pulsar.json` `"runtime": { "desktop": "bun" }` или
+`"quickjs"` либо передайте `--runtime`. С `"compat": "portable"`, который стоит у
+приложений под Android, импорты Node и Bun считаются ошибкой.
+
+Пакеты ставьте через npm, pnpm, yarn или Bun — как удобно. Если `node_modules` нет,
+`pulsar dev` и `pulsar build` поставят их менеджером, чей lock-файл лежит в проекте,
+или Bun внутри `pulsar`.
+
+У точки входа может быть версия для платформы или движка. Для `"main": "src/main.ts"`
+Pulsar ищет `main.desktop.ts`, затем `main.quickjs.ts` или `main.bun.ts` для
+выбранного движка, затем `main.ts`; на Android — `main.android.ts` и `main.quickjs.ts`.
+В коде узнать, где работает приложение, можно через `platform()`:
+
+```ts
+import { platform } from "pulsar"
+
+const { os, kind, engine } = platform() // "linux" | "darwin" | "win32" | "android" | "ios", "desktop" | "mobile", "bun" | "quickjs"
+```
+
+Встроенный видеоплеер (FFmpeg, около 20 МБ) попадает в приложение, только если оно
+использует `media`. Без него видео открываются в системном плеере. Чтобы решить
+самому, задайте `"video": true` или `false` в `pulsar.json`.
 
 ### Живая перезагрузка
 
@@ -299,6 +343,8 @@ JS-окна сохраняют свой view, QML-окна перезагруж�
 | `protocols`        | Свои URL-схемы (deep links), которые обрабатывает приложение.                                                                                                 |
 | `fileAssociations` | Типы файлов, которые открывает приложение: `ext` (без точки), `mime`, `name`.                                                                                 |
 | `singleInstance`   | Передавать второй запуск работающему экземпляру и выходить (по умолчанию `false`).                                                                            |
+| `runtime`          | Движок для цели, например `{ "desktop": "bun" }`. См. [Движки](#dvizhki).                     |
+| `video`            | Класть ли встроенный видеоплеер в сборку для ПК. По умолчанию — если приложение использует `media`. |
 | `ignore`           | Дополнительные пути, не попадающие в сборку, в синтаксисе `.gitignore`.                                                                                       |
 
 ### Прозрачное окно и Hyprland
@@ -1290,9 +1336,10 @@ Qt ищется через CMake `find_package(Qt6)`, поэтому при не
 `pulsar build` дописывает payload к `launcher`:
 
 ```
-[ launcher ][ контейнер payload ][ смещение payload + магия ]
-             ├─ bin/qml-host, bin/bridge, bin/qt.conf
-             ├─ runtime                  (Bun standalone: рантайм + приложение + SDK)
+[ launcher ][ контейнер payload, каждый файл сжат zstd ][ смещение payload + магия ]
+             ├─ bin/qml-host, bin/qt.conf
+             ├─ runtime.js               (бандл QuickJS: рантайм + приложение + SDK)
+             │  или bin/bridge + runtime (Bun standalone, если приложению нужен Bun)
              ├─ app/…                     (QML, ассеты, манифест)
              └─ lib/Qt/…                  (встроенный Qt, Linux/macOS)
                                           или DLL Qt рядом с хостом в Windows
