@@ -15,7 +15,7 @@
 
 ## Быстрый старт
 
-Сначала нужен [Bun](https://bun.sh), затем:
+Заранее ничего ставить не нужно: Bun уже внутри CLI.
 
 ```sh
 curl -fsSL https://get.pulsarjs.org | sh

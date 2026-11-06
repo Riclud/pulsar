@@ -1,6 +1,6 @@
 #!/bin/sh
 # Pulsar bootstrap: installs the CLI from GitHub Releases for this platform, then
-# the toolchain (Qt host) with `pulsar install`. Requires Bun (https://bun.sh).
+# the toolchain (Qt host) with `pulsar install`. Bun is inside the CLI.
 # Set PULSAR_SLIM=1 for a toolchain that uses the system Qt.
 set -eu
 
@@ -22,12 +22,6 @@ case "$arch" in
   *) echo "pulsar: unsupported architecture: $arch" >&2; exit 1 ;;
 esac
 platform="$os-$arch"
-
-if ! command -v bun >/dev/null 2>&1; then
-  echo "pulsar: Bun is required but was not found." >&2
-  echo "  Install it from https://bun.sh, then re-run this installer." >&2
-  exit 1
-fi
 
 asset="pulsar-cli-$platform.tar.gz"
 url="https://github.com/$REPO/releases/latest/download/$asset"
@@ -60,10 +54,25 @@ cp -a "$tmp/stage/." "$dest/"
 ln -sfn "versions/$version" "$PULSAR_HOME/current"
 
 mkdir -p "$BIN_DIR"
-cat > "$BIN_DIR/pulsar" <<EOF
+
+# Releases from 2.0 carry bin/pulsar with Bun inside; older ones need a system Bun.
+if [ -x "$dest/bin/pulsar" ]; then
+  cat > "$BIN_DIR/pulsar" <<EOF
+#!/bin/sh
+exec "$PULSAR_HOME/current/bin/pulsar" "\$@"
+EOF
+else
+  if ! command -v bun >/dev/null 2>&1; then
+    echo "pulsar: this release needs Bun; install it from https://bun.sh and re-run" >&2
+    exit 1
+  fi
+
+  cat > "$BIN_DIR/pulsar" <<EOF
 #!/bin/sh
 exec bun "$PULSAR_HOME/current/cli/index.ts" "\$@"
 EOF
+fi
+
 chmod +x "$BIN_DIR/pulsar"
 
 echo "pulsar: installed $version to $dest"

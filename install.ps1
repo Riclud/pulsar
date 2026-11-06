@@ -1,5 +1,5 @@
 # Pulsar bootstrap for Windows: installs the CLI from GitHub Releases, then the
-# toolchain with `pulsar install`. Requires Bun (https://bun.sh).
+# toolchain with `pulsar install`. Bun is inside the CLI.
 # Set PULSAR_SLIM=1 for a toolchain that uses the system Qt.
 $ErrorActionPreference = "Stop"
 
@@ -9,10 +9,6 @@ $BinDir = if ($env:PULSAR_BIN_DIR) { $env:PULSAR_BIN_DIR } else { Join-Path $env
 
 $arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" } else { "x64" }
 $platform = "windows-$arch"
-
-if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
-    Write-Error "pulsar: Bun is required but was not found. Install it from https://bun.sh, then re-run this installer."
-}
 
 $asset = "pulsar-cli-$platform.tar.gz"
 $url = "https://github.com/$Repo/releases/latest/download/$asset"
@@ -44,16 +40,29 @@ try {
 
     New-Item -ItemType Directory -Path $BinDir -Force | Out-Null
     $shim = Join-Path $BinDir "pulsar.cmd"
-    "@echo off`r`n bun `"$current\cli\index.ts`" %*" | Set-Content -Encoding ASCII $shim
+    $binary = Join-Path $current "bin\pulsar.exe"
+
+    # Releases from 2.0 carry bin\pulsar.exe with Bun inside; older ones need a system Bun.
+    if (Test-Path $binary) {
+        $command = @($binary)
+        "@echo off`r`n `"$binary`" %*" | Set-Content -Encoding ASCII $shim
+    } else {
+        if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
+            throw "pulsar: this release needs Bun; install it from https://bun.sh and re-run"
+        }
+
+        $command = @("bun", (Join-Path $current "cli\index.ts"))
+        "@echo off`r`n bun `"$current\cli\index.ts`" %*" | Set-Content -Encoding ASCII $shim
+    }
 
     Write-Host "pulsar: installed $version to $dest"
     Write-Host "  binary: $shim"
     Write-Host "  add $BinDir to PATH if needed"
 
-    $toolchainArgs = @((Join-Path $current "cli\index.ts"), "install")
+    $toolchainArgs = @($command | Select-Object -Skip 1) + @("install")
     if ($env:PULSAR_SLIM -eq "1") { $toolchainArgs += "--slim" }
 
-    & bun $toolchainArgs
+    & $command[0] $toolchainArgs
 
     if ($LASTEXITCODE -ne 0) { throw "pulsar: toolchain install failed" }
 }

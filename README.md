@@ -15,7 +15,7 @@ small Pulsar app too: [`examples/tasks/demo`](examples/tasks/demo).</sub>
 
 ## Quick start
 
-You need [Bun](https://bun.sh) first, then:
+Nothing else to install first: Bun is inside the CLI.
 
 ```sh
 curl -fsSL https://get.pulsarjs.org | sh
