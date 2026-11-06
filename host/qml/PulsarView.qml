@@ -216,17 +216,12 @@ ApplicationWindow {
 
             const touchpad = event.pixelDelta.y !== 0;
             const distance = touchpad ? -event.pixelDelta.y : -event.angleDelta.y;
-            const base = wheeling.running ? wheeling.to : flick.contentY;
-            const target = Math.max(minY(), Math.min(maxY(), base + distance));
+            const base = wheeling.running ? wheeling.target : flick.contentY;
 
-            if (touchpad) {
-                wheeling.stop();
-                flick.contentY = target;
-                return;
-            }
-
-            wheeling.stop();
-            wheeling.to = target;
+            // Both the wheel and the touchpad move a target, and the list follows it
+            // every frame, so the speed never jumps between events or with their rate.
+            wheeling.target = Math.max(minY(), Math.min(maxY(), base + distance));
+            wheeling.lag = touchpad ? 0.035 : 0.075;
             wheeling.start();
         }
 
@@ -274,13 +269,24 @@ ApplicationWindow {
             }
         }
 
-        NumberAnimation {
+        FrameAnimation {
             id: wheeling
 
-            target: inertia.flick
-            property: "contentY"
-            duration: 180
-            easing.type: Easing.OutCubic
+            property real target: 0
+            property real lag: 0.075
+
+            onTriggered: {
+                const follow = 1 - Math.exp(-Math.max(frameTime, 0.001) / lag);
+                const next = inertia.flick.contentY + (target - inertia.flick.contentY) * follow;
+
+                if (Math.abs(target - next) < 0.5) {
+                    inertia.flick.contentY = target;
+                    stop();
+                    return;
+                }
+
+                inertia.flick.contentY = next;
+            }
         }
 
         FrameAnimation {
