@@ -9,6 +9,7 @@ import { createStdioTransport } from "./stdio.ts"
 import { MIN_BUN, bunVersionCompatible } from "./version.ts"
 
 const keepAlive = setInterval(() => {}, 1 << 30)
+
 void keepAlive
 
 const bunVersion = typeof Bun === "undefined" ? null : (Bun.version ?? "0.0.0")
@@ -116,7 +117,9 @@ const setupReloadWatcher = (): void => {
       watch(d.path, { recursive: d.recursive }, (_event, filename) => {
         if (!ignored(filename)) schedule()
       })
-    } catch {}
+    } catch {
+      // The folder may not exist, such as an app without ui/.
+    }
   }
 }
 

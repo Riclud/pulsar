@@ -10,6 +10,7 @@ const manifest: AppManifest = {
 describe("resolveAppConfig", () => {
   test("uses manifest defaults", () => {
     const config = resolveAppConfig(manifest)
+
     expect(config.ui).toBe("ui/win.qml")
     expect(config.width).toBe(900)
     expect(config.title).toBe("From manifest")
@@ -19,6 +20,7 @@ describe("resolveAppConfig", () => {
 
   test("explicit values override the manifest", () => {
     const config = resolveAppConfig(manifest, { ui: "ui/other.qml", width: 320 })
+
     expect(config.ui).toBe("ui/other.qml")
     expect(config.width).toBe(320)
     expect(config.title).toBe("From manifest")
@@ -26,6 +28,7 @@ describe("resolveAppConfig", () => {
 
   test("leaves ui undefined without a manifest (JS-rendered window)", () => {
     const config = resolveAppConfig(null)
+
     expect(config.ui).toBeUndefined()
     expect(config.id).toBeUndefined()
   })
@@ -34,6 +37,7 @@ describe("resolveAppConfig", () => {
 describe("resolveWindows", () => {
   test("maps manifest windows and assigns labels", () => {
     const wins = resolveWindows({ id: "x", windows: [{ ui: "ui/a.qml" }, { label: "side", ui: "ui/b.qml" }] })
+
     expect(wins.length).toBe(2)
     expect(wins[0]!.label).toBe("main")
     expect(wins[0]!.ui).toBe("ui/a.qml")
@@ -43,11 +47,13 @@ describe("resolveWindows", () => {
 
   test("passes the transparent window flag", () => {
     const wins = resolveWindows({ windows: [{ ui: "ui/a.qml", transparent: true }] })
+
     expect(wins[0]!.transparent).toBe(true)
   })
 
   test("collapses to one window when explicit options are given", () => {
     const wins = resolveWindows({ windows: [{ ui: "ui/a.qml" }, { ui: "ui/b.qml" }] }, { ui: "ui/c.qml" })
+
     expect(wins.length).toBe(1)
     expect(wins[0]!.ui).toBe("ui/c.qml")
   })
@@ -62,6 +68,7 @@ describe("target policy", () => {
 
   test("android defaults to quickjs and portable compat", () => {
     const value: AppManifest = { targets: ["desktop", "android"] }
+
     expect(manifestRuntime(value, "android")).toBe("quickjs")
     expect(manifestCompat(value)).toBe("portable")
   })
@@ -72,6 +79,7 @@ describe("target policy", () => {
       runtime: { android: "quickjs", default: "bun" },
       compat: "portable",
     }
+
     expect(manifestRuntime(value, "android")).toBe("quickjs")
     expect(manifestCompat(value)).toBe("portable")
   })

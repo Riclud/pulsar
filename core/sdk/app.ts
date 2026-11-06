@@ -211,6 +211,7 @@ export class Store {
   /** Subscribe to any change; returns an unsubscribe function. */
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener)
+
     return () => this.listeners.delete(listener)
   }
 
@@ -238,6 +239,7 @@ export class Store {
   private requestNotify(): void {
     if (this.batching > 0) {
       this.pendingNotify = true
+
       return
     }
 
@@ -484,6 +486,7 @@ export class App {
   addRecentDocument(path: string): void {
     if (!this.onAddRecentDocument) {
       this.pendingRecent.push({ action: "add", path })
+
       return
     }
 
@@ -494,6 +497,7 @@ export class App {
   clearRecentDocuments(): void {
     if (!this.onClearRecentDocuments) {
       this.pendingRecent.push({ action: "clear" })
+
       return
     }
 
@@ -668,8 +672,10 @@ export class App {
   on<P = unknown>(event: string, fn: (payload: P) => void): this
   on(event: string, fn: EventHandler): this {
     const list = this.events.get(event) ?? []
+
     list.push(fn)
     this.events.set(event, list)
+
     return this
   }
 

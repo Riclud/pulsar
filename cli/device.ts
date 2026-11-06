@@ -44,19 +44,27 @@ const retryable = (error: unknown): boolean => {
   return error instanceof Error && /node not found|no ui tree/i.test(error.message)
 }
 
+const settle = async <T>(action: () => Promise<T>): Promise<{ ok: true; value: T } | { ok: false; error: unknown }> => {
+  try {
+    return { ok: true, value: await action() }
+  } catch (error) {
+    return { ok: false, error }
+  }
+}
+
 export const controlRetry = async <T>(action: () => Promise<T>, attempts = 10): Promise<T> => {
   let last: unknown
 
   for (let attempt = 0; attempt < attempts; attempt++) {
-    try {
-      return await action()
-    } catch (e) {
-      last = e
+    const outcome = await settle(action)
 
-      if (!retryable(e)) throw e
+    if (outcome.ok) return outcome.value
 
-      await new Promise((done) => setTimeout(done, 150))
-    }
+    last = outcome.error
+
+    if (!retryable(last)) throw last
+
+    await new Promise((done) => setTimeout(done, 150))
   }
 
   throw last
@@ -116,14 +124,12 @@ const collectTexts = (value: unknown): string[] => {
     if (!item || typeof item !== "object") return
 
     const node = item as Record<string, unknown>
-    const props = node.props as Record<string, unknown> | undefined
+    const props = (node.props ?? {}) as Record<string, unknown>
 
-    if (props) {
-      for (const key of ["text", "title", "placeholder", "label", "value"]) {
-        const text = props[key]
+    for (const key of ["text", "title", "placeholder", "label", "value"]) {
+      const text = props[key]
 
-        if (typeof text === "string" && text.length > 0) out.push(text)
-      }
+      if (typeof text === "string" && text.length > 0) out.push(text)
     }
 
     if (node.children) walk(node.children)
@@ -138,23 +144,27 @@ export const treeTexts = async (appDir: string): Promise<string[]> => {
   return collectTexts(await control(appDir, { cmd: "tree" }))
 }
 
+const systemUI = async (appDir: string) => {
+  const session = readSession(appDir)
+  const remote = "/sdcard/pulsar-ui.xml"
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const dump = spawnSync(process.env.ADB ?? "adb", ["-s", session.device, "shell", "uiautomator", "dump", remote], {
+      encoding: "utf8",
+    })
+
+    if (dump.status === 0 && dump.stdout.includes("dumped")) break
+
+    await new Promise((done) => setTimeout(done, 300))
+  }
+
+  console.log(adbText(session, ["exec-out", "cat", remote]))
+  spawnSync(process.env.ADB ?? "adb", ["-s", session.device, "shell", "rm", "-f", remote], { stdio: "ignore" })
+}
+
 export const deviceUI = async (appDir: string, system = false): Promise<void> => {
   if (system) {
-    const session = readSession(appDir)
-    const remote = "/sdcard/pulsar-ui.xml"
-
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const dump = spawnSync(process.env.ADB ?? "adb", ["-s", session.device, "shell", "uiautomator", "dump", remote], {
-        encoding: "utf8",
-      })
-
-      if (dump.status === 0 && dump.stdout.includes("dumped")) break
-
-      await new Promise((done) => setTimeout(done, 300))
-    }
-
-    console.log(adbText(session, ["exec-out", "cat", remote]))
-    spawnSync(process.env.ADB ?? "adb", ["-s", session.device, "shell", "rm", "-f", remote], { stdio: "ignore" })
+    await systemUI(appDir)
 
     return
   }

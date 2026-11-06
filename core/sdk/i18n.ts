@@ -53,7 +53,9 @@ const pluralCategory = (count: number, value: string): keyof PluralForms => {
     const category = rules.select(count)
 
     if (category === "one" || category === "few" || category === "many") return category
-  } catch {}
+  } catch {
+    // Intl.PluralRules may be missing on some engines; fall back to the simple rule below.
+  }
 
   return count === 1 ? "one" : "other"
 }

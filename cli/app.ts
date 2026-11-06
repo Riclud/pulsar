@@ -10,7 +10,9 @@ export const readManifest = (appDir: string): AppManifest | null => {
     const parsed = JSON.parse(readFileSync(join(appDir, "pulsar.json"), "utf8")) as unknown
 
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as AppManifest
-  } catch {}
+  } catch {
+    // A missing or broken pulsar.json means no manifest.
+  }
 
   return null
 }
@@ -40,14 +42,22 @@ export const resolveEntry = (
   process.exit(1)
 }
 
+const readName = (path: string): string | null => {
+  try {
+    const name: unknown = JSON.parse(readFileSync(path, "utf8")).name
+
+    return typeof name === "string" && name.length > 0 ? name : null
+  } catch {
+    // An unreadable file just means the next name source is tried.
+    return null
+  }
+}
+
 export const launcherName = (dir: string): string => {
   for (const file of ["pulsar.json", "package.json"]) {
-    try {
-      const name = JSON.parse(readFileSync(join(dir, file), "utf8")).name
+    const name = readName(join(dir, file))
 
-      if (typeof name === "string" && name.length > 0)
-        return name.replace(/^@[^/]+\//, "").replace(/[^a-zA-Z0-9._-]+/g, "-")
-    } catch {}
+    if (name) return name.replace(/^@[^/]+\//, "").replace(/[^a-zA-Z0-9._-]+/g, "-")
   }
 
   return "app"

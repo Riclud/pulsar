@@ -371,7 +371,7 @@ const runScenario = async (scenario: Scenario) => {
 }
 
 if (!buildHost()) {
-  server.stop(true)
+  void server.stop(true)
   console.error("embedded-regressions: qml-host-qjs is not built")
   process.exit(1)
 }
@@ -384,7 +384,7 @@ for (const scenario of scenarios) {
   if (!passed) failed++
 }
 
-server.stop(true)
+void server.stop(true)
 
 if (failed > 0) {
   console.error(`embedded-regressions: ${failed} FAILED`)

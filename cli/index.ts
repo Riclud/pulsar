@@ -155,10 +155,22 @@ const usesMedia = (appDir: string): boolean => {
 const describeVideo = (video: boolean): void => {
   if (video) {
     ui.detail("video", "in-app player bundled (FFmpeg, about 20 MB)")
+
     return
   }
 
   ui.detail("video", `not bundled, videos open in the system player ${ui.dim('("video": true adds the player)')}`)
+}
+
+/** Bundles the app for QuickJS; prints the errors and returns null when it fails. */
+const quickjsBundleText = async (entry: string, assembly: string, sourcemap = false): Promise<string | null> => {
+  const bundle = await bundleRuntime(entry, assembly, sourcemap).result
+
+  if (bundle.success) return bundle.outputs[0]!.text()
+
+  for (const log of bundle.logs) console.error(`[error] [pulsar] ${log.message}`)
+
+  return null
 }
 
 /** The Node binary to run and ship: `PULSAR_NODE`, or `node` on the PATH. */
@@ -195,6 +207,21 @@ const warnSharedNode = (node: string): void => {
   ui.note("the app may not start on other machines; point PULSAR_NODE at an official build from nodejs.org")
 }
 
+/** Every package folder in node_modules, scoped ones included, as [name, path]. */
+const packageFolders = (modules: string): Array<[string, string]> => {
+  return readdirSync(modules, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+    .flatMap((entry): Array<[string, string]> => {
+      const dir = join(modules, entry.name)
+
+      if (!entry.name.startsWith("@")) return [[entry.name, dir]]
+
+      return readdirSync(dir, { withFileTypes: true })
+        .filter((scoped) => scoped.isDirectory())
+        .map((scoped): [string, string] => [`${entry.name}/${scoped.name}`, join(dir, scoped.name)])
+    })
+}
+
 interface NativePackages {
   /** Package names left out of the bundle. */
   external: string[]
@@ -218,21 +245,12 @@ const nativePackages = (appDir: string): NativePackages => {
       const deps = [...Object.keys(pkg.dependencies ?? {}), ...Object.keys(pkg.optionalDependencies ?? {})]
 
       packages.set(name, { dir, deps })
-    } catch {}
-  }
-
-  for (const entry of readdirSync(modules, { withFileTypes: true })) {
-    if (!entry.isDirectory() || entry.name.startsWith(".")) continue
-
-    if (!entry.name.startsWith("@")) {
-      readPackage(entry.name, join(modules, entry.name))
-      continue
-    }
-
-    for (const scoped of readdirSync(join(modules, entry.name), { withFileTypes: true })) {
-      if (scoped.isDirectory()) readPackage(`${entry.name}/${scoped.name}`, join(modules, entry.name, scoped.name))
+    } catch {
+      // A package without a readable package.json cannot hold native code.
     }
   }
+
+  for (const [name, dir] of packageFolders(modules)) readPackage(name, dir)
 
   const hasNative = (dir: string, depth = 0): boolean => {
     if (depth > 4) return false
@@ -249,14 +267,13 @@ const nativePackages = (appDir: string): NativePackages => {
   const external = new Set([...packages].filter(([, pkg]) => hasNative(pkg.dir)).map(([name]) => name))
 
   for (let grew = true; grew;) {
-    grew = false
+    const loaders = [...packages].filter(
+      ([name, pkg]) => !external.has(name) && pkg.deps.some((dep) => external.has(dep)),
+    )
 
-    for (const [name, pkg] of packages) {
-      if (!external.has(name) && pkg.deps.some((dep) => external.has(dep))) {
-        external.add(name)
-        grew = true
-      }
-    }
+    for (const [name] of loaders) external.add(name)
+
+    grew = loaders.length > 0
   }
 
   const folders = new Set<string>()
@@ -315,6 +332,7 @@ const bundleForNode = async (entry: string, assembly: string, external: string[]
 
   if (!result.success) {
     for (const log of result.logs) console.error(`[error] [pulsar] ${log.message}`)
+
     return null
   }
 
@@ -325,11 +343,13 @@ const bundleForNode = async (entry: string, assembly: string, external: string[]
 const describeEngine = (chosen: { engine: RuntimeKind; reasons: string[] }): void => {
   if (chosen.engine === "quickjs") {
     ui.detail("engine", "QuickJS, Bun is not bundled")
+
     return
   }
 
   if (chosen.engine === "node") {
     ui.detail("engine", "Node from this machine, bundled into the app (roughly 20 to 40 MB)")
+
     return
   }
 
@@ -361,6 +381,7 @@ const auditPortable = async (entry: string): Promise<string[]> => {
         }))
         builder.onResolve({ filter: NODE_BUILTIN }, (args) => {
           violations.push(`${args.path} (from ${args.importer})`)
+
           return { path: args.path, external: true }
         })
         builder.onLoad({ filter: /\.(m?[jt]sx?)$/ }, (args) => {
@@ -395,9 +416,7 @@ const auditPortable = async (entry: string): Promise<string[]> => {
 
     const result = await Bun.build(config)
 
-    if (!result.success) {
-      for (const log of result.logs) violations.push(log.message)
-    }
+    if (!result.success) violations.push(...result.logs.map((log) => log.message))
   } catch (e) {
     violations.push(e instanceof Error ? e.message : String(e))
   }
@@ -436,6 +455,7 @@ const checkTarget = async (appDir: string, target: BuildTarget): Promise<void> =
 
   if (compat !== "portable" && target !== "android" && target !== "portable") {
     ui.done("desktop compat, Node and Bun imports allowed")
+
     return
   }
 
@@ -600,16 +620,9 @@ const runDesktop = async (appDir: string, watchMode: boolean): Promise<void> => 
   const bundleFile = join(assembly, node ? "runtime.mjs" : "runtime.js")
 
   const rebundle = async (): Promise<boolean> => {
-    let text: string | null = null
-
-    if (node) {
-      text = await bundleForNode(chosen.entry, assembly, native.external)
-    } else {
-      const bundle = await bundleRuntime(chosen.entry, assembly, true).result
-
-      if (bundle.success) text = await bundle.outputs[0]!.text()
-      else for (const log of bundle.logs) console.error(`[error] [pulsar] ${log.message}`)
-    }
+    const text = node
+      ? await bundleForNode(chosen.entry, assembly, native.external)
+      : await quickjsBundleText(chosen.entry, assembly, true)
 
     if (text === null) return false
 
@@ -682,7 +695,9 @@ const watchSources = (appDir: string, manifest: AppManifest | null, onChange: ()
       watch(dir.path, { recursive: dir.recursive }, (_event, filename) => {
         if (!ignored(filename)) schedule()
       })
-    } catch {}
+    } catch {
+      // The folder may not exist, such as an app without ui/.
+    }
   }
 }
 
@@ -887,14 +902,11 @@ const build = async () => {
     process.exit(1)
   }
 
-  if (compat === "portable") {
-    const violations = await auditPortable(entry)
+  const violations = compat === "portable" ? await auditPortable(entry) : []
 
-    if (violations.length > 0) {
-      for (const violation of violations) ui.error(`non-portable import: ${violation}`)
-      process.exit(1)
-    }
-  }
+  for (const violation of violations) ui.error(`non-portable import: ${violation}`)
+
+  if (violations.length > 0) process.exit(1)
 
   if (target === "android") {
     const outDir = resolve(flagValue("--out") ?? flagValue("-o") ?? "dist")
@@ -981,20 +993,21 @@ const build = async () => {
     ui.note(`run it with ./${relative(process.cwd(), finalPath)}`)
   }
 
+  const packQuickJs = async () => {
+    const text = await quickjsBundleText(chosen.entry, assembly)
+
+    if (text === null) process.exit(1)
+
+    await pack([
+      { path: "bin/qml-host", data: readFileSync(host) },
+      { path: "runtime.js", data: Buffer.from(text) },
+      ...collectPayload(appDir, manifest, basename(outDir)),
+    ])
+  }
+
   if (chosen.engine === "quickjs") {
     try {
-      const bundle = await bundleRuntime(chosen.entry, assembly).result
-
-      if (!bundle.success) {
-        for (const log of bundle.logs) console.error(log.message)
-        process.exit(1)
-      }
-
-      await pack([
-        { path: "bin/qml-host", data: readFileSync(host) },
-        { path: "runtime.js", data: Buffer.from(await bundle.outputs[0]!.text()) },
-        ...collectPayload(appDir, manifest, basename(outDir)),
-      ])
+      await packQuickJs()
     } finally {
       rmSync(assembly, { recursive: true, force: true })
     }
@@ -1004,27 +1017,31 @@ const build = async () => {
 
   const bridge = findBridge(host)
 
+  const packNode = async () => {
+    const nodeBinary = findNode()
+
+    warnSharedNode(nodeBinary)
+
+    const native = nativePackages(appDir)
+    const script = await bundleForNode(chosen.entry, assembly, native.external)
+
+    if (script === null) process.exit(1)
+
+    if (native.external.length > 0) ui.detail("native", native.external.join(", "))
+
+    await pack([
+      { path: "bin/qml-host", data: readFileSync(host) },
+      { path: "bin/bridge", data: readFileSync(bridge) },
+      { path: process.platform === "win32" ? "bin/node.exe" : "bin/node", data: readFileSync(nodeBinary) },
+      { path: "runtime.mjs", data: Buffer.from(script) },
+      ...native.folders.flatMap((folder) => folderEntries(join(appDir, folder), folder)),
+      ...collectPayload(appDir, manifest, basename(outDir)),
+    ])
+  }
+
   if (chosen.engine === "node") {
     try {
-      const nodeBinary = findNode()
-
-      warnSharedNode(nodeBinary)
-
-      const native = nativePackages(appDir)
-      const script = await bundleForNode(chosen.entry, assembly, native.external)
-
-      if (script === null) process.exit(1)
-
-      if (native.external.length > 0) ui.detail("native", native.external.join(", "))
-
-      await pack([
-        { path: "bin/qml-host", data: readFileSync(host) },
-        { path: "bin/bridge", data: readFileSync(bridge) },
-        { path: process.platform === "win32" ? "bin/node.exe" : "bin/node", data: readFileSync(nodeBinary) },
-        { path: "runtime.mjs", data: Buffer.from(script) },
-        ...native.folders.flatMap((folder) => folderEntries(join(appDir, folder), folder)),
-        ...collectPayload(appDir, manifest, basename(outDir)),
-      ])
+      await packNode()
     } finally {
       rmSync(assembly, { recursive: true, force: true })
     }
@@ -1142,22 +1159,58 @@ const usage = () => {
   console.log("")
 }
 
+const installCommand = async () => {
+  if (!args.includes("--android")) {
+    await install(args)
+
+    return
+  }
+
+  try {
+    const tools = await installAndroid(flagValue("--version"))
+
+    ui.step(`android toolchain ready (qt ${tools.qt})`)
+  } catch (e) {
+    ui.error(`${e instanceof Error ? e.message : String(e)}`)
+    process.exit(1)
+  }
+}
+
+const tapCommand = async () => {
+  const at = flagValue("--at")
+
+  if (at) {
+    const [x, y] = at.split(",").map((part) => Number.parseFloat(part.trim()))
+
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      ui.error(`invalid --at ${at} (expected x,y)`)
+      process.exit(1)
+    }
+
+    await runDevice(() => deviceTapAt(process.cwd(), x!, y!))
+
+    return
+  }
+
+  const [text] = positional()
+  const idFlag = flagValue("--id")
+
+  await runDevice(() =>
+    deviceTap(process.cwd(), {
+      text,
+      path: flagValue("--path"),
+      id: idFlag ? Number.parseInt(idFlag, 10) : undefined,
+      event: flagValue("--event"),
+    }),
+  )
+}
+
 switch (cmd) {
   case "create":
     create(args)
     break
   case "install":
-    if (args.includes("--android")) {
-      try {
-        const tools = await installAndroid(flagValue("--version"))
-        ui.step(`android toolchain ready (qt ${tools.qt})`)
-      } catch (e) {
-        ui.error(`${e instanceof Error ? e.message : String(e)}`)
-        process.exit(1)
-      }
-    } else {
-      await install(args)
-    }
+    await installCommand()
     break
   case "update":
     await update(args)
@@ -1183,34 +1236,9 @@ switch (cmd) {
   case "state":
     await runDevice(() => deviceState(process.cwd()))
     break
-  case "tap": {
-    const at = flagValue("--at")
-
-    if (at) {
-      const [x, y] = at.split(",").map((part) => Number.parseFloat(part.trim()))
-
-      if (!Number.isFinite(x) || !Number.isFinite(y)) {
-        ui.error(`invalid --at ${at} (expected x,y)`)
-        process.exit(1)
-      }
-
-      await runDevice(() => deviceTapAt(process.cwd(), x!, y!))
-      break
-    }
-
-    const [text] = positional()
-    const idFlag = flagValue("--id")
-
-    await runDevice(() =>
-      deviceTap(process.cwd(), {
-        text,
-        path: flagValue("--path"),
-        id: idFlag ? Number.parseInt(idFlag, 10) : undefined,
-        event: flagValue("--event"),
-      }),
-    )
+  case "tap":
+    await tapCommand()
     break
-  }
   case "swipe": {
     const points = positional().map((value) => Number.parseFloat(value))
     const durationFlag = flagValue("--duration")

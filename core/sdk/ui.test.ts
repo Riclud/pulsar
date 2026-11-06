@@ -404,6 +404,7 @@ describe("styling", () => {
     expect(tag.props).toMatchObject({ variant: "outline", selected: true, selectedColor: "gold", textColor: "black" })
 
     const out = serialize([tag]) as Array<{ props: Record<string, unknown> }>
+
     expect(out[0]!.props.color).toBeUndefined()
     expect(out[0]!.props.selected).toBe(true)
   })

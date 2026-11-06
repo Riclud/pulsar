@@ -31,6 +31,7 @@ if (!result.success) {
 }
 
 const tmp = mkdtempSync(join(tmpdir(), "pulsar-portable-"))
+
 try {
   const bundle = join(tmp, "app.mjs")
 

@@ -62,9 +62,12 @@ const runHost = (env: Record<string, string>) => {
 
 const check = (file: string, needle: string) => {
   let text = ""
+
   try {
     text = readFileSync(file, "utf8")
-  } catch {}
+  } catch {
+    // The file appears only once the host has written it.
+  }
 
   if (!text.includes(needle)) {
     console.error(`smoke: missing: ${needle}\n--- ${file}\n${text.split("\n").slice(-30).join("\n")}\n---`)
@@ -74,9 +77,12 @@ const check = (file: string, needle: string) => {
 
 const checkAbsent = (file: string, needle: string) => {
   let text = ""
+
   try {
     text = readFileSync(file, "utf8")
-  } catch {}
+  } catch {
+    // The file appears only once the host has written it.
+  }
 
   if (text.includes(needle)) {
     console.error(`smoke: unexpected: ${needle}`)
@@ -84,13 +90,20 @@ const checkAbsent = (file: string, needle: string) => {
   }
 }
 
+const readText = (file: string): string => {
+  try {
+    return readFileSync(file, "utf8")
+  } catch {
+    // The file appears only once the host has written it.
+    return ""
+  }
+}
+
 const waitFor = async (file: string, needle: string, timeoutMs = 4000): Promise<boolean> => {
   const start = Date.now()
 
   while (Date.now() - start < timeoutMs) {
-    try {
-      if (readFileSync(file, "utf8").includes(needle)) return true
-    } catch {}
+    if (readText(file).includes(needle)) return true
 
     await Bun.sleep(50)
   }
@@ -387,9 +400,12 @@ try {
     check(recentClearLog, "STORE recentCleared = QVariant(bool, true)")
 
     let afterClear = ""
+
     try {
       afterClear = readFileSync(xbel, "utf8")
-    } catch {}
+    } catch {
+      // No file means the list was cleared.
+    }
 
     if (afterClear.includes("pulsar-recent.txt")) {
       console.error("smoke: recent documents were not cleared")
@@ -426,9 +442,12 @@ try {
     const line = "application/x-pulsar-foo=com.pulsar.assocapp.desktop"
 
     let content = ""
+
     try {
       content = readFileSync(mimeapps, "utf8")
-    } catch {}
+    } catch {
+      // No file means no association was written.
+    }
 
     const occurrences = content.split(line).length - 1
 
@@ -517,7 +536,7 @@ try {
       await proc.exited
       clearTimeout(timer)
     } finally {
-      server.stop(true)
+      void server.stop(true)
     }
 
     check(netLog, "STORE netText = QVariant(bool, true)")

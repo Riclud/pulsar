@@ -29,46 +29,29 @@ const escapeRegex = (value: string): string => {
   return value.replace(/[.+^${}()|[\]\\]/g, "\\$&")
 }
 
+const globToken = (glob: string, at: number): { regex: string; length: number } => {
+  const ch = glob[at]!
+
+  if (glob.startsWith("**/", at)) return { regex: "(?:.*/)?", length: 3 }
+  if (glob.startsWith("**", at)) return { regex: ".*", length: 2 }
+  if (ch === "*") return { regex: "[^/]*", length: 1 }
+  if (ch === "?") return { regex: "[^/]", length: 1 }
+
+  const end = ch === "[" ? glob.indexOf("]", at + 1) : -1
+
+  if (end > at + 1) return { regex: glob.slice(at, end + 1), length: end + 1 - at }
+
+  return { regex: escapeRegex(ch), length: 1 }
+}
+
 const globToRegex = (glob: string): string => {
   let out = ""
 
-  for (let i = 0; i < glob.length; i++) {
-    const ch = glob[i]!
+  for (let at = 0; at < glob.length; ) {
+    const token = globToken(glob, at)
 
-    if (ch === "*") {
-      if (glob[i + 1] === "*") {
-        i++
-
-        if (glob[i + 1] === "/") {
-          i++
-          out += "(?:.*/)?"
-        } else {
-          out += ".*"
-        }
-
-        continue
-      }
-
-      out += "[^/]*"
-      continue
-    }
-
-    if (ch === "?") {
-      out += "[^/]"
-      continue
-    }
-
-    if (ch === "[") {
-      const end = glob.indexOf("]", i + 1)
-
-      if (end > i + 1) {
-        out += glob.slice(i, end + 1)
-        i = end
-        continue
-      }
-    }
-
-    out += escapeRegex(ch)
+    out += token.regex
+    at += token.length
   }
 
   return out

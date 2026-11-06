@@ -10,11 +10,20 @@ export const createStdioTransport = (): Transport => {
 
   const send = (message: unknown): void => {
     const payload = Buffer.from(JSON.stringify(message), "utf8")
+
     process.stdout.write(encodeFrame(FRAME_CONTROL, payload))
   }
 
   const sendBinary = (streamId: number, data: Uint8Array): void => {
     process.stdout.write(encodeDataFrame(streamId, data))
+  }
+
+  const receiveControl = (payload: Buffer) => {
+    try {
+      messageHandler?.(JSON.parse(payload.toString("utf8")))
+    } catch {
+      send({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "parse error" } })
+    }
   }
 
   const drain = (): void => {
@@ -36,16 +45,9 @@ export const createStdioTransport = (): Transport => {
 
       buffer = buf.subarray(5 + length)
 
-      if (type === FRAME_CONTROL) {
-        try {
-          messageHandler?.(JSON.parse(payload.toString("utf8")))
-        } catch {
-          send({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "parse error" } })
-        }
-      } else if (type === FRAME_DATA && payload.byteLength >= 4) {
-        const streamId = payload.readUInt32LE(0)
-        dataHandler?.(streamId, payload.subarray(4))
-      }
+      if (type === FRAME_CONTROL) receiveControl(payload)
+      else if (type === FRAME_DATA && payload.byteLength >= 4)
+        dataHandler?.(payload.readUInt32LE(0), payload.subarray(4))
     }
   }
 

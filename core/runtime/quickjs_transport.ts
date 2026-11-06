@@ -18,13 +18,17 @@ export const createEmbeddedTransport = (): Transport => {
   global.__pulsarReceive = (json: string) => {
     try {
       messageHandler?.(JSON.parse(json))
-    } catch {}
+    } catch {
+      // An exception must not cross back into the host; the runtime reports app errors itself.
+    }
   }
 
   global.__pulsarReceiveData = (streamId: number, data: ArrayBuffer) => {
     try {
       dataHandler?.(streamId, new Uint8Array(data))
-    } catch {}
+    } catch {
+      // An exception must not cross back into the host; the runtime reports app errors itself.
+    }
   }
 
   return {

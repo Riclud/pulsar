@@ -15,6 +15,7 @@ class FakeTransport {
 
 const setup = (guard: (name: string) => void = () => {}): FakeTransport => {
   const transport = new FakeTransport()
+
   netInternals.install(transport, guard)
 
   return transport
@@ -98,6 +99,7 @@ describe("net", () => {
     netInternals.handleMessage({ id, type: "end" })
 
     const response = await pending
+
     expect(Array.from(response.bytes ?? [])).toEqual([9, 8, 7])
   })
 

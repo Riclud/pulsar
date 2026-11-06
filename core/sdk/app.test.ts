@@ -6,6 +6,7 @@ import { Column, Text } from "./ui.ts"
 describe("Store", () => {
   test("accepts plain JSON values", () => {
     const store = new Store()
+
     store.set("a", 1)
     store.set("b", "x")
     store.set("c", true)
@@ -29,6 +30,7 @@ describe("Store", () => {
 
   test("rejects non-serializable values", () => {
     const store = new Store()
+
     expect(() => store.set("fn", () => {})).toThrow(/function/)
     expect(() => store.set("map", new Map())).toThrow(/Map/)
     expect(() => store.set("date", new Date())).toThrow(/Date/)
@@ -47,12 +49,14 @@ describe("Store", () => {
 
   test("tracks changes and removals", () => {
     const store = new Store()
+
     store.set("a", 1)
     store.takePatch()
     store.set("a", 2)
     store.delete("a")
     store.set("b", 3)
     const patch = store.takePatch()
+
     expect(patch.removed).toEqual(["a"])
     expect(patch.changed).toEqual({ b: 3 })
   })
@@ -149,6 +153,7 @@ describe("App menu", () => {
 describe("WindowHandle", () => {
   test("sends commands through the window capability", async () => {
     const seen: unknown[] = []
+
     registerCapability("window", (params) => {
       seen.push(params)
 

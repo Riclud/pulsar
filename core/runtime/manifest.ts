@@ -9,7 +9,9 @@ export const loadManifestFromDisk = (appDir: string): AppManifest | null => {
     const parsed = JSON.parse(raw) as unknown
 
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as AppManifest
-  } catch {}
+  } catch {
+    // A missing or broken pulsar.json means no manifest.
+  }
 
   return null
 }

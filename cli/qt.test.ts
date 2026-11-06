@@ -61,13 +61,11 @@ describe("linux Qt bundle", () => {
 
         if (!existsSync(dir)) continue
 
-        for (const plugin of walk(dir)) {
-          for (const lib of needed(plugin)) {
-            if (!lib.startsWith("libQt6") || !existsSync(join(libsDir!, lib))) continue
+        const libs = walk(dir)
+          .flatMap((plugin) => needed(plugin))
+          .filter((lib) => lib.startsWith("libQt6") && existsSync(join(libsDir!, lib)))
 
-            expect(bundled.has(lib)).toBe(true)
-          }
-        }
+        for (const lib of libs) expect(bundled.has(lib)).toBe(true)
       }
     },
     30000,

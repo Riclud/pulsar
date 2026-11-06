@@ -25,6 +25,7 @@ describe("computePaths", () => {
       XDG_CONFIG_HOME: "/xdg/config",
       XDG_CACHE_HOME: "/xdg/cache",
     })
+
     expect(p.data).toBe(join("/xdg/data", "myapp"))
     expect(p.config).toBe(join("/xdg/config", "myapp"))
     expect(p.cache).toBe(join("/xdg/cache", "myapp"))
@@ -34,6 +35,7 @@ describe("computePaths", () => {
 
   test("linux falls back to home dirs", () => {
     const p = computePaths("myapp", "linux", HOME, {})
+
     expect(p.data).toBe(join(HOME, ".local", "share", "myapp"))
     expect(p.config).toBe(join(HOME, ".config", "myapp"))
     expect(p.cache).toBe(join(HOME, ".cache", "myapp"))
@@ -41,6 +43,7 @@ describe("computePaths", () => {
 
   test("darwin uses Application Support and Caches", () => {
     const p = computePaths("myapp", "darwin", HOME, {})
+
     expect(p.data).toBe(join(HOME, "Library", "Application Support", "myapp"))
     expect(p.config).toBe(join(HOME, "Library", "Application Support", "myapp"))
     expect(p.cache).toBe(join(HOME, "Library", "Caches", "myapp"))
@@ -49,6 +52,7 @@ describe("computePaths", () => {
   test("win32 uses AppData", () => {
     const roaming = join("C:", "Users", "T", "AppData", "Roaming")
     const p = computePaths("myapp", "win32", HOME, { APPDATA: roaming })
+
     expect(p.data).toBe(join(roaming, "myapp"))
     expect(p.config).toBe(join(roaming, "myapp"))
     expect(p.cache).toBe(join(HOME, "AppData", "Local", "myapp", "cache"))

@@ -148,6 +148,7 @@ describe("fs.watch", () => {
 describe("lifecycle events", () => {
   test("back without a handler quits the app", async () => {
     const app = harness()
+
     new App()
 
     app.deliver(event("back-pressed"))

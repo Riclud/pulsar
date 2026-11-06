@@ -63,6 +63,7 @@ app.on("tray-menu", (data: { event?: string }) => {
 })
 
 const icon = (process.env.PULSAR_APP ?? ".") + "/icon.png"
+
 void tray.setIcon(icon)
 void tray.setTooltip("Pulsar windows")
 void tray.setMenu([

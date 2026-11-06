@@ -33,6 +33,7 @@ if (!result.success) {
 }
 
 const tmp = mkdtempSync(join(tmpdir(), "pulsar-embedded-"))
+
 try {
   const bundle = join(tmp, "app.js")
   const manifest = join(tmp, "pulsar.json")

@@ -102,7 +102,7 @@ const CodeLine = (props: { index: number; line: string; column: number | null; a
   )
 }
 
-theme.set({ palette: { background: BACKGROUND, text: "#c8ccd4" } })
+void theme.set({ palette: { background: BACKGROUND, text: "#c8ccd4" } })
 
 new App().window("main").render(() => {
   const text = source.get()

@@ -50,6 +50,7 @@ const VERSION = (JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as
 
 const sitePath = (path: string): string => {
   const clean = path.replace(/^\/+/, "")
+
   return `${BASE}/${clean}`.replace(/\/{2,}/g, "/")
 }
 
@@ -180,6 +181,7 @@ const rewriteLinks = (html: string, page: Page, anchors: Map<string, { page: Pag
 
     if (href.startsWith("#")) {
       const local = decodeURIComponent(href.slice(1))
+
       if (html.includes(`id="${local}"`)) return match
 
       const key = local.toLowerCase()
@@ -215,6 +217,7 @@ const rewriteLinks = (html: string, page: Page, anchors: Map<string, { page: Pag
     }
 
     const mapped = fileMap[clean] ?? fileMap[href]
+
     if (mapped === undefined) return match
     if (mapped.startsWith("https://")) return `href="${mapped}" rel="noopener"`
 
@@ -265,6 +268,7 @@ const extractToc = (html: string): TocItem[] => {
 
   while ((match = re.exec(html)) !== null) {
     const clean = match[3]!.replace(/<a class="header-anchor"[\s\S]*?<\/a>/g, "")
+
     items.push({ depth: Number(match[1]), id: match[2]!, title: stripTags(clean) })
   }
 
@@ -807,6 +811,7 @@ const toc = (current: Page): string => {
 const pager = (current: Page, order: Page[]): string => {
   const t = ui[current.lang]
   const index = order.indexOf(current)
+
   if (index < 0) return ""
 
   const prev = order[index - 1]
@@ -814,6 +819,7 @@ const pager = (current: Page, order: Page[]): string => {
 
   const link = (page: Page | undefined, label: string, className: string) => {
     if (!page) return `<span></span>`
+
     return `<a class="pager-link ${className}" href="${page.path}"><span class="pager-label">${escapeHTML(label)}</span><span class="pager-title">${escapeHTML(page.title)}</span></a>`
   }
 
@@ -912,6 +918,7 @@ const sectionBodies = (html: string): Array<{ id: string; text: string }> => {
 
   return matches.map((item, index) => {
     const next = matches[index + 1]
+
     return { id: item.id, text: stripTags(html.slice(item.end, next ? next.start : html.length)).slice(0, 600) }
   })
 }
@@ -949,6 +956,7 @@ const build = async () => {
 
   for (const [index, page] of enSections.entries()) {
     const other = ruSections[index]
+
     if (other) {
       page.alt = other.path
       other.alt = page.path
@@ -963,6 +971,7 @@ const build = async () => {
 
   const detailPage = (sections: Page[], file: string, title: string) => {
     const page = sections.find((item) => item.slug === "ui")
+
     if (!page) return
 
     page.title = title
@@ -979,6 +988,7 @@ const build = async () => {
   const changelogSource = stripH1(readFileSync(join(ROOT, "CHANGELOG.md"), "utf8"))
 
   const changelogEN = markdownPage("en", "changelog", ui.en.changelog, changelogSource, md, sitePath("ru/changelog/"))
+
   changelogEN.path = sitePath("changelog/")
 
   const changelogRU = markdownPage(
@@ -990,6 +1000,7 @@ const build = async () => {
     sitePath("changelog/"),
     ui.ru.changelogNote,
   )
+
   changelogRU.path = sitePath("ru/changelog/")
 
   const protocolSource = stripH1(readFileSync(join(ROOT, "docs/protocol.md"), "utf8"))
@@ -1002,6 +1013,7 @@ const build = async () => {
     md,
     sitePath("ru/protocol-internals/"),
   )
+
   protocolEN.path = sitePath("protocol-internals/")
 
   const protocolRU = markdownPage(
@@ -1013,6 +1025,7 @@ const build = async () => {
     sitePath("protocol-internals/"),
     ui.ru.protocolNote,
   )
+
   protocolRU.path = sitePath("ru/protocol-internals/")
 
   const guideSource = (lang: Lang, file: string, title: string, slug: string): Page => {
@@ -1040,6 +1053,7 @@ const build = async () => {
 
   for (const [index, page] of guideEN.entries()) {
     const other = guideRU[index]
+
     if (other) {
       page.alt = other.path
       other.alt = page.path
@@ -1100,6 +1114,7 @@ const build = async () => {
           ? DIST
           : join(DIST, "ru")
         : join(DIST, page.lang === "en" ? "" : "ru", page.slug)
+
     mkdirSync(dir, { recursive: true })
 
     const siblings = page.lang === "en" ? enPages : ruPages
@@ -1145,6 +1160,7 @@ const build = async () => {
   writeFileSync(join(DIST, "search-index.json"), JSON.stringify(searchEntries(allPages)))
 
   const css = readFileSync(join(SRC, "styles.css"), "utf8")
+
   writeFileSync(join(DIST, "assets", "styles.css"), css)
 
   const result = await Bun.build({
@@ -1191,6 +1207,7 @@ const serve = async () => {
       if (BASE && pathname === "/") return Response.redirect(`${BASE}/`, 302)
 
       let filePath = join(DIST, pathname)
+
       if (pathname.endsWith("/")) filePath = join(filePath, "index.html")
       if (!existsSync(filePath)) filePath = join(DIST, "index.html")
 

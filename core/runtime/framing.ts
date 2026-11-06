@@ -62,6 +62,7 @@ export const encodeFrame = (type: number, payload: Uint8Array): Uint8Array => {
 
 export const encodeDataFrame = (streamId: number, data: Uint8Array): Uint8Array => {
   const payload = new Uint8Array(4 + data.byteLength)
+
   new DataView(payload.buffer).setUint32(0, streamId >>> 0, true)
   payload.set(data, 4)
 

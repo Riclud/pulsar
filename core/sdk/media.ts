@@ -80,6 +80,7 @@ export class MediaManager {
     if (!track) {
       this.snapshot.state = "idle"
       this.notify()
+
       return
     }
 

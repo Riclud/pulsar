@@ -24,16 +24,19 @@ describe("createPermissionGate", () => {
 
   test("allows granted capabilities", () => {
     const gate = createPermissionGate(["fs"])!
+
     expect(() => gate("fs.readFile")).not.toThrow()
   })
 
   test("denies capabilities that are not granted", () => {
     const gate = createPermissionGate([])!
+
     expect(() => gate("fs.readFile")).toThrow(/permission denied: fs\.readFile/)
   })
 
   test("never gates custom capabilities", () => {
     const gate = createPermissionGate([])!
+
     expect(() => gate("greet")).not.toThrow()
   })
 })

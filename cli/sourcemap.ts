@@ -60,37 +60,36 @@ const decodeVlq = (text: string): number[] => {
   return values
 }
 
-const decodeMappings = (mappings: string): Segment[][] => {
-  const lines: Segment[][] = []
+type Position = {
+  source: number
+  line: number
+  column: number
+}
 
-  let source = 0
-  let line = 0
-  let column = 0
+const decodeGroup = (group: string, position: Position): Segment[] => {
+  const segments: Segment[] = []
 
-  for (const group of mappings.split(";")) {
-    let generatedColumn = 0
-    const segments: Segment[] = []
+  let generatedColumn = 0
 
-    for (const raw of group.split(",")) {
-      if (!raw) continue
+  for (const values of group.split(",").filter(Boolean).map(decodeVlq)) {
+    generatedColumn += values[0] ?? 0
 
-      const values = decodeVlq(raw)
+    if (values.length < 4) continue
 
-      generatedColumn += values[0] ?? 0
+    position.source += values[1]!
+    position.line += values[2]!
+    position.column += values[3]!
 
-      if (values.length < 4) continue
-
-      source += values[1]!
-      line += values[2]!
-      column += values[3]!
-
-      segments.push({ generatedColumn, source, line, column })
-    }
-
-    lines.push(segments)
+    segments.push({ generatedColumn, ...position })
   }
 
-  return lines
+  return segments
+}
+
+const decodeMappings = (mappings: string): Segment[][] => {
+  const position: Position = { source: 0, line: 0, column: 0 }
+
+  return mappings.split(";").map((group) => decodeGroup(group, position))
 }
 
 const displaySource = (source: string, options?: SourceMapOptions): string => {

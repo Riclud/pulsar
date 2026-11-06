@@ -1,3 +1,4 @@
+import type { BuildOutput } from "bun"
 import { createHash } from "crypto"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, watch, writeFileSync } from "fs"
 import { tmpdir } from "os"
@@ -125,29 +126,38 @@ const nativeFingerprint = (manifest: AppManifest | null, packageName: string): s
   return hash.digest("hex")
 }
 
+const printBuildErrors = (e: unknown) => {
+  const errors = e instanceof AggregateError ? e.errors : [e]
+
+  for (const error of errors) console.error(error instanceof Error ? error.message : String(error))
+}
+
+const awaitBundle = async (result: Promise<BuildOutput>) => {
+  let bundle: BuildOutput
+
+  try {
+    bundle = await result
+  } catch (e) {
+    printBuildErrors(e)
+    throw new Error("failed to bundle the portable runtime")
+  }
+
+  if (!bundle.success) {
+    for (const log of bundle.logs) console.error(log.message)
+
+    throw new Error("failed to bundle the portable runtime")
+  }
+
+  return bundle
+}
+
 const buildPayload = async (appDir: string, entry: string, manifest: AppManifest | null): Promise<DevPayload> => {
   const assembly = mkdtempSync(join(tmpdir(), "pulsar-dev-"))
 
   try {
     const { result } = bundleRuntime(entry, assembly, true)
 
-    let bundle: Awaited<typeof result>
-
-    try {
-      bundle = await result
-    } catch (e) {
-      const errors = e instanceof AggregateError ? e.errors : [e]
-
-      for (const error of errors) console.error(error instanceof Error ? error.message : String(error))
-
-      throw new Error("failed to bundle the portable runtime")
-    }
-
-    if (!bundle.success) {
-      for (const log of bundle.logs) console.error(log.message)
-
-      throw new Error("failed to bundle the portable runtime")
-    }
+    const bundle = await awaitBundle(result)
 
     const runtime = await bundle.outputs[0]!.text()
     const entries = appFiles(appDir, manifest).map((path) => ({ path, data: readFileSync(join(appDir, path)) }))
@@ -300,6 +310,32 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
     })
   }
 
+  const receiveLog = async (request: Request) => {
+    try {
+      const log = (await request.json()) as DeviceLog
+      const message = printLog(log, mapper)
+
+      if (log.level === "error") void control({ cmd: "show-error", text: message }).catch(() => {})
+    } catch {
+      // A malformed log line from the device is skipped.
+    }
+  }
+
+  const receiveReply = async (request: Request) => {
+    try {
+      const reply = (await request.json()) as { id?: number }
+      const pending = typeof reply.id === "number" ? replies.get(reply.id) : undefined
+
+      if (!pending) return
+
+      clearTimeout(pending.timer)
+      replies.delete(reply.id!)
+      pending.resolve(reply)
+    } catch {
+      // A malformed reply from the device is skipped.
+    }
+  }
+
   let port = options.port ?? 0
 
   const launch = (): void => {
@@ -340,12 +376,7 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
       }
 
       if (url.pathname === "/__dev/log") {
-        try {
-          const log = (await request.json()) as DeviceLog
-          const message = printLog(log, mapper)
-
-          if (log.level === "error") void control({ cmd: "show-error", text: message }).catch(() => {})
-        } catch {}
+        await receiveLog(request)
 
         return json({ ok: true })
       }
@@ -357,16 +388,7 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
       }
 
       if (url.pathname === "/__dev/reply") {
-        try {
-          const reply = (await request.json()) as { id?: number }
-          const pending = typeof reply.id === "number" ? replies.get(reply.id) : undefined
-
-          if (pending) {
-            clearTimeout(pending.timer)
-            replies.delete(reply.id!)
-            pending.resolve(reply)
-          }
-        } catch {}
+        await receiveReply(request)
 
         return json({ ok: true })
       }
@@ -408,7 +430,7 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
   const reverse = spawnSync(adb, ["-s", device, "reverse", `tcp:${port}`, `tcp:${port}`], { stdio: "ignore" })
 
   if (reverse.status !== 0) {
-    server.stop(true)
+    void server.stop(true)
     rmSync(sessionPath, { force: true })
     throw new Error("adb reverse failed; reconnect the device and retry")
   }
@@ -431,7 +453,7 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
   let rebuilding = false
   let pending = false
 
-  function schedule(): void {
+  const schedule = () => {
     if (timer) clearTimeout(timer)
 
     timer = setTimeout(() => void reload(), 150)
@@ -440,6 +462,7 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
   const reload = async (): Promise<void> => {
     if (rebuilding) {
       pending = true
+
       return
     }
 
@@ -500,7 +523,7 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
 
     finishPoll([])
     watcher?.close()
-    server.stop(true)
+    void server.stop(true)
 
     for (const [id, pending] of replies) {
       clearTimeout(pending.timer)

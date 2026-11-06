@@ -1032,7 +1032,8 @@ const justifyChildren = (axis: "row" | "column", justify: Justify, children: UiC
 const justifiedDefaults = (axis: "row" | "column", options: LayoutOptions): LayoutOptions => {
   if (!options.justify || options.justify === "start") return options
   if (options.fill !== undefined || options.expand !== undefined) return options
-  if (axis === "row") return options.width !== undefined || options.fillWidth !== undefined ? options : { ...options, fillWidth: true }
+  if (axis === "row")
+    return options.width !== undefined || options.fillWidth !== undefined ? options : { ...options, fillWidth: true }
 
   return options.height !== undefined || options.fillHeight !== undefined ? options : { ...options, fillHeight: true }
 }
@@ -1217,7 +1218,15 @@ export const spinner = (options: SpinnerOptions = {}): UiNode => {
 }
 
 export const spacer = (
-  options: { key?: string; flex?: number; size?: number; width?: number; height?: number; fillWidth?: boolean; fillHeight?: boolean } = {},
+  options: {
+    key?: string
+    flex?: number
+    size?: number
+    width?: number
+    height?: number
+    fillWidth?: boolean
+    fillHeight?: boolean
+  } = {},
 ): UiNode => {
   return makeNode("spacer", options)
 }
@@ -1627,24 +1636,12 @@ export const container = (options: ContainerOptions = {}, ...children: UiChild[]
 }
 
 export const page = (options: PageOptions = {}, ...children: UiChild[]): UiNode => {
-  const {
-    gap = 12,
-    padding = 16,
-    header,
-    footer,
-    flick,
-    overscroll,
-    onScroll,
-    ...props
-  } = options
+  const { gap = 12, padding = 16, header, footer, flick, overscroll, onScroll, ...props } = options
 
   return column(
     { ...props, fill: true, gap, padding },
     header ?? null,
-    scroll(
-      { fill: true, flick, overscroll, onScroll },
-      column({ gap, fillWidth: true }, ...children),
-    ),
+    scroll({ fill: true, flick, overscroll, onScroll }, column({ gap, fillWidth: true }, ...children)),
     footer ?? null,
   )
 }
@@ -1751,9 +1748,9 @@ const disposeInstance = (instance: ComponentInstance): void => {
 
 const removeUnseenInstances = (instance: ComponentInstance): void => {
   for (const group of instance.instances.values()) {
-    for (const [id, child] of group) {
-      if (instance.seen.has(child)) continue
+    const unseen = [...group].filter(([, child]) => !instance.seen.has(child))
 
+    for (const [id, child] of unseen) {
       disposeInstance(child)
       group.delete(id)
     }
@@ -1965,7 +1962,8 @@ export const Canvas = <P = Record<string, never>>(options: CanvasOptions<P>): Ui
   return makeNode("canvas", { ...props, drawSource: draw.toString() })
 }
 
-export type ShaderUniform = number | ColorValue | "primary" | [number, number] | [number, number, number] | [number, number, number, number]
+export type ShaderUniform =
+  number | ColorValue | "primary" | [number, number] | [number, number, number] | [number, number, number, number]
 
 export interface ShaderOptions extends CommonOptions {
   /** A `.frag` file of the app, relative to its directory. */
@@ -2035,7 +2033,16 @@ export interface LightningOptions extends CommonOptions {
 export const Lightning = (options: LightningOptions = {}): UiNode => {
   return effect(
     "lightning",
-    { color: "primary", from: [0, 0.5], to: [1, 0.5], progress: 1, speed: 14, jitter: 26, thickness: 1.5, glowRadius: 16 },
+    {
+      color: "primary",
+      from: [0, 0.5],
+      to: [1, 0.5],
+      progress: 1,
+      speed: 14,
+      jitter: 26,
+      thickness: 1.5,
+      glowRadius: 16,
+    },
     options as Record<string, unknown>,
   )
 }
@@ -2051,7 +2058,11 @@ export interface AuroraOptions extends CommonOptions {
 
 /** A slow flowing background. */
 export const Aurora = (options: AuroraOptions = {}): UiNode => {
-  return effect("aurora", { color: "primary", accent: "#5ce1e6", speed: 0.08, scale: 2.5 }, options as Record<string, unknown>)
+  return effect(
+    "aurora",
+    { color: "primary", accent: "#5ce1e6", speed: 0.08, scale: 2.5 },
+    options as Record<string, unknown>,
+  )
 }
 
 export interface ArrangePlacement {
@@ -2485,17 +2496,14 @@ const sameOwnProps = (a: SerializedUiNode, b: SerializedUiNode): boolean => {
   return JSON.stringify(a.props) === JSON.stringify(b.props)
 }
 
-const diffNode = (
-  previous: SerializedUiNode,
-  next: SerializedUiNode,
-  patches: UiPatch[],
-): boolean => {
+const diffNode = (previous: SerializedUiNode, next: SerializedUiNode, patches: UiPatch[]): boolean => {
   if (previous === next) return true
 
   const ownChanged = !sameOwnProps(previous, next)
 
   if (!sameChildPaths(previous, next)) {
     patches.push({ path: next.path, node: next as unknown as Record<string, unknown> })
+
     return true
   }
 

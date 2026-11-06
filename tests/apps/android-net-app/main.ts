@@ -8,6 +8,7 @@ const base = environment.process?.env?.PULSAR_NET_BASE ?? "http://127.0.0.1:8787
 const report = async (): Promise<void> => {
   try {
     const text = await net.fetch(`${base}/text`)
+
     app.store.set("text", text.text)
 
     const binary = await net.fetch(`${base}/bin`, { responseType: "binary" })
@@ -17,6 +18,7 @@ const report = async (): Promise<void> => {
     console.log(`net: text="${text.text}" binary=${bytes.byteLength}`)
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
+
     app.store.set("error", message)
     console.log(`net: failed ${message}`)
   }

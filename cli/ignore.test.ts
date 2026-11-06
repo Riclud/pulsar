@@ -12,6 +12,7 @@ const withApp = (files: Record<string, string>, run: (dir: string) => void): voi
   try {
     for (const [path, data] of Object.entries(files)) {
       const abs = join(dir, path)
+
       mkdirSync(dirname(abs), { recursive: true })
       writeFileSync(abs, data)
     }

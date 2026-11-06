@@ -17,6 +17,26 @@ const download = async (url: string, dest: string): Promise<void> => {
  * Download the native toolchain (qml-host + bridge, and bundled Qt unless
  * `--slim`) for this platform into the versioned home and point `current` at it.
  */
+/** Best-effort integrity check against SHA256SUMS; only a mismatch stops the install. */
+const verifyChecksum = async (tag: string, asset: string, archive: string, tmp: string) => {
+  const sumsPath = join(tmp, "SHA256SUMS")
+
+  try {
+    await download(releaseUrl(tag, "SHA256SUMS"), sumsPath)
+  } catch {
+    ui.warn("could not verify checksum (SHA256SUMS not available)")
+
+    return
+  }
+
+  const line = readFileSync(sumsPath, "utf8")
+    .split("\n")
+    .find((l) => l.includes(asset))
+  const expected = line?.trim().split(/\s+/)[0]
+
+  if (expected && fileSha256(archive) !== expected) throw new Error("checksum mismatch")
+}
+
 export const install = async (args: string[]): Promise<void> => {
   const version = flag(args, "--version") ?? cliVersion()
   const tag = version === "latest" ? "latest" : `v${version}`
@@ -34,22 +54,7 @@ export const install = async (args: string[]): Promise<void> => {
 
     await download(releaseUrl(tag, asset), archive)
 
-    // Best-effort integrity check against SHA256SUMS.
-    try {
-      const sumsPath = join(tmp, "SHA256SUMS")
-
-      await download(releaseUrl(tag, "SHA256SUMS"), sumsPath)
-
-      const line = readFileSync(sumsPath, "utf8")
-        .split("\n")
-        .find((l) => l.includes(asset))
-      const expected = line?.trim().split(/\s+/)[0]
-
-      if (expected && fileSha256(archive) !== expected) throw new Error("checksum mismatch")
-    } catch (e) {
-      if (e instanceof Error && e.message === "checksum mismatch") throw e
-      ui.warn("could not verify checksum (SHA256SUMS not available)")
-    }
+    await verifyChecksum(tag, asset, archive, tmp)
 
     rmSync(dest, { recursive: true, force: true })
     mkdirSync(dest, { recursive: true })

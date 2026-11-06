@@ -107,7 +107,9 @@ const toggleTheme = () => {
 
   try {
     localStorage.setItem("pulsar-docs-theme", next)
-  } catch (error) {}
+  } catch {
+    // Storage can be blocked; the theme still applies for this visit.
+  }
 
   renderTheme()
   initStarfield()
@@ -141,6 +143,7 @@ const loadIndex = async () => {
 
   try {
     const response = await fetch(path("search-index.json"))
+
     entries = (await response.json()) as SearchEntry[]
   } catch (error) {
     entries = []
@@ -156,6 +159,7 @@ const escapeRegExp = (value: string): string => {
 
 const highlight = (text: string) => {
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+
   if (terms.length === 0) return text
 
   const pattern = new RegExp(`(${terms.map(escapeRegExp).join("|")})`, "gi")
@@ -171,6 +175,7 @@ const snippet = (text: string): string => {
 
   for (const term of terms) {
     const found = lower.indexOf(term)
+
     if (found >= 0 && (index < 0 || found < index)) index = found
   }
 
@@ -181,11 +186,13 @@ const snippet = (text: string): string => {
 
   if (start > 0) {
     const space = text.indexOf(" ", start)
+
     if (space >= 0 && space < index) start = space + 1
   }
 
   if (end < text.length) {
     const space = text.lastIndexOf(" ", end)
+
     if (space > index) end = space
   }
 
@@ -195,6 +202,7 @@ const snippet = (text: string): string => {
 const results = () => {
   if (!entries) return []
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+
   if (terms.length === 0) return []
 
   return entries
@@ -259,6 +267,7 @@ const onSearchKey = (event: KeyboardEvent) => {
     event.preventDefault()
     active = Math.min(active + 1, list.length - 1)
     renderSearch()
+
     return
   }
 
@@ -266,6 +275,7 @@ const onSearchKey = (event: KeyboardEvent) => {
     event.preventDefault()
     active = Math.max(active - 1, 0)
     renderSearch()
+
     return
   }
 
@@ -280,6 +290,7 @@ const renderSearch = () => {
 
   if (!searchOpen) {
     render(nothing, searchRoot)
+
     return
   }
 
@@ -345,10 +356,12 @@ const renderSearch = () => {
   if (focusInput) {
     focusInput = false
     const input = document.querySelector<HTMLInputElement>("#search-input")
+
     input?.focus()
   }
 
   const selected = searchRoot.querySelector<HTMLElement>(".search-hit[aria-selected='true']")
+
   selected?.scrollIntoView({ block: "nearest" })
 }
 
@@ -368,12 +381,14 @@ document.addEventListener("keydown", (event) => {
     event.preventDefault()
     if (searchOpen) closeSearch()
     else openSearch()
+
     return
   }
 
   if (event.key === "Escape") {
     if (searchOpen) closeSearch()
     else if (body.classList.contains("nav-open")) setNav(false)
+
     return
   }
 
@@ -388,6 +403,7 @@ const copyText = async (text: string) => {
     await navigator.clipboard.writeText(text)
   } catch (error) {
     const area = document.createElement("textarea")
+
     area.value = text
     area.style.position = "fixed"
     area.style.opacity = "0"
@@ -664,6 +680,7 @@ const initCopyButtons = (root: ParentNode = document) => {
       await copyText(button.dataset.copy ?? "")
 
       const label = button.textContent
+
       button.textContent = strings.copied
       window.setTimeout(() => {
         button.textContent = label
@@ -675,6 +692,7 @@ const initCopyButtons = (root: ParentNode = document) => {
     if (pre.querySelector(".code-copy")) return
 
     const button = document.createElement("button")
+
     button.className = "code-copy"
     button.type = "button"
     button.textContent = strings.copy
@@ -762,6 +780,7 @@ const parsePage = (html: string): Document => {
 
 const copyHead = (next: Document) => {
   const description = next.querySelector('meta[name="description"]')?.getAttribute("content")
+
   document.querySelector<HTMLMetaElement>('meta[name="description"]')?.setAttribute("content", description ?? "")
   document.title = next.title
 
@@ -818,13 +837,16 @@ const scrollToTarget = (hash: string, fallback: number) => {
 
   requestAnimationFrame(() => {
     const previous = document.documentElement.style.scrollBehavior
+
     document.documentElement.style.scrollBehavior = "auto"
 
     if (id) {
       const target = document.getElementById(id)
+
       if (target) {
         target.scrollIntoView()
         document.documentElement.style.scrollBehavior = previous
+
         return
       }
     }
@@ -841,13 +863,16 @@ const navigate = async (url: URL, options: { push?: boolean; scrollY?: number } 
 
   if (!html) {
     const response = await fetch(url.href, { headers: { Accept: "text/html" } })
+
     if (!response.ok) throw new Error(`navigation failed: ${response.status}`)
     html = await response.text()
   }
 
   const next = parsePage(html)
+
   if (!next.querySelector(".shell")) {
     window.location.assign(url.href)
+
     return
   }
 
@@ -880,33 +905,40 @@ const isInternalPageLink = (anchor: HTMLAnchorElement, event: MouseEvent): boole
 
 document.addEventListener("click", (event) => {
   const anchor = (event.target as Element | null)?.closest<HTMLAnchorElement>("a[href]")
+
   if (!anchor || !isInternalPageLink(anchor, event)) return
 
   const url = new URL(anchor.href, location.href)
+
   event.preventDefault()
   void navigate(url).catch(() => window.location.assign(url.href))
 })
 
 document.addEventListener("pointerover", (event) => {
   const anchor = (event.target as Element | null)?.closest<HTMLAnchorElement>("a[href]")
+
   if (!anchor) return
 
   const url = new URL(anchor.href, location.href)
+
   if (url.pathname === location.pathname && url.search === location.search) return
   if (url.origin === location.origin && isPageURL(url) && url.href !== location.href) prefetch(url)
 })
 
 document.addEventListener("focusin", (event) => {
   const anchor = (event.target as Element | null)?.closest<HTMLAnchorElement>("a[href]")
+
   if (!anchor) return
 
   const url = new URL(anchor.href, location.href)
+
   if (url.pathname === location.pathname && url.search === location.search) return
   if (url.origin === location.origin && isPageURL(url) && url.href !== location.href) prefetch(url)
 })
 
 window.addEventListener("popstate", (event) => {
   const state = event.state as { scrollY?: number } | null
+
   void navigate(new URL(location.href), { push: false, scrollY: state?.scrollY ?? 0 }).catch(() =>
     window.location.reload(),
   )

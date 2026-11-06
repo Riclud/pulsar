@@ -1,4 +1,4 @@
-import type { BunPlugin } from "bun"
+import type { BuildOutput, BunPlugin } from "bun"
 import { spawnSync } from "child_process"
 import { createHash } from "crypto"
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "fs"
@@ -359,7 +359,11 @@ export const hashFiles = (files: string[], appDir: string, extra: string): strin
   return hash.digest("hex")
 }
 
-export const bundleRuntime = (entry: string, assembly: string, sourcemap = false) => {
+export const bundleRuntime = (
+  entry: string,
+  assembly: string,
+  sourcemap = false,
+): { entry: string; result: Promise<BuildOutput> } => {
   const root = pulsarRoot()
   const runtimeEntry = join(assembly, "entry.ts")
   const spec = (p: string) => JSON.stringify(p.replace(/\\/g, "/"))

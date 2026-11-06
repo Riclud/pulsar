@@ -33,6 +33,7 @@ if (!result.success) {
 }
 
 const tmp = mkdtempSync(join(tmpdir(), "pulsar-embedded-qml-"))
+
 try {
   cpSync(join(root, "tests", "embedded", "qml", "pulsar.json"), join(tmp, "pulsar.json"))
   cpSync(join(root, "tests", "embedded", "qml", "ui"), join(tmp, "ui"), { recursive: true })
@@ -56,6 +57,7 @@ try {
   })
 
   const output = `${run.stdout.toString()}\n${run.stderr.toString()}`
+
   if (run.exitCode !== 0 || !output.includes("STORE greeting") || !output.includes("STORE pong") || !output.includes("CALLRESULT true")) {
     console.error(output)
     console.error("embedded-qml: FAILED")

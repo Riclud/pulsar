@@ -43,6 +43,7 @@ let files = process.argv.slice(2)
 
 if (files.length === 0) {
   const ls = Bun.spawnSync({ cmd: ["git", "ls-files", "*.qml"], stdout: "pipe", stderr: "ignore" })
+
   files = ls.stdout
     .toString()
     .split("\n")
@@ -56,4 +57,5 @@ if (files.length === 0) {
 }
 
 const result = Bun.spawnSync({ cmd: [findQmlformat(), "-i", ...files], stdio: ["inherit", "inherit", "inherit"] })
+
 process.exit(result.exitCode ?? 1)

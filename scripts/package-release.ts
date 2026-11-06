@@ -81,14 +81,14 @@ const hostQmlImports = (): string[] => {
   const dir = join(root, "host", "qml")
   const imports = new Set<string>()
 
-  for (const entry of readdirSync(dir)) {
-    if (!entry.endsWith(".qml")) continue
+  const lines = readdirSync(dir)
+    .filter((entry) => entry.endsWith(".qml"))
+    .flatMap((entry) => readFileSync(join(dir, entry), "utf8").split("\n"))
 
-    for (const line of readFileSync(join(dir, entry), "utf8").split("\n")) {
-      const match = line.match(/^import\s+(Qt[\w.]*)/)
+  for (const line of lines) {
+    const match = line.match(/^import\s+(Qt[\w.]*)/)
 
-      if (match?.[1]) imports.add(match[1])
-    }
+    if (match?.[1]) imports.add(match[1])
   }
 
   return [...imports]

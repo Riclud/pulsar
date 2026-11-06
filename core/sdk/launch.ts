@@ -24,7 +24,9 @@ const fileUrlPath = (url: string): string => {
 
   try {
     path = decodeURIComponent(rest)
-  } catch {}
+  } catch {
+    // A malformed escape keeps the path as it came.
+  }
 
   if (/^\/[a-zA-Z]:\//.test(path)) path = path.slice(1)
 

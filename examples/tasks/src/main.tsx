@@ -3,7 +3,7 @@ import { App, Box, Column, For, Input, Row, Text, signal, theme } from "pulsar"
 const ACCENT = "#7aa2f7"
 const RADIUS = 4
 
-theme.set({ palette: { background: "#0e0f12", primary: ACCENT, text: "#c8ccd4", border: "#23262d" } })
+void theme.set({ palette: { background: "#0e0f12", primary: ACCENT, text: "#c8ccd4", border: "#23262d" } })
 
 const tasks = signal([
   { id: 1, text: "Write the README", done: true },

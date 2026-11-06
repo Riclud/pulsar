@@ -508,6 +508,7 @@ class NetClient {
             void chain.then(() => {
               if (failure) {
                 reject(failure)
+
                 return
               }
 

@@ -11,6 +11,7 @@ const readEncoding = (encoding?: FsEncoding): BufferEncoding => {
 const run = (cmd: string, args: string[]): Promise<boolean> => {
   return new Promise((resolve) => {
     const child = spawn(cmd, args, { stdio: "ignore" })
+
     child.on("error", () => resolve(false))
     child.on("exit", (code) => resolve(code === 0))
   })
@@ -162,6 +163,7 @@ export const createBunPlatform = (): Platform => {
 
       return new Promise((resolve) => {
         const child = spawn(cmd, args, { stdio: "ignore", detached: true })
+
         child.on("error", () => resolve(false))
         child.on("exit", (code) => resolve(code === 0))
       })

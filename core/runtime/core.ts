@@ -106,6 +106,7 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
 
   const dispatchLaunch = (params: LaunchParams): void => {
     const app = App.current
+
     if (!app) return
 
     const argv = params.argv ?? []
@@ -247,8 +248,10 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
   registerCapability("secure.remove", (params) => hostQuery("secure.remove", params))
 
   let notifyToken = 0
+
   registerCapability("shell.notify", (params: unknown) => {
     const token = String(++notifyToken)
+
     send({ jsonrpc: "2.0", method: "__notify", params: { token, ...(params as object) } })
 
     return Promise.resolve(token)
@@ -291,6 +294,14 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
 
     console.error(`[pulsar] ${scope}:`, error)
     send({ jsonrpc: "2.0", method: "__error", params: { scope, message, stack } })
+  }
+
+  const safely = (scope: string, run: () => void): void => {
+    try {
+      run()
+    } catch (e) {
+      reportError(scope, e)
+    }
   }
 
   const restore = (state: Record<string, unknown>): void => {
@@ -403,6 +414,7 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
 
     if (path.length > 0) {
       dispatchWindowEvent(target, path, String(data.event), data.value)
+
       return
     }
 
@@ -424,11 +436,7 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
 
     if (req.method === "__event") {
       if (params.name === "ui-event") {
-        try {
-          handleUiEvent(params.data ?? {})
-        } catch (e) {
-          reportError("ui event", e)
-        }
+        safely("ui event", () => handleUiEvent(params.data ?? {}))
 
         return
       }
@@ -495,6 +503,7 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
       await appReady
 
       const state = fullState()
+
       app?.store.takePatch()
 
       send({ jsonrpc: "2.0", id: req.id, result: true, state })
@@ -515,30 +524,21 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
 
     try {
       if (req.method === "ui-event") {
-        try {
-          handleUiEvent(req.params ?? {})
-        } catch (e) {
-          reportError("ui event", e)
-        }
-
+        safely("ui event", () => handleUiEvent(req.params ?? {}))
         send({ jsonrpc: "2.0", id: req.id, result: true, ...patchState() })
 
         return
       }
 
-      let result: unknown = null
+      const event = app?.hasEvent(req.method) ? app : null
 
-      if (app?.hasEvent(req.method)) {
-        try {
-          app.dispatchEvent(req.method, req.params ?? {})
-        } catch (e) {
-          reportError("event " + req.method, e)
-        }
+      if (!event && !hasCapability(req.method)) throw new Error("method not found: " + req.method)
 
-        result = true
+      let result: unknown = true
+
+      if (event) {
+        safely("event " + req.method, () => event.dispatchEvent(req.method, req.params ?? {}))
       } else {
-        if (!hasCapability(req.method)) throw new Error("method not found: " + req.method)
-
         const pending = callCapability(req.method, req.params ?? {})
 
         leaveSyncPart()

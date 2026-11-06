@@ -86,6 +86,7 @@ export const update = async (args: string[] = []): Promise<void> => {
 
     ui.step(`already up to date (${current})`)
     if (linked) console.log("  relinked node_modules/pulsar")
+
     return
   }
 

@@ -161,8 +161,8 @@ const filesFromRoot = (root: string): QtFile[] => {
   const seen = new Set<string>()
 
   if (isWindows) {
-    for (const entry of readdirSync(root, { withFileTypes: true })) {
-      if (entry.isFile()) files.push({ rel: `bin/${entry.name}`, src: join(root, entry.name) })
+    for (const entry of readdirSync(root, { withFileTypes: true }).filter((item) => item.isFile())) {
+      files.push({ rel: `bin/${entry.name}`, src: join(root, entry.name) })
     }
 
     addTree(files, join(root, "plugins"), "bin/plugins")
@@ -173,13 +173,13 @@ const filesFromRoot = (root: string): QtFile[] => {
 
   const libDir = join(root, "lib")
 
-  if (existsSync(libDir)) {
-    for (const entry of readdirSync(libDir, { withFileTypes: true })) {
-      if (isExcludedLib(entry.name) || seen.has(entry.name)) continue
+  const libEntries = existsSync(libDir) ? readdirSync(libDir, { withFileTypes: true }) : []
 
-      seen.add(entry.name)
-      files.push({ rel: `lib/Qt/lib/${entry.name}`, src: realpathSync(join(libDir, entry.name)) })
-    }
+  for (const entry of libEntries) {
+    if (isExcludedLib(entry.name) || seen.has(entry.name)) continue
+
+    seen.add(entry.name)
+    files.push({ rel: `lib/Qt/lib/${entry.name}`, src: realpathSync(join(libDir, entry.name)) })
   }
 
   addTree(files, join(root, "plugins"), "lib/Qt/plugins")
@@ -227,9 +227,7 @@ const linuxQtFiles = (
     addTree(groupFiles, join(pluginsDir, group), `lib/Qt/plugins/${group}`)
     files.push(...groupFiles)
 
-    for (const file of groupFiles) {
-      if (file.src.endsWith(".so")) for (const dep of neededLibs(file.src)) addLib(dep)
-    }
+    for (const file of groupFiles.filter((item) => item.src.endsWith(".so"))) neededLibs(file.src).forEach(addLib)
   }
 
   const qmlFiles: QtFile[] = []
@@ -237,9 +235,7 @@ const linuxQtFiles = (
   for (const module of QML_MODULES) addTree(qmlFiles, join(qmlDir, module), `lib/Qt/qml/${module}`)
   files.push(...qmlFiles)
 
-  for (const file of qmlFiles) {
-    if (file.src.endsWith(".so")) for (const dep of neededLibs(file.src)) addLib(dep)
-  }
+  for (const file of qmlFiles.filter((item) => item.src.endsWith(".so"))) neededLibs(file.src).forEach(addLib)
 
   return files
 }
@@ -261,6 +257,7 @@ const appleQtFiles = (
 
     if (framework) {
       addFramework(framework[1]!)
+
       return
     }
 
@@ -313,8 +310,8 @@ const appleQtFiles = (
     addTree(groupFiles, join(pluginsDir, group), `lib/Qt/plugins/${group}`)
     files.push(...groupFiles)
 
-    for (const file of groupFiles) {
-      if (file.src.endsWith(".dylib")) for (const dep of appleDeps(file.src, libsDir)) addDep(dep)
+    for (const file of groupFiles.filter((item) => item.src.endsWith(".dylib"))) {
+      appleDeps(file.src, libsDir).forEach(addDep)
     }
   }
 
@@ -323,9 +320,8 @@ const appleQtFiles = (
   for (const module of QML_MODULES) addTree(qmlFiles, join(qmlDir, module), `lib/Qt/qml/${module}`)
   files.push(...qmlFiles)
 
-  for (const file of qmlFiles) {
-    if (file.src.endsWith(".dylib")) for (const dep of appleDeps(file.src, libsDir)) addDep(dep)
-  }
+  for (const file of qmlFiles.filter((item) => item.src.endsWith(".dylib")))
+    appleDeps(file.src, libsDir).forEach(addDep)
 
   return files
 }
@@ -433,6 +429,7 @@ export const collectQt = (entries: PayloadEntry[], hostPath: string, video = tru
 
   if (!files) {
     ui.warn("Qt not found (no bundled tree and qmake missing); building a slim app that needs a system Qt")
+
     return false
   }
 
