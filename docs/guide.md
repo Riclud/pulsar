@@ -414,8 +414,6 @@ Before shipping:
 - **Forgetting `key` on repeated components.** Rows can then swap their state.
 - **Forgetting `keyOf` in `For`.** Rows can then be reused with the wrong state.
 - **Using `For` for a huge list.** Use `VirtualList`.
-- **Putting `For` inside `Page`.** Both scroll, and `For` currently gets no height and
-  shows nothing. Put it in a `Column`.
 - **Putting every branch in `visible`.** Use a normal ternary for mutually
   exclusive screens.
 - **Blocking the UI with a long synchronous loop.** Await host capabilities or

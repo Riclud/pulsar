@@ -203,6 +203,10 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "nested-list",
+    check: (output) => output.includes("LIST page 120") && output.includes("LIST column 300"),
+  },
+  {
     name: "packing",
     check: (output) => {
       return (

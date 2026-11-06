@@ -6409,6 +6409,19 @@ ApplicationWindow {
         }
     }
 
+    // A list or scroll inside another scroll area has no height to fill, so it
+    // grows with its content and lets the outer area do the scrolling.
+    function insideScroll(item) {
+        for (let up = item.parent; up; up = up.parent) {
+            const meta = up.pulsarMeta;
+
+            if (meta && meta.node && (meta.node.type === "scroll" || meta.node.type === "list"))
+                return true;
+        }
+
+        return false;
+    }
+
     function applyCommon(item, node, isRoot) {
         watchLayout(item, node);
         watchFocus(item, node);
@@ -6427,6 +6440,9 @@ ApplicationWindow {
         let fillHeight = node.type === "list" || node.type === "scroll" || node.type === "grid"
                 || node.type === "virtualList" || node.type === "pager" || node.type === "tabs"
                 || node.type === "navRail";
+
+        if ((node.type === "list" || node.type === "scroll") && insideScroll(item))
+            fillHeight = false;
 
         if (props.expand !== undefined)
             fillWidth = props.expand;
@@ -6740,6 +6756,13 @@ ApplicationWindow {
                 });
                 inner.width = Qt.binding(function () {
                     return Math.max(0, wrapper.width - 2 * prop(item.pulsarMeta.node.props, "padding", 0));
+                });
+            }
+
+            if (insideScroll(item)) {
+                item.interactive = false;
+                item.implicitHeight = Qt.binding(function () {
+                    return item.contentHeight;
                 });
             }
 

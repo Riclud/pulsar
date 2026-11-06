@@ -1058,8 +1058,8 @@ scroll and input state survive a re-render.
 
 - Values are read while rendering, and functions in `on*` props are event handlers.
 - `For({ each, keyOf, render })` builds a scrollable list and keeps rows stable by key.
-  It scrolls by itself and fills the free height, so put it in a `Column`. Inside
-  `Page`, which also scrolls, it currently gets no height and shows nothing.
+  It scrolls by itself and fills the free height. Inside `Page` or `Scroll` it grows
+  with its rows instead, and the outer area scrolls.
 - `Sheet` is an in-tree overlay, so it behaves the same on desktop and
   Android. It fades in and out (opacity only, `duration` in ms), swallows taps
   inside the panel, and does not close from the gesture that opened it. Pass

@@ -142,6 +142,11 @@ All notable changes to this project are documented here. The format follows
 
 - Experimental iOS simulator build: `pulsar build --target ios`.
 
+### Fixed
+
+- `For` and `Scroll` inside `Page` or another `Scroll` grow with their content instead
+  of getting no height and showing nothing.
+
 ## [1.4.0] - 2026-11-04
 
 ### Added
