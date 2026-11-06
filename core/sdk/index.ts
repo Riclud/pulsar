@@ -1,5 +1,7 @@
 export { App, Store, WindowHandle } from "./app.ts"
 export { computed, createState, effect, signal, untracked } from "./reactive.ts"
+export { platform } from "./platform-info.ts"
+export type { PlatformInfo } from "./platform-info.ts"
 export type { Computed, Signal } from "./reactive.ts"
 export type { AppConfig, EventHandler, PulsarEventMap, KnownEvent, UiSource, UiTimings } from "./app.ts"
 export {

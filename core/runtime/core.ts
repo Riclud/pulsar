@@ -1,4 +1,5 @@
 import { installCapabilities } from "../caps/index.ts"
+import { setPlatformInfo } from "../sdk/platform-info.ts"
 import {
   App,
   assertCapability,
@@ -81,6 +82,7 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
   const send = (message: unknown): void => transport.send(message)
 
   setManifest(options.manifest)
+  setPlatformInfo({ os: platform.os, kind: platform.kind, engine: platform.name })
   installCapabilities(platform)
   setPermissionGate(createPermissionGate(options.manifest?.permissions))
 
