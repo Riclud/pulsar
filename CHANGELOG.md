@@ -19,6 +19,11 @@ All notable changes to this project are documented here. The format follows
   in Downloads instead of the time it was written.
 - Wheel and touchpad scrolling follow a target every frame, so the speed no longer
   jumps between wheel steps or with the touchpad's event rate.
+- Buttons kept working only until a parent component rerendered around them; their
+  click handlers are no longer dropped.
+- `Segmented` and `Tabs` report a change only when pressed, not while they are built,
+  and events raised while a tree is being built wait until it is done.
+- Text fields use the theme's body size and have more room, so they match nearby text.
 
 ## [2.0.0] - 2026-11-06
 
