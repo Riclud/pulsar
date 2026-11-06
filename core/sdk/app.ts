@@ -607,10 +607,15 @@ export class App {
     const routes = this.sentRoutes.get(label) ?? {}
     const ids = this.sentIds.get(label) ?? new Set<number>()
 
-    for (const path of update.removedRoutes) delete routes[path]
-    for (const id of update.removedIDs) ids.delete(id)
+    // A rerendered component keeps the nodes of children that did not change, so
+    // their IDs show up as both removed and current; only drop the ones now gone.
+    const current = new Set(update.ids)
+    const gone = update.removedIDs.filter((id) => !current.has(id))
 
-    forgetHandlers(update.removedIDs)
+    for (const path of update.removedRoutes) delete routes[path]
+    for (const id of gone) ids.delete(id)
+
+    forgetHandlers(gone)
     Object.assign(routes, update.routes)
 
     for (const id of update.ids) ids.add(id)
