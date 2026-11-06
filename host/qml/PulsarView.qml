@@ -1829,8 +1829,11 @@ ApplicationWindow {
             selectedTextColor: view.themeOnPrimary
             cursorDelegate: textCursorComponent
             font.family: view.fontFamily
+            font.pixelSize: view.fs(14)
             leftPadding: 12
             rightPadding: 12
+            topPadding: 12
+            bottomPadding: 12
 
             Component.onCompleted: floatingLabel = view.findFloatingLabel(fieldRoot)
 
@@ -1864,10 +1867,11 @@ ApplicationWindow {
             selectedTextColor: view.themeOnPrimary
             cursorDelegate: textCursorComponent
             font.family: view.fontFamily
+            font.pixelSize: view.fs(14)
             leftPadding: 12
             rightPadding: 12
-            topPadding: 8
-            bottomPadding: 8
+            topPadding: 14
+            bottomPadding: 12
             wrapMode: TextEdit.Wrap
 
             Component.onCompleted: floatingLabel = view.findFloatingLabel(areaRoot)
@@ -2561,6 +2565,8 @@ ApplicationWindow {
 
                         text: modelData.label
 
+                        onClicked: view.emitNodeEvent(tabsRoot.nodeData, "change", index)
+
                         palette.window: view.themeBackground
                         palette.windowText: view.themeText
                         palette.brightText: view.themeTextSecondary
@@ -2598,11 +2604,6 @@ ApplicationWindow {
                     }
                 }
 
-                onCurrentIndexChanged: {
-                    if (tabsRoot.syncing)
-                        return;
-                    view.emitNodeEvent(tabsRoot.nodeData, "change", currentIndex);
-                }
             }
 
             StackLayout {
@@ -2640,6 +2641,10 @@ ApplicationWindow {
 
                     text: modelData.label
 
+                    // Only a press is a change; QML also moves currentIndex while
+                    // the bar is built, and that must not reach the app.
+                    onClicked: view.emitNodeEvent(segmentedRoot.nodeData, "change", index)
+
                     palette.window: view.themeSurface
                     palette.windowText: view.themeText
                     palette.brightText: view.themeTextSecondary
@@ -2668,11 +2673,6 @@ ApplicationWindow {
                 }
             }
 
-            onCurrentIndexChanged: {
-                if (segmentedRoot.syncing)
-                    return;
-                view.emitNodeEvent(segmentedRoot.nodeData, "change", currentIndex);
-            }
         }
     }
 
@@ -4505,6 +4505,16 @@ ApplicationWindow {
         if (!patches || patches.length === 0)
             return;
 
+        view.building++;
+
+        try {
+            applyPatchList(patches);
+        } finally {
+            view.building--;
+        }
+    }
+
+    function applyPatchList(patches) {
         const started = Date.now();
 
         view.uiStats = { created: 0, updated: 0, removed: 0, reordered: 0 };
@@ -4711,6 +4721,26 @@ ApplicationWindow {
         return node !== null && node !== undefined && node.events !== undefined && node.events.indexOf(event) >= 0;
     }
 
+    property int building: 0
+    property var heldEvents: []
+
+    // An in-process runtime answers an event at once; if that happened while
+    // a patch or rebuild is half done, the answer would patch a tree that is
+    // still being built. Events raised during a build wait until it ends.
+    Timer {
+        id: heldEventsTimer
+
+        interval: 0
+        onTriggered: {
+            const events = view.heldEvents;
+
+            view.heldEvents = [];
+
+            for (const payload of events)
+                PulsarBridge.emit("ui-event", payload);
+        }
+    }
+
     function emitEvent(node, event, value) {
         if (!node)
             return;
@@ -4718,13 +4748,21 @@ ApplicationWindow {
         if (event === "click")
             Qt.inputMethod.commit();
 
-        PulsarBridge.emit("ui-event", {
+        const payload = {
             target: typeof PulsarWindowLabel !== "undefined" ? PulsarWindowLabel : "main",
             path: node.path,
             id: node.id,
             event: event,
             value: value
-        });
+        };
+
+        if (view.building > 0 || view.heldEvents.length > 0) {
+            view.heldEvents.push(payload);
+            heldEventsTimer.restart();
+            return;
+        }
+
+        PulsarBridge.emit("ui-event", payload);
     }
 
     function emitNodeEvent(node, event, value) {
@@ -7611,7 +7649,14 @@ ApplicationWindow {
         const focus = captureFocus();
 
         view.uiStats = { created: 0, updated: 0, removed: 0, reordered: 0 };
-        reconcile(host, view.uiTree || [], true);
+        view.building++;
+
+        try {
+            reconcile(host, view.uiTree || [], true);
+        } finally {
+            view.building--;
+        }
+
         restoreFocus(focus);
 
         view.motionReady = (view.uiTree || []).length > 0;
