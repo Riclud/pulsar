@@ -31,14 +31,42 @@ rmSync(out, { recursive: true, force: true })
 mkdirSync(out, { recursive: true })
 
 // --- CLI distribution ---
+// bin/pulsar is the CLI compiled with Bun inside it, so users need no Bun.
+const cliStage = join(out, ".stage-cli")
+const cliBinary = join(cliStage, "bin", `pulsar${exe}`)
+
+mkdirSync(dirname(cliBinary), { recursive: true })
+
+const compiled = spawnSync(
+  process.execPath,
+  ["build", join(root, "cli", "index.ts"), "--compile", "--outfile", cliBinary],
+  {
+    stdio: "inherit",
+  },
+)
+
+if (compiled.status !== 0 || !existsSync(cliBinary)) throw new Error("cannot compile the pulsar CLI")
+
 // The runtime takes its JSX settings from the tsconfig.json next to it, so the
 // archive ships one that points JSX at the bundled SDK.
 if (!readFileSync(join(root, "tsconfig.json"), "utf8").includes('"jsxImportSource": "pulsar"')) {
   throw new Error("tsconfig.json must set jsxImportSource to pulsar")
 }
 
-
-tar(`pulsar-cli-${platform}.tar.gz`, root, ["cli", "core", "CMakeLists.txt", "package.json", "tsconfig.json", "host", "bridge", "launcher", "android"])
+tar(`pulsar-cli-${platform}.tar.gz`, root, [
+  "cli",
+  "core",
+  "CMakeLists.txt",
+  "package.json",
+  "tsconfig.json",
+  "host",
+  "bridge",
+  "launcher",
+  "android",
+  "-C",
+  cliStage,
+  "bin",
+])
 
 // --- Toolchain ---
 const qmlHost = join(root, "build", "bin", `qml-host${exe}`)
@@ -143,5 +171,6 @@ writeFileSync(join(out, "SHA256SUMS"), lines.join("\n") + "\n")
 
 rmSync(join(out, ".stage-fat"), { recursive: true, force: true })
 rmSync(join(out, ".stage-slim"), { recursive: true, force: true })
+rmSync(cliStage, { recursive: true, force: true })
 
 console.log(`packaged ${platform} -> ${out}`)
