@@ -132,6 +132,8 @@ All notable changes to this project are documented here. The format follows
 - The CLI bundles Qt libraries whose `ldd` paths go through
   `plugins/platforms/../../lib`, so `libQt6XcbQpa` no longer falls back to the
   system Qt and the xcb platform plugin starts.
+- `For` and `Scroll` inside `Page` or another `Scroll` grow with their content instead
+  of getting no height and showing nothing.
 
 ### Dev
 
@@ -141,11 +143,6 @@ All notable changes to this project are documented here. The format follows
 ### Platforms
 
 - Experimental iOS simulator build: `pulsar build --target ios`.
-
-### Fixed
-
-- `For` and `Scroll` inside `Page` or another `Scroll` grow with their content instead
-  of getting no height and showing nothing.
 
 ## [1.4.0] - 2026-11-04
 
