@@ -409,8 +409,23 @@ export const qtFiles = (hostPath: string, tools: string[] = []): QtFile[] | null
   return linuxQtFiles(hostPath, libsDir, pluginsDir ?? "", qmlDir ?? "", tools)
 }
 
-export const collectQt = (entries: PayloadEntry[], hostPath: string): boolean => {
-  const files = qtFiles(hostPath)
+const UNUSED_STYLE = /QuickControls2(Imagine|Fusion|Universal|FluentWinUI3|IOS|MacOS|Windows)|QtQuick\/Controls\/(Imagine|Fusion|Universal|FluentWinUI3|iOS|macOS|Windows)\//
+const SHADER_TOOLS = /ShaderTools|^lib\/Qt\/bin\/|^bin\/qsb\.exe$/
+const VIDEO = /(^|\/)(lib)?(av(codec|format|util|device|filter)|sw(scale|resample))[-.]|\/plugins\/multimedia\/|\/qml\/QtMultimedia\//
+
+/**
+ * Whether a toolchain file belongs in an app. Apps never need the shader
+ * compiler or the Controls styles Pulsar does not use, and they need FFmpeg
+ * only when they play media.
+ */
+export const keepForApp = (rel: string, video: boolean): boolean => {
+  if (SHADER_TOOLS.test(rel) || UNUSED_STYLE.test(rel)) return false
+
+  return video || !VIDEO.test(rel)
+}
+
+export const collectQt = (entries: PayloadEntry[], hostPath: string, video = true): boolean => {
+  const files = qtFiles(hostPath)?.filter((file) => keepForApp(file.rel, video))
 
   if (!files) {
     console.warn("pulsar: Qt not found (no bundled tree and qmake missing); building a slim app that needs a system Qt")
