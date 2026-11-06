@@ -1438,6 +1438,31 @@ int main(int argc, char **argv)
 
     gWatch = watchMode();
     gBridge = bridge;
+
+    // `pulsar dev` on QuickJS rebuilds the script bundle on save; restart the
+    // runtime when the new bundle lands, the way Bun asks for __reload.
+    const QString quickjsBundle = qEnvironmentVariable("PULSAR_QUICKJS_BUNDLE");
+
+    if (gWatch && !quickjsBundle.isEmpty()) {
+        auto *bundleWatcher = new QFileSystemWatcher(QStringList{ QFileInfo(quickjsBundle).absolutePath() }, &app);
+        auto *bundleTimer = new QTimer(&app);
+        auto lastModified = QFileInfo(quickjsBundle).lastModified();
+
+        bundleTimer->setSingleShot(true);
+        bundleTimer->setInterval(80);
+
+        QObject::connect(bundleWatcher, &QFileSystemWatcher::directoryChanged, bundleTimer,
+                         qOverload<>(&QTimer::start));
+        QObject::connect(bundleTimer, &QTimer::timeout, bridge, [bridge, quickjsBundle, lastModified]() mutable {
+            const QFileInfo info(quickjsBundle);
+
+            if (!info.exists() || info.lastModified() == lastModified)
+                return;
+
+            lastModified = info.lastModified();
+            bridge->restart();
+        });
+    }
     gNet = new pulsar::NetworkService(&app);
 
     PowerMonitor *power = new PowerMonitor(&app);
