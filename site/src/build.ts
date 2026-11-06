@@ -203,6 +203,8 @@ const rewriteLinks = (html: string, page: Page, anchors: Map<string, { page: Pag
       "guide-web.md": "guide/web/",
       "guide-components.md": "guide/components/",
       "guide-ui.md": "guide/ui/",
+      "guide-graphics.md": "guide/graphics/",
+      "guide-graphics.ru.md": "ru/guide/graphics/",
       "guide-ui.ru.md": "ru/guide/ui/",
       "guide-web.ru.md": "ru/guide/web/",
       "guide-components.ru.md": "ru/guide/components/",
@@ -334,7 +336,7 @@ const slugs = [
 
 const navGroups: Record<Lang, Array<{ label: string; slugs: string[] }>> = {
   en: [
-    { label: "Guide", slugs: ["guide/web", "guide", "guide/components", "guide/api"] },
+    { label: "Guide", slugs: ["guide/web", "guide", "guide/components", "guide/graphics", "guide/api"] },
     { label: "Setup", slugs: ["platforms", "requirements", "install", "quick-start"] },
     { label: "Reference", slugs: ["cli", "manifest", "app-api", "ui", "qml"] },
     {
@@ -343,7 +345,7 @@ const navGroups: Record<Lang, Array<{ label: string; slugs: string[] }>> = {
     },
   ],
   ru: [
-    { label: "Руководство", slugs: ["guide/web", "guide", "guide/components", "guide/api"] },
+    { label: "Руководство", slugs: ["guide/web", "guide", "guide/components", "guide/graphics", "guide/api"] },
     { label: "Установка", slugs: ["platforms", "requirements", "install", "quick-start"] },
     { label: "Справочник", slugs: ["cli", "manifest", "app-api", "ui", "qml"] },
     {
@@ -452,6 +454,7 @@ const homeText = {
       ["guide/", "Build an app", "A complete task app, from an empty project."],
       ["guide/components/", "Components and signals", "State, props, keys and lifecycle."],
       ["ui/", "UI building blocks", "Every component and prop."],
+      ["guide/graphics/", "Graphics and effects", "Shaders, Canvas, blur, glass and motion."],
       ["guide/api/", "API tour", "Windows, storage, network and devices."],
       ["cli/", "CLI reference", "Create, run, build and inspect."],
     ],
@@ -495,6 +498,7 @@ const homeText = {
       ["guide/", "Соберите приложение", "Полное приложение задач с нуля."],
       ["guide/components/", "Компоненты и сигналы", "Состояние, свойства, ключи и жизненный цикл."],
       ["ui/", "UI-блоки", "Все компоненты и свойства."],
+      ["guide/graphics/", "Графика и эффекты", "Шейдеры, Canvas, размытие, стекло и движение."],
       ["guide/api/", "Тур по API", "Окна, хранилище, сеть и устройства."],
       ["cli/", "CLI", "Создание, запуск, сборка и проверка."],
     ],
@@ -994,12 +998,14 @@ const build = async () => {
     guideSource("en", "guide-web.md", "Coming from the web", "guide/web"),
     guideSource("en", "guide.md", "Build an app", "guide"),
     guideSource("en", "guide-components.md", "Components and signals", "guide/components"),
+    guideSource("en", "guide-graphics.md", "Graphics and effects", "guide/graphics"),
     guideSource("en", "guide-api.md", "API tour", "guide/api"),
   ]
   const guideRU = [
     guideSource("ru", "guide-web.ru.md", "Если вы пришли из веба", "guide/web"),
     guideSource("ru", "guide.ru.md", "Соберите приложение", "guide"),
     guideSource("ru", "guide-components.ru.md", "Компоненты и сигналы", "guide/components"),
+    guideSource("ru", "guide-graphics.ru.md", "Графика и эффекты", "guide/graphics"),
     guideSource("ru", "guide-api.ru.md", "Тур по API", "guide/api"),
   ]
 
