@@ -317,7 +317,23 @@ add_executable(bridge bridge/main.cpp)
 target_link_libraries(bridge PRIVATE Qt6::Core)
 
 # --- Launcher: Qt-free single-file entry point ---
+# zstd unpacks the app payload on first launch.
+set(ZSTD_BUILD_PROGRAMS OFF CACHE BOOL "" FORCE)
+set(ZSTD_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+set(ZSTD_BUILD_STATIC ON CACHE BOOL "" FORCE)
+set(ZSTD_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(ZSTD_LEGACY_SUPPORT OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(zstd
+    URL https://github.com/facebook/zstd/releases/download/v1.5.6/zstd-1.5.6.tar.gz
+    URL_HASH SHA256=8c29e06cf42aacc1eafc4077ae2ec6c6fcb96a626157e0593d5e82a34fd403c1
+    SOURCE_SUBDIR build/cmake
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+FetchContent_MakeAvailable(zstd)
+
 add_executable(launcher launcher/main.cpp)
+target_link_libraries(launcher PRIVATE libzstd_static)
+target_include_directories(launcher PRIVATE "${zstd_SOURCE_DIR}/lib")
 
 # Load the bundled Qt from <root>/lib/Qt/lib when present; otherwise fall back
 # to the system installation (dev and --slim builds).

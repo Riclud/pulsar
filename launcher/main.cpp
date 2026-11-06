@@ -17,6 +17,8 @@
 #include <string>
 #include <vector>
 
+#include <zstd.h>
+
 #ifdef _WIN32
 #include <windows.h>
 #include <direct.h>
@@ -175,6 +177,7 @@ void extract(std::ifstream &file, uint64_t offset, const fs::path &root)
     if (std::memcmp(header, kHeaderMagic, 4) != 0)
         fail("bad payload magic");
 
+    const uint32_t version = readU32(header + 4);
     const uint32_t count = readU32(header + 16);
 
     std::error_code ec;
@@ -210,6 +213,28 @@ void extract(std::ifstream &file, uint64_t offset, const fs::path &root)
 
         if (!out)
             fail("cannot write extracted file");
+
+        // Version 2 stores each file as one zstd frame after its raw size.
+        if (version >= 2) {
+            if (!file.read(reinterpret_cast<char *>(lenBuf8), 8))
+                fail("truncated payload (packed length)");
+
+            const uint64_t packedSize = readU64(lenBuf8);
+            std::vector<char> packed(static_cast<size_t>(packedSize));
+            std::vector<char> raw(static_cast<size_t>(remaining));
+
+            if (packedSize && !file.read(packed.data(), static_cast<std::streamsize>(packedSize)))
+                fail("truncated payload (packed data)");
+
+            const size_t written = ZSTD_decompress(raw.data(), raw.size(), packed.data(), packed.size());
+
+            if (ZSTD_isError(written) || written != raw.size())
+                fail("cannot unpack payload");
+
+            out.write(raw.data(), static_cast<std::streamsize>(raw.size()));
+            out.close();
+            continue;
+        }
 
         std::vector<char> buffer(kChunk);
 
