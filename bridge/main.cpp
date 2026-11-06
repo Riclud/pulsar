@@ -133,6 +133,12 @@ int main(int argc, char **argv)
 
     if (!runtimeBin.isEmpty()) {
         program = runtimeBin;
+
+        // A Node runtime runs one bundled script next to it.
+        const QString script = qEnvironmentVariable("PULSAR_RUNTIME_SCRIPT");
+
+        if (!script.isEmpty())
+            arguments << script;
     } else {
         program = bunBin;
         arguments << QDir(projectRoot).filePath(QStringLiteral("core/runtime/main.ts"));

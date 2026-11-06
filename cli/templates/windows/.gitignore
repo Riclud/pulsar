@@ -1,4 +1,5 @@
 node_modules
 dist
+.pulsar
 *.log
 .DS_Store

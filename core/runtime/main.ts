@@ -11,9 +11,9 @@ import { MIN_BUN, bunVersionCompatible } from "./version.ts"
 const keepAlive = setInterval(() => {}, 1 << 30)
 void keepAlive
 
-const bunVersion = Bun.version ?? "0.0.0"
+const bunVersion = typeof Bun === "undefined" ? null : (Bun.version ?? "0.0.0")
 
-if (!bunVersionCompatible(bunVersion)) {
+if (bunVersion !== null && !bunVersionCompatible(bunVersion)) {
   console.error(`[pulsar] Bun ${bunVersion} is too old; Pulsar requires Bun >= ${MIN_BUN}`)
   process.exit(1)
 }
@@ -30,7 +30,7 @@ const runtime = createRuntime({
   transport,
   platform,
   manifest,
-  info: { name: "bun", version: bunVersion },
+  info: bunVersion === null ? { name: "node", version: process.versions.node } : { name: "bun", version: bunVersion },
   onClose: () => process.exit(0),
 })
 
@@ -86,7 +86,7 @@ export const wireApp = (): void => {
 }
 
 const setupReloadWatcher = (): void => {
-  if (!process.env.PULSAR_WATCH) return
+  if (!process.env.PULSAR_WATCH || process.env.PULSAR_RELOAD_FILE) return
 
   const ignored = (name: string | null) =>
     !name || name === "storage.json" || name.startsWith(".") || name.endsWith(".lock") || name.endsWith(".qml")

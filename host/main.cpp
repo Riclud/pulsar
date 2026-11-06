@@ -1444,9 +1444,10 @@ int main(int argc, char **argv)
     gWatch = watchMode();
     gBridge = bridge;
 
-    // `pulsar dev` on QuickJS rebuilds the script bundle on save; restart the
-    // runtime when the new bundle lands, the way Bun asks for __reload.
-    const QString quickjsBundle = qEnvironmentVariable("PULSAR_QUICKJS_BUNDLE");
+    // `pulsar dev` on QuickJS or Node rebuilds the script bundle on save; restart
+    // the runtime when the new bundle lands, the way Bun asks for __reload.
+    const QString quickjsBundle = qEnvironmentVariable(
+        "PULSAR_RELOAD_FILE", qEnvironmentVariable("PULSAR_QUICKJS_BUNDLE"));
 
     if (gWatch && !quickjsBundle.isEmpty()) {
         auto *bundleWatcher = new QFileSystemWatcher(QStringList{ QFileInfo(quickjsBundle).absolutePath() }, &app);

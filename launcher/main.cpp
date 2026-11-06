@@ -250,7 +250,7 @@ void extract(std::ifstream &file, uint64_t offset, const fs::path &root)
     }
 
 #ifndef _WIN32
-    for (const char *rel : {"bin/qml-host", "bin/bridge", "runtime"})
+    for (const char *rel : {"bin/qml-host", "bin/bridge", "bin/node", "runtime"})
         fs::permissions(root / rel,
                         fs::perms::owner_exec | fs::perms::group_exec | fs::perms::others_exec,
                         fs::perm_options::add, ec);
@@ -308,9 +308,15 @@ int main(int argc, char **argv)
     setEnv("PULSAR_APP", (root / "app").string());
     setEnv("PULSAR_RUNTIME", (root / (std::string("runtime") + kExe)).string());
 
-    // Apps built for QuickJS ship a script bundle instead of the Bun runtime.
+    // Apps built for QuickJS ship a script bundle instead of the Bun runtime,
+    // and apps built for Node ship Node with one bundled script.
     if (fs::exists(root / "runtime.js", ec))
         setEnv("PULSAR_QUICKJS_BUNDLE", (root / "runtime.js").string());
+
+    if (fs::exists(root / "runtime.mjs", ec)) {
+        setEnv("PULSAR_RUNTIME", (root / "bin" / (std::string("node") + kExe)).string());
+        setEnv("PULSAR_RUNTIME_SCRIPT", (root / "runtime.mjs").string());
+    }
 
     const std::string hostStr = host.string();
     changeDir(root.string());

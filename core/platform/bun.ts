@@ -47,7 +47,7 @@ let atomicWrites = 0
 /** Platform backed by Bun/Node: filesystem, paths and shell integration. */
 export const createBunPlatform = (): Platform => {
   return {
-    name: "bun",
+    name: typeof Bun === "undefined" ? "node" : "bun",
     kind: "desktop",
     os: process.platform,
 

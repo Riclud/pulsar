@@ -26,7 +26,7 @@ export const resolveEntry = (
   const ext = [".tsx", ".ts", ".js"].find((value) => file.endsWith(value)) ?? ""
   const stem = ext ? file.slice(0, -ext.length) : file
   const platform = target === "desktop" ? ".desktop" : target === "android" ? ".android" : ".portable"
-  const suffixes = [platform, engine === "bun" ? ".bun" : ".quickjs"]
+  const suffixes = [platform, `.${engine}`]
 
   const candidates = [
     ...suffixes.map((suffix) => join(appDir, dir, `${stem}${suffix}${ext || ".ts"}`)),

@@ -29,7 +29,7 @@ export interface FileAssociation {
 }
 
 export type Target = "desktop" | "android" | "ios"
-export type RuntimeKind = "bun" | "quickjs"
+export type RuntimeKind = "bun" | "quickjs" | "node"
 export type Compat = "portable" | "desktop"
 
 export interface RuntimeConfig {

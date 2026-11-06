@@ -95,7 +95,11 @@ const chooseDesktopEngine = async (
   manifest: AppManifest | null,
 ): Promise<{ engine: RuntimeKind; entry: string; reasons: string[] }> => {
   const flag = flagValue("--runtime")
-  const forced = flag === "bun" || flag === "quickjs" ? flag : explicitRuntime(manifest, "desktop")
+  const forced = flag === "bun" || flag === "quickjs" || flag === "node" ? flag : explicitRuntime(manifest, "desktop")
+
+  if (forced === "node") {
+    return { engine: "node", entry: resolveEntry(appDir, manifest, "desktop", "node"), reasons: [] }
+  }
 
   if (forced === "bun") {
     return {
@@ -155,10 +159,177 @@ const describeVideo = (video: boolean): void => {
   console.log('  video: not bundled, videos open in the system player; set "video": true for the in-app player')
 }
 
+/** The Node binary to run and ship: `PULSAR_NODE`, or `node` on the PATH. */
+const findNode = (): string => {
+  const node = process.env.PULSAR_NODE ?? Bun.which("node")
+
+  if (!node) {
+    console.error('pulsar: the app asks for "runtime": "node", but node is not installed or not on the PATH')
+    process.exit(1)
+  }
+
+  return node
+}
+
+const BASE_LIBRARIES = /^(linux-vdso|ld-linux|libc|libm|libdl|librt|libpthread|libstdc\+\+|libgcc_s|libatomic)\b/
+
+/**
+ * Warns when the Node being shipped needs shared libraries from this system,
+ * as distribution packages often do, so the app may not start elsewhere.
+ */
+const warnSharedNode = (node: string): void => {
+  if (process.platform !== "linux") return
+
+  const ldd = spawnSync("ldd", [node], { encoding: "utf8" })
+  const shared = (ldd.stdout ?? "")
+    .split("\n")
+    .map((line) => line.trim().split(" ")[0] ?? "")
+    .filter((name) => name.endsWith(".so") || /\.so\.\d/.test(name))
+    .filter((name) => !BASE_LIBRARIES.test(name))
+
+  if (shared.length === 0) return
+
+  console.warn(
+    `pulsar: this Node needs system libraries (${shared.slice(0, 4).join(", ")}${shared.length > 4 ? ", ..." : ""})`,
+  )
+  console.warn("  the app may not start on other machines; point PULSAR_NODE at an official build from nodejs.org")
+}
+
+interface NativePackages {
+  /** Package names left out of the bundle. */
+  external: string[]
+  /** Package folders, relative to the app, that ship next to the bundle. */
+  folders: string[]
+}
+
+/**
+ * Finds packages with native addons, and the packages that load them. They
+ * cannot go into a bundle, so they ship as a `node_modules` folder instead.
+ */
+const nativePackages = (appDir: string): NativePackages => {
+  const modules = join(appDir, "node_modules")
+  const packages = new Map<string, { dir: string; deps: string[] }>()
+
+  if (!existsSync(modules)) return { external: [], folders: [] }
+
+  const readPackage = (name: string, dir: string) => {
+    try {
+      const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as Record<string, Record<string, string>>
+      const deps = [...Object.keys(pkg.dependencies ?? {}), ...Object.keys(pkg.optionalDependencies ?? {})]
+
+      packages.set(name, { dir, deps })
+    } catch {}
+  }
+
+  for (const entry of readdirSync(modules, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name.startsWith(".")) continue
+
+    if (!entry.name.startsWith("@")) {
+      readPackage(entry.name, join(modules, entry.name))
+      continue
+    }
+
+    for (const scoped of readdirSync(join(modules, entry.name), { withFileTypes: true })) {
+      if (scoped.isDirectory()) readPackage(`${entry.name}/${scoped.name}`, join(modules, entry.name, scoped.name))
+    }
+  }
+
+  const hasNative = (dir: string, depth = 0): boolean => {
+    if (depth > 4) return false
+
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isFile() && (entry.name.endsWith(".node") || entry.name === "binding.gyp")) return true
+      if (entry.isDirectory() && entry.name !== "node_modules" && hasNative(join(dir, entry.name), depth + 1))
+        return true
+    }
+
+    return false
+  }
+
+  const external = new Set([...packages].filter(([, pkg]) => hasNative(pkg.dir)).map(([name]) => name))
+
+  for (let grew = true; grew;) {
+    grew = false
+
+    for (const [name, pkg] of packages) {
+      if (!external.has(name) && pkg.deps.some((dep) => external.has(dep))) {
+        external.add(name)
+        grew = true
+      }
+    }
+  }
+
+  const folders = new Set<string>()
+  const ship = (name: string) => {
+    const pkg = packages.get(name)
+
+    if (!pkg || folders.has(name)) return
+
+    folders.add(name)
+    pkg.deps.forEach(ship)
+  }
+
+  external.forEach(ship)
+
+  return { external: [...external], folders: [...folders].map((name) => join("node_modules", name)) }
+}
+
+/**
+ * Bundles the runtime and the app into one ES module for Node, which cannot
+ * load TypeScript or JSX itself.
+ */
+const bundleForNode = async (entry: string, assembly: string, external: string[] = []): Promise<string | null> => {
+  const root = pulsarRoot()
+  const spec = (p: string) => JSON.stringify(p.replace(/\\/g, "/"))
+  const entryPath = join(assembly, "node-entry.ts")
+
+  writeFileSync(
+    entryPath,
+    [
+      `process.env.PULSAR_BUNDLED = "1";`,
+      `globalThis.__PULSAR_SDK_VERSION = ${JSON.stringify(cliVersion())};`,
+      `const { wireApp } = await import(${spec(join(root, "core", "runtime", "main.ts"))});`,
+      `await import(${spec(entry)});`,
+      `wireApp();`,
+      ``,
+    ].join("\n"),
+  )
+
+  const plugin: BunPlugin = {
+    name: "pulsar-node",
+    setup(builder) {
+      builder.onResolve({ filter: /^pulsar$/ }, () => ({ path: join(root, "core", "sdk", "index.ts") }))
+      builder.onResolve({ filter: /^(pulsar|react)\/jsx-(dev-)?runtime$/ }, (args) => ({
+        path: join(root, "core", "sdk", `${args.path.slice(args.path.indexOf("/") + 1)}.ts`),
+      }))
+    },
+  }
+
+  const result = await Bun.build({
+    entrypoints: [entryPath],
+    target: "node",
+    format: "esm",
+    plugins: [plugin],
+    external,
+  })
+
+  if (!result.success) {
+    for (const log of result.logs) console.error(`[error] [pulsar] ${log.message}`)
+    return null
+  }
+
+  return result.outputs[0]!.text()
+}
+
 /** Says which engine the build uses, and why Bun is bundled when it is. */
 const describeEngine = (chosen: { engine: RuntimeKind; reasons: string[] }): void => {
   if (chosen.engine === "quickjs") {
     console.log("  engine: QuickJS, Bun is not bundled")
+    return
+  }
+
+  if (chosen.engine === "node") {
+    console.log("  engine: Node from this machine, bundled into the app (roughly 20 to 40 MB compressed)")
     return
   }
 
@@ -415,20 +586,33 @@ const runDesktop = async (appDir: string, watchMode: boolean): Promise<void> => 
     process.exit(r.status ?? 0)
   }
 
-  // The same engine as the build: bundle for QuickJS, and bundle again on save.
-  // The host watches the bundle and restarts the runtime when it changes.
-  const assembly = mkdtempSync(join(tmpdir(), "pulsar-dev-"))
-  const bundleFile = join(assembly, "runtime.js")
+  // The same engine as the build: bundle for QuickJS or Node, and bundle again
+  // on save. The host watches the bundle and restarts the runtime when it changes.
+  const node = chosen.engine === "node"
+  const native = node ? nativePackages(appDir) : { external: [], folders: [] }
+
+  // Node resolves the native packages left out of the bundle from the app's
+  // node_modules, so its bundle lives inside the app.
+  if (node) mkdirSync(join(appDir, ".pulsar"), { recursive: true })
+
+  const assembly = mkdtempSync(node ? join(appDir, ".pulsar", "dev-") : join(tmpdir(), "pulsar-dev-"))
+  const bundleFile = join(assembly, node ? "runtime.mjs" : "runtime.js")
 
   const rebundle = async (): Promise<boolean> => {
-    const bundle = await bundleRuntime(chosen.entry, assembly, true).result
+    let text: string | null = null
 
-    if (!bundle.success) {
-      for (const log of bundle.logs) console.error(`[error] [pulsar] ${log.message}`)
-      return false
+    if (node) {
+      text = await bundleForNode(chosen.entry, assembly, native.external)
+    } else {
+      const bundle = await bundleRuntime(chosen.entry, assembly, true).result
+
+      if (bundle.success) text = await bundle.outputs[0]!.text()
+      else for (const log of bundle.logs) console.error(`[error] [pulsar] ${log.message}`)
     }
 
-    writeFileSync(`${bundleFile}.tmp`, await bundle.outputs[0]!.text())
+    if (text === null) return false
+
+    writeFileSync(`${bundleFile}.tmp`, text)
     renameSync(`${bundleFile}.tmp`, bundleFile)
 
     return true
@@ -449,10 +633,21 @@ const runDesktop = async (appDir: string, watchMode: boolean): Promise<void> => 
       ...process.env,
       PULSAR_APP: appDir,
       PULSAR_ROOT: pulsarRoot(),
-      ...(watchMode ? { PULSAR_WATCH: "1" } : {}),
-      PULSAR_QUICKJS_BUNDLE: bundleFile,
+      ...(watchMode ? { PULSAR_WATCH: "1", PULSAR_RELOAD_FILE: bundleFile } : {}),
+      ...(node
+        ? { PULSAR_RUNTIME: findNode(), PULSAR_RUNTIME_SCRIPT: bundleFile, PULSAR_BRIDGE: findBridge(host) }
+        : { PULSAR_QUICKJS_BUNDLE: bundleFile }),
     },
   })
+  const stop = () => {
+    child.kill()
+    rmSync(assembly, { recursive: true, force: true })
+    process.exit(130)
+  }
+
+  process.on("SIGINT", stop)
+  process.on("SIGTERM", stop)
+
   const code = await child.exited
 
   rmSync(assembly, { recursive: true, force: true })
@@ -579,6 +774,21 @@ const fnv1a64 = (parts: string[]): bigint => {
 }
 
 /** The native host/bridge, runtime and every app file (except build noise). */
+/** Every file under `dir`, placed under `prefix` in the payload. */
+const folderEntries = (dir: string, prefix: string): PayloadEntry[] => {
+  const entries: PayloadEntry[] = []
+
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name)
+    const rel = `${prefix}/${entry.name}`.replace(/\\/g, "/")
+
+    if (entry.isDirectory()) entries.push(...folderEntries(path, rel))
+    else if (entry.isFile()) entries.push({ path: rel, data: readFileSync(path) })
+  }
+
+  return entries
+}
+
 /** The app's own files, placed under `app/` in the payload. */
 const collectPayload = (appDir: string, manifest: AppManifest | null, skipOut: string): PayloadEntry[] => {
   const entries: PayloadEntry[] = []
@@ -789,6 +999,34 @@ const build = async () => {
   }
 
   const bridge = findBridge(host)
+
+  if (chosen.engine === "node") {
+    try {
+      const nodeBinary = findNode()
+
+      warnSharedNode(nodeBinary)
+
+      const native = nativePackages(appDir)
+      const script = await bundleForNode(chosen.entry, assembly, native.external)
+
+      if (script === null) process.exit(1)
+
+      if (native.external.length > 0) console.log(`  native packages shipped as files: ${native.external.join(", ")}`)
+
+      await pack([
+        { path: "bin/qml-host", data: readFileSync(host) },
+        { path: "bin/bridge", data: readFileSync(bridge) },
+        { path: process.platform === "win32" ? "bin/node.exe" : "bin/node", data: readFileSync(nodeBinary) },
+        { path: "runtime.mjs", data: Buffer.from(script) },
+        ...native.folders.flatMap((folder) => folderEntries(join(appDir, folder), folder)),
+        ...collectPayload(appDir, manifest, basename(outDir)),
+      ])
+    } finally {
+      rmSync(assembly, { recursive: true, force: true })
+    }
+
+    return
+  }
 
   try {
     // One entry pulls the runtime and the app into a single module graph, so
