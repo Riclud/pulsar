@@ -1,5 +1,6 @@
-# Pulsar bootstrap for Windows: installs the CLI from GitHub Releases.
-# Requires Bun (https://bun.sh); the toolchain comes from `pulsar install`.
+# Pulsar bootstrap for Windows: installs the CLI from GitHub Releases, then the
+# toolchain with `pulsar install`. Requires Bun (https://bun.sh).
+# Set PULSAR_SLIM=1 for a toolchain that uses the system Qt.
 $ErrorActionPreference = "Stop"
 
 $Repo = if ($env:PULSAR_REPO) { $env:PULSAR_REPO } else { "riclud/pulsar" }

@@ -1,0 +1,48 @@
+name: Install
+
+on:
+  push:
+    paths:
+      - "install.sh"
+      - "install.ps1"
+      - ".github/workflows/install.yml"
+  workflow_dispatch:
+
+jobs:
+  unix:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Run the bootstrap
+        run: sh install.sh
+
+      - name: Check the toolchain
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          pulsar doctor | tee doctor.log
+          grep -E "^ok +toolchain" doctor.log
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Run the bootstrap
+        shell: pwsh
+        run: ./install.ps1
+
+      - name: Check the toolchain
+        shell: pwsh
+        run: |
+          $env:PATH = "$env:LOCALAPPDATA\pulsar\bin;$env:PATH"
+          pulsar doctor | Tee-Object -FilePath doctor.log
+          if (-not (Select-String -Path doctor.log -Pattern '^ok +toolchain')) { throw "toolchain missing" }
