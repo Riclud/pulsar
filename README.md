@@ -21,7 +21,7 @@ Nothing else to install first: Bun is inside the CLI.
 curl -fsSL https://get.pulsarjs.org | sh
 ```
 
-On Windows, use `iwr https://get.pulsarjs.org/install.ps1 -UseBasicParsing | iex`.
+On Windows, use `powershell -c "irm https://get.pulsarjs.org/install.ps1 | iex"`.
 Then create an app:
 
 ```sh

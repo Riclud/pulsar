@@ -50,7 +50,7 @@ curl -fsSL https://get.pulsarjs.org | sh
 Windows:
 
 ```powershell
-iwr https://get.pulsarjs.org/install.ps1 -UseBasicParsing | iex
+powershell -c "irm https://get.pulsarjs.org/install.ps1 | iex"
 ```
 
 The bootstrap installs the CLI to `~/.local/share/pulsar` (or

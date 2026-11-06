@@ -581,7 +581,7 @@ const homePage = (lang: Lang, md: ReturnType<typeof makeMarkdown>): Page => {
   const local = (path: string) => sitePath(`${prefix}${path}`)
   const installs: Array<[string, string, string]> = [
     ["unix", "Linux & macOS", "curl -fsSL https://get.pulsarjs.org | sh"],
-    ["windows", "Windows", "iwr https://get.pulsarjs.org/install.ps1 -UseBasicParsing | iex"],
+    ["windows", "Windows", 'powershell -c "irm https://get.pulsarjs.org/install.ps1 | iex"'],
   ]
   const installTabs = installs
     .map(

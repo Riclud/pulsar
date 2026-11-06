@@ -21,7 +21,7 @@
 curl -fsSL https://get.pulsarjs.org | sh
 ```
 
-В Windows выполните `iwr https://get.pulsarjs.org/install.ps1 -UseBasicParsing | iex`.
+В Windows выполните `powershell -c "irm https://get.pulsarjs.org/install.ps1 | iex"`.
 Затем создайте приложение:
 
 ```sh
