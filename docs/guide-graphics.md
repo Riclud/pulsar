@@ -37,6 +37,143 @@ new App().window("main").render(() => (
 `progress` sets how far it reaches, and `jitter` how far it strays. There is no animation
 code, because the bolt flickers on the GPU by itself.
 
+## More examples
+
+Each one is a whole app. Paste it into `src/main.tsx` of a new project and run `pulsar dev`. The pictures use the dark theme.
+
+### A player wave
+
+<img src="https://pulsarjs.org/media/wave.gif" alt="A glowing purple wave under a track title" width="480" loading="lazy">
+
+A ready `Wave` under a track title. It moves on the GPU, so it costs almost nothing.
+
+```tsx
+import { App, Column, Text, Wave } from "pulsar"
+
+new App().window("main").render(() => (
+  <Column fillWidth fillHeight padding={32} gap={8}>
+    <Text text="Midnight City" size={24} bold />
+    <Text text="M83" color="#7f8590" />
+    <Wave fillWidth height={64} color="#c084fc" amplitude={10} frequency={4} speed={3} glowRadius={10} />
+  </Column>
+))
+```
+
+### A glass clock over aurora
+
+<img src="https://pulsarjs.org/media/glass.gif" alt="A frosted clock card over a moving aurora" width="480" loading="lazy">
+
+`glass` blurs the first child of the `Stack`, here an `Aurora`, and tints it.
+
+```tsx
+import { App, Aurora, Column, Row, Stack, Text } from "pulsar"
+
+new App().window("main").render(() => (
+  <Stack fillWidth fillHeight>
+    <Aurora fill color="#2b1055" accent="#0f766e" speed={0.2} />
+    <Row fill justify="center" alignItems="center">
+      <Column padding={24} radius={20} gap={4} glass={{ blur: 40, tint: "#33ffffff" }} borderWidth={1} borderColor="#40ffffff">
+        <Text text="20:45" size={44} bold color="#ffffff" />
+        <Text text="Thursday, 6 November" color="#e4e4f0" />
+      </Column>
+    </Row>
+  </Stack>
+))
+```
+
+### Your own shader
+
+<img src="https://pulsarjs.org/media/pulse.gif" alt="Pink rings pulsing out from the center" width="480" loading="lazy">
+
+A `.frag` file next to the app. Pulsar compiles it on save, and the `uniform` values come from TypeScript.
+
+```glsl
+// shaders/pulse.frag
+uniform vec4 color;
+uniform float rings;
+
+vec4 effect(vec2 uv) {
+    float radius = length(pixel - resolution / 2.0);
+    float ring = wave(radius / resolution.y, rings, 4.0) * 0.5 + 0.5;
+
+    return vec4(color.rgb, ring * glow(radius, resolution.y / 2.0));
+}
+```
+
+```tsx
+import { App, Shader } from "pulsar"
+
+new App().window("main").render(() => (
+  <Shader source="shaders/pulse.frag" fill uniforms={{ color: "#ff6ac1", rings: 3 }} />
+))
+```
+
+### A live chart on Canvas
+
+<img src="https://pulsarjs.org/media/chart.gif" alt="A line chart that scrolls with new values" width="480" loading="lazy">
+
+`draw` gets the data through `params` and redraws when it changes.
+
+```tsx
+import { App, Canvas, Column, Text, signal } from "pulsar"
+
+const points = signal(Array.from({ length: 40 }, () => 0.5))
+
+setInterval(() => {
+  const last = points.get().at(-1) ?? 0.5
+  const next = Math.min(0.95, Math.max(0.05, last + (Math.random() - 0.5) * 0.2))
+
+  points.set([...points.get().slice(1), next])
+}, 120)
+
+new App().window("main").render(() => (
+  <Column fillWidth fillHeight padding={24} gap={12}>
+    <Text text={`CPU ${Math.round((points.get().at(-1) ?? 0) * 100)}%`} size={20} />
+    <Canvas
+      fillWidth
+      fillHeight
+      params={{ points: points.get() }}
+      draw={(ctx, { width, height, params, colors }) => {
+        const step = width / (params.points.length - 1)
+
+        ctx.strokeStyle = colors.primary
+        ctx.lineWidth = 2
+        ctx.lineJoin = "round"
+        ctx.beginPath()
+        params.points.forEach((value, index) => ctx.lineTo(index * step, height * (1 - value)))
+        ctx.stroke()
+        ctx.lineTo(width, height)
+        ctx.lineTo(0, height)
+        ctx.globalAlpha = 0.15
+        ctx.fillStyle = colors.primary
+        ctx.fill()
+      }}
+    />
+  </Column>
+))
+```
+
+### Cards on a ring
+
+<img src="https://pulsarjs.org/media/orbit.gif" alt="Six labels circling on a tilted ring" width="480" loading="lazy">
+
+`Orbit` moves real nodes, so each card keeps its clicks and text.
+
+```tsx
+import { App, Box, Orbit, Text } from "pulsar"
+
+const apps = ["Mail", "Music", "Notes", "Maps", "Photos", "Files"]
+
+new App().window("main").render(() => (
+  <Orbit fill radiusX={220} radiusY={90} speed={4} depth={0.4}>
+    {apps.map((name) => (
+      <Box key={name} paddingX={14} paddingY={8} radius={10} color="#1d2030">
+        <Text text={name} color="#e4e6f0" />
+      </Box>
+    ))}
+  </Orbit>
+))
+```
 ## Which tool to use
 
 | You want                                         | Use                              |

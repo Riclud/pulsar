@@ -38,6 +38,143 @@ new App().window("main").render(() => (
 задаёт, как далеко она доходит, а `jitter` — насколько отклоняется. Кода анимации нет: молния
 мерцает на видеокарте сама.
 
+## Ещё примеры
+
+Каждый пример — целое приложение. Вставьте его в `src/main.tsx` нового проекта и запустите `pulsar dev`. На картинках тёмная тема.
+
+### Волна плеера
+
+<img src="https://pulsarjs.org/media/wave.gif" alt="Светящаяся фиолетовая волна под названием трека" width="480" loading="lazy">
+
+Готовая `Wave` под названием трека. Она движется на видеокарте и почти ничего не стоит.
+
+```tsx
+import { App, Column, Text, Wave } from "pulsar"
+
+new App().window("main").render(() => (
+  <Column fillWidth fillHeight padding={32} gap={8}>
+    <Text text="Midnight City" size={24} bold />
+    <Text text="M83" color="#7f8590" />
+    <Wave fillWidth height={64} color="#c084fc" amplitude={10} frequency={4} speed={3} glowRadius={10} />
+  </Column>
+))
+```
+
+### Стеклянные часы над сиянием
+
+<img src="https://pulsarjs.org/media/glass.gif" alt="Матовая карточка с часами над движущимся сиянием" width="480" loading="lazy">
+
+`glass` размывает первого ребёнка `Stack`, здесь это `Aurora`, и накладывает оттенок.
+
+```tsx
+import { App, Aurora, Column, Row, Stack, Text } from "pulsar"
+
+new App().window("main").render(() => (
+  <Stack fillWidth fillHeight>
+    <Aurora fill color="#2b1055" accent="#0f766e" speed={0.2} />
+    <Row fill justify="center" alignItems="center">
+      <Column padding={24} radius={20} gap={4} glass={{ blur: 40, tint: "#33ffffff" }} borderWidth={1} borderColor="#40ffffff">
+        <Text text="20:45" size={44} bold color="#ffffff" />
+        <Text text="Thursday, 6 November" color="#e4e4f0" />
+      </Column>
+    </Row>
+  </Stack>
+))
+```
+
+### Свой шейдер
+
+<img src="https://pulsarjs.org/media/pulse.gif" alt="Розовые кольца расходятся от центра" width="480" loading="lazy">
+
+Файл `.frag` рядом с приложением. Pulsar компилирует его при сохранении, а значения `uniform` приходят из TypeScript.
+
+```glsl
+// shaders/pulse.frag
+uniform vec4 color;
+uniform float rings;
+
+vec4 effect(vec2 uv) {
+    float radius = length(pixel - resolution / 2.0);
+    float ring = wave(radius / resolution.y, rings, 4.0) * 0.5 + 0.5;
+
+    return vec4(color.rgb, ring * glow(radius, resolution.y / 2.0));
+}
+```
+
+```tsx
+import { App, Shader } from "pulsar"
+
+new App().window("main").render(() => (
+  <Shader source="shaders/pulse.frag" fill uniforms={{ color: "#ff6ac1", rings: 3 }} />
+))
+```
+
+### Живой график на Canvas
+
+<img src="https://pulsarjs.org/media/chart.gif" alt="Линейный график, который сдвигается с новыми значениями" width="480" loading="lazy">
+
+`draw` получает данные через `params` и перерисовывается, когда они меняются.
+
+```tsx
+import { App, Canvas, Column, Text, signal } from "pulsar"
+
+const points = signal(Array.from({ length: 40 }, () => 0.5))
+
+setInterval(() => {
+  const last = points.get().at(-1) ?? 0.5
+  const next = Math.min(0.95, Math.max(0.05, last + (Math.random() - 0.5) * 0.2))
+
+  points.set([...points.get().slice(1), next])
+}, 120)
+
+new App().window("main").render(() => (
+  <Column fillWidth fillHeight padding={24} gap={12}>
+    <Text text={`CPU ${Math.round((points.get().at(-1) ?? 0) * 100)}%`} size={20} />
+    <Canvas
+      fillWidth
+      fillHeight
+      params={{ points: points.get() }}
+      draw={(ctx, { width, height, params, colors }) => {
+        const step = width / (params.points.length - 1)
+
+        ctx.strokeStyle = colors.primary
+        ctx.lineWidth = 2
+        ctx.lineJoin = "round"
+        ctx.beginPath()
+        params.points.forEach((value, index) => ctx.lineTo(index * step, height * (1 - value)))
+        ctx.stroke()
+        ctx.lineTo(width, height)
+        ctx.lineTo(0, height)
+        ctx.globalAlpha = 0.15
+        ctx.fillStyle = colors.primary
+        ctx.fill()
+      }}
+    />
+  </Column>
+))
+```
+
+### Карточки на кольце
+
+<img src="https://pulsarjs.org/media/orbit.gif" alt="Шесть подписей кружат по наклонному кольцу" width="480" loading="lazy">
+
+`Orbit` двигает настоящие узлы, поэтому каждая карточка сохраняет клики и текст.
+
+```tsx
+import { App, Box, Orbit, Text } from "pulsar"
+
+const apps = ["Mail", "Music", "Notes", "Maps", "Photos", "Files"]
+
+new App().window("main").render(() => (
+  <Orbit fill radiusX={220} radiusY={90} speed={4} depth={0.4}>
+    {apps.map((name) => (
+      <Box key={name} paddingX={14} paddingY={8} radius={10} color="#1d2030">
+        <Text text={name} color="#e4e6f0" />
+      </Box>
+    ))}
+  </Orbit>
+))
+```
 ## Что выбрать
 
 | Нужно                                              | Используйте                      |
