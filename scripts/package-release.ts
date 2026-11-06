@@ -157,9 +157,13 @@ for (const path of [...CLI_PATHS, "LICENSE", "THIRD_PARTY_NOTICES.md"]) {
 cpSync(join(cliStage, "bin"), join(full, "bin"), { recursive: true })
 cpSync(join(out, ".stage-fat"), full, { recursive: true })
 
-// winget needs a zip, so Windows gets one; tar on Windows runners writes zip with -a.
+// winget needs a zip. Only the Windows bsdtar writes one; Git Bash puts GNU tar first
+// on PATH, and it reads "D:" in a path as a remote host.
 if (process.platform === "win32") {
-  const zip = spawnSync("tar", ["-a", "-cf", join(out, `pulsar-${platform}.zip`), "-C", full, "."], { stdio: "inherit" })
+  const bsdtar = join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe")
+  const dest = relative(full, join(out, `pulsar-${platform}.zip`))
+
+  const zip = spawnSync(bsdtar, ["-a", "-cf", dest, "."], { cwd: full, stdio: "inherit" })
 
   if (zip.status !== 0) throw new Error("zip failed for the full package")
 } else {
