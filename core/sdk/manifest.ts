@@ -65,12 +65,18 @@ export interface AppManifest {
   singleInstance?: boolean
   /** Build targets; desktop only unless android is added explicitly. */
   targets?: Target[]
-  /** Runtime per target. Desktop defaults to bun, android to quickjs. */
+  /** Runtime per target. Desktop builds pick quickjs unless the code needs bun; mobile uses quickjs. */
   runtime?: RuntimeConfig
   /** Portable code is required when android is a target. */
   compat?: Compat
   /** Extra paths kept out of builds, using .gitignore syntax. */
   ignore?: string[]
+  /**
+   * Bundle the in-app video player (FFmpeg, about 20 MB) in desktop builds.
+   * Defaults to true when the app uses `media`. Without it videos open in the
+   * system player.
+   */
+  video?: boolean
 }
 
 const WINDOW_KEYS = [

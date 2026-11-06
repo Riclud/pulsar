@@ -45,6 +45,7 @@
 
 #ifdef PULSAR_HAS_MULTIMEDIA
 #include <QAudioOutput>
+#include <QMediaFormat>
 #include <QMediaPlayer>
 #endif
 
@@ -1136,6 +1137,10 @@ static bool isVideoPath(const QString &path)
 static bool playVideo(QQmlApplicationEngine &engine, const QString &path)
 {
     if (!isVideoPath(path))
+        return false;
+
+    // Apps built without FFmpeg have no decoder; the system player takes over.
+    if (QMediaFormat().supportedFileFormats(QMediaFormat::Decode).isEmpty())
         return false;
 
     if (!gVideoPlayer) {

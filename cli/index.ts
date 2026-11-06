@@ -108,6 +108,37 @@ const chooseDesktopEngine = async (
   return { engine: "bun", entry: resolveEntry(appDir, manifest, "desktop", "bun"), reasons: violations }
 }
 
+const MEDIA_USE = /\bmedia\s*\.\s*(load|play|toggle)\s*\(|\b(MediaPlayer|VideoOutput)\s*\{/
+const SOURCE_FILE = /\.(m?[jt]sx?|qml)$/
+const NOT_SOURCES = new Set(["node_modules", "dist", "build", ".git", ".pulsar"])
+
+/** Whether the app plays audio or video itself, so it needs FFmpeg. */
+const usesMedia = (appDir: string): boolean => {
+  const walk = (dir: string): boolean => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (NOT_SOURCES.has(entry.name)) continue
+
+      const path = join(dir, entry.name)
+
+      if (entry.isDirectory() && walk(path)) return true
+      if (entry.isFile() && SOURCE_FILE.test(entry.name) && MEDIA_USE.test(readFileSync(path, "utf8"))) return true
+    }
+
+    return false
+  }
+
+  return walk(appDir)
+}
+
+const describeVideo = (video: boolean): void => {
+  if (video) {
+    console.log("  video: the in-app player is bundled (FFmpeg, about 20 MB)")
+    return
+  }
+
+  console.log('  video: not bundled, videos open in the system player; set "video": true for the in-app player')
+}
+
 /** Says which engine the build uses, and why Bun is bundled when it is. */
 const describeEngine = (chosen: { engine: RuntimeKind; reasons: string[] }): void => {
   if (chosen.engine === "quickjs") {
@@ -200,7 +231,10 @@ const checkTarget = async (appDir: string, target: BuildTarget): Promise<void> =
   console.log(`  compat: ${compat}`)
   console.log(`  targets: ${targets.join(", ")}`)
 
-  if (target === "desktop") describeEngine(await chooseDesktopEngine(appDir, manifest))
+  if (target === "desktop") {
+    describeEngine(await chooseDesktopEngine(appDir, manifest))
+    describeVideo(manifest?.video ?? usesMedia(appDir))
+  }
 
   if (target === "android" && !targets.includes("android")) {
     console.error(`FAIL  android is not listed in targets (${targets.join(", ")})`)
@@ -552,25 +586,31 @@ const collectPayload = (appDir: string, manifest: AppManifest | null, skipOut: s
   return entries
 }
 
-/** Serialize entries into the container format read by `host/embedded.cpp`. */
-const encodeContainer = (entries: PayloadEntry[], buildId: bigint): Buffer => {
+/** Serialize entries into the container read by the launcher; each file is one zstd frame. */
+const encodeContainer = async (entries: PayloadEntry[], buildId: bigint): Promise<Buffer> => {
   const header = Buffer.alloc(20)
 
   header.write("PLSR", 0, "latin1")
-  header.writeUInt32LE(1, 4)
+  header.writeUInt32LE(2, 4)
   header.writeBigUInt64LE(buildId, 8)
   header.writeUInt32LE(entries.length, 16)
 
   const chunks: Buffer[] = [header]
 
-  for (const entry of entries) {
+  const packedAll = await Promise.all(entries.map((entry) => Bun.zstdCompress(entry.data, { level: 19 })))
+
+  for (const [index, entry] of entries.entries()) {
     const pathBuf = Buffer.from(entry.path, "utf8")
     const pathLen = Buffer.alloc(4)
     const dataLen = Buffer.alloc(8)
 
+    const packed = Buffer.from(packedAll[index]!)
+    const packedLen = Buffer.alloc(8)
+
     pathLen.writeUInt32LE(pathBuf.length, 0)
     dataLen.writeBigUInt64LE(BigInt(entry.data.length), 0)
-    chunks.push(pathLen, pathBuf, dataLen, entry.data)
+    packedLen.writeBigUInt64LE(BigInt(packed.length), 0)
+    chunks.push(pathLen, pathBuf, dataLen, packedLen, packed)
   }
 
   return Buffer.concat(chunks)
@@ -671,17 +711,19 @@ const build = async () => {
   const outDir = resolve(flagValue("--out") ?? flagValue("-o") ?? "dist")
   const name = launcherName(appDir)
   const chosen = await chooseDesktopEngine(appDir, manifest)
+  const video = manifest?.video ?? usesMedia(appDir)
 
   console.log(`pulsar: building ${basename(appDir)} -> ${join(outDir, name)}`)
   describeEngine(chosen)
+  describeVideo(video)
 
   const assembly = mkdtempSync(join(tmpdir(), "pulsar-build-"))
 
-  const pack = (entries: PayloadEntry[]) => {
-    if (!slim) collectQt(entries, host)
+  const pack = async (entries: PayloadEntry[]) => {
+    if (!slim) collectQt(entries, host, video)
 
     const buildId = fnv1a64(entries.map((e) => `${e.path}:${e.data.length}`))
-    const container = encodeContainer(entries, buildId)
+    const container = await encodeContainer(entries, buildId)
     const outerBytes = readFileSync(launcher)
     const trailer = Buffer.alloc(16)
 
@@ -711,7 +753,7 @@ const build = async () => {
         process.exit(1)
       }
 
-      pack([
+      await pack([
         { path: "bin/qml-host", data: readFileSync(host) },
         { path: "runtime.js", data: Buffer.from(await bundle.outputs[0]!.text()) },
         ...collectPayload(appDir, manifest, basename(outDir)),
@@ -756,7 +798,7 @@ const build = async () => {
 
     // The outer binary is the Qt-free launcher; it extracts the payload and
     // exec()s the bundled host (which loads the bundled Qt via its RPATH).
-    pack([
+    await pack([
       { path: "bin/qml-host", data: readFileSync(host) },
       { path: "bin/bridge", data: readFileSync(bridge) },
       { path: "runtime", data: readFileSync(runtimeOut) },
