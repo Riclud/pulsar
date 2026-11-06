@@ -660,8 +660,9 @@ public class PulsarActivity extends QtActivity {
                     values.put(MediaStore.Downloads.MIME_TYPE, mime);
                     values.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
 
-                    if (modifiedAT > 0)
-                        values.put(MediaStore.MediaColumns.DATE_MODIFIED, modifiedAT / 1000);
+                    // MediaStore stamps the write time on the file, so the entry stays pending
+                    // until the original time is set on the file itself.
+                    values.put(MediaStore.MediaColumns.IS_PENDING, 1);
 
                     Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
 
@@ -673,6 +674,13 @@ public class PulsarActivity extends QtActivity {
                                 ok = true;
                             }
                         }
+
+                        if (modifiedAT > 0) keepModified(uri, modifiedAT);
+
+                        ContentValues done = new ContentValues();
+
+                        done.put(MediaStore.MediaColumns.IS_PENDING, 0);
+                        getContentResolver().update(uri, done, null, null);
                     }
                 } else {
                     File directory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
@@ -694,6 +702,28 @@ public class PulsarActivity extends QtActivity {
 
             fileExported(ok);
         }).start();
+    }
+
+    private void keepModified(Uri uri, long modifiedAT) {
+        try (Cursor cursor = getContentResolver().query(uri, new String[] { MediaStore.MediaColumns.DATA }, null, null, null)) {
+            if (cursor == null || !cursor.moveToFirst()) return;
+
+            String file = cursor.getString(0);
+
+            if (file != null) new File(file).setLastModified(modifiedAT);
+        } catch (Exception ignored) {
+            // Without a file path the download keeps the time it was written.
+        }
+
+        ContentValues values = new ContentValues();
+
+        values.put(MediaStore.MediaColumns.DATE_MODIFIED, modifiedAT / 1000);
+
+        try {
+            getContentResolver().update(uri, values, null, null);
+        } catch (Exception ignored) {
+            // Some providers refuse DATE_MODIFIED; the file time set above still holds.
+        }
     }
 
     private static void copy(InputStream input, OutputStream output) throws Exception {

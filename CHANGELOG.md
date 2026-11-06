@@ -13,6 +13,13 @@ All notable changes to this project are documented here. The format follows
   Scoop and winget files, and `bun scripts/packaging.ts <version>` fills them in.
 - The CLI finds a toolchain shipped beside it, so packages need no `pulsar install`.
 
+### Fixed
+
+- `fs.exportTo` on Android 10 and later keeps the file's original modification time
+  in Downloads instead of the time it was written.
+- Wheel and touchpad scrolling follow a target every frame, so the speed no longer
+  jumps between wheel steps or with the touchpad's event rate.
+
 ## [2.0.0] - 2026-11-06
 
 ### Breaking
