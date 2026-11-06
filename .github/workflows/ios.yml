@@ -2,6 +2,7 @@ name: iOS (experimental)
 
 on:
   push:
+    branches: ["**"]
     paths-ignore:
       - "**/*.md"
       - "docs/**"
@@ -9,6 +10,12 @@ on:
       - "edge/**"
       - "LICENSE"
       - ".github/workflows/docs.yml"
+      - ".github/workflows/install.yml"
+      - ".github/workflows/android.yml"
+      - ".github/workflows/release.yml"
+      - "install.sh"
+      - "install.ps1"
+      - ".github/workflows/ci.yml"
   workflow_dispatch:
 
 jobs:
