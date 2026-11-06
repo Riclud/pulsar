@@ -32,11 +32,6 @@ pulsar dev
 
 Save a file and the open window updates.
 
-> [!NOTE]
-> These commands install the latest release, 1.4.0. JSX, the example below and the
-> window-keeping reload are on `main` and arrive with 2.0. To try them now,
-> [build from source](https://pulsarjs.org/install/#from-source).
-
 ```tsx
 import { App, Button, Column, Text, signal } from "pulsar"
 
@@ -57,7 +52,8 @@ new App().window("main").render(() => (
   `pulsar build --target android` makes a signed APK.
 - **Native rendering:** there is no Chromium, and animations, shaders, blur and glass
   are built in.
-- **Your choice of runtime on the desktop:** Bun or QuickJS. Android uses QuickJS.
+- **Small apps:** a desktop app runs on QuickJS and weighs about 30 MB. Bun or Node
+  go in only when your code needs them, and `pulsar check` tells you which.
 
 ## Platforms
 
