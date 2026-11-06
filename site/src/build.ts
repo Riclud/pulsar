@@ -288,7 +288,9 @@ const extractAnchors = (html: string, page: Page, anchors: Map<string, { page: P
 const pagesFor = (lang: Lang): Page[] => {
   const source = readFileSync(join(ROOT, lang === "en" ? "docs/reference.md" : "docs/reference.ru.md"), "utf8")
   const sections = splitSections(source).filter((section) => section.heading)
-  const enSections = splitSections(readFileSync(join(ROOT, "docs/reference.md"), "utf8")).filter((section) => section.heading)
+  const enSections = splitSections(readFileSync(join(ROOT, "docs/reference.md"), "utf8")).filter(
+    (section) => section.heading,
+  )
 
   return sections.map((section, index) => {
     const slug = slugs[index] ?? slugify((enSections[index]?.heading ?? section.heading).replace(/[`*]/g, ""))
@@ -423,7 +425,8 @@ const homeText = {
     fromWeb: "Coming from the web",
     sampleKicker: "Familiar from day one",
     sampleTitle: "If you know flexbox, you can already read this",
-    sampleText: "Functions or JSX tags, whichever you prefer, and props instead of CSS. Controls come ready, with their states and theme.",
+    sampleText:
+      "Functions or JSX tags, whichever you prefer, and props instead of CSS. Controls come ready, with their states and theme.",
     sampleTabs: "Code style",
     tasks: ["Buy coffee", "Call Anna", "Ship the update"],
     tasksTitle: "Tasks",
@@ -434,7 +437,8 @@ const homeText = {
     alignLabel: "alignItems",
     signalKicker: "Reactivity",
     signalTitle: "Only what changed runs again",
-    signalText: "A component records what it reads. Press a button: only the part that read that value renders, and the rest of the screen is not touched.",
+    signalText:
+      "A component records what it reads. Press a button: only the part that read that value renders, and the rest of the screen is not touched.",
     signalNames: ["Header", "Search", "Task list"],
     signalReads: ["reads count", "reads query", "reads tasks"],
     signalButtons: ["count + 1", "type in search", "add a task"],
@@ -467,7 +471,8 @@ const homeText = {
     fromWeb: "Если вы пришли из веба",
     sampleKicker: "Знакомо с первого дня",
     sampleTitle: "Если вы знаете flexbox, вы уже можете это читать",
-    sampleText: "Функции или JSX-теги, как вам удобнее, и свойства вместо CSS. Элементы управления уже готовы, с состояниями и темой.",
+    sampleText:
+      "Функции или JSX-теги, как вам удобнее, и свойства вместо CSS. Элементы управления уже готовы, с состояниями и темой.",
     sampleTabs: "Стиль кода",
     tasks: ["Купить кофе", "Позвонить Анне", "Выпустить обновление"],
     tasksTitle: "Задачи",
@@ -478,7 +483,8 @@ const homeText = {
     alignLabel: "alignItems",
     signalKicker: "Реактивность",
     signalTitle: "Запускается заново только то, что изменилось",
-    signalText: "Компонент запоминает, что прочитал. Нажмите кнопку: перерисуется только часть, прочитавшая это значение, а остальной экран останется нетронутым.",
+    signalText:
+      "Компонент запоминает, что прочитал. Нажмите кнопку: перерисуется только часть, прочитавшая это значение, а остальной экран останется нетронутым.",
     signalNames: ["Шапка", "Поиск", "Список задач"],
     signalReads: ["читает count", "читает query", "читает tasks"],
     signalButtons: ["count + 1", "ввод в поиске", "добавить задачу"],
@@ -487,7 +493,10 @@ const homeText = {
     features: [
       ["Нативная отрисовка", "Qt Quick рисует на GPU. Без Chromium и в настоящем нативном окне."],
       ["Компоненты и сигналы", "Локальное состояние, жизненный цикл и точечные обновления без правил хуков."],
-      ["Движение в рендерере", "Нажатие, появление, исчезновение и свайп остаются плавными, даже когда JavaScript занят."],
+      [
+        "Движение в рендерере",
+        "Нажатие, появление, исчезновение и свайп остаются плавными, даже когда JavaScript занят.",
+      ],
       ["Один код", "Linux, macOS, Windows и Android из одного TypeScript."],
       ["Вся ОС", "Файлы, сеть, защищённое хранилище, уведомления, трей, медиа и многое другое."],
       ["Удобно для агентов", "pulsar tap, type, expect, shot и eval управляют запущенным приложением по дереву UI."],
@@ -570,7 +579,22 @@ const homePage = (lang: Lang, md: ReturnType<typeof makeMarkdown>): Page => {
   const c = homeText[lang]
   const prefix = lang === "en" ? "" : "ru/"
   const local = (path: string) => sitePath(`${prefix}${path}`)
-  const install = "curl -fsSL https://get.pulsarjs.org | sh"
+  const installs: Array<[string, string, string]> = [
+    ["unix", "Linux & macOS", "curl -fsSL https://get.pulsarjs.org | sh"],
+    ["windows", "Windows", "iwr https://get.pulsarjs.org/install.ps1 -UseBasicParsing | iex"],
+  ]
+  const installTabs = installs
+    .map(
+      ([id, label], index) =>
+        `<button class="install-tab${index === 0 ? " is-active" : ""}" role="tab" aria-selected="${index === 0}" data-install-tab="${id}">${label}</button>`,
+    )
+    .join("")
+  const installPanels = installs
+    .map(
+      ([id, , command], index) =>
+        `<pre data-install-panel="${id}"${index === 0 ? "" : " hidden"}><code>${command}</code></pre>`,
+    )
+    .join("")
 
   const content = `<section class="hero">
   <canvas class="pulsar-canvas" aria-hidden="true"></canvas>
@@ -582,9 +606,9 @@ const homePage = (lang: Lang, md: ReturnType<typeof makeMarkdown>): Page => {
       <a class="btn btn-primary" href="${local("guide/")}">${c.start} <span aria-hidden="true">→</span></a>
       <a class="btn" href="${local("guide/web/")}">${c.fromWeb}</a>
     </div>
-    <div class="install">
-      <div class="install-head"><span>${t.install}</span><button class="copy" data-copy="${install}">${t.copy}</button></div>
-      <pre><code>curl -fsSL https://get.pulsarjs.org | sh</code></pre>
+    <div class="install" data-install>
+      <div class="install-head"><div class="install-tabs" role="tablist" aria-label="${t.install}">${installTabs}</div><button class="copy" data-copy="${installs[0]![2]}">${t.copy}</button></div>
+      ${installPanels}
     </div>
     <p class="home-platforms">Linux · macOS · Windows · Android</p>
   </div>
@@ -610,7 +634,10 @@ const homePage = (lang: Lang, md: ReturnType<typeof makeMarkdown>): Page => {
         <p class="phone-title">${c.tasksTitle}</p>
         <p class="phone-sub">${c.tasksLeft}</p>
         ${c.tasks
-          .map((task, index) => `<div class="phone-row${index === 0 ? " is-done" : ""}${index === 1 ? " is-swiping" : ""}"><span class="phone-check"></span><span>${task}</span></div>`)
+          .map(
+            (task, index) =>
+              `<div class="phone-row${index === 0 ? " is-done" : ""}${index === 1 ? " is-swiping" : ""}"><span class="phone-check"></span><span>${task}</span></div>`,
+          )
           .join("")}
       </div>
     </div>
@@ -648,7 +675,10 @@ const homePage = (lang: Lang, md: ReturnType<typeof makeMarkdown>): Page => {
   <div class="signals" data-signals data-label="${c.signalRenders}">
     <div class="signal-grid">
       ${c.signalNames
-        .map((name, index) => `<div class="signal-card" data-card="${index}"><p class="signal-name">${name}</p><p class="signal-reads">${c.signalReads[index]}</p><p class="signal-count"><b>1</b> ${c.signalRenders}</p></div>`)
+        .map(
+          (name, index) =>
+            `<div class="signal-card" data-card="${index}"><p class="signal-name">${name}</p><p class="signal-reads">${c.signalReads[index]}</p><p class="signal-count"><b>1</b> ${c.signalRenders}</p></div>`,
+        )
         .join("")}
     </div>
     <div class="signal-actions">

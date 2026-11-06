@@ -629,6 +629,33 @@ const initCopyButtons = (root: ParentNode = document) => {
     })
   })
 
+  root.querySelectorAll<HTMLElement>("[data-install]").forEach((install) => {
+    if (install.dataset.bound === "1") return
+    install.dataset.bound = "1"
+
+    const tabs = install.querySelectorAll<HTMLButtonElement>("[data-install-tab]")
+    const copy = install.querySelector<HTMLButtonElement>("[data-copy]")
+
+    const select = (id: string) => {
+      tabs.forEach((tab) => {
+        const active = tab.dataset.installTab === id
+
+        tab.classList.toggle("is-active", active)
+        tab.setAttribute("aria-selected", String(active))
+      })
+
+      install.querySelectorAll<HTMLElement>("[data-install-panel]").forEach((panel) => {
+        panel.hidden = panel.dataset.installPanel !== id
+
+        if (!panel.hidden && copy) copy.dataset.copy = panel.textContent?.trim() ?? ""
+      })
+    }
+
+    tabs.forEach((tab) => tab.addEventListener("click", () => select(tab.dataset.installTab ?? "unix")))
+
+    if (/Windows/i.test(navigator.userAgent)) select("windows")
+  })
+
   root.querySelectorAll<HTMLButtonElement>("[data-copy]").forEach((button) => {
     if (button.dataset.bound === "1") return
     button.dataset.bound = "1"
