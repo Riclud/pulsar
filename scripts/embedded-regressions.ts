@@ -24,6 +24,14 @@ const binary =
 
 const desktopBinary = join(root, "build", "bin", process.platform === "win32" ? "qml-host.exe" : "qml-host")
 
+const cryptoWorks = (output: string) => {
+  return (
+    output.includes("CRYPTO_RANDOM 24 true") &&
+    output.includes("CRYPTO_PBKDF2 xeR41ZKIyEGqUw22hFxMjZYok6ABzk4RpJY4c6qYE0o=") &&
+    output.includes("CRYPTO_REJECTED null")
+  )
+}
+
 const slowStream = () => {
   let sent = 0
 
@@ -265,6 +273,16 @@ const scenarios: Scenario[] = [
         output.includes("FETCH_LIMITED ERR_TOO_LARGE")
       )
     },
+  },
+  {
+    name: "crypto",
+    check: (output) => cryptoWorks(output),
+  },
+  {
+    name: "crypto-desktop",
+    fixture: "crypto",
+    desktop: true,
+    check: (output) => cryptoWorks(output),
   },
   {
     name: "late-catch",

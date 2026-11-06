@@ -13,8 +13,8 @@ const matches = (text: string, pattern: RegExp) => {
 }
 
 const runtimeSource = read("core/runtime/core.ts", "core/runtime/framing.ts", "core/sdk/net.ts", "core/sdk/app.ts")
-const desktopSource = read("host/main.cpp", "host/bridge.cpp")
-const embeddedSource = read("host/embedded/bridge.cpp")
+const desktopSource = read("host/main.cpp", "host/bridge.cpp", "host/crypto.h")
+const embeddedSource = read("host/embedded/bridge.cpp", "host/crypto.h")
 const hostMethodPattern = /"(__[a-z-]+)"/g
 
 const runtimeMethods = matches(runtimeSource, /method: "(__[a-z-]+)"/g)

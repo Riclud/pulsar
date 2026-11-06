@@ -12,6 +12,8 @@ All notable changes to this project are documented here. The format follows
   toolchain together, for system package managers. `packaging/` has the AUR, Homebrew,
   Scoop and winget files, and `bun scripts/packaging.ts <version>` fills them in.
 - The CLI finds a toolchain shipped beside it, so packages need no `pulsar install`.
+- `crypto.randomBytes` and `crypto.pbkdf2` give native random bytes and PBKDF2-SHA256,
+  so QuickJS apps can derive keys from a password without a multi-second pause.
 
 ### Fixed
 

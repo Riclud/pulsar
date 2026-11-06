@@ -206,6 +206,9 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
     return Promise.resolve(true)
   })
 
+  registerCapability("crypto.random", (params) => hostQuery("crypto.random", params))
+  registerCapability("crypto.pbkdf2", (params) => hostQuery("crypto.pbkdf2", params))
+
   registerCapability("clipboard.read", () => hostQuery("clipboard.read"))
   registerCapability("clipboard.write", (params) => hostQuery("clipboard.write", params))
 

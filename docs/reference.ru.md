@@ -451,6 +451,7 @@ import {
   shell,
   storage,
   secureStorage,
+  crypto,
   dialog,
   notify,
   screen,
@@ -978,6 +979,19 @@ if (await secureStorage.available()) {
 `secret-tool`). Значения — строки UTF-8; объекты сначала сериализуйте в JSON.
 В Windows данные шифруются DPAPI для текущего пользователя; в macOS и Linux
 доступ контролирует системный keychain.
+
+`crypto` даёт нативные примитивы, которых нет в QuickJS: системный источник
+случайных байтов и PBKDF2-HMAC-SHA256, который на чистом JS занял бы секунды.
+Байты передаются строками base64, ключ считается вне UI-потока. Разрешение не нужно.
+
+```ts
+import { crypto } from "pulsar"
+
+const salt = await crypto.randomBytes(16)
+const key = await crypto.pbkdf2({ password, salt, iterations: 600_000 }) // base64 или null при неверных данных
+```
+
+Для шифрования используйте вместе с чистым JS-шифром, например `@noble/ciphers`.
 
 ### Логирование
 

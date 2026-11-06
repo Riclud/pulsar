@@ -222,6 +222,28 @@ export const secureStorage = {
   remove: (key: string): Promise<boolean> => callCapability("secure.remove", { key }) as Promise<boolean>,
 }
 
+export type PBKDF2Options = {
+  readonly password: string
+  /** Base64 salt, at least 16 random bytes. */
+  readonly salt: string
+  readonly iterations: number
+  /** Key length in bytes, 32 by default. */
+  readonly length?: number
+}
+
+/**
+ * Native crypto primitives the in-process engines lack: a system random source and
+ * PBKDF2-HMAC-SHA256, which is far too slow in pure JS on QuickJS. Bytes travel as base64.
+ */
+export const crypto = {
+  randomBytes: (length: number): Promise<string> => {
+    return callCapability("crypto.random", { length }) as Promise<string>
+  },
+  pbkdf2: (options: PBKDF2Options): Promise<string | null> => {
+    return callCapability("crypto.pbkdf2", { ...options }) as Promise<string | null>
+  },
+}
+
 export interface NotifyAction {
   id: string
   title: string

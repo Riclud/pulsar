@@ -60,6 +60,7 @@
 #include "recent.h"
 #include "screen_info.h"
 #include "secure.h"
+#include "crypto.h"
 
 static bool gErrorShown = false;
 static bool gWatch = false;
@@ -1035,6 +1036,20 @@ static void handleQuery(Bridge *bridge, const QVariantMap &m)
 
     QJsonObject params;
     params.insert(QStringLiteral("token"), token);
+
+    if (pulsar::isCryptoQuery(kind)) {
+        QPointer<Bridge> target = bridge;
+
+        pulsar::cryptoQuery(kind, m, [target, params](const QJsonValue &value) mutable {
+            if (!target)
+                return;
+
+            params.insert(QStringLiteral("value"), value);
+            target->notify(QStringLiteral("__query-result"), params);
+        });
+
+        return;
+    }
 
     if (kind == QLatin1String("screen.list")) {
         params.insert(QStringLiteral("value"), pulsar::screenList());

@@ -451,6 +451,7 @@ import {
   shell,
   storage,
   secureStorage,
+  crypto,
   dialog,
   notify,
   screen,
@@ -973,6 +974,19 @@ if (await secureStorage.available()) {
 without `secret-tool`). Values are UTF-8 strings; serialize objects to JSON
 first. On Windows the blob is encrypted with DPAPI for the current user; on
 macOS and Linux access control is enforced by the OS keychain.
+
+`crypto` gives the native primitives that QuickJS lacks: a system random source
+and PBKDF2-HMAC-SHA256, which would take seconds in pure JS. Bytes travel as
+base64 strings, and the key is derived off the UI thread. It needs no permission.
+
+```ts
+import { crypto } from "pulsar"
+
+const salt = await crypto.randomBytes(16)
+const key = await crypto.pbkdf2({ password, salt, iterations: 600_000 }) // base64, or null on bad input
+```
+
+Pair it with a pure-JS cipher such as `@noble/ciphers` for encryption.
 
 ### Logging
 

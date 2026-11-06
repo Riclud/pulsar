@@ -26,6 +26,8 @@
 
 #include <cstdio>
 
+#include "../crypto.h"
+
 static QJsonValue secureQuery(const QString &kind, const QJsonObject &params)
 {
 #ifdef Q_OS_ANDROID
@@ -633,6 +635,20 @@ void EmbeddedBridge::handleMessage(const QJsonObject &message)
 
         QJsonObject replyParams;
         replyParams.insert(QStringLiteral("token"), params.value(QStringLiteral("token")));
+
+        if (pulsar::isCryptoQuery(kind)) {
+            QPointer<EmbeddedBridge> self = this;
+
+            pulsar::cryptoQuery(kind, params.toVariantMap(), [self, replyParams](const QJsonValue &value) mutable {
+                if (!self)
+                    return;
+
+                replyParams.insert(QStringLiteral("value"), value);
+                self->reply(QStringLiteral("__query-result"), replyParams);
+            });
+
+            return;
+        }
 
         if (kind == QLatin1String("permissions.request") || kind == QLatin1String("permissions.check")) {
             const QString name = params.value(QStringLiteral("name")).toString();
