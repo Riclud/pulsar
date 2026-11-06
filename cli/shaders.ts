@@ -128,12 +128,20 @@ void main() {
 `
 }
 
+const androidHostQsb = (): string[] => {
+  const base = join(homedir(), ".local/share/pulsar/android/qt")
+
+  if (!existsSync(base)) return []
+
+  return globSync(join(base, "*/gcc_64/bin/qsb"))
+}
+
 export const findQsb = (): string | null => {
   const candidates = [
     process.env.PULSAR_QSB,
     join(toolchainCurrent(), "lib", "Qt", "bin", "qsb"),
     join(toolchainCurrent(), "bin", "qsb.exe"),
-    ...globSync(join(homedir(), ".local/share/pulsar/android/qt/*/gcc_64/bin/qsb")),
+    ...androidHostQsb(),
     "/usr/lib/qt6/bin/qsb",
     "/usr/lib/qt6/qsb",
   ]

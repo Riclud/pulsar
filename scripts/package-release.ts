@@ -31,7 +31,14 @@ rmSync(out, { recursive: true, force: true })
 mkdirSync(out, { recursive: true })
 
 // --- CLI distribution ---
-tar(`pulsar-cli-${platform}.tar.gz`, root, ["cli", "core", "CMakeLists.txt", "package.json", "host", "bridge", "launcher", "android"])
+// The runtime takes its JSX settings from the tsconfig.json next to it, so the
+// archive ships one that points JSX at the bundled SDK.
+if (!readFileSync(join(root, "tsconfig.json"), "utf8").includes('"jsxImportSource": "pulsar"')) {
+  throw new Error("tsconfig.json must set jsxImportSource to pulsar")
+}
+
+
+tar(`pulsar-cli-${platform}.tar.gz`, root, ["cli", "core", "CMakeLists.txt", "package.json", "tsconfig.json", "host", "bridge", "launcher", "android"])
 
 // --- Toolchain ---
 const qmlHost = join(root, "build", "bin", `qml-host${exe}`)

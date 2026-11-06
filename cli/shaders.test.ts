@@ -62,3 +62,14 @@ describe.if(findQsb() !== null)("compileShader", () => {
     expect(readFileSync(join(root, "a.frag"), "utf8")).toBe(SHORT)
   })
 })
+
+describe("findQsb", () => {
+  test("does not throw for a fresh home without the Android toolchain", () => {
+    const home = mkdtempSync(join(tmpdir(), "pulsar-home-"))
+    const script = `import { findQsb } from ${JSON.stringify(join(import.meta.dir, "shaders.ts"))}; findQsb()`
+    const run = Bun.spawnSync(["bun", "-e", script], { env: { ...process.env, HOME: home } })
+
+    expect(run.stderr.toString()).not.toContain("ENOENT")
+    expect(run.exitCode).toBe(0)
+  })
+})

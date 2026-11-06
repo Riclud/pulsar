@@ -134,6 +134,10 @@ All notable changes to this project are documented here. The format follows
   system Qt and the xcb platform plugin starts.
 - `For` and `Scroll` inside `Page` or another `Scroll` grow with their content instead
   of getting no height and showing nothing.
+- JSX apps start from an installed CLI. The archive was missing the `tsconfig.json`
+  that tells Bun to use `pulsar` for JSX, so they failed with `react/jsx-dev-runtime`.
+- `pulsar dev` no longer crashes on an app with shaders when the Android toolchain is
+  not installed.
 
 ### Dev
 
