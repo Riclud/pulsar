@@ -1,6 +1,7 @@
 import { createHash } from "crypto"
 import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync } from "fs"
-import { basename, join, relative, resolve, sep } from "path"
+import { spawnSync } from "child_process"
+import { basename, dirname, join, relative, resolve, sep } from "path"
 
 /** GitHub repository that hosts the releases. */
 export const REPO = process.env.PULSAR_REPO ?? "riclud/pulsar"
@@ -10,8 +11,48 @@ export const pulsarRoot = (): string => {
   const source = process.env.PULSAR_SOURCE
 
   if (source) return resolve(source)
+  if (isCompiled()) return resolve(dirname(process.execPath), "..")
 
   return resolve(import.meta.dir, "..")
+}
+
+/** True when this is the single-file `pulsar` binary, which carries Bun inside. */
+export const isCompiled = (): boolean => /\$bunfs|~BUN/.test(import.meta.dir)
+
+/**
+ * How to run Bun: the binary that runs this CLI. The single-file `pulsar`
+ * acts as Bun when `BUN_BE_BUN` is set, so no separate Bun is needed.
+ */
+export const bunCommand = (): { path: string; env: NodeJS.ProcessEnv } => {
+  return { path: process.execPath, env: isCompiled() ? { ...process.env, BUN_BE_BUN: "1" } : process.env }
+}
+
+const LOCK_FILES: Array<[string, string]> = [
+  ["package-lock.json", "npm"],
+  ["pnpm-lock.yaml", "pnpm"],
+  ["yarn.lock", "yarn"],
+]
+
+/**
+ * Installs the app's packages when `node_modules` is missing, with the package
+ * manager its lock file belongs to, or with the built-in Bun otherwise.
+ */
+export const installDependencies = (appDir: string, force = false): void => {
+  if (!force && existsSync(join(appDir, "node_modules"))) return
+  if (!existsSync(join(appDir, "package.json"))) return
+
+  const manager = LOCK_FILES.find(([file]) => existsSync(join(appDir, file)))?.[1]
+
+  if (
+    manager &&
+    spawnSync(manager, ["install"], { cwd: appDir, stdio: "inherit", shell: process.platform === "win32" }).status === 0
+  ) {
+    return
+  }
+
+  const bun = bunCommand()
+
+  spawnSync(bun.path, ["install"], { cwd: appDir, stdio: "inherit", env: bun.env })
 }
 
 /** Directory of the SDK shipped with the active distribution. */
@@ -45,7 +86,7 @@ export const linkSdk = (target: string, sdk = sdkDir()): void => {
 /** Version of the running CLI. */
 export const cliVersion = (): string => {
   try {
-    const pkg = JSON.parse(readFileSync(join(import.meta.dir, "package.json"), "utf8")) as { version?: string }
+    const pkg = JSON.parse(readFileSync(join(pulsarRoot(), "cli", "package.json"), "utf8")) as { version?: string }
 
     return pkg.version ?? "0.0.0"
   } catch {

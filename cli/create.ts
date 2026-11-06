@@ -1,7 +1,6 @@
-import { spawnSync } from "child_process"
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "fs"
 import { join, relative, resolve } from "path"
-import { flag, linkSdk, pulsarRoot } from "./core.ts"
+import { flag, installDependencies, linkSdk, pulsarRoot } from "./core.ts"
 
 const TEXT_EXT = new Set([".ts", ".tsx", ".js", ".json", ".qml", ".md", ".txt", ".html", ".css", ".yml", ".yaml"])
 
@@ -87,11 +86,10 @@ export const create = (args: string[]): void => {
 
   copyTemplate(templateDir, target, { "{{name}}": name, "{{id}}": id, "{{title}}": title })
 
-  // Install (no remote deps yet) then link the local SDK. Order matters:
-  // bun install may prune node_modules.
-  spawnSync(process.execPath, ["install"], { cwd: target, stdio: "ignore" })
+  // Install, then link the local SDK. Order matters: an install may prune node_modules.
+  installDependencies(target, true)
   linkSdk(target)
 
   console.log(`pulsar: created ${target} (template: ${template})`)
-  console.log(`  cd ${relative(process.cwd(), target) || "."} && bun run dev`)
+  console.log(`  cd ${relative(process.cwd(), target) || "."} && pulsar dev`)
 }

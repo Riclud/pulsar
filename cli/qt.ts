@@ -2,6 +2,7 @@ import { spawnSync } from "child_process"
 import { existsSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, statSync } from "fs"
 import { tmpdir } from "os"
 import { basename, dirname, join, resolve } from "path"
+import { pulsarRoot } from "./core.ts"
 
 export type PayloadEntry = {
   path: string
@@ -332,7 +333,7 @@ const windowsQtFiles = (hostPath: string, tools: string[]): QtFile[] | null => {
   const binsDir = qmakeQuery("QT_INSTALL_BINS")
   const windeployqt = binsDir ? join(binsDir, "windeployqt.exe") : "windeployqt"
   const stage = mkdtempSync(join(tmpdir(), "pulsar-qt-"))
-  const qmlRoot = join(dirname(import.meta.dir), "host", "qml")
+  const qmlRoot = join(pulsarRoot(), "host", "qml")
   const args = ["--release", "--no-translations", "--no-compiler-runtime", "--dir", stage]
 
   if (existsSync(qmlRoot)) args.push("--qmldir", qmlRoot)

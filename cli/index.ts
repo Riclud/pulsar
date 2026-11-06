@@ -26,7 +26,17 @@ import {
   type RuntimeKind,
 } from "../core/sdk/manifest.ts"
 import { compileAppShaders, watchAppShaders } from "./shaders.ts"
-import { cliVersion, findBridge, findHost, findLauncher, linkSdk, pulsarRoot, toolchainVersion } from "./core.ts"
+import {
+  bunCommand,
+  cliVersion,
+  findBridge,
+  findHost,
+  findLauncher,
+  installDependencies,
+  linkSdk,
+  pulsarRoot,
+  toolchainVersion,
+} from "./core.ts"
 import { ANDROID_QT_VERSION, buildAndroid, bundleRuntime, installAndroid } from "./android.ts"
 import { buildIos } from "./ios.ts"
 import { launcherName, readManifest, resolveEntry, type BuildTarget } from "./app.ts"
@@ -99,6 +109,12 @@ const chooseDesktopEngine = async (
   const violations = await auditPortable(entry)
 
   if (violations.length === 0) return { engine: "quickjs", entry, reasons: [] }
+
+  if (manifestCompat(manifest) === "portable") {
+    for (const violation of violations) console.error(`pulsar: not portable: ${violation}`)
+    console.error('  the manifest sets "compat": "portable", usually because it targets Android')
+    process.exit(1)
+  }
 
   if (forced === "quickjs") {
     for (const violation of violations) console.error(`pulsar: not available on QuickJS: ${violation}`)
@@ -329,20 +345,9 @@ const warnToolchain = (): void => {
     console.warn(`pulsar: toolchain ${toolchain} != CLI ${cli}; run \`pulsar update\` or set PULSAR_SOURCE`)
 }
 
-const run = () => {
-  const appDir = process.cwd()
-
-  warnToolchain()
-  linkSdk(appDir, join(pulsarRoot(), "core", "sdk"))
-  compileAppShaders(appDir)
-
-  const host = findHost()
-  const r = spawnSync(host, [], {
-    stdio: "inherit",
-    env: { ...process.env, PULSAR_APP: appDir, PULSAR_ROOT: pulsarRoot() },
-  })
-
-  process.exit(r.status ?? 0)
+/** Run the app once, on the engine its build would use. */
+const run = async () => {
+  await runDesktop(process.cwd(), false)
 }
 
 /** Run with hot reload: watch app sources and restart the runtime on change. */
@@ -375,22 +380,36 @@ const dev = async () => {
     return
   }
 
+  await runDesktop(appDir, true)
+}
+
+/** Runs the app on the desktop host, on the same engine as its build. */
+const runDesktop = async (appDir: string, watchMode: boolean): Promise<void> => {
   warnToolchain()
+  installDependencies(appDir)
   linkSdk(appDir, join(pulsarRoot(), "core", "sdk"))
   compileAppShaders(appDir)
-  watchAppShaders(appDir)
+
+  if (watchMode) watchAppShaders(appDir)
 
   const host = findHost()
   const manifest = readManifest(appDir)
   const chosen = await chooseDesktopEngine(appDir, manifest)
 
-  console.log(`pulsar: dev mode (watching for changes, host ${host})`)
+  if (watchMode) console.log(`pulsar: dev mode (watching for changes, host ${host})`)
   describeEngine(chosen)
 
   if (chosen.engine === "bun") {
+    const bun = bunCommand()
     const r = spawnSync(host, [], {
       stdio: "inherit",
-      env: { ...process.env, PULSAR_APP: appDir, PULSAR_ROOT: pulsarRoot(), PULSAR_WATCH: "1" },
+      env: {
+        ...bun.env,
+        BUN_BIN: bun.path,
+        PULSAR_APP: appDir,
+        PULSAR_ROOT: pulsarRoot(),
+        ...(watchMode ? { PULSAR_WATCH: "1" } : {}),
+      },
     })
 
     process.exit(r.status ?? 0)
@@ -416,10 +435,13 @@ const dev = async () => {
   }
 
   await rebundle()
-  watchSources(appDir, manifest, () => {
-    console.error("[pulsar] change detected; reloading")
-    void rebundle()
-  })
+
+  if (watchMode) {
+    watchSources(appDir, manifest, () => {
+      console.error("[pulsar] change detected; reloading")
+      void rebundle()
+    })
+  }
 
   const child = Bun.spawn([host], {
     stdio: ["inherit", "inherit", "inherit"],
@@ -427,7 +449,7 @@ const dev = async () => {
       ...process.env,
       PULSAR_APP: appDir,
       PULSAR_ROOT: pulsarRoot(),
-      PULSAR_WATCH: "1",
+      ...(watchMode ? { PULSAR_WATCH: "1" } : {}),
       PULSAR_QUICKJS_BUNDLE: bundleFile,
     },
   })
@@ -697,6 +719,7 @@ const build = async () => {
   const root = pulsarRoot()
   const runtimeTs = join(root, "core", "runtime", "main.ts")
 
+  installDependencies(appDir)
   linkSdk(appDir, join(root, "core", "sdk"))
   compileAppShaders(appDir)
 
@@ -786,9 +809,10 @@ const build = async () => {
     )
 
     const runtimeOut = join(assembly, process.platform === "win32" ? "runtime.exe" : "runtime")
-    const compile = spawnSync(process.execPath, ["build", entryPath, "--compile", "--outfile", runtimeOut], {
+    const compile = spawnSync(bunCommand().path, ["build", entryPath, "--compile", "--outfile", runtimeOut], {
       cwd: appDir,
       stdio: "inherit",
+      env: bunCommand().env,
     })
 
     if (compile.status !== 0 || !existsSync(runtimeOut)) {
@@ -889,7 +913,7 @@ switch (cmd) {
     await dev()
     break
   case "run":
-    run()
+    await run()
     break
   case "init":
     init()
