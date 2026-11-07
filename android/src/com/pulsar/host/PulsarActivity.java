@@ -463,6 +463,7 @@ public class PulsarActivity extends QtActivity {
     }
 
     public void scanCode(String token, String title, String cancel) {
+        android.util.Log.i("PulsarScanner", "scan requested");
         runOnUiThread(() -> {
             try {
                 Intent intent = new Intent(this, Class.forName(SCANNER_CLASS));
@@ -476,7 +477,9 @@ public class PulsarActivity extends QtActivity {
 
                 scanToken = token;
                 startActivityForResult(intent, SCAN_REQUEST);
-            } catch (Exception error) {
+            } catch (Throwable error) {
+                android.util.Log.w("PulsarScanner", "cannot open the scanner", error);
+                scanToken = null;
                 queryResult(token, null);
             }
         });
