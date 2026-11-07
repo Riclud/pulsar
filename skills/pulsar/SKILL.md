@@ -7,9 +7,14 @@ description: Build, run and test Pulsar apps (native desktop and Android apps in
 
 Pulsar apps are TypeScript (or TSX) that build a UI tree. A native Qt host draws it with no
 browser. One codebase runs on Linux, macOS, Windows and Android. This file covers what you
-need day to day. The full API is in `reference.md`, state and components in
-`components.md`, and layout in `ui.md`, all next to this file. Read them before guessing
-an API.
+need day to day. Next to this file:
+- `recipes.md`: working patterns for lists, storage, screens, forms, network, settings,
+  files, notifications and layouts. Start from these.
+- `reference.md`: the full API.
+- `components.md`: state and components.
+- `ui.md`: layout.
+
+Read them before guessing an API.
 
 ## Commands
 

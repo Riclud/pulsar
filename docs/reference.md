@@ -886,8 +886,8 @@ player: on Android always, on desktop when the Qt install has QtMultimedia
 desktop (`QDesktopServices`) or `ACTION_VIEW` on Android. `fs.exportTo(path, name?)` copies a file out of
 the app sandbox into the user's Downloads folder; on Android it opens the SAF
 save dialog and returns `true` once the copy succeeded. Both return
-`Promise<boolean>`. `dialog.toast(text)` shows a short Android toast; on
-desktop it is a no-op that resolves `true`.
+`Promise<boolean>`. `dialog.toast(text)` shows a short toast: the native one on
+Android, and one drawn at the bottom of the window on the desktop.
 
 Native dialogs live in `dialog`:
 

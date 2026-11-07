@@ -16,7 +16,7 @@
     "test": "bun test core cli && bun scripts/portable.ts && bun scripts/embedded.ts && bun scripts/embedded-qml.ts && bun scripts/embedded-regressions.ts && bun scripts/error-overlay.ts && bun scripts/smoke.ts",
     "test:unit": "bun test core",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
+    "lint": "eslint . && bun scripts/check-recipes.ts",
     "version:check": "bun scripts/version-check.ts",
     "fmt": "bun run fmt:ts && bun run fmt:qml",
     "fmt:ts": "prettier --write .",
