@@ -5982,6 +5982,12 @@ ApplicationWindow {
                     emitEvent(item.pulsarMeta.node, "click");
             });
         } else if (node.type === "textInput" || node.type === "textArea") {
+            if (node.type === "textArea") {
+                item.cursorRectangleChanged.connect(function () {
+                    if (item.activeFocus)
+                        view.revealCursor(item);
+                });
+            }
             item.textChanged.connect(function () {
                 if (item.pulsarMeta.syncing === true)
                     return;
@@ -7286,8 +7292,15 @@ ApplicationWindow {
             } else {
                 item.wrapMode = TextEdit.Wrap;
 
-                if (props.lines !== undefined && props.height === undefined)
-                    item.Layout.preferredHeight = props.lines * 24;
+                // `lines` is the starting height; the area grows with its text so the
+                // cursor never drops below the field onto the controls under it.
+                if (props.lines !== undefined && props.height === undefined) {
+                    const minimum = props.lines * 24;
+
+                    item.Layout.preferredHeight = Qt.binding(function () {
+                        return Math.max(minimum, item.implicitHeight);
+                    });
+                }
             }
 
             syncFieldText(item, prop(props, "value", ""));
@@ -7712,6 +7725,31 @@ ApplicationWindow {
         const top = item.mapToItem(flick, 0, 0).y;
         const bottom = top + item.height;
         const margin = 16;
+
+        if (top >= margin && bottom + margin <= flick.height)
+            return;
+
+        const maxY = Math.max(0, flick.contentHeight - flick.height);
+        const target = top < margin
+                ? flick.contentY + top - margin
+                : flick.contentY + bottom + margin - flick.height;
+
+        revealMotion.target = flick;
+        revealMotion.to = Math.min(maxY, Math.max(0, target));
+        revealMotion.restart();
+    }
+
+    // A growing text area can push its cursor below the visible part of the page.
+    function revealCursor(item) {
+        const flick = scrollAncestor(item);
+
+        if (!flick || flick.height <= 0 || flick.dragging)
+            return;
+
+        const rect = item.cursorRectangle;
+        const top = item.mapToItem(flick, rect.x, rect.y).y;
+        const bottom = top + rect.height;
+        const margin = 24;
 
         if (top >= margin && bottom + margin <= flick.height)
             return;
