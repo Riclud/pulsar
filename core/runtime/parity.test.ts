@@ -22,7 +22,7 @@ const runtimeQueries = matches(runtimeSource, /hostQuery\("([a-zA-Z.]+)"/g)
 const queryPattern = /kind == QLatin1String\("([a-zA-Z.]+)"\)/g
 
 const desktopOnly = ["__menu", "__recent", "__tray", "__reload"]
-const androidOnly = ["__notify-channel", "__toast"]
+const androidOnly = ["__notify-channel"]
 const appliedFromAnyDesktopNotification = ["__state"]
 const queriesWithoutEmbeddedSupport = ["system.power"]
 

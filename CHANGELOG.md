@@ -12,6 +12,7 @@ All notable changes to this project are documented here. The format follows
   `key`, `eval`, `shot` and the new `hover`, `scroll` and `keys`. Taps, hovers, wheel turns
   and keys reach the window as real input, so hover and press states behave as with a mouse.
 - Device commands find icon buttons by their `a11yLabel`.
+- `dialog.toast` shows a toast on the desktop too, at the bottom of the window.
 
 ## [2.1.0] - 2026-11-07
 

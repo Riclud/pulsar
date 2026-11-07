@@ -70,6 +70,7 @@ static QFileSystemWatcher *gWatcher = nullptr;
 static QFileSystemWatcher *gAppWatcher = nullptr;
 static Bridge *gBridge = nullptr;
 static DevChannel *gDevChannel = nullptr;
+static qint64 g_toastSeq = 0;
 static pulsar::NetworkService *gNet = nullptr;
 static PowerMonitor *gPower = nullptr;
 // Keychain entries are scoped to the app id; set once from pulsar.json.
@@ -1816,6 +1817,14 @@ int main(int argc, char **argv)
 
                              if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
                                  qInfo().noquote() << "UI patch" << target << "ops=" << patches.size();
+                         } else if (method == QLatin1String("__toast")) {
+                             QVariantMap toast;
+
+                             toast.insert(QStringLiteral("seq"), QVariant::fromValue(++g_toastSeq));
+                             toast.insert(QStringLiteral("text"), params.toVariant().toMap().value(QStringLiteral("text")));
+
+                             if (QObject *root = g_roots.value(QStringLiteral("main")))
+                                 root->setProperty("toastRequest", toast);
                          } else if (method == QLatin1String("__query")) {
                              handleQuery(bridge, params.toVariant().toMap());
                         } else if (method == QLatin1String("__theme")) {

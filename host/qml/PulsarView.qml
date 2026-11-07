@@ -31,6 +31,8 @@ ApplicationWindow {
     property var tree: []
     property var uiTree: []
     property var uiPatch: null
+    // `dialog.toast` on the desktop: { seq, text } from the host.
+    property var toastRequest: null
     property string treeShape: ""
     property bool treeGrabPending: false
     property var scrollPositions: ({})
@@ -673,6 +675,57 @@ ApplicationWindow {
             font.family: "monospace"
             font.pixelSize: 11
         }
+    }
+
+    // Android shows a native toast; the desktop draws one like it at the bottom of the window.
+    Rectangle {
+        id: toast
+
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 72
+        width: Math.min(toastLabel.implicitWidth + 32, parent.width - 32)
+        height: toastLabel.implicitHeight + 20
+        radius: 8
+        color: view.withAlpha(view.themeText, 0.92)
+        opacity: 0
+        visible: opacity > 0
+        z: 2500
+
+        Behavior on opacity {
+            NumberAnimation {
+                duration: 180
+                easing.type: Easing.OutCubic
+            }
+        }
+
+        Label {
+            id: toastLabel
+
+            anchors.centerIn: parent
+            width: Math.min(implicitWidth, toast.parent.width - 64)
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.Wrap
+            color: view.themeBackground
+            font.family: view.fontFamily
+            font.pixelSize: view.fs(13)
+        }
+
+        Timer {
+            id: toastTimer
+
+            interval: 2200
+            onTriggered: toast.opacity = 0
+        }
+    }
+
+    onToastRequestChanged: {
+        if (!toastRequest || !toastRequest.text)
+            return;
+
+        toastLabel.text = toastRequest.text;
+        toast.opacity = 1;
+        toastTimer.restart();
     }
 
     Rectangle {
