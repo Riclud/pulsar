@@ -68,6 +68,23 @@ new App().window("main").render(() => (
 claude mcp add pulsar -- pulsar mcp
 ```
 
+Для [opencode](https://opencode.ai) — командой в терминале или в `opencode.jsonc`:
+
+```sh
+opencode mcp add pulsar -- pulsar mcp
+```
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "pulsar": { "type": "local", "command": ["pulsar", "mcp"] },
+    },
+  },
+}
+```
+
 Другие MCP-клиенты (Cursor, Codex, Zed и другие) запускают ту же команду, `pulsar mcp`,
 через stdio. Агент получает:
 

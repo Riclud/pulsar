@@ -66,6 +66,23 @@ and the agent never touches your mouse or keyboard.
 claude mcp add pulsar -- pulsar mcp
 ```
 
+For [opencode](https://opencode.ai), add it from the terminal or in `opencode.jsonc`:
+
+```sh
+opencode mcp add pulsar -- pulsar mcp
+```
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "pulsar": { "type": "local", "command": ["pulsar", "mcp"] },
+    },
+  },
+}
+```
+
 Other MCP clients (Cursor, Codex, Zed and others) run the same command, `pulsar mcp`, over
 stdio. The agent gets:
 

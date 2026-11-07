@@ -285,6 +285,23 @@ reads the logs, while its edits to the sources hot-reload the app. For Claude Co
 claude mcp add pulsar -- pulsar mcp
 ```
 
+For [opencode](https://opencode.ai), add it from the terminal or in `opencode.jsonc`:
+
+```sh
+opencode mcp add pulsar -- pulsar mcp
+```
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "pulsar": { "type": "local", "command": ["pulsar", "mcp"] },
+    },
+  },
+}
+```
+
 The tools are `pulsar_start` (`visible: true` opens a real window), `pulsar_ui`,
 `pulsar_screenshot`, `pulsar_click`, `pulsar_hover`, `pulsar_scroll`, `pulsar_type`,
 `pulsar_key`, `pulsar_back`, `pulsar_wait_for`, `pulsar_state`, `pulsar_eval`,
