@@ -263,6 +263,33 @@ so they apply to JS-rendered windows, not `ui/main.qml` apps. `pulsar ui
 --system` dumps the foreground window (useful for permission dialogs), and
 `--at`/`swipe`/`key` drive the screen by coordinates.
 
+The same commands drive a desktop `pulsar dev` session. There a tap, a hover, a wheel
+turn and a key reach the window as real input, so hover and press states behave as with a
+mouse, and nothing touches your own pointer or keyboard:
+
+```sh
+pulsar hover "Copy"               # pointer over a node (--leave takes it off the window)
+pulsar tap "Back"                 # a real click; icon buttons match their a11yLabel
+pulsar scroll "Tasks" --dy 360    # mouse wheel, 120 per notch
+pulsar keys "hello"               # key by key into the focused field
+pulsar key ctrl+s                 # keys with modifiers
+```
+
+### AI agents (MCP)
+
+`pulsar mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server on stdio.
+An agent starts the app offscreen, reads the UI tree or a screenshot, clicks, types and
+reads the logs, while its edits to the sources hot-reload the app. For Claude Code:
+
+```sh
+claude mcp add pulsar -- pulsar mcp
+```
+
+The tools are `pulsar_start` (`visible: true` opens a real window), `pulsar_ui`,
+`pulsar_screenshot`, `pulsar_click`, `pulsar_hover`, `pulsar_scroll`, `pulsar_type`,
+`pulsar_key`, `pulsar_back`, `pulsar_wait_for`, `pulsar_state`, `pulsar_eval`,
+`pulsar_logs`, `pulsar_reload` and `pulsar_stop`.
+
 Flow tests can use the host API:
 
 ```ts

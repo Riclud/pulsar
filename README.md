@@ -55,6 +55,12 @@ new App().window("main").render(() => (
 - **Small apps:** a desktop app runs on QuickJS and weighs about 30 MB. Bun or Node
   go in only when your code needs them, and `pulsar check` tells you which.
 
+## AI agents
+
+`pulsar mcp` lets an AI agent run your app offscreen, look at it and click through it while
+it edits the code: `claude mcp add pulsar -- pulsar mcp`. The same control works from the
+terminal with `pulsar ui`, `tap`, `hover`, `type` and `shot`.
+
 ## Platforms
 
 | Platform            | Self-contained | Status           |

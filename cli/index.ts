@@ -69,6 +69,7 @@ import { collectQt } from "./qt.ts"
 import { createIgnoreFilter } from "./ignore.ts"
 import { update } from "./update.ts"
 import { startDesktopControl } from "./control.ts"
+import { runMcp } from "./mcp.ts"
 import { ui } from "./ui.ts"
 
 const [cmd, ...args] = process.argv.slice(2)
@@ -1163,6 +1164,10 @@ const COMMANDS: Array<[string, Array<[string, string]>]> = [
     ],
   ],
   [
+    "Agents",
+    [["mcp", "MCP server on stdio: AI agents start, see and drive your app"]],
+  ],
+  [
     "Toolchain",
     [
       ["install", "download the native toolchain (--android for the APK toolchain)"],
@@ -1274,6 +1279,9 @@ switch (cmd) {
     break
   case "tap":
     await tapCommand()
+    break
+  case "mcp":
+    runMcp()
     break
   case "hover":
     await runDevice(() => deviceHover(process.cwd(), nodeQuery(), args.includes("--leave")))

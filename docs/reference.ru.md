@@ -265,6 +265,34 @@ pulsar eval "6*7"                 # выполнить JS в работающе�
 --system` показывает дамп переднего окна (удобно для permission-диалогов), а
 `--at`/`swipe`/`key` работают по координатам.
 
+Те же команды управляют десктопной сессией `pulsar dev`. Там нажатие, наведение,
+колесо и клавиши приходят в окно как настоящий ввод, поэтому наведение и нажатие ведут
+себя как с мышью, а ваши собственные мышь и клавиатура не задействуются:
+
+```sh
+pulsar hover "Копировать"         # курсор над узлом (--leave уводит его из окна)
+pulsar tap "Назад"                # настоящий клик; кнопки-иконки находятся по a11yLabel
+pulsar scroll "Задачи" --dy 360   # колесо мыши, 120 на щелчок
+pulsar keys "привет"              # по клавише в поле с фокусом
+pulsar key ctrl+s                 # клавиши с модификаторами
+```
+
+### ИИ-агенты (MCP)
+
+`pulsar mcp` — сервер [Model Context Protocol](https://modelcontextprotocol.io) на stdio.
+Агент запускает приложение без окна, читает дерево UI или скриншот, нажимает, вводит
+текст и читает логи, а его правки исходников перезагружают приложение на лету. Для
+Claude Code:
+
+```sh
+claude mcp add pulsar -- pulsar mcp
+```
+
+Инструменты: `pulsar_start` (`visible: true` открывает настоящее окно), `pulsar_ui`,
+`pulsar_screenshot`, `pulsar_click`, `pulsar_hover`, `pulsar_scroll`, `pulsar_type`,
+`pulsar_key`, `pulsar_back`, `pulsar_wait_for`, `pulsar_state`, `pulsar_eval`,
+`pulsar_logs`, `pulsar_reload` и `pulsar_stop`.
+
 Флоу-тесты могут использовать host API:
 
 ```ts
