@@ -8,7 +8,8 @@ import { join, resolve } from "path"
 
 const root = resolve(import.meta.dir, "..")
 const recipes = readFileSync(join(root, "skills", "pulsar", "recipes.md"), "utf8")
-const blocks = [...recipes.matchAll(/```ts\n([\s\S]*?)```/g)].map((match) => match[1]!)
+// Windows checkouts may use CRLF line endings.
+const blocks = [...recipes.matchAll(/```ts\r?\n([\s\S]*?)```/g)].map((match) => match[1]!)
 
 // Names a recipe uses as given; each block that uses one without defining it gets a stub.
 const STUBS: Record<string, string> = {
@@ -28,6 +29,11 @@ const stubsFor = (code: string) => {
     .filter(([name]) => new RegExp(`\\b${name}\\b`).test(code))
     .filter(([name]) => !new RegExp(`(const|let|function)\\s+${name}\\b`).test(code))
     .map(([, stub]) => stub)
+}
+
+if (blocks.length === 0) {
+  console.error("check-recipes: no ts blocks found in recipes.md")
+  process.exit(1)
 }
 
 const dir = mkdtempSync(join(tmpdir(), "pulsar-recipes-"))
