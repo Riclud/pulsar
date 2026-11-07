@@ -28,7 +28,8 @@ const cryptoWorks = (output: string) => {
   return (
     output.includes("CRYPTO_RANDOM 24 true") &&
     output.includes("CRYPTO_PBKDF2 xeR41ZKIyEGqUw22hFxMjZYok6ABzk4RpJY4c6qYE0o=") &&
-    output.includes("CRYPTO_REJECTED null")
+    output.includes("CRYPTO_REJECTED null") &&
+    output.includes("SYSTEM_LOCALE ru-RU ru")
   )
 }
 
@@ -276,12 +277,14 @@ const scenarios: Scenario[] = [
   },
   {
     name: "crypto",
+    env: { LANG: "ru_RU.UTF-8", LC_ALL: "ru_RU.UTF-8" },
     check: (output) => cryptoWorks(output),
   },
   {
     name: "crypto-desktop",
     fixture: "crypto",
     desktop: true,
+    env: { LANG: "ru_RU.UTF-8", LC_ALL: "ru_RU.UTF-8" },
     check: (output) => cryptoWorks(output),
   },
   {

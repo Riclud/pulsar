@@ -1,4 +1,4 @@
-import { App, crypto } from "../../../core/sdk/index.ts"
+import { App, crypto, system } from "../../../core/sdk/index.ts"
 
 new App()
 
@@ -11,4 +11,8 @@ void (async () => {
   console.log(`CRYPTO_RANDOM ${random.length} ${random !== other}`)
   console.log(`CRYPTO_PBKDF2 ${key}`)
   console.log(`CRYPTO_REJECTED ${rejected}`)
+
+  const locale = await system.locale()
+
+  console.log(`SYSTEM_LOCALE ${locale.locale} ${locale.language}`)
 })()

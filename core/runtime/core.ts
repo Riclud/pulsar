@@ -266,18 +266,8 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
     return value ?? { known: false, onBattery: false, source: "unknown" }
   })
 
-  registerCapability("system.locale", () => {
-    try {
-      const resolved = Intl.DateTimeFormat().resolvedOptions()
-      const language = resolved.locale.split("-")[0] ?? resolved.locale
-
-      return Promise.resolve({ locale: resolved.locale, language, timezone: resolved.timeZone })
-    } catch {
-      const timezone = platform.env("TZ") ?? "UTC"
-
-      return Promise.resolve({ locale: "en-US", language: "en", timezone })
-    }
-  })
+  // The host reads the OS setting; QuickJS has no Intl and Bun's Intl ignores LANG.
+  registerCapability("system.locale", () => hostQuery("system.locale"))
 
   registerCapability("nw.fetch", (params: unknown) => {
     const { url, ...rest } = params as { url: string }

@@ -61,6 +61,7 @@
 #include "screen_info.h"
 #include "secure.h"
 #include "crypto.h"
+#include "system_locale.h"
 
 static bool gErrorShown = false;
 static bool gWatch = false;
@@ -1082,6 +1083,8 @@ static void handleQuery(Bridge *bridge, const QVariantMap &m)
     } else if (kind == QLatin1String("permissions.request") || kind == QLatin1String("permissions.check")) {
         // Desktop has no runtime permission model.
         params.insert(QStringLiteral("value"), true);
+    } else if (kind == QLatin1String("system.locale")) {
+        params.insert(QStringLiteral("value"), pulsar::systemLocale());
     } else if (kind == QLatin1String("secure.available")) {
         params.insert(QStringLiteral("value"), pulsar::secureAvailable());
     } else if (kind == QLatin1String("secure.get")) {

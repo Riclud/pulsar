@@ -27,6 +27,7 @@
 #include <cstdio>
 
 #include "../crypto.h"
+#include "../system_locale.h"
 
 static QJsonValue secureQuery(const QString &kind, const QJsonObject &params)
 {
@@ -753,6 +754,8 @@ void EmbeddedBridge::handleMessage(const QJsonObject &message)
 
         if (activity.isValid() && action == QLatin1String("orientation")) {
             activity.callMethod<void>("setOrientation", "(Ljava/lang/String;)V",
+        } else if (kind == QLatin1String("system.locale")) {
+            replyParams.insert(QStringLiteral("value"), pulsar::systemLocale());
                                       QJniObject::fromString(params.value(QStringLiteral("orientation")).toString())
                                           .object<jstring>());
         } else if (activity.isValid() && action == QLatin1String("keepAwake")) {

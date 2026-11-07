@@ -19,6 +19,8 @@ All notable changes to this project are documented here. The format follows
 
 - `fs.exportTo` on Android 10 and later keeps the file's original modification time
   in Downloads instead of the time it was written.
+- `system.locale` reports the OS language. QuickJS has no `Intl` and Bun's ignores `LANG`,
+  so apps on a Russian phone or desktop started in English.
 - Wheel and touchpad scrolling follow a target every frame, so the speed no longer
   jumps between wheel steps or with the touchpad's event rate.
 - Buttons kept working only until a parent component rerendered around them; their
