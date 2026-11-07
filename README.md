@@ -54,12 +54,29 @@ new App().window("main").render(() => (
   are built in.
 - **Small apps:** a desktop app runs on QuickJS and weighs about 30 MB. Bun or Node
   go in only when your code needs them, and `pulsar check` tells you which.
+- **Ready for AI agents:** `pulsar mcp` lets an agent run, see and test the app it builds.
 
 ## AI agents
 
-`pulsar mcp` lets an AI agent run your app offscreen, look at it and click through it while
-it edits the code: `claude mcp add pulsar -- pulsar mcp`. The same control works from the
-terminal with `pulsar ui`, `tap`, `hover`, `type` and `shot`.
+Pulsar ships an [MCP](https://modelcontextprotocol.io) server, so an AI agent can run your
+app, look at it and click through it while it writes the code. The app starts offscreen,
+and the agent never touches your mouse or keyboard.
+
+```sh
+claude mcp add pulsar -- pulsar mcp
+```
+
+Other MCP clients (Cursor, Codex, Zed and others) run the same command, `pulsar mcp`, over
+stdio. The agent gets:
+
+- `pulsar_start` and `pulsar_stop` to run the app with live reload, offscreen or in a window;
+- `pulsar_ui`, the UI tree as a short outline, and `pulsar_screenshot`;
+- `pulsar_click`, `pulsar_hover`, `pulsar_scroll`, `pulsar_type` and `pulsar_key`, sent to
+  the window as real input;
+- `pulsar_wait_for`, `pulsar_state`, `pulsar_eval` and `pulsar_logs` to check the result.
+
+The same control works from a terminal next to `pulsar dev`: `pulsar ui`, `tap`, `hover`,
+`scroll`, `keys` and `shot`.
 
 ## Platforms
 
