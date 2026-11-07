@@ -70,6 +70,9 @@ public:
     QString colorScheme() const;
     void refreshColorScheme();
 
+    // Dev control: evaluate JS in the in-process QuickJS runtime ({ value } or { error }).
+    QJsonObject evaluateForDev(const QString &code);
+
     // Send an unsolicited notification to the runtime (no response expected).
     void notify(const QString &method, const QJsonObject &params);
     // Send a binary data frame on the data channel.

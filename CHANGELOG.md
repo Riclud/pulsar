@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `pulsar dev` on the desktop answers the device commands too: `ui`, `state`, `tap`, `type`,
+  `key`, `eval`, `shot` and the new `hover`, `scroll` and `keys`. Taps, hovers, wheel turns
+  and keys reach the window as real input, so hover and press states behave as with a mouse.
+- Device commands find icon buttons by their `a11yLabel`.
+
 ## [2.1.0] - 2026-11-07
 
 ### Added

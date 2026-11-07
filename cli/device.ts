@@ -4,8 +4,10 @@ import { dirname, join, resolve } from "path"
 
 interface DevSession {
   port: number
-  package: string
-  device: string
+  /** `desktop` for `pulsar dev`; Android sessions predate the field. */
+  platform?: "android" | "desktop"
+  package?: string
+  device?: string
   name: string
 }
 
@@ -73,9 +75,24 @@ export const controlRetry = async <T>(action: () => Promise<T>, attempts = 10): 
 export const readSession = (appDir: string): DevSession => {
   const path = sessionPath(appDir)
 
-  if (!existsSync(path)) throw new Error("pulsar dev --android is not running here (start it first)")
+  if (!existsSync(path)) throw new Error("pulsar dev is not running here (start it first)")
 
   return JSON.parse(readFileSync(path, "utf8")) as DevSession
+}
+
+const isDesktop = (session: DevSession): boolean => {
+  return session.platform === "desktop"
+}
+
+const androidOnly = (session: DevSession, what: string): void => {
+  if (isDesktop(session)) throw new Error(`${what} works with \`pulsar dev --android\`; on the desktop use ${hintFor(what)}`)
+}
+
+const hintFor = (what: string): string => {
+  if (what === "swipe") return "`pulsar scroll`"
+  if (what === "uiautomator") return "`pulsar ui`"
+
+  return "the desktop commands"
 }
 
 export const control = async (appDir: string, body: Record<string, unknown>): Promise<unknown> => {
@@ -84,6 +101,8 @@ export const control = async (appDir: string, body: Record<string, unknown>): Pr
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
+  }).catch(() => {
+    throw new Error("pulsar dev is not running here (the session file is stale)")
   })
   const reply = (await response.json()) as DevReply
 
@@ -98,13 +117,13 @@ export const control = async (appDir: string, body: Record<string, unknown>): Pr
 }
 
 const adbInherit = (session: DevSession, args: string[]): void => {
-  const result = spawnSync(process.env.ADB ?? "adb", ["-s", session.device, ...args], { stdio: "inherit" })
+  const result = spawnSync(process.env.ADB ?? "adb", ["-s", session.device ?? "", ...args], { stdio: "inherit" })
 
   if (result.status !== 0) throw new Error(`adb ${args.join(" ")} failed`)
 }
 
 const adbText = (session: DevSession, args: string[]): string => {
-  const result = spawnSync(process.env.ADB ?? "adb", ["-s", session.device, ...args], { encoding: "utf8" })
+  const result = spawnSync(process.env.ADB ?? "adb", ["-s", session.device ?? "", ...args], { encoding: "utf8" })
 
   if (result.status !== 0) throw new Error(`adb ${args.join(" ")} failed`)
 
@@ -126,7 +145,7 @@ const collectTexts = (value: unknown): string[] => {
     const node = item as Record<string, unknown>
     const props = (node.props ?? {}) as Record<string, unknown>
 
-    for (const key of ["text", "title", "placeholder", "label", "value"]) {
+    for (const key of ["text", "title", "placeholder", "label", "value", "a11yLabel"]) {
       const text = props[key]
 
       if (typeof text === "string" && text.length > 0) out.push(text)
@@ -148,8 +167,10 @@ const systemUI = async (appDir: string) => {
   const session = readSession(appDir)
   const remote = "/sdcard/pulsar-ui.xml"
 
+  androidOnly(session, "uiautomator")
+
   for (let attempt = 0; attempt < 3; attempt++) {
-    const dump = spawnSync(process.env.ADB ?? "adb", ["-s", session.device, "shell", "uiautomator", "dump", remote], {
+    const dump = spawnSync(process.env.ADB ?? "adb", ["-s", session.device ?? "", "shell", "uiautomator", "dump", remote], {
       encoding: "utf8",
     })
 
@@ -159,7 +180,7 @@ const systemUI = async (appDir: string) => {
   }
 
   console.log(adbText(session, ["exec-out", "cat", remote]))
-  spawnSync(process.env.ADB ?? "adb", ["-s", session.device, "shell", "rm", "-f", remote], { stdio: "ignore" })
+  spawnSync(process.env.ADB ?? "adb", ["-s", session.device ?? "", "shell", "rm", "-f", remote], { stdio: "ignore" })
 }
 
 export const deviceUI = async (appDir: string, system = false): Promise<void> => {
@@ -176,15 +197,25 @@ export const deviceState = async (appDir: string): Promise<void> => {
   console.log(JSON.stringify(await control(appDir, { cmd: "state" }), null, 2))
 }
 
+const selectorOf = (query: TapQuery): Record<string, unknown> => {
+  if (query.id !== undefined) return { id: query.id }
+  if (query.path) return { path: query.path }
+  if (query.type) return { type: query.type }
+  if (query.text) return { text: query.text }
+
+  return {}
+}
+
+/**
+ * On the desktop a tap is a real click at the node, so hover, press states and
+ * focus behave as with a mouse. `--event` (or Android) dispatches the event directly.
+ */
 export const deviceTap = async (appDir: string, query: TapQuery): Promise<void> => {
-  const body: Record<string, unknown> = { cmd: "tap" }
-
-  if (query.id !== undefined) body.id = query.id
-  else if (query.path) body.path = query.path
-  else if (query.type) body.type = query.type
-  else if (query.text) body.text = query.text
-
-  if (query.event) body.event = query.event
+  const desktop = isDesktop(readSession(appDir))
+  const body: Record<string, unknown> =
+    desktop && !query.event
+      ? { cmd: "pointer", action: "click", ...selectorOf(query) }
+      : { cmd: "tap", ...selectorOf(query), ...(query.event ? { event: query.event } : {}) }
 
   const value = await controlRetry(() => control(appDir, body))
 
@@ -194,8 +225,31 @@ export const deviceTap = async (appDir: string, query: TapQuery): Promise<void> 
 export const deviceTapAt = async (appDir: string, x: number, y: number): Promise<void> => {
   const session = readSession(appDir)
 
+  if (isDesktop(session)) {
+    console.log(JSON.stringify(await control(appDir, { cmd: "pointer", action: "click", x, y })))
+
+    return
+  }
+
   adbInherit(session, ["shell", "input", "tap", String(Math.round(x)), String(Math.round(y))])
   console.log(JSON.stringify({ at: [x, y] }))
+}
+
+/** Desktop: moves the pointer over a node (or `leave` to take it off the window). */
+export const deviceHover = async (appDir: string, query: TapQuery, leave = false): Promise<void> => {
+  const body = { cmd: "pointer", action: leave ? "leave" : "hover", ...selectorOf(query) }
+
+  console.log(JSON.stringify(await controlRetry(() => control(appDir, body))))
+}
+
+/** Desktop: turns the wheel over a node; positive `dy` scrolls the content down. */
+export const deviceScroll = async (appDir: string, query: TapQuery, dy: number): Promise<void> => {
+  console.log(JSON.stringify(await controlRetry(() => control(appDir, { cmd: "wheel", dy, ...selectorOf(query) }))))
+}
+
+/** Desktop: types text key by key into the focused field. */
+export const deviceKeys = async (appDir: string, text: string): Promise<void> => {
+  console.log(JSON.stringify(await control(appDir, { cmd: "keys", text })))
 }
 
 export const deviceSwipe = async (
@@ -205,6 +259,8 @@ export const deviceSwipe = async (
   duration?: number,
 ): Promise<void> => {
   const session = readSession(appDir)
+
+  androidOnly(session, "swipe")
   const args = ["shell", "input", "swipe", ...from.map(String), ...to.map(String)]
 
   if (duration !== undefined) args.push(String(Math.round(duration)))
@@ -223,6 +279,17 @@ export const resolveKey = (key: string): string | undefined => {
 
 export const deviceKey = async (appDir: string, key: string): Promise<void> => {
   const session = readSession(appDir)
+
+  // Desktop keys take modifiers: `ctrl+n`, `shift+tab`.
+  if (isDesktop(session)) {
+    const parts = key.split("+")
+    const name = parts.pop() ?? ""
+
+    console.log(JSON.stringify(await control(appDir, { cmd: "key", key: name, modifiers: parts })))
+
+    return
+  }
+
   const code = resolveKey(key)
 
   if (code === undefined) throw new Error(`unknown key: ${key} (use a name or a numeric keycode)`)
@@ -281,14 +348,14 @@ export const captureShot = async (appDir: string, out?: string, windowOnly = fal
 
   mkdirSync(dirname(target), { recursive: true })
 
-  if (windowOnly) {
+  if (windowOnly || isDesktop(session)) {
     const value = (await control(appDir, { cmd: "grab" })) as { data?: string }
 
     if (!value?.data) throw new Error("screenshot failed")
 
     writeFileSync(target, Buffer.from(value.data, "base64"))
   } else {
-    const result = spawnSync(process.env.ADB ?? "adb", ["-s", session.device, "exec-out", "screencap", "-p"])
+    const result = spawnSync(process.env.ADB ?? "adb", ["-s", session.device ?? "", "exec-out", "screencap", "-p"])
 
     if (result.status !== 0 || !result.stdout?.length) throw new Error("adb screencap failed")
 

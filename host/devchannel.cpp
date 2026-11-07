@@ -1,16 +1,19 @@
 #include "devchannel.h"
 
-#include "bridge.h"
-#include "quickjs_runtime.h"
-
 #include <QBuffer>
+#include <QCoreApplication>
+#include <QHash>
+#include <QKeyEvent>
+#include <QKeySequence>
+#include <QMetaMethod>
+#include <QMouseEvent>
+#include <QWheelEvent>
 #include <QDateTime>
 #include <QGuiApplication>
 #include <QImage>
 #include <QJsonDocument>
 #include <QNetworkReply>
 #include <QNetworkRequest>
-#include <QQmlPropertyMap>
 #include <QQuickWindow>
 #include <QVariantMap>
 #include <QWindow>
@@ -38,7 +41,7 @@ QString nodeText(const QJsonObject &node)
 {
     const QJsonObject props = node.value(QStringLiteral("props")).toObject();
 
-    for (const char *key : { "text", "title", "placeholder", "label", "value" }) {
+    for (const char *key : { "text", "title", "placeholder", "label", "value", "a11yLabel" }) {
         const QJsonValue value = props.value(QLatin1String(key));
 
         if (value.isString() && !value.toString().isEmpty())
@@ -71,13 +74,10 @@ QNetworkRequest jsonRequest(const QUrl &url)
 
 } // namespace
 
-DevChannel::DevChannel(EmbeddedBridge *bridge, pulsar::QuickJsRuntime *runtime, QQmlPropertyMap *store,
-                       const QUrl &url, QObject *parent)
+DevChannel::DevChannel(DevHooks hooks, const QUrl &url, QObject *parent)
     : QObject(parent)
-    , bridge_(bridge)
-    , runtime_(runtime)
-    , store_(store)
     , base_(baseUrl(url))
+    , hooks_(std::move(hooks))
 {
     retry_.setSingleShot(true);
     retry_.setInterval(RETRY_MS);
@@ -285,19 +285,43 @@ void DevChannel::handle(const QJsonObject &command)
     }
 
     if (name == QLatin1String("state")) {
-        reply(request, true, storeSnapshot());
+        reply(request, true, hooks_.store ? hooks_.store() : QJsonObject());
         return;
     }
 
     if (name == QLatin1String("reload")) {
-        bridge_->devReload();
-        reply(request, true, true);
+        if (hooks_.reload)
+            hooks_.reload();
+
+        reply(request, bool(hooks_.reload), true);
         return;
     }
 
     if (name == QLatin1String("back")) {
-        bridge_->notify(QStringLiteral("back-pressed"), QJsonObject());
+        if (hooks_.appEvent)
+            hooks_.appEvent(QStringLiteral("back-pressed"));
+
         reply(request, true, true);
+        return;
+    }
+
+    if (name == QLatin1String("pointer")) {
+        handlePointer(request, command);
+        return;
+    }
+
+    if (name == QLatin1String("wheel")) {
+        handleWheel(request, command);
+        return;
+    }
+
+    if (name == QLatin1String("key")) {
+        handleKey(request, command);
+        return;
+    }
+
+    if (name == QLatin1String("keys")) {
+        handleKeys(request, command);
         return;
     }
 
@@ -309,8 +333,12 @@ void DevChannel::handle(const QJsonObject &command)
     }
 
     if (name == QLatin1String("eval")) {
-        const QJsonObject result = runtime_ ? runtime_->evaluateForDev(command.value(QStringLiteral("code")).toString())
-                                            : QJsonObject();
+        if (!hooks_.evaluate) {
+            reply(request, false, QStringLiteral("eval needs the QuickJS engine"));
+            return;
+        }
+
+        const QJsonObject result = hooks_.evaluate(command.value(QStringLiteral("code")).toString());
 
         if (result.contains(QStringLiteral("error"))) {
             QString text = result.value(QStringLiteral("error")).toString();
@@ -328,7 +356,9 @@ void DevChannel::handle(const QJsonObject &command)
     }
 
     if (name == QLatin1String("show-error")) {
-        bridge_->setErrorText(command.value(QStringLiteral("text")).toString());
+        if (hooks_.showError)
+            hooks_.showError(command.value(QStringLiteral("text")).toString());
+
         reply(request, true, true);
         return;
     }
@@ -391,7 +421,8 @@ void DevChannel::dispatch(const QJsonObject &node, const QString &event, const Q
     params.insert(QStringLiteral("name"), QStringLiteral("ui-event"));
     params.insert(QStringLiteral("data"), data);
 
-    bridge_->notifyMethod(QStringLiteral("__event"), params);
+    if (hooks_.notifyRuntime)
+        hooks_.notifyRuntime(QStringLiteral("__event"), params);
 }
 
 QJsonObject DevChannel::resolveNode(const QJsonObject &command, QString *event) const
@@ -469,19 +500,6 @@ QString DevChannel::defaultEvent(const QJsonObject &node) const
     return events.isEmpty() ? QString() : events.first().toString();
 }
 
-QJsonObject DevChannel::storeSnapshot() const
-{
-    if (!store_)
-        return {};
-
-    QJsonObject out;
-
-    for (const QString &key : store_->keys())
-        out.insert(key, QJsonValue::fromVariant(store_->value(key)));
-
-    return out;
-}
-
 QJsonObject DevChannel::grabWindow() const
 {
     QQuickWindow *window = nullptr;
@@ -515,4 +533,268 @@ QJsonObject DevChannel::grabWindow() const
     out.insert(QStringLiteral("data"), QString::fromLatin1(png.toBase64()));
 
     return out;
+}
+
+// PulsarView is the window itself, so the window carries devItemRect.
+QQuickWindow *DevChannel::findView() const
+{
+    for (QWindow *candidate : QGuiApplication::allWindows()) {
+        auto *window = qobject_cast<QQuickWindow *>(candidate);
+
+        if (!window || !window->isVisible())
+            continue;
+
+        const QMetaObject *meta = window->metaObject();
+
+        for (int index = meta->methodOffset(); index < meta->methodCount(); index++) {
+            if (meta->method(index).name() == "devItemRect")
+                return window;
+        }
+    }
+
+    return nullptr;
+}
+
+QJsonObject DevChannel::findAny(const QJsonArray &nodes, const QJsonObject &command, bool *found) const
+{
+    for (const QJsonValue &value : nodes) {
+        const QJsonObject node = value.toObject();
+        const QJsonObject props = node.value(QStringLiteral("props")).toObject();
+
+        if (!props.value(QStringLiteral("visible")).toBool(true) || !props.value(QStringLiteral("open")).toBool(true))
+            continue;
+
+        if (matches(node, command) && !node.value(QStringLiteral("path")).toString().isEmpty()) {
+            *found = true;
+
+            return node;
+        }
+
+        const QJsonObject child = findAny(node.value(QStringLiteral("children")).toArray(), command, found);
+
+        if (*found)
+            return child;
+    }
+
+    return {};
+}
+
+// A command names a node (text, path or id) or gives window coordinates in x and y.
+bool DevChannel::nodeCenter(const QJsonObject &command, QPointF *point, QJsonObject *node) const
+{
+    if (command.contains(QStringLiteral("x")) && command.contains(QStringLiteral("y"))) {
+        *point = QPointF(command.value(QStringLiteral("x")).toDouble(), command.value(QStringLiteral("y")).toDouble());
+
+        return true;
+    }
+
+    bool found = false;
+
+    *node = findAny(tree_, command, &found);
+
+    QQuickWindow *view = findView();
+
+    if (!found || !view)
+        return false;
+
+    QVariant rect;
+
+    QMetaObject::invokeMethod(view, "devItemRect", Q_RETURN_ARG(QVariant, rect),
+                              Q_ARG(QVariant, node->value(QStringLiteral("path")).toString()));
+
+    const QVariantMap box = rect.toMap();
+
+    if (box.isEmpty())
+        return false;
+
+    *point = QPointF(box.value(QStringLiteral("x")).toDouble() + box.value(QStringLiteral("width")).toDouble() / 2,
+                     box.value(QStringLiteral("y")).toDouble() + box.value(QStringLiteral("height")).toDouble() / 2);
+
+    return true;
+}
+
+void DevChannel::sendMouse(QQuickWindow *window, QEvent::Type type, const QPointF &point, Qt::MouseButton button)
+{
+    if (type == QEvent::MouseButtonPress)
+        buttons_ |= button;
+
+    if (type == QEvent::MouseButtonRelease)
+        buttons_ &= ~button;
+
+    QMouseEvent event(type, point, point, window->mapToGlobal(point), button, buttons_, Qt::NoModifier);
+
+    QCoreApplication::sendEvent(window, &event);
+}
+
+void DevChannel::handlePointer(const QJsonValue &request, const QJsonObject &command)
+{
+    QQuickWindow *view = findView();
+    QPointF point;
+    QJsonObject node;
+
+    if (!view) {
+        reply(request, false, QStringLiteral("no window"));
+        return;
+    }
+
+    if (!nodeCenter(command, &point, &node)) {
+        reply(request, false, QStringLiteral("node not found"));
+        return;
+    }
+
+    QQuickWindow *window = view;
+    const QString action = command.value(QStringLiteral("action")).toString(QStringLiteral("click"));
+    const Qt::MouseButton button = command.value(QStringLiteral("button")).toString() == QLatin1String("right")
+                                       ? Qt::RightButton
+                                       : Qt::LeftButton;
+
+    if (action == QLatin1String("leave")) {
+        QEvent leave(QEvent::Leave);
+
+        QCoreApplication::sendEvent(window, &leave);
+    } else {
+        sendMouse(window, QEvent::MouseMove, point, Qt::NoButton);
+    }
+
+    if (action == QLatin1String("click") || action == QLatin1String("press"))
+        sendMouse(window, QEvent::MouseButtonPress, point, button);
+
+    if (action == QLatin1String("click") || action == QLatin1String("release"))
+        sendMouse(window, QEvent::MouseButtonRelease, point, button);
+
+    QJsonObject result;
+
+    result.insert(QStringLiteral("x"), point.x());
+    result.insert(QStringLiteral("y"), point.y());
+    result.insert(QStringLiteral("path"), node.value(QStringLiteral("path")));
+    result.insert(QStringLiteral("text"), nodeText(node));
+
+    reply(request, true, result);
+}
+
+void DevChannel::handleWheel(const QJsonValue &request, const QJsonObject &command)
+{
+    QQuickWindow *view = findView();
+    QPointF point;
+    QJsonObject node;
+
+    if (!view || !nodeCenter(command, &point, &node)) {
+        reply(request, false, QStringLiteral("node not found"));
+        return;
+    }
+
+    // Positive dy scrolls the content down, like turning a wheel towards you.
+    const int dy = command.value(QStringLiteral("dy")).toInt(120);
+    const int dx = command.value(QStringLiteral("dx")).toInt(0);
+    QQuickWindow *window = view;
+
+    sendMouse(window, QEvent::MouseMove, point, Qt::NoButton);
+
+    QWheelEvent event(point, window->mapToGlobal(point), QPoint(), QPoint(-dx, -dy), buttons_, Qt::NoModifier,
+                      Qt::NoScrollPhase, false);
+
+    QCoreApplication::sendEvent(window, &event);
+    reply(request, true, true);
+}
+
+namespace {
+
+int keyCode(const QString &name)
+{
+    static const QHash<QString, int> keys = {
+        { QStringLiteral("enter"), Qt::Key_Return },
+        { QStringLiteral("return"), Qt::Key_Return },
+        { QStringLiteral("tab"), Qt::Key_Tab },
+        { QStringLiteral("escape"), Qt::Key_Escape },
+        { QStringLiteral("backspace"), Qt::Key_Backspace },
+        { QStringLiteral("delete"), Qt::Key_Delete },
+        { QStringLiteral("space"), Qt::Key_Space },
+        { QStringLiteral("up"), Qt::Key_Up },
+        { QStringLiteral("down"), Qt::Key_Down },
+        { QStringLiteral("left"), Qt::Key_Left },
+        { QStringLiteral("right"), Qt::Key_Right },
+        { QStringLiteral("home"), Qt::Key_Home },
+        { QStringLiteral("end"), Qt::Key_End },
+        { QStringLiteral("pageup"), Qt::Key_PageUp },
+        { QStringLiteral("pagedown"), Qt::Key_PageDown },
+    };
+
+    const QString lower = name.toLower();
+
+    if (keys.contains(lower))
+        return keys.value(lower);
+
+    return lower.size() == 1 ? QKeySequence(lower.toUpper())[0].key() : 0;
+}
+
+Qt::KeyboardModifiers modifiersOf(const QJsonArray &names)
+{
+    Qt::KeyboardModifiers modifiers;
+
+    for (const QJsonValue &value : names) {
+        const QString name = value.toString().toLower();
+
+        if (name == QLatin1String("ctrl"))
+            modifiers |= Qt::ControlModifier;
+        else if (name == QLatin1String("shift"))
+            modifiers |= Qt::ShiftModifier;
+        else if (name == QLatin1String("alt"))
+            modifiers |= Qt::AltModifier;
+        else if (name == QLatin1String("meta"))
+            modifiers |= Qt::MetaModifier;
+    }
+
+    return modifiers;
+}
+
+void sendKey(QWindow *window, int key, Qt::KeyboardModifiers modifiers, const QString &text)
+{
+    QKeyEvent press(QEvent::KeyPress, key, modifiers, text);
+    QKeyEvent release(QEvent::KeyRelease, key, modifiers, text);
+
+    QCoreApplication::sendEvent(window, &press);
+    QCoreApplication::sendEvent(window, &release);
+}
+
+} // namespace
+
+void DevChannel::handleKey(const QJsonValue &request, const QJsonObject &command)
+{
+    QQuickWindow *view = findView();
+    const QString name = command.value(QStringLiteral("key")).toString();
+    const int key = keyCode(name);
+
+    if (!view) {
+        reply(request, false, QStringLiteral("no window"));
+        return;
+    }
+
+    if (key == 0) {
+        reply(request, false, QStringLiteral("unknown key: %1").arg(name));
+        return;
+    }
+
+    const Qt::KeyboardModifiers modifiers = modifiersOf(command.value(QStringLiteral("modifiers")).toArray());
+    const QString text = key == Qt::Key_Return ? QStringLiteral("\r")
+                         : key == Qt::Key_Space && !modifiers ? QStringLiteral(" ")
+                                                               : QString();
+
+    sendKey(view, key, modifiers, text);
+    reply(request, true, true);
+}
+
+void DevChannel::handleKeys(const QJsonValue &request, const QJsonObject &command)
+{
+    QQuickWindow *view = findView();
+
+    if (!view) {
+        reply(request, false, QStringLiteral("no window"));
+        return;
+    }
+
+    // Typed one key at a time into whatever has focus, as a keyboard would.
+    for (const QChar character : command.value(QStringLiteral("text")).toString())
+        sendKey(view, 0, Qt::NoModifier, QString(character));
+
+    reply(request, true, true);
 }

@@ -128,6 +128,8 @@ endif()
 add_executable(qml-host
     host/main.cpp
     host/bridge.cpp
+    host/devchannel.cpp
+    host/devchannel.h
     host/quickjs_runtime.cpp
     host/quickjs_runtime.h
     host/log.cpp
@@ -241,12 +243,12 @@ if(ANDROID)
     qt_add_executable(pulsar-android
         host/embedded/main.cpp
         host/embedded/bridge.cpp
-        host/embedded/devchannel.cpp
+        host/devchannel.cpp
         host/embedded/devfetch.cpp
         host/quickjs_runtime.cpp
         host/net.cpp
         host/embedded/bridge.h
-        host/embedded/devchannel.h
+        host/devchannel.h
         host/embedded/devfetch.h
         host/quickjs_runtime.h
         host/net.h

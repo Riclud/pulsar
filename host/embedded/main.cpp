@@ -443,7 +443,25 @@ int main(int argc, char **argv)
     std::unique_ptr<DevChannel> devChannel;
 
     if (!devUrl.isEmpty()) {
-        devChannel = std::make_unique<DevChannel>(&bridge, &runtime, &store, QUrl(devUrl));
+        DevHooks hooks;
+
+        hooks.notifyRuntime = [&bridge](const QString &method, const QJsonObject &params) {
+            bridge.notifyMethod(method, params);
+        };
+        hooks.appEvent = [&bridge](const QString &name) { bridge.notify(name, QJsonObject()); };
+        hooks.reload = [&bridge]() { bridge.devReload(); };
+        hooks.showError = [&bridge](const QString &text) { bridge.setErrorText(text); };
+        hooks.evaluate = [&runtime](const QString &code) { return runtime.evaluateForDev(code); };
+        hooks.store = [&store]() {
+            QJsonObject out;
+
+            for (const QString &key : store.keys())
+                out.insert(key, QJsonValue::fromVariant(store.value(key)));
+
+            return out;
+        };
+
+        devChannel = std::make_unique<DevChannel>(std::move(hooks), QUrl(devUrl));
         devChannel->start();
     }
 #endif

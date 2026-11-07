@@ -7739,6 +7739,18 @@ ApplicationWindow {
         revealMotion.restart();
     }
 
+    // Dev control: where a node is on screen, so `pulsar hover` and `click` aim real input at it.
+    function devItemRect(path) {
+        const item = view.nodeItems[path];
+
+        if (!item || !item.visible || item.width <= 0 || item.height <= 0)
+            return null;
+
+        const point = item.mapToItem(null, 0, 0);
+
+        return { x: point.x, y: point.y, width: item.width, height: item.height };
+    }
+
     // A growing text area can push its cursor below the visible part of the page.
     function revealCursor(item) {
         const flick = scrollAncestor(item);

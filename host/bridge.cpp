@@ -1005,3 +1005,16 @@ void Bridge::handleDataFrame(const QByteArray &payload)
 
     Q_EMIT this->data(streamId, data);
 }
+
+QJsonObject Bridge::evaluateForDev(const QString &code)
+{
+    if (!quickjs_) {
+        QJsonObject out;
+
+        out.insert(QStringLiteral("error"), QStringLiteral("eval needs the QuickJS engine; this app runs on Bun or Node"));
+
+        return out;
+    }
+
+    return quickjs_->evaluateForDev(code);
+}

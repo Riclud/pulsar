@@ -47,8 +47,11 @@ import {
   deviceBack,
   deviceEval,
   deviceExpect,
+  deviceHover,
   deviceKey,
+  deviceKeys,
   deviceReload,
+  deviceScroll,
   deviceSelect,
   deviceShot,
   deviceState,
@@ -58,12 +61,14 @@ import {
   deviceToggle,
   deviceType,
   deviceUI,
+  type TapQuery,
 } from "./device.ts"
 import { devAndroid } from "./dev.ts"
 import { install } from "./install.ts"
 import { collectQt } from "./qt.ts"
 import { createIgnoreFilter } from "./ignore.ts"
 import { update } from "./update.ts"
+import { startDesktopControl } from "./control.ts"
 import { ui } from "./ui.ts"
 
 const [cmd, ...args] = process.argv.slice(2)
@@ -592,20 +597,36 @@ const runDesktop = async (appDir: string, watchMode: boolean): Promise<void> => 
   ui.header(watchMode ? "dev" : "run", basename(appDir), watchMode ? "watching for changes" : "")
   describeEngine(chosen)
 
+  // In dev the host also answers `pulsar ui`, `tap`, `hover` and the MCP server.
+  const control = watchMode ? startDesktopControl(appDir, manifest?.name ?? basename(appDir)) : null
+  const controlEnv = control ? { PULSAR_DEV_URL: control.url } : {}
+
   if (chosen.engine === "bun") {
     const bun = bunCommand()
-    const r = spawnSync(host, [], {
-      stdio: "inherit",
+    const child = Bun.spawn([host], {
+      stdio: ["inherit", "inherit", "inherit"],
       env: {
         ...bun.env,
+        ...controlEnv,
         BUN_BIN: bun.path,
         PULSAR_APP: appDir,
         PULSAR_ROOT: pulsarRoot(),
         ...(watchMode ? { PULSAR_WATCH: "1" } : {}),
       },
     })
+    const stopBun = () => {
+      child.kill()
+      control?.stop()
+      process.exit(130)
+    }
 
-    process.exit(r.status ?? 0)
+    process.on("SIGINT", stopBun)
+    process.on("SIGTERM", stopBun)
+
+    const code = await child.exited
+
+    control?.stop()
+    process.exit(code)
   }
 
   // The same engine as the build: bundle for QuickJS or Node, and bundle again
@@ -646,6 +667,7 @@ const runDesktop = async (appDir: string, watchMode: boolean): Promise<void> => 
     stdio: ["inherit", "inherit", "inherit"],
     env: {
       ...process.env,
+      ...controlEnv,
       PULSAR_APP: appDir,
       PULSAR_ROOT: pulsarRoot(),
       ...(watchMode ? { PULSAR_WATCH: "1", PULSAR_RELOAD_FILE: bundleFile } : {}),
@@ -656,6 +678,7 @@ const runDesktop = async (appDir: string, watchMode: boolean): Promise<void> => 
   })
   const stop = () => {
     child.kill()
+    control?.stop()
     rmSync(assembly, { recursive: true, force: true })
     process.exit(130)
   }
@@ -665,6 +688,7 @@ const runDesktop = async (appDir: string, watchMode: boolean): Promise<void> => 
 
   const code = await child.exited
 
+  control?.stop()
   rmSync(assembly, { recursive: true, force: true })
   process.exit(code)
 }
@@ -1123,13 +1147,16 @@ const COMMANDS: Array<[string, Array<[string, string]>]> = [
       ["ui", "dump the running dev app's UI tree (--system for uiautomator)"],
       ["state", "dump the running dev app's store"],
       ["tap <text>", "press a node by text (--path|--id|--event|--at x,y)"],
+      ["hover <text>", "move the pointer over a node, desktop (--leave)"],
+      ["scroll <text>", "turn the wheel over a node, desktop (--dy px, default 120)"],
+      ["keys <text>", "type key by key into the focused field, desktop"],
       ["type <text>", "send input to a field (--into <label>)"],
       ["toggle <text>", "toggle a checkbox or switch"],
       ["select <t> <v>", "choose a select option"],
       ["expect <text>", "wait until the text appears (--timeout ms)"],
       ["shot", "screenshot the device (--out, --window)"],
       ["swipe x1 y1 x2 y2", "swipe on the screen (--duration ms)"],
-      ["key <name>", "send an Android key (back, home, enter, ... or a code)"],
+      ["key <name>", "send a key (back, enter, ... ; ctrl+n on the desktop)"],
       ["eval <code>", "evaluate JS in the running app"],
       ["back", "send the Android back event"],
       ["reload", "restart the running app"],
@@ -1176,6 +1203,13 @@ const installCommand = async () => {
     ui.error(`${e instanceof Error ? e.message : String(e)}`)
     process.exit(1)
   }
+}
+
+const nodeQuery = (): TapQuery => {
+  const [text] = positional()
+  const idFlag = flagValue("--id")
+
+  return { text, path: flagValue("--path"), id: idFlag ? Number.parseInt(idFlag, 10) : undefined }
 }
 
 const tapCommand = async () => {
@@ -1240,6 +1274,15 @@ switch (cmd) {
     break
   case "tap":
     await tapCommand()
+    break
+  case "hover":
+    await runDevice(() => deviceHover(process.cwd(), nodeQuery(), args.includes("--leave")))
+    break
+  case "scroll":
+    await runDevice(() => deviceScroll(process.cwd(), nodeQuery(), Number(flagValue("--dy") ?? 120)))
+    break
+  case "keys":
+    await runDevice(() => deviceKeys(process.cwd(), positional().join(" ")))
     break
   case "swipe": {
     const points = positional().map((value) => Number.parseFloat(value))

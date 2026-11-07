@@ -61,6 +61,7 @@
 #include "screen_info.h"
 #include "secure.h"
 #include "crypto.h"
+#include "devchannel.h"
 #include "system_locale.h"
 
 static bool gErrorShown = false;
@@ -68,6 +69,7 @@ static bool gWatch = false;
 static QFileSystemWatcher *gWatcher = nullptr;
 static QFileSystemWatcher *gAppWatcher = nullptr;
 static Bridge *gBridge = nullptr;
+static DevChannel *gDevChannel = nullptr;
 static pulsar::NetworkService *gNet = nullptr;
 static PowerMonitor *gPower = nullptr;
 // Keychain entries are scoped to the app id; set once from pulsar.json.
@@ -1468,6 +1470,38 @@ int main(int argc, char **argv)
     gWatch = watchMode();
     gBridge = bridge;
 
+    // `pulsar dev` passes a control URL so `pulsar ui`, `tap`, `hover` and the MCP
+    // server can drive the window with real input.
+    const QString devUrl = qEnvironmentVariable("PULSAR_DEV_URL");
+
+    if (!devUrl.isEmpty()) {
+        DevHooks hooks;
+
+        hooks.notifyRuntime = [bridge](const QString &method, const QJsonObject &params) {
+            bridge->notify(method, params);
+        };
+        hooks.appEvent = [bridge](const QString &name) {
+            QJsonObject params;
+
+            params.insert(QStringLiteral("name"), name);
+            params.insert(QStringLiteral("data"), QJsonObject());
+            bridge->notify(QStringLiteral("__event"), params);
+        };
+        hooks.reload = [bridge]() { bridge->restart(); };
+        hooks.evaluate = [bridge](const QString &code) { return bridge->evaluateForDev(code); };
+        hooks.store = [store]() {
+            QJsonObject out;
+
+            for (const QString &key : store->keys())
+                out.insert(key, QJsonValue::fromVariant(store->value(key)));
+
+            return out;
+        };
+
+        gDevChannel = new DevChannel(std::move(hooks), QUrl(devUrl), &app);
+        gDevChannel->start();
+    }
+
     // `pulsar dev` on QuickJS or Node rebuilds the script bundle on save; restart
     // the runtime when the new bundle lands, the way Bun asks for __reload.
     const QString quickjsBundle = qEnvironmentVariable(
@@ -1755,6 +1789,9 @@ int main(int argc, char **argv)
 
                              g_uiTrees.insert(target, tree);
 
+                             if (gDevChannel && (target == QLatin1String("main") || target.isEmpty()))
+                                 gDevChannel->setTree(tree);
+
                              if (QObject *root = g_roots.value(target))
                                  root->setProperty("tree", tree);
 
@@ -1766,6 +1803,9 @@ int main(int argc, char **argv)
                              const QVariantList patches = m.value(QStringLiteral("patches")).toList();
 
                              patchStoredUiTree(target, patches);
+
+                             if (gDevChannel && (target == QLatin1String("main") || target.isEmpty()))
+                                 gDevChannel->applyPatch(patches);
 
                              if (QObject *root = g_roots.value(target)) {
                                  QVariantMap patch;
