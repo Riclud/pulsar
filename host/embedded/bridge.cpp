@@ -348,6 +348,65 @@ void EmbeddedBridge::finishPermission(const QString &name, bool granted)
     reply(QStringLiteral("__query-result"), replyParams);
 }
 
+// Android keeps the secret behind a Keystore key that only a fingerprint unlocks;
+// other platforms report no biometrics so apps fall back to their password.
+void EmbeddedBridge::answerBiometric(const QString &kind, const QString &token, const QJsonObject &params)
+{
+#ifdef Q_OS_ANDROID
+    const QJniObject activity = QNativeInterface::QAndroidApplication::context();
+
+    if (activity.isValid()) {
+        const QJniObject jtoken = QJniObject::fromString(token);
+        const QJniObject name = QJniObject::fromString(params.value(QStringLiteral("key")).toString());
+        const QJniObject title = QJniObject::fromString(params.value(QStringLiteral("title")).toString());
+        const QJniObject cancel = QJniObject::fromString(params.value(QStringLiteral("cancel")).toString());
+
+        if (kind == QLatin1String("biometric.available")) {
+            finishQuery(token, static_cast<bool>(activity.callMethod<jboolean>("biometricAvailable", "()Z")));
+            return;
+        }
+
+        if (kind == QLatin1String("biometric.remove")) {
+            finishQuery(token, static_cast<bool>(activity.callMethod<jboolean>(
+                                   "biometricRemove", "(Ljava/lang/String;)Z", name.object<jstring>())));
+            return;
+        }
+
+        if (kind == QLatin1String("biometric.seal")) {
+            const QJniObject value = QJniObject::fromString(params.value(QStringLiteral("value")).toString());
+
+            activity.callMethod<void>(
+                "biometricSeal",
+                "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
+                jtoken.object<jstring>(), name.object<jstring>(), value.object<jstring>(), title.object<jstring>(),
+                cancel.object<jstring>());
+            return;
+        }
+
+        if (kind == QLatin1String("biometric.open")) {
+            activity.callMethod<void>("biometricOpen",
+                                      "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
+                                      jtoken.object<jstring>(), name.object<jstring>(), title.object<jstring>(),
+                                      cancel.object<jstring>());
+            return;
+        }
+    }
+#else
+    Q_UNUSED(params)
+#endif
+
+    finishQuery(token, kind == QLatin1String("biometric.open") ? QJsonValue(QJsonValue::Null) : QJsonValue(false));
+}
+
+void EmbeddedBridge::finishQuery(const QString &token, const QJsonValue &value)
+{
+    QJsonObject replyParams;
+    replyParams.insert(QStringLiteral("token"), token);
+    replyParams.insert(QStringLiteral("value"), value);
+
+    reply(QStringLiteral("__query-result"), replyParams);
+}
+
 void EmbeddedBridge::finishMessageDialog(const QString &token, bool accepted)
 {
     QJsonObject replyParams;
@@ -637,6 +696,14 @@ void EmbeddedBridge::handleMessage(const QJsonObject &message)
         QJsonObject replyParams;
         replyParams.insert(QStringLiteral("token"), params.value(QStringLiteral("token")));
 
+        if (kind.startsWith(QLatin1String("biometric."))) {
+            const QString token = params.value(QStringLiteral("token")).toString();
+
+            answerBiometric(kind, token, params);
+
+            return;
+        }
+
         if (pulsar::isCryptoQuery(kind)) {
             QPointer<EmbeddedBridge> self = this;
 
@@ -687,6 +754,8 @@ void EmbeddedBridge::handleMessage(const QJsonObject &message)
             info.insert(QStringLiteral("qt"), QString::fromLatin1(qVersion()));
             info.insert(QStringLiteral("platform"), QGuiApplication::platformName());
             replyParams.insert(QStringLiteral("value"), info);
+        } else if (kind == QLatin1String("system.locale")) {
+            replyParams.insert(QStringLiteral("value"), pulsar::systemLocale());
         } else if (kind == QLatin1String("screen.list")) {
             replyParams.insert(QStringLiteral("value"), pulsar::screenList());
         } else if (kind == QLatin1String("theme.get")) {
@@ -754,8 +823,6 @@ void EmbeddedBridge::handleMessage(const QJsonObject &message)
 
         if (activity.isValid() && action == QLatin1String("orientation")) {
             activity.callMethod<void>("setOrientation", "(Ljava/lang/String;)V",
-        } else if (kind == QLatin1String("system.locale")) {
-            replyParams.insert(QStringLiteral("value"), pulsar::systemLocale());
                                       QJniObject::fromString(params.value(QStringLiteral("orientation")).toString())
                                           .object<jstring>());
         } else if (activity.isValid() && action == QLatin1String("keepAwake")) {

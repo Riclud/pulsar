@@ -222,6 +222,38 @@ export const secureStorage = {
   remove: (key: string): Promise<boolean> => callCapability("secure.remove", { key }) as Promise<boolean>,
 }
 
+export type BiometricPrompt = {
+  /** The prompt's title, such as "Unlock passwords". */
+  readonly title?: string
+  /** The label of the button that dismisses the prompt. */
+  readonly cancel?: string
+}
+
+/**
+ * A secret only the device owner's fingerprint (or face) can read back. On Android the
+ * value is encrypted with a Keystore key that works right after a strong biometric check
+ * and is invalidated when a new fingerprint is enrolled; `open` then returns null and the
+ * app should ask for its password again. Other platforms report `available()` false.
+ */
+export const biometric = {
+  available: (): Promise<boolean> => callCapability("biometric.available") as Promise<boolean>,
+  /** Shows the prompt and stores `value`; false when the user cancels or it fails. */
+  seal: async (key: string, value: string, prompt: BiometricPrompt = {}): Promise<boolean> => {
+    const result = await callCapability("biometric.seal", { key, value, ...promptText(prompt) })
+
+    return result === "ok"
+  },
+  /** Shows the prompt and returns the stored value, or null when cancelled or invalidated. */
+  open: (key: string, prompt: BiometricPrompt = {}): Promise<string | null> => {
+    return callCapability("biometric.open", { key, ...promptText(prompt) }) as Promise<string | null>
+  },
+  remove: (key: string): Promise<boolean> => callCapability("biometric.remove", { key }) as Promise<boolean>,
+}
+
+const promptText = (prompt: BiometricPrompt) => {
+  return { title: prompt.title ?? "Unlock", cancel: prompt.cancel ?? "Cancel" }
+}
+
 export type PBKDF2Options = {
   readonly password: string
   /** Base64 salt, at least 16 random bytes. */

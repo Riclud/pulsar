@@ -452,6 +452,7 @@ import {
   storage,
   secureStorage,
   crypto,
+  biometric,
   dialog,
   notify,
   screen,
@@ -992,6 +993,22 @@ const key = await crypto.pbkdf2({ password, salt, iterations: 600_000 }) // base
 ```
 
 Для шифрования используйте вместе с чистым JS-шифром, например `@noble/ciphers`.
+
+`biometric` хранит секрет, который можно прочитать только отпечатком пальца или лицом
+владельца. В Android значение шифруется ключом Keystore, который работает только сразу
+после строгой биометрической проверки и аннулируется при добавлении нового отпечатка;
+тогда `open` возвращает `null`, и приложению стоит попросить пароль. На десктопе пока
+`available()` возвращает `false`. Добавьте `"biometric"` и в `permissions`, и в
+`osPermissions` в `pulsar.json`.
+
+```ts
+import { biometric } from "pulsar"
+
+if (await biometric.available()) {
+  const saved = await biometric.seal("vault-key", key, { title: "Включить вход по отпечатку" })
+  const value = await biometric.open("vault-key", { title: "Вход", cancel: "Ввести пароль" })
+}
+```
 
 ### Логирование
 

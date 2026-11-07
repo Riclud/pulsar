@@ -1085,6 +1085,12 @@ static void handleQuery(Bridge *bridge, const QVariantMap &m)
         params.insert(QStringLiteral("value"), true);
     } else if (kind == QLatin1String("system.locale")) {
         params.insert(QStringLiteral("value"), pulsar::systemLocale());
+    } else if (kind == QLatin1String("biometric.available") || kind == QLatin1String("biometric.seal")
+               || kind == QLatin1String("biometric.remove")) {
+        // Desktop has no biometric unlock yet; apps fall back to their own password.
+        params.insert(QStringLiteral("value"), false);
+    } else if (kind == QLatin1String("biometric.open")) {
+        params.insert(QStringLiteral("value"), QJsonValue::Null);
     } else if (kind == QLatin1String("secure.available")) {
         params.insert(QStringLiteral("value"), pulsar::secureAvailable());
     } else if (kind == QLatin1String("secure.get")) {

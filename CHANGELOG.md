@@ -14,13 +14,15 @@ All notable changes to this project are documented here. The format follows
 - The CLI finds a toolchain shipped beside it, so packages need no `pulsar install`.
 - `crypto.randomBytes` and `crypto.pbkdf2` give native random bytes and PBKDF2-SHA256,
   so QuickJS apps can derive keys from a password without a multi-second pause.
+- `biometric.seal` and `biometric.open` keep a secret behind the fingerprint on Android,
+  in a Keystore key that a new enrolled fingerprint invalidates.
 
 ### Fixed
 
-- `fs.exportTo` on Android 10 and later keeps the file's original modification time
-  in Downloads instead of the time it was written.
 - `system.locale` reports the OS language. QuickJS has no `Intl` and Bun's ignores `LANG`,
   so apps on a Russian phone or desktop started in English.
+- `fs.exportTo` on Android 10 and later keeps the file's original modification time
+  in Downloads instead of the time it was written.
 - Wheel and touchpad scrolling follow a target every frame, so the speed no longer
   jumps between wheel steps or with the touchpad's event rate.
 - Buttons kept working only until a parent component rerendered around them; their

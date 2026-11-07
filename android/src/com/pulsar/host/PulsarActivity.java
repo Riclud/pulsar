@@ -18,7 +18,12 @@ import android.provider.MediaStore;
 import android.provider.OpenableColumns;
 import android.app.AlertDialog;
 import android.content.SharedPreferences;
+import android.hardware.biometrics.BiometricManager;
+import android.hardware.biometrics.BiometricPrompt;
+import android.hardware.fingerprint.FingerprintManager;
+import android.os.CancellationSignal;
 import android.security.keystore.KeyGenParameterSpec;
+import android.security.keystore.KeyPermanentlyInvalidatedException;
 import android.security.keystore.KeyProperties;
 import android.util.Base64;
 import android.graphics.Color;
@@ -59,6 +64,8 @@ public class PulsarActivity extends QtActivity {
     private static final String SECURE_KEY_ALIAS = "pulsar_secure";
     private static final String SECURE_PREFERENCES = "pulsar_secure";
     private static final String SECURE_CIPHER = "AES/GCM/NoPadding";
+    private static final String BIOMETRIC_KEY_PREFIX = "pulsar_biometric_";
+    private static final String BIOMETRIC_PREFERENCES = "pulsar_biometric";
 
     private static final int PICK_FILES_REQUEST = 0x504b;
     private static final int PERMISSION_REQUEST = 0x504d;
@@ -76,6 +83,8 @@ public class PulsarActivity extends QtActivity {
     private static native void intentReceived(String json);
 
     private static native void messageResult(String token, boolean accepted);
+
+    private static native void biometricResult(String token, String value);
 
     private static final String DEFAULT_NOTIFICATION_CHANNEL = "pulsar";
     private static final String NOTIFICATION_TOKEN_EXTRA = "pulsarNotificationToken";
@@ -281,6 +290,158 @@ public class PulsarActivity extends QtActivity {
 
     public boolean secureRemove(String key) {
         return securePreferences().edit().remove(key).commit();
+    }
+
+    public boolean biometricAvailable() {
+        try {
+            if (Build.VERSION.SDK_INT >= 30) {
+                BiometricManager manager = getSystemService(BiometricManager.class);
+
+                return manager != null && manager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+                        == BiometricManager.BIOMETRIC_SUCCESS;
+            }
+
+            if (Build.VERSION.SDK_INT >= 29) {
+                BiometricManager manager = getSystemService(BiometricManager.class);
+
+                return manager != null && manager.canAuthenticate() == BiometricManager.BIOMETRIC_SUCCESS;
+            }
+
+            FingerprintManager fingerprints = getSystemService(FingerprintManager.class);
+
+            return fingerprints != null && fingerprints.isHardwareDetected() && fingerprints.hasEnrolledFingerprints();
+        } catch (Exception error) {
+            return false;
+        }
+    }
+
+    private SharedPreferences biometricPreferences() {
+        return getSharedPreferences(BIOMETRIC_PREFERENCES, MODE_PRIVATE);
+    }
+
+    // The key only works right after a strong biometric check, and a newly enrolled
+    // fingerprint invalidates it, so the secret cannot be read without the owner.
+    private SecretKey newBiometricKey(String alias) throws Exception {
+        KeyGenParameterSpec.Builder spec = new KeyGenParameterSpec.Builder(
+                alias, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setUserAuthenticationRequired(true)
+                .setInvalidatedByBiometricEnrollment(true);
+
+        if (Build.VERSION.SDK_INT >= 30)
+            spec.setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG);
+
+        KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+
+        generator.init(spec.build());
+
+        return generator.generateKey();
+    }
+
+    private SecretKey biometricKey(String alias) throws Exception {
+        KeyStore store = KeyStore.getInstance("AndroidKeyStore");
+
+        store.load(null);
+
+        return (SecretKey) store.getKey(alias, null);
+    }
+
+    public boolean biometricRemove(String name) {
+        try {
+            KeyStore store = KeyStore.getInstance("AndroidKeyStore");
+
+            store.load(null);
+            store.deleteEntry(BIOMETRIC_KEY_PREFIX + name);
+        } catch (Exception error) {
+            // A missing entry is the state we want anyway.
+        }
+
+        return biometricPreferences().edit().remove(name).commit();
+    }
+
+    private interface CipherStep {
+        String run(Cipher cipher) throws Exception;
+    }
+
+    private void promptWithCipher(String token, Cipher cipher, String title, String cancel, CipherStep step) {
+        runOnUiThread(() -> {
+            try {
+                BiometricPrompt prompt = new BiometricPrompt.Builder(this)
+                        .setTitle(title)
+                        .setNegativeButton(cancel, getMainExecutor(), (dialog, which) -> biometricResult(token, null))
+                        .build();
+
+                prompt.authenticate(new BiometricPrompt.CryptoObject(cipher), new CancellationSignal(), getMainExecutor(),
+                        new BiometricPrompt.AuthenticationCallback() {
+                            @Override
+                            public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
+                                try {
+                                    biometricResult(token, step.run(result.getCryptoObject().getCipher()));
+                                } catch (Exception error) {
+                                    biometricResult(token, null);
+                                }
+                            }
+
+                            @Override
+                            public void onAuthenticationError(int code, CharSequence message) {
+                                biometricResult(token, null);
+                            }
+                        });
+            } catch (Exception error) {
+                biometricResult(token, null);
+            }
+        });
+    }
+
+    public void biometricSeal(String token, String name, String value, String title, String cancel) {
+        try {
+            String alias = BIOMETRIC_KEY_PREFIX + name;
+
+            biometricRemove(name);
+
+            Cipher cipher = Cipher.getInstance(SECURE_CIPHER);
+
+            cipher.init(Cipher.ENCRYPT_MODE, newBiometricKey(alias));
+
+            promptWithCipher(token, cipher, title, cancel, (ready) -> {
+                byte[] encrypted = ready.doFinal(value.getBytes(StandardCharsets.UTF_8));
+                String stored = Base64.encodeToString(ready.getIV(), Base64.NO_WRAP) + ":"
+                        + Base64.encodeToString(encrypted, Base64.NO_WRAP);
+
+                return biometricPreferences().edit().putString(name, stored).commit() ? "ok" : null;
+            });
+        } catch (Exception error) {
+            biometricResult(token, null);
+        }
+    }
+
+    public void biometricOpen(String token, String name, String title, String cancel) {
+        String stored = biometricPreferences().getString(name, null);
+
+        if (stored == null) {
+            biometricResult(token, null);
+            return;
+        }
+
+        try {
+            String[] parts = stored.split(":", 2);
+            Cipher cipher = Cipher.getInstance(SECURE_CIPHER);
+
+            cipher.init(Cipher.DECRYPT_MODE, biometricKey(BIOMETRIC_KEY_PREFIX + name),
+                    new GCMParameterSpec(128, Base64.decode(parts[0], Base64.NO_WRAP)));
+
+            promptWithCipher(token, cipher, title, cancel, (ready) -> {
+                byte[] decrypted = ready.doFinal(Base64.decode(parts[1], Base64.NO_WRAP));
+
+                return new String(decrypted, StandardCharsets.UTF_8);
+            });
+        } catch (KeyPermanentlyInvalidatedException error) {
+            biometricRemove(name);
+            biometricResult(token, null);
+        } catch (Exception error) {
+            biometricResult(token, null);
+        }
     }
 
     public void showMessageDialog(String token, String title, String text) {

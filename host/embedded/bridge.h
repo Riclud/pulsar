@@ -6,6 +6,7 @@
 #include <QJSValue>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QJsonValue>
 #include <QObject>
 #include <QString>
 #include <QVariantList>
@@ -44,6 +45,11 @@ public:
 
     /** Start the native multi-file picker and remember which dialog to resolve. */
     void beginFileDialog(const QString &token);
+
+    void answerBiometric(const QString &kind, const QString &token, const QJsonObject &params);
+
+    /** Resolve a host query that finished asynchronously, such as a biometric prompt. */
+    void finishQuery(const QString &token, const QJsonValue &value);
 
     /** Resolve a native confirmation dialog by its token. */
     void finishMessageDialog(const QString &token, bool accepted);

@@ -272,6 +272,7 @@ const ANDROID_PERMISSIONS: Record<string, string[]> = {
   microphone: ["android.permission.RECORD_AUDIO"],
   location: ["android.permission.ACCESS_FINE_LOCATION", "android.permission.ACCESS_COARSE_LOCATION"],
   notifications: ["android.permission.POST_NOTIFICATIONS"],
+  biometric: ["android.permission.USE_BIOMETRIC", "android.permission.USE_FINGERPRINT"],
   storage: [
     "android.permission.READ_EXTERNAL_STORAGE",
     "android.permission.READ_MEDIA_IMAGES",

@@ -29,10 +29,12 @@
 #include <QtQml/qqml.h>
 
 #include <cstdio>
+#include <iterator>
 #include <memory>
 
 #ifdef Q_OS_ANDROID
 #include <QJniEnvironment>
+#include <QJsonValue>
 #endif
 
 #ifdef PULSAR_DEV
@@ -208,6 +210,34 @@ static void pulsarMessageResult(JNIEnv *env, jclass, jstring token, jboolean acc
         [text, value] {
             if (g_backBridge)
                 g_backBridge->finishMessageDialog(text, value);
+        },
+        Qt::QueuedConnection);
+}
+
+static void pulsarBiometricResult(JNIEnv *env, jclass, jstring token, jstring value)
+{
+    if (!g_backBridge)
+        return;
+
+    const char *tokenChars = env->GetStringUTFChars(token, nullptr);
+    const QString tokenText = QString::fromUtf8(tokenChars);
+
+    env->ReleaseStringUTFChars(token, tokenChars);
+
+    QJsonValue result = QJsonValue::Null;
+
+    if (value) {
+        const char *valueChars = env->GetStringUTFChars(value, nullptr);
+
+        result = QString::fromUtf8(valueChars);
+        env->ReleaseStringUTFChars(value, valueChars);
+    }
+
+    QMetaObject::invokeMethod(
+        g_backBridge,
+        [tokenText, result] {
+            if (g_backBridge)
+                g_backBridge->finishQuery(tokenText, result);
         },
         Qt::QueuedConnection);
 }
@@ -549,6 +579,8 @@ int main(int argc, char **argv)
           reinterpret_cast<void *>(pulsarIntentReceived) },
         { const_cast<char *>("messageResult"), const_cast<char *>("(Ljava/lang/String;Z)V"),
           reinterpret_cast<void *>(pulsarMessageResult) },
+        { const_cast<char *>("biometricResult"), const_cast<char *>("(Ljava/lang/String;Ljava/lang/String;)V"),
+          reinterpret_cast<void *>(pulsarBiometricResult) },
     };
 
     JNINativeMethod mediaMethods[] = {
@@ -558,8 +590,8 @@ int main(int argc, char **argv)
 
     QJniEnvironment jniEnvironment;
 
-    jniEnvironment.registerNativeMethods("com/pulsar/host/PulsarActivity", methods, 7);
-    jniEnvironment.registerNativeMethods("com/pulsar/host/PulsarMediaService", mediaMethods, 1);
+    jniEnvironment.registerNativeMethods("com/pulsar/host/PulsarActivity", methods, std::size(methods));
+    jniEnvironment.registerNativeMethods("com/pulsar/host/PulsarMediaService", mediaMethods, std::size(mediaMethods));
 #endif
 
     pulsar::NetworkService network(&app);

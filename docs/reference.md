@@ -452,6 +452,7 @@ import {
   storage,
   secureStorage,
   crypto,
+  biometric,
   dialog,
   notify,
   screen,
@@ -987,6 +988,22 @@ const key = await crypto.pbkdf2({ password, salt, iterations: 600_000 }) // base
 ```
 
 Pair it with a pure-JS cipher such as `@noble/ciphers` for encryption.
+
+`biometric` keeps a secret that only the device owner's fingerprint or face reads
+back. On Android the value is encrypted with a Keystore key that works right after a
+strong biometric check and is invalidated when a new fingerprint is enrolled; `open`
+then returns `null`, and the app should fall back to its password. Desktop reports
+`available()` as `false` for now. Add `"biometric"` to both `permissions` and
+`osPermissions` in `pulsar.json`.
+
+```ts
+import { biometric } from "pulsar"
+
+if (await biometric.available()) {
+  const saved = await biometric.seal("vault-key", key, { title: "Turn on fingerprint unlock" })
+  const value = await biometric.open("vault-key", { title: "Unlock", cancel: "Use the password" })
+}
+```
 
 ### Logging
 
