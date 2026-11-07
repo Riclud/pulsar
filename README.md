@@ -95,6 +95,16 @@ stdio. The agent gets:
 The same control works from a terminal next to `pulsar dev`: `pulsar ui`, `tap`, `hover`,
 `scroll`, `keys` and `shot`.
 
+To teach the agent Pulsar itself, install the skill. It is the API, components and layout
+guide of your installed version, so the agent does not search the docs or GitHub:
+
+```sh
+pulsar skill            # into .claude/skills/pulsar of this project
+pulsar skill --global   # for every project
+```
+
+Claude Code and opencode read `.claude/skills`; `--dir <path>` puts it anywhere else.
+
 ## Platforms
 
 | Platform            | Self-contained | Status           |

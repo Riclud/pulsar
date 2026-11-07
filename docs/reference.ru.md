@@ -310,6 +310,16 @@ opencode mcp add pulsar -- pulsar mcp
 `pulsar_key`, `pulsar_back`, `pulsar_wait_for`, `pulsar_state`, `pulsar_eval`,
 `pulsar_logs`, `pulsar_reload` и `pulsar_stop`.
 
+Чтобы агент знал сам Pulsar, поставьте скилл. Это API, компоненты и вёрстка вашей
+установленной версии, так что агенту не нужно искать по документации и GitHub:
+
+```sh
+pulsar skill            # в .claude/skills/pulsar этого проекта
+pulsar skill --global   # для всех проектов
+```
+
+Claude Code и opencode читают `.claude/skills`; `--dir <путь>` кладёт скилл куда угодно.
+
 Флоу-тесты могут использовать host API:
 
 ```ts

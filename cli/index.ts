@@ -70,6 +70,7 @@ import { createIgnoreFilter } from "./ignore.ts"
 import { update } from "./update.ts"
 import { startDesktopControl } from "./control.ts"
 import { runMcp } from "./mcp.ts"
+import { installSkill } from "./skill.ts"
 import { ui } from "./ui.ts"
 
 const [cmd, ...args] = process.argv.slice(2)
@@ -1165,7 +1166,10 @@ const COMMANDS: Array<[string, Array<[string, string]>]> = [
   ],
   [
     "Agents",
-    [["mcp", "MCP server on stdio: AI agents start, see and drive your app"]],
+    [
+      ["mcp", "MCP server on stdio: AI agents start, see and drive your app"],
+      ["skill", "install the agent skill in .claude/skills (--global, --dir <path>)"],
+    ],
   ],
   [
     "Toolchain",
@@ -1283,6 +1287,12 @@ switch (cmd) {
   case "mcp":
     runMcp()
     break
+  case "skill": {
+    const target = installSkill({ global: args.includes("--global"), dir: flagValue("--dir") })
+
+    ui.step(`installed the Pulsar skill in ${target}`)
+    break
+  }
   case "hover":
     await runDevice(() => deviceHover(process.cwd(), nodeQuery(), args.includes("--leave")))
     break

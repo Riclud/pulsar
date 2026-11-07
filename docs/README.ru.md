@@ -98,6 +98,16 @@ opencode mcp add pulsar -- pulsar mcp
 То же управление работает из терминала рядом с `pulsar dev`: `pulsar ui`, `tap`, `hover`,
 `scroll`, `keys` и `shot`.
 
+Чтобы агент знал сам Pulsar, поставьте скилл. Это API, компоненты и вёрстка вашей
+установленной версии, так что агенту не нужно искать по документации и GitHub:
+
+```sh
+pulsar skill            # в .claude/skills/pulsar этого проекта
+pulsar skill --global   # для всех проектов
+```
+
+Claude Code и opencode читают `.claude/skills`; `--dir <путь>` кладёт скилл куда угодно.
+
 ## Платформы
 
 | Платформа           | Самодостаточно | Статус                  |

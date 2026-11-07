@@ -307,6 +307,16 @@ The tools are `pulsar_start` (`visible: true` opens a real window), `pulsar_ui`,
 `pulsar_key`, `pulsar_back`, `pulsar_wait_for`, `pulsar_state`, `pulsar_eval`,
 `pulsar_logs`, `pulsar_reload` and `pulsar_stop`.
 
+To teach the agent Pulsar itself, install the skill. It is the API, components and layout
+guide of your installed version, so the agent does not search the docs or GitHub:
+
+```sh
+pulsar skill            # into .claude/skills/pulsar of this project
+pulsar skill --global   # for every project
+```
+
+Claude Code and opencode read `.claude/skills`; `--dir <path>` puts it anywhere else.
+
 Flow tests can use the host API:
 
 ```ts

@@ -14,6 +14,8 @@ All notable changes to this project are documented here. The format follows
 - Device commands find icon buttons by their `a11yLabel`.
 - `pulsar mcp`: a Model Context Protocol server, so AI agents can start an app offscreen,
   read its UI tree and screenshots, click, type and read logs while they edit it.
+- `pulsar skill` installs an agent skill with the API, components and layout guide of the
+  installed version, for Claude Code, opencode and other agents that read Agent Skills.
 - `dialog.toast` shows a toast on the desktop too, at the bottom of the window.
 
 ## [2.1.0] - 2026-11-07
