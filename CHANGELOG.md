@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-07
+
 ### Added
 
 - Release assets `pulsar-<platform>.tar.gz` (and `.zip` on Windows) hold the CLI and the
@@ -21,6 +23,8 @@ All notable changes to this project are documented here. The format follows
 
 - `system.locale` reports the OS language. QuickJS has no `Intl` and Bun's ignores `LANG`,
   so apps on a Russian phone or desktop started in English.
+- A `TextArea` with `lines` grows with its text and keeps the cursor in view instead of
+  letting long text run under the controls below.
 - `fs.exportTo` on Android 10 and later keeps the file's original modification time
   in Downloads instead of the time it was written.
 - Wheel and touchpad scrolling follow a target every frame, so the speed no longer

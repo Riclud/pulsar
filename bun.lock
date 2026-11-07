@@ -16,14 +16,14 @@
     },
     "cli": {
       "name": "pulsar-cli",
-      "version": "2.0.0",
+      "version": "2.1.0",
       "bin": {
         "pulsar": "./index.ts",
       },
     },
     "core/sdk": {
       "name": "pulsar",
-      "version": "2.0.0",
+      "version": "2.1.0",
     },
     "examples/hello": {
       "name": "hello",
