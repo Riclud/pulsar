@@ -18,6 +18,8 @@ All notable changes to this project are documented here. The format follows
   installed version, for Claude Code, opencode and other agents that read Agent Skills.
   Its recipes cover lists, storage, screens, forms, network, settings, files,
   notifications and layouts, and `bun run lint` typechecks every one of them.
+- `scanner.scan()` reads QR codes with the camera on Android (CameraX and ZXing, added to
+  the APK only for apps that list `"scanner"`), and `QrCode` draws them on any platform.
 - `dialog.toast` shows a toast on the desktop too, at the bottom of the window.
 
 ## [2.1.0] - 2026-11-07

@@ -222,6 +222,30 @@ export const secureStorage = {
   remove: (key: string): Promise<boolean> => callCapability("secure.remove", { key }) as Promise<boolean>,
 }
 
+export type ScanOptions = {
+  /** Text above the camera view, such as "Scan the code on your computer". */
+  readonly title?: string
+  /** The label of the button that closes the scanner. */
+  readonly cancel?: string
+}
+
+/**
+ * Scans a QR code with the camera on Android. The camera permission is asked the
+ * usual way, so the user can allow it only while the app is in use. Add "scanner"
+ * to `permissions`: the build then includes the camera and decoder libraries.
+ * Desktops report `available()` false.
+ */
+export const scanner = {
+  available: (): Promise<boolean> => callCapability("scanner.available") as Promise<boolean>,
+  /** The decoded text, or null when the user cancels or denies the camera. */
+  scan: (options: ScanOptions = {}): Promise<string | null> => {
+    return callCapability("scanner.scan", {
+      title: options.title ?? "",
+      cancel: options.cancel ?? "Cancel",
+    }) as Promise<string | null>
+  },
+}
+
 export type BiometricPrompt = {
   /** The prompt's title, such as "Unlock passwords". */
   readonly title?: string

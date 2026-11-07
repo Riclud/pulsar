@@ -1045,6 +1045,21 @@ const key = await crypto.pbkdf2({ password, salt, iterations: 600_000 }) // base
 
 Pair it with a pure-JS cipher such as `@noble/ciphers` for encryption.
 
+`scanner.scan()` reads a QR code with the camera on Android and returns its text, or
+`null` when the user cancels or denies the camera. The camera permission is asked the usual
+way, so people can allow it only while the app is in use. Add `"scanner"` to `permissions`:
+the APK then includes the camera and decoder libraries (about 3.5 MB), and other apps stay
+as they are. Desktops report `scanner.available()` as `false`. `QrCode({ value, size })`
+draws a code, for example for another device to scan.
+
+```ts
+import { QrCode, scanner } from "pulsar"
+
+const text = await scanner.scan({ title: "Scan the code on your computer", cancel: "Cancel" })
+
+QrCode({ value: "https://pulsarjs.org", size: 220 })
+```
+
 `biometric` keeps a secret that only the device owner's fingerprint or face reads
 back. On Android the value is encrypted with a Keystore key that works right after a
 strong biometric check and is invalidated when a new fingerprint is enrolled; `open`

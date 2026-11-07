@@ -214,6 +214,7 @@ static void pulsarMessageResult(JNIEnv *env, jclass, jstring token, jboolean acc
         Qt::QueuedConnection);
 }
 
+// Delivers the result of an asynchronous host query, such as a biometric prompt or a scan.
 static void pulsarBiometricResult(JNIEnv *env, jclass, jstring token, jstring value)
 {
     if (!g_backBridge)
@@ -598,6 +599,8 @@ int main(int argc, char **argv)
         { const_cast<char *>("messageResult"), const_cast<char *>("(Ljava/lang/String;Z)V"),
           reinterpret_cast<void *>(pulsarMessageResult) },
         { const_cast<char *>("biometricResult"), const_cast<char *>("(Ljava/lang/String;Ljava/lang/String;)V"),
+          reinterpret_cast<void *>(pulsarBiometricResult) },
+        { const_cast<char *>("queryResult"), const_cast<char *>("(Ljava/lang/String;Ljava/lang/String;)V"),
           reinterpret_cast<void *>(pulsarBiometricResult) },
     };
 

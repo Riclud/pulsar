@@ -51,7 +51,7 @@ src/main.ts     entry: creates the App and renders windows
 - **Permissions gate capabilities.** With a `permissions` list, any capability outside it
   throws. The names are `storage`, `secure`, `fs`, `paths`, `dialog`, `net`, `clipboard`,
   `share`, `notify`, `shell`, `system`, `theme`, `screen`, `tray`, `device`, `media`,
-  `permissions` and `biometric`.
+  `permissions`, `biometric` and `scanner`.
 - **OS permissions.** Android runtime permissions go in `osPermissions`: `notifications`,
   `camera`, `microphone`, `location`, `storage`, `biometric`.
 - **Android** needs `"compat": "portable"`: no Node or Bun APIs anywhere in the app.
@@ -160,7 +160,8 @@ const Editor = component(() => {
     `share`, `notify`;
   - system: `shell.open`, `system.locale()`, `theme`, `screen`, `tray`, `device`, `permissions`;
   - network: `net` (`fetch`, `download`, `websocket`);
-  - security: `crypto` (`randomBytes`, `pbkdf2`) and `biometric` (fingerprint, Android).
+  - security: `crypto` (`randomBytes`, `pbkdf2`) and `biometric` (fingerprint, Android);
+  - QR: `scanner.scan()` (camera, Android) and the `QrCode` component.
 - **Other modules:**
   - i18n: `t`, `setMessages`, `setLocale`;
   - layout: `createBreakpoints`;

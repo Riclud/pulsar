@@ -18,6 +18,7 @@ import android.provider.MediaStore;
 import android.provider.OpenableColumns;
 import android.app.AlertDialog;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.hardware.biometrics.BiometricManager;
 import android.hardware.biometrics.BiometricPrompt;
 import android.hardware.fingerprint.FingerprintManager;
@@ -69,6 +70,10 @@ public class PulsarActivity extends QtActivity {
 
     private static final int PICK_FILES_REQUEST = 0x504b;
     private static final int PERMISSION_REQUEST = 0x504d;
+    private static final int SCAN_REQUEST = 0x5351;
+    private static final String SCANNER_CLASS = "com.pulsar.host.ScannerActivity";
+
+    private String scanToken;
 
     private static native void notifyBack();
 
@@ -85,6 +90,8 @@ public class PulsarActivity extends QtActivity {
     private static native void messageResult(String token, boolean accepted);
 
     private static native void biometricResult(String token, String value);
+
+    private static native void queryResult(String token, String value);
 
     private static final String DEFAULT_NOTIFICATION_CHANNEL = "pulsar";
     private static final String NOTIFICATION_TOKEN_EXTRA = "pulsarNotificationToken";
@@ -444,6 +451,37 @@ public class PulsarActivity extends QtActivity {
         }
     }
 
+    // ScannerActivity ships only in apps that ask for "scanner", so it is looked up by name.
+    public boolean scannerAvailable() {
+        try {
+            Class.forName(SCANNER_CLASS);
+
+            return getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY);
+        } catch (ClassNotFoundException error) {
+            return false;
+        }
+    }
+
+    public void scanCode(String token, String title, String cancel) {
+        runOnUiThread(() -> {
+            try {
+                Intent intent = new Intent(this, Class.forName(SCANNER_CLASS));
+
+                intent.putExtra("title", title);
+                intent.putExtra("cancel", cancel);
+
+                // A second scan request ends the first one as cancelled.
+                if (scanToken != null)
+                    queryResult(scanToken, null);
+
+                scanToken = token;
+                startActivityForResult(intent, SCAN_REQUEST);
+            } catch (Exception error) {
+                queryResult(token, null);
+            }
+        });
+    }
+
     public void showMessageDialog(String token, String title, String text) {
         runOnUiThread(() -> new AlertDialog.Builder(this)
                 .setTitle(title)
@@ -752,6 +790,19 @@ public class PulsarActivity extends QtActivity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == SCAN_REQUEST) {
+            String token = scanToken;
+            String value = resultCode == RESULT_OK && data != null ? data.getStringExtra("value") : null;
+
+            scanToken = null;
+
+            if (token != null)
+                queryResult(token, value);
+
+            super.onActivityResult(requestCode, resultCode, data);
+            return;
+        }
+
         if (requestCode != PICK_FILES_REQUEST) {
             super.onActivityResult(requestCode, resultCode, data);
             return;

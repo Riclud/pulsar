@@ -1094,6 +1094,11 @@ static void handleQuery(Bridge *bridge, const QVariantMap &m)
         params.insert(QStringLiteral("value"), false);
     } else if (kind == QLatin1String("biometric.open")) {
         params.insert(QStringLiteral("value"), QJsonValue::Null);
+    } else if (kind == QLatin1String("scanner.available")) {
+        // Scanning uses the phone camera; desktops show codes instead.
+        params.insert(QStringLiteral("value"), false);
+    } else if (kind == QLatin1String("scanner.scan")) {
+        params.insert(QStringLiteral("value"), QJsonValue::Null);
     } else if (kind == QLatin1String("secure.available")) {
         params.insert(QStringLiteral("value"), pulsar::secureAvailable());
     } else if (kind == QLatin1String("secure.get")) {

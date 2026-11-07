@@ -46,6 +46,7 @@ public:
     /** Start the native multi-file picker and remember which dialog to resolve. */
     void beginFileDialog(const QString &token);
 
+    void answerScanner(const QString &kind, const QString &token, const QJsonObject &params);
     void answerBiometric(const QString &kind, const QString &token, const QJsonObject &params);
 
     /** Resolve a host query that finished asynchronously, such as a biometric prompt. */

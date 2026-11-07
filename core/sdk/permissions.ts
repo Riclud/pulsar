@@ -46,6 +46,8 @@ export const CAPABILITY_PERMISSIONS: Record<string, string> = {
   "secure.get": "secure",
   "secure.set": "secure",
   "secure.remove": "secure",
+  "scanner.available": "scanner",
+  "scanner.scan": "scanner",
   "biometric.available": "biometric",
   "biometric.seal": "biometric",
   "biometric.open": "biometric",

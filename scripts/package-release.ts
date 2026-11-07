@@ -53,7 +53,7 @@ if (!readFileSync(join(root, "tsconfig.json"), "utf8").includes('"jsxImportSourc
   throw new Error("tsconfig.json must set jsxImportSource to pulsar")
 }
 
-const CLI_PATHS = ["cli", "core", "CMakeLists.txt", "package.json", "tsconfig.json", "host", "bridge", "launcher", "android"]
+const CLI_PATHS = ["cli", "core", "CMakeLists.txt", "package.json", "tsconfig.json", "host", "bridge", "launcher", "android", "android-scanner"]
 
 tar(`pulsar-cli-${platform}.tar.gz`, root, [...CLI_PATHS, "-C", cliStage, "bin"])
 

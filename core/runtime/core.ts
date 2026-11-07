@@ -206,6 +206,8 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
     return Promise.resolve(true)
   })
 
+  registerCapability("scanner.available", () => hostQuery("scanner.available"))
+  registerCapability("scanner.scan", (params) => hostQuery("scanner.scan", params))
   registerCapability("biometric.available", () => hostQuery("biometric.available"))
   registerCapability("biometric.seal", (params) => hostQuery("biometric.seal", params))
   registerCapability("biometric.open", (params) => hostQuery("biometric.open", params))

@@ -1,7 +1,7 @@
 import type { BuildOutput, BunPlugin } from "bun"
 import { spawnSync } from "child_process"
 import { createHash } from "crypto"
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "fs"
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "fs"
 import { homedir } from "os"
 import { basename, dirname, join, resolve } from "path"
 import type { AppManifest } from "../core/sdk/manifest.ts"
@@ -281,9 +281,58 @@ const ANDROID_PERMISSIONS: Record<string, string[]> = {
   ],
 }
 
+/** Whether the app asked for the QR scanner, which brings the camera and decoder libraries. */
+export const usesScanner = (manifest: AppManifest | null): boolean => {
+  return manifest?.permissions?.includes("scanner") === true
+}
+
+const SCANNER_DEPENDENCIES = [
+  "implementation 'androidx.activity:activity:1.9.3'",
+  "implementation 'androidx.camera:camera-camera2:1.4.2'",
+  "implementation 'androidx.camera:camera-lifecycle:1.4.2'",
+  "implementation 'androidx.camera:camera-view:1.4.2'",
+  "implementation 'com.google.zxing:core:3.5.3'",
+]
+
+const SCANNER_ACTIVITY =
+  '<activity android:name="com.pulsar.host.ScannerActivity" android:exported="false" ' +
+  'android:screenOrientation="portrait" android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />'
+
+/**
+ * The Android package sources for this app: Pulsar's own, plus the scanner activity,
+ * its Gradle dependencies and its manifest entry when the app asked for "scanner".
+ * Returns undefined when the stock sources are enough.
+ */
+export const preparePackageSources = (buildDir: string, qtDir: string, manifest: AppManifest | null): string | undefined => {
+  if (!usesScanner(manifest)) return undefined
+
+  const root = pulsarRoot()
+  const target = join(buildDir, "package")
+
+  rmSync(target, { recursive: true, force: true })
+  cpSync(join(root, "android"), target, { recursive: true })
+  cpSync(join(root, "android-scanner", "src"), join(target, "src"), { recursive: true })
+
+  const gradle = readFileSync(join(qtDir, "src", "android", "templates", "build.gradle"), "utf8")
+  const libs = "implementation fileTree(dir: 'libs', include: ['*.jar', '*.aar'])"
+
+  if (!gradle.includes(libs)) throw new Error("unexpected Qt build.gradle template; cannot add the scanner")
+
+  writeFileSync(join(target, "build.gradle"), gradle.replace(libs, [libs, ...SCANNER_DEPENDENCIES].join("\n    ")))
+
+  const manifestPath = join(target, "AndroidManifest.xml")
+  const manifestText = readFileSync(manifestPath, "utf8")
+
+  writeFileSync(manifestPath, manifestText.replace("</application>", `    ${SCANNER_ACTIVITY}\n    </application>`))
+
+  return target
+}
+
 /** Map logical `osPermissions` from pulsar.json to Android permission names. */
 export const androidPermissions = (manifest: AppManifest | null): string[] => {
   const names = new Set<string>()
+
+  if (usesScanner(manifest)) names.add("android.permission.CAMERA")
 
   for (const name of manifest?.osPermissions ?? []) {
     for (const permission of ANDROID_PERMISSIONS[name] ?? [name]) names.add(permission)
@@ -646,6 +695,7 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
 
   const qtCmake = join(tools.qt, "bin", "qt-cmake")
   const permissions = androidPermissions(manifest)
+  const packageSources = preparePackageSources(buildDir, tools.qt, manifest)
 
   const configure = spawnSync(
     qtCmake,
@@ -668,6 +718,7 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
       `-DPULSAR_ANDROID_VERSION_CODE=${versionCode(versionName)}`,
       ...(permissions.length > 0 ? [`-DPULSAR_ANDROID_PERMISSIONS=${permissions.join(";")}`] : []),
       ...(dev ? ["-DPULSAR_ANDROID_DEV=ON"] : []),
+      `-DPULSAR_ANDROID_PACKAGE_DIR=${packageSources ?? ""}`,
       `-DQT_HOST_PATH=${tools.hostQt}`,
     ],
     { stdio: "inherit", env },

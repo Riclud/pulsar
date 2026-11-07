@@ -398,6 +398,32 @@ void EmbeddedBridge::answerBiometric(const QString &kind, const QString &token, 
     finishQuery(token, kind == QLatin1String("biometric.open") ? QJsonValue(QJsonValue::Null) : QJsonValue(false));
 }
 
+void EmbeddedBridge::answerScanner(const QString &kind, const QString &token, const QJsonObject &params)
+{
+#ifdef Q_OS_ANDROID
+    const QJniObject activity = QNativeInterface::QAndroidApplication::context();
+
+    if (activity.isValid() && kind == QLatin1String("scanner.available")) {
+        finishQuery(token, static_cast<bool>(activity.callMethod<jboolean>("scannerAvailable", "()Z")));
+        return;
+    }
+
+    if (activity.isValid() && kind == QLatin1String("scanner.scan")) {
+        const QJniObject jtoken = QJniObject::fromString(token);
+        const QJniObject title = QJniObject::fromString(params.value(QStringLiteral("title")).toString());
+        const QJniObject cancel = QJniObject::fromString(params.value(QStringLiteral("cancel")).toString());
+
+        activity.callMethod<void>("scanCode", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
+                                  jtoken.object<jstring>(), title.object<jstring>(), cancel.object<jstring>());
+        return;
+    }
+#else
+    Q_UNUSED(params)
+#endif
+
+    finishQuery(token, kind == QLatin1String("scanner.scan") ? QJsonValue(QJsonValue::Null) : QJsonValue(false));
+}
+
 void EmbeddedBridge::finishQuery(const QString &token, const QJsonValue &value)
 {
     QJsonObject replyParams;
@@ -695,6 +721,12 @@ void EmbeddedBridge::handleMessage(const QJsonObject &message)
 
         QJsonObject replyParams;
         replyParams.insert(QStringLiteral("token"), params.value(QStringLiteral("token")));
+
+        if (kind.startsWith(QLatin1String("scanner."))) {
+            answerScanner(kind, params.value(QStringLiteral("token")).toString(), params);
+
+            return;
+        }
 
         if (kind.startsWith(QLatin1String("biometric."))) {
             const QString token = params.value(QStringLiteral("token")).toString();

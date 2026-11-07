@@ -298,7 +298,12 @@ if(ANDROID)
         QT_ANDROID_TARGET_SDK_VERSION 35
     )
 
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/android/AndroidManifest.xml")
+    # The CLI passes its own package sources when an app needs extra parts, such as the scanner.
+    if(PULSAR_ANDROID_PACKAGE_DIR)
+        set_target_properties(pulsar-android PROPERTIES
+            QT_ANDROID_PACKAGE_SOURCE_DIR "${PULSAR_ANDROID_PACKAGE_DIR}"
+        )
+    elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/android/AndroidManifest.xml")
         set_target_properties(pulsar-android PROPERTIES
             QT_ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android"
         )

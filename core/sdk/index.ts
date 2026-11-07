@@ -214,7 +214,7 @@ export { email, isValid, max, maxLength, min, minLength, number, pattern, requir
 export type { ValidationResult, ValidationRule } from "./validate.ts"
 export type { Route, RouterState, RouterScreen, RouterOptions } from "./nav.ts"
 export { hostInfo } from "./caps.ts"
-export type { BiometricPrompt, HostInfo, PBKDF2Options } from "./caps.ts"
+export type { BiometricPrompt, HostInfo, PBKDF2Options, ScanOptions } from "./caps.ts"
 export { runMigrations } from "./migrations.ts"
 export type { Migration, MigrationOptions, MigrationStore } from "./migrations.ts"
 export { Breakpoints, createBreakpoints, responsive } from "./responsive.ts"
@@ -230,6 +230,7 @@ export {
   secureStorage,
   crypto,
   biometric,
+  scanner,
   shell,
   storage,
   system,
