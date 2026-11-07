@@ -205,6 +205,8 @@ export interface ThemeColors {
   crust: string
 }
 export type ThemeColor = keyof ThemeColors
+export { QrCode, encodeQr } from "./qr.ts"
+export type { QrCodeOptions, QrErrorCorrection } from "./qr.ts"
 export { Router, createRouter } from "./nav.ts"
 export { direction, getLocale, getMessages, interpolate, plural, setLocale, setMessages, t, translate } from "./i18n.ts"
 export type { PluralForms } from "./i18n.ts"
