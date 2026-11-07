@@ -127,6 +127,7 @@ Claude Code и opencode читают `.claude/skills`; `--dir <путь>` кла
 
 - [Соберите приложение](https://pulsarjs.org/ru/guide/): полное приложение задач с нуля
 - [Если вы пришли из веба](https://pulsarjs.org/ru/guide/web/): для тех, кто знает CSS и React
+- [ИИ-агенты](https://pulsarjs.org/ru/guide/agents/): MCP и скилл для агентов
 - [CLI](https://pulsarjs.org/ru/cli/) и [манифест](https://pulsarjs.org/ru/manifest/)
 - [Сборка из исходников](https://pulsarjs.org/ru/building/)
 

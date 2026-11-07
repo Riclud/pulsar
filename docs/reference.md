@@ -277,6 +277,8 @@ pulsar key ctrl+s                 # keys with modifiers
 
 ### AI agents (MCP)
 
+The [AI agents guide](guide-agents.md) has the setup for each client, every tool and a sample session.
+
 `pulsar mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server on stdio.
 An agent starts the app offscreen, reads the UI tree or a screenshot, clicks, types and
 reads the logs, while its edits to the sources hot-reload the app. For Claude Code:

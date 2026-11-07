@@ -207,6 +207,9 @@ const rewriteLinks = (html: string, page: Page, anchors: Map<string, { page: Pag
       "guide-ui.md": "guide/ui/",
       "guide-graphics.md": "guide/graphics/",
       "guide-graphics.ru.md": "ru/guide/graphics/",
+      "guide-agents.md": "guide/agents/",
+      "guide-agents.ru.md": "ru/guide/agents/",
+      "docs/guide-agents.md": "guide/agents/",
       "guide-ui.ru.md": "ru/guide/ui/",
       "guide-web.ru.md": "ru/guide/web/",
       "guide-components.ru.md": "ru/guide/components/",
@@ -342,7 +345,7 @@ const slugs = [
 
 const navGroups: Record<Lang, Array<{ label: string; slugs: string[] }>> = {
   en: [
-    { label: "Guide", slugs: ["guide/web", "guide", "guide/components", "guide/graphics", "guide/api"] },
+    { label: "Guide", slugs: ["guide/web", "guide", "guide/components", "guide/graphics", "guide/api", "guide/agents"] },
     { label: "Setup", slugs: ["platforms", "requirements", "install", "quick-start"] },
     { label: "Reference", slugs: ["cli", "manifest", "app-api", "ui", "qml"] },
     {
@@ -351,7 +354,7 @@ const navGroups: Record<Lang, Array<{ label: string; slugs: string[] }>> = {
     },
   ],
   ru: [
-    { label: "Руководство", slugs: ["guide/web", "guide", "guide/components", "guide/graphics", "guide/api"] },
+    { label: "Руководство", slugs: ["guide/web", "guide", "guide/components", "guide/graphics", "guide/api", "guide/agents"] },
     { label: "Установка", slugs: ["platforms", "requirements", "install", "quick-start"] },
     { label: "Справочник", slugs: ["cli", "manifest", "app-api", "ui", "qml"] },
     {
@@ -464,6 +467,7 @@ const homeText = {
       ["ui/", "UI building blocks", "Every component and prop."],
       ["guide/graphics/", "Graphics and effects", "Shaders, Canvas, blur, glass and motion."],
       ["guide/api/", "API tour", "Windows, storage, network and devices."],
+      ["guide/agents/", "AI agents", "Let an agent run, see and test your app over MCP."],
       ["cli/", "CLI reference", "Create, run, build and inspect."],
     ],
   },
@@ -513,6 +517,7 @@ const homeText = {
       ["ui/", "UI-блоки", "Все компоненты и свойства."],
       ["guide/graphics/", "Графика и эффекты", "Шейдеры, Canvas, размытие, стекло и движение."],
       ["guide/api/", "Тур по API", "Окна, хранилище, сеть и устройства."],
+      ["guide/agents/", "ИИ-агенты", "Агент запускает, видит и тестирует приложение через MCP."],
       ["cli/", "CLI", "Создание, запуск, сборка и проверка."],
     ],
   },
@@ -1042,6 +1047,7 @@ const build = async () => {
     guideSource("en", "guide-components.md", "Components and signals", "guide/components"),
     guideSource("en", "guide-graphics.md", "Graphics and effects", "guide/graphics"),
     guideSource("en", "guide-api.md", "API tour", "guide/api"),
+    guideSource("en", "guide-agents.md", "AI agents", "guide/agents"),
   ]
   const guideRU = [
     guideSource("ru", "guide-web.ru.md", "Если вы пришли из веба", "guide/web"),
@@ -1049,6 +1055,7 @@ const build = async () => {
     guideSource("ru", "guide-components.ru.md", "Компоненты и сигналы", "guide/components"),
     guideSource("ru", "guide-graphics.ru.md", "Графика и эффекты", "guide/graphics"),
     guideSource("ru", "guide-api.ru.md", "Тур по API", "guide/api"),
+    guideSource("ru", "guide-agents.ru.md", "ИИ-агенты", "guide/agents"),
   ]
 
   for (const [index, page] of guideEN.entries()) {

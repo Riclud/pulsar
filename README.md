@@ -124,6 +124,7 @@ Everything else is on **[pulsarjs.org](https://pulsarjs.org)**:
 
 - [Build an app](https://pulsarjs.org/guide/), a complete task app from an empty project
 - [Coming from the web](https://pulsarjs.org/guide/web/), for CSS and React developers
+- [AI agents](https://pulsarjs.org/guide/agents/), MCP and the agent skill
 - [CLI](https://pulsarjs.org/cli/) and [manifest](https://pulsarjs.org/manifest/)
 - [Building from source](https://pulsarjs.org/building/)
 
