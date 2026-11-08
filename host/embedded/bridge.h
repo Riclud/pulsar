@@ -13,7 +13,6 @@
 #include <QVariantMap>
 
 class QQmlPropertyMap;
-class QQuickItem;
 class QFileSystemWatcher;
 
 namespace pulsar {
@@ -37,8 +36,6 @@ public:
     Q_INVOKABLE void clipboardWrite(const QString &text);
     Q_INVOKABLE QString clipboardText() const;
     Q_INVOKABLE void devReload();
-    // Moves one item in its parent's child order; QML cannot call QQuickItem::stackBefore.
-    Q_INVOKABLE void stackBefore(QQuickItem *item, QQuickItem *sibling);
     Q_INVOKABLE bool devMode() const;
 
     QString colorScheme() const;
