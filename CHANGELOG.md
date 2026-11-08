@@ -37,6 +37,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Adding a row to a long list no longer reapplies every row and re-adds them all to the
+  parent: unchanged rows are skipped and only the moved ones change places.
 - `system.locale` reports the OS language. QuickJS has no `Intl` and Bun's ignores `LANG`,
   so apps on a Russian phone or desktop started in English.
 - A `TextArea` with `lines` grows with its text and keeps the cursor in view instead of

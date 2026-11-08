@@ -2435,6 +2435,8 @@ const nodeSegment = (node: UiNode, index: number, keys?: Array<string | number>,
   return slots?.[index] ?? String(index)
 }
 
+let serializedRevision = 0
+
 const serializeNode = (node: UiNode, path: string): Record<string, unknown> => {
   if (node.cacheable && node.serialized?.path === path) return node.serialized.out
 
@@ -2447,7 +2449,12 @@ const serializeNode = (node: UiNode, path: string): Record<string, unknown> => {
   }
 
   if (node.events) out.events = node.events
-  if (node.cacheable) node.serialized = { path, out }
+
+  if (node.cacheable) {
+    // The renderer skips a node whose revision it has already applied.
+    out.rev = ++serializedRevision
+    node.serialized = { path, out }
+  }
 
   return out
 }

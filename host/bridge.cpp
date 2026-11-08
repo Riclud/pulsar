@@ -18,6 +18,7 @@
 #include <QVariantMap>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QQuickItem>
 #include <QJsonObject>
 #include <functional>
 #include <QQmlPropertyMap>
@@ -1017,4 +1018,10 @@ QJsonObject Bridge::evaluateForDev(const QString &code)
     }
 
     return quickjs_->evaluateForDev(code);
+}
+
+void Bridge::stackBefore(QQuickItem *item, QQuickItem *sibling)
+{
+    if (item && sibling && item != sibling && item->parentItem() == sibling->parentItem())
+        item->stackBefore(sibling);
 }

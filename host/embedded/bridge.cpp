@@ -18,6 +18,7 @@
 #endif
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QQuickItem>
 #include <QJsonValue>
 #include <QQmlPropertyMap>
 #include <QStandardPaths>
@@ -889,4 +890,10 @@ void EmbeddedBridge::handleMessage(const QJsonObject &message)
                             params.value(QStringLiteral("version")).toString()),
                    QStringLiteral("host"));
     }
+}
+
+void EmbeddedBridge::stackBefore(QQuickItem *item, QQuickItem *sibling)
+{
+    if (item && sibling && item != sibling && item->parentItem() == sibling->parentItem())
+        item->stackBefore(sibling);
 }

@@ -11,6 +11,7 @@
 #include <QVariantList>
 
 class QQmlPropertyMap;
+class QQuickItem;
 
 namespace pulsar {
 class QuickJsRuntime;
@@ -35,6 +36,8 @@ public:
 
     // Called by the host to restart the whole Bun side (dev hot reload).
     Q_INVOKABLE void restart();
+    // Moves one item in its parent's child order; QML cannot call QQuickItem::stackBefore.
+    Q_INVOKABLE void stackBefore(QQuickItem *item, QQuickItem *sibling);
 
     // Retry button on the dev error overlay.
     Q_INVOKABLE void devReload();

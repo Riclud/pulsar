@@ -4588,10 +4588,13 @@ ApplicationWindow {
 
         treeShape = route !== null ? route : treeSignature(view.uiTree, 0);
 
+        view.applyingPatch = true;
+
         for (const patch of patches) {
             const item = view.nodeItems[patch.path];
 
             if (!item || item.pulsarMeta.type !== patch.node.type) {
+                view.applyingPatch = false;
                 renderTree();
                 return;
             }
@@ -4605,6 +4608,8 @@ ApplicationWindow {
                 view.patchShallow = false;
             }
         }
+
+        view.applyingPatch = false;
 
         const elapsed = Date.now() - started;
 
@@ -4774,6 +4779,8 @@ ApplicationWindow {
         return node !== null && node !== undefined && node.events !== undefined && node.events.indexOf(event) >= 0;
     }
 
+    property bool applyingPatch: false
+    property int orderStamp: 0
     property int building: 0
     property var heldEvents: []
 
@@ -5558,55 +5565,45 @@ ApplicationWindow {
 
     function applyOrder(parent, items) {
         const direct = [];
+        const stamp = ++view.orderStamp;
 
         for (const item of items) {
-            if (item && item.parent === parent)
+            if (item && item.parent === parent) {
                 direct.push(item);
-        }
-
-        let previous = -1;
-        let ordered = true;
-
-        for (const item of direct) {
-            const index = parent.children.indexOf(item);
-
-            if (index < previous) {
-                ordered = false;
-                break;
+                item.pulsarMeta.orderStamp = stamp;
             }
-
-            previous = index;
         }
 
-        if (ordered)
-            return;
+        const children = parent.children;
+        const count = children.length;
+        const current = [];
 
-        view.uiStats.reordered += direct.length;
+        for (let index = 0; index < count; index++) {
+            const child = children[index];
 
-        const scrolls = captureScrolls(direct);
-        const focused = view.activeFocusItem;
-
-        view.reordering = true;
-
-        for (const item of direct) {
-            item.parent = null;
-            item.parent = parent;
+            if (child.pulsarMeta && child.pulsarMeta.orderStamp === stamp)
+                current.push(child);
         }
 
-        restoreScrolls(scrolls);
+        // One pass moves only what is out of place, so a new first row costs one move.
+        let moved = 0;
 
-        if (focused && !focused.activeFocus)
-            focused.forceActiveFocus();
+        for (let index = 0; index < direct.length; index++) {
+            const item = direct[index];
 
-        view.reordering = false;
+            if (current[index] === item)
+                continue;
 
-        if (view.revealTarget) {
-            view.revealTicks = 2;
-            keyboardRevealTimer.restart();
+            PulsarBridge.stackBefore(item, current[index]);
+            current.splice(current.indexOf(item), 1);
+            current.splice(index, 0, item);
+            moved++;
         }
 
-        if (PulsarBridge.env("PULSAR_DEBUG"))
-            console.log("PulsarView reorder " + parent.pulsarMeta.type + " " + direct.length);
+        view.uiStats.reordered += moved;
+
+        if (moved > 0 && PulsarBridge.env("PULSAR_DEBUG"))
+            console.log("PulsarView reorder " + parent.pulsarMeta.type + " " + moved);
     }
 
     function reconcile(parent, nodes, isRoot) {
@@ -6686,6 +6683,12 @@ ApplicationWindow {
     }
 
     function updateNode(item, node, isRoot) {
+        // A patch carries whole lists; rows it did not change keep their revision.
+        const applied = item.pulsarMeta.node;
+
+        if (view.applyingPatch && node.rev !== undefined && applied && applied.rev === node.rev)
+            return;
+
         item.pulsarMeta.node = node;
 
         applyCommon(item, node, isRoot);
