@@ -6684,10 +6684,12 @@ ApplicationWindow {
 
     function updateNode(item, node, isRoot) {
         // A patch carries whole lists; rows it did not change keep their revision.
-        const applied = item.pulsarMeta.node;
-
-        if (view.applyingPatch && node.rev !== undefined && applied && applied.rev === node.rev)
+        if (view.applyingPatch && node.rev !== undefined && item.pulsarMeta.appliedRev === node.rev)
             return;
+
+        // Not the node's own rev: a new item holds its node before its first update.
+        if (!view.patchShallow)
+            item.pulsarMeta.appliedRev = node.rev;
 
         item.pulsarMeta.node = node;
 
