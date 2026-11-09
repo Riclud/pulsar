@@ -1,6 +1,7 @@
 #include "perf_recorder.h"
 
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QJsonValue>
 #include <QKeyEvent>
 #include <QMutexLocker>
@@ -114,6 +115,9 @@ void PerfRecorder::sendMouse(QEvent::Type type, const QPointF &point, Qt::MouseB
         buttons_ &= ~button;
 
     QMouseEvent event(type, point, point, window_->mapToGlobal(point), button, buttons_, Qt::NoModifier);
+
+    // Pointer handlers measure taps and holds from this; a synthetic event has none of its own.
+    event.setTimestamp(quint64(QDateTime::currentMSecsSinceEpoch()));
 
     QCoreApplication::sendEvent(window_, &event);
 }

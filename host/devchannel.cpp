@@ -583,6 +583,9 @@ void DevChannel::sendMouse(QQuickWindow *window, QEvent::Type type, const QPoint
 
     QMouseEvent event(type, point, point, window->mapToGlobal(point), button, buttons_, Qt::NoModifier);
 
+    // Pointer handlers measure taps and holds from this; a synthetic event has none of its own.
+    event.setTimestamp(quint64(QDateTime::currentMSecsSinceEpoch()));
+
     QCoreApplication::sendEvent(window, &event);
 }
 
