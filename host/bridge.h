@@ -13,7 +13,6 @@
 class QQmlPropertyMap;
 
 namespace pulsar {
-class NativeRenderer;
 class QuickJsThread;
 }
 class QMenu;
@@ -92,6 +91,7 @@ signals:
     void log(const QString &level, const QString &message, const QString &source);
     void appEvent(const QString &event, const QVariant &payload, const QString &target);
     void colorSchemeChanged();
+    void uiMessage(const QString &method, const QJsonObject &params);
 
 private slots:
     void onReadyReadStandardOutput();
@@ -115,12 +115,12 @@ private:
     void ensurePromiseFactory();
     void failPending(const QString &reason);
     void handleResponse(const QByteArray &payload);
+    void handleObject(const QJsonObject &obj);
     void handleDataFrame(const QByteArray &payload);
 
     QProcess process_;
     pulsar::QuickJsThread *quickjs_ = nullptr;
     bool quickjsStarted_ = false;
-    pulsar::NativeRenderer *native_ = nullptr;
     QJSEngine *engine_;
     QQmlPropertyMap *store_ = nullptr;
     QByteArray stdoutBuffer_;

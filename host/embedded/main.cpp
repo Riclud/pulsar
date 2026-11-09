@@ -1,5 +1,6 @@
 #include "bridge.h"
 #include "net.h"
+#include "native_renderer.h"
 #include "quickjs_thread.h"
 
 #include <QDir>
@@ -438,6 +439,7 @@ int main(int argc, char **argv)
     QQmlApplicationEngine engine;
     QQmlPropertyMap store;
     pulsar::QuickJsThread runtime;
+    pulsar::NativeRenderer renderer;
     EmbeddedBridge bridge(&runtime, &engine, &store);
 
 #ifdef PULSAR_DEV
@@ -451,6 +453,7 @@ int main(int argc, char **argv)
         };
         hooks.appEvent = [&bridge](const QString &name) { bridge.notify(name, QJsonObject()); };
         hooks.reload = [&bridge]() { bridge.devReload(); };
+        hooks.tree = [&renderer]() { return renderer.snapshot(); };
         hooks.showError = [&bridge](const QString &text) { bridge.setErrorText(text); };
         hooks.evaluate = [&runtime](const QString &code) { return runtime.evaluateForDev(code); };
         hooks.store = [&store]() {
@@ -467,36 +470,8 @@ int main(int argc, char **argv)
     }
 #endif
 
-    QVariantList pendingUiTree;
-    QList<QVariantList> pendingUiPatches;
-    bool hasPendingUiTree = false;
-    quint64 uiPatchSeq = 0;
     QObject *uiRoot = nullptr;
     QVariantMap currentTheme;
-
-    auto applyUiTree = [&](const QVariantList &tree) {
-        if (!uiRoot) {
-            pendingUiTree = tree;
-            pendingUiPatches.clear();
-            hasPendingUiTree = true;
-            return;
-        }
-
-        uiRoot->setProperty("tree", tree);
-    };
-
-    auto applyUiPatches = [&](const QVariantList &patches) {
-        if (!uiRoot) {
-            pendingUiPatches.append(patches);
-            return;
-        }
-
-        QVariantMap patch;
-        patch.insert(QStringLiteral("seq"), QVariant::fromValue(++uiPatchSeq));
-        patch.insert(QStringLiteral("patches"), patches);
-
-        uiRoot->setProperty("uiPatch", patch);
-    };
 
     QString pendingError;
 
@@ -551,34 +526,18 @@ int main(int argc, char **argv)
                 root->setProperty("themeData", theme);
         }
     });
-    QObject::connect(&bridge, &EmbeddedBridge::uiTree, &app,
-                     [&](const QString &target, const QVariantList &tree) {
-                         if (!jsUi)
-                             return;
+    const auto isMainTarget = [](const QString &target) {
+        return target == QLatin1String("main") || target == QLatin1String("*") || target.isEmpty();
+    };
 
-                         if (target == QLatin1String("main") || target == QLatin1String("*") || target.isEmpty()) {
-                             applyUiTree(tree);
-
-#ifdef PULSAR_DEV
-                             if (devChannel)
-                                 devChannel->setTree(tree);
-#endif
-                         }
-                     });
-    QObject::connect(&bridge, &EmbeddedBridge::uiPatch, &app,
-                     [&](const QString &target, const QVariantList &patches) {
-                         if (!jsUi)
-                             return;
-
-                         if (target == QLatin1String("main") || target == QLatin1String("*") || target.isEmpty()) {
-                             applyUiPatches(patches);
-
-#ifdef PULSAR_DEV
-                             if (devChannel)
-                                 devChannel->applyPatch(patches);
-#endif
-                         }
-                     });
+    QObject::connect(&bridge, &EmbeddedBridge::uiTree, &app, [&, isMainTarget](const QString &target, const QJsonArray &tree) {
+        if (jsUi && isMainTarget(target))
+            renderer.setTree(tree);
+    });
+    QObject::connect(&bridge, &EmbeddedBridge::uiPatch, &app, [&, isMainTarget](const QString &target, const QJsonArray &patches) {
+        if (jsUi && isMainTarget(target))
+            renderer.applyPatches(patches);
+    });
 
 #ifdef Q_OS_ANDROID
     g_backBridge = &bridge;
@@ -783,13 +742,7 @@ int main(int argc, char **argv)
         if (jsUi) {
             uiRoot = engine.rootObjects().first();
 
-            if (hasPendingUiTree)
-                uiRoot->setProperty("tree", pendingUiTree);
-
-            for (const QVariantList &patches : std::as_const(pendingUiPatches))
-                applyUiPatches(patches);
-
-            pendingUiPatches.clear();
+            renderer.attach(uiRoot);
 
             if (!pendingError.isEmpty())
                 uiRoot->setProperty("errorText", pendingError);
@@ -847,21 +800,12 @@ int main(int argc, char **argv)
 
         const QJsonObject state = snapshotStore();
 
-#ifdef PULSAR_DEV
-        if (devChannel)
-            devChannel->setTree(QVariantList());
-#endif
-
         if (jsUi) {
-            pendingUiTree.clear();
-            pendingUiPatches.clear();
-            hasPendingUiTree = false;
             pendingError.clear();
+            renderer.clear();
 
-            if (uiRoot) {
-                uiRoot->setProperty("tree", QVariantList());
+            if (uiRoot)
                 uiRoot->setProperty("errorText", QString());
-            }
         } else {
             const QList<QObject *> roots = engine.rootObjects();
 

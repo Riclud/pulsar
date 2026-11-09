@@ -192,58 +192,9 @@ void DevChannel::sendLog(const QString &level, const QString &message, const QSt
     pendingLogs_.append(log);
 }
 
-void DevChannel::setTree(const QVariantList &tree)
+QJsonArray DevChannel::currentTree() const
 {
-    tree_ = QJsonArray::fromVariantList(tree);
-}
-
-namespace {
-
-bool replaceInTree(QJsonArray &nodes, const QString &path, const QJsonObject &node, bool shallow)
-{
-    for (int index = 0; index < nodes.size(); index++) {
-        QJsonObject current = nodes.at(index).toObject();
-
-        if (current.value(QStringLiteral("path")).toString() == path) {
-            QJsonObject merged = node;
-
-            if (shallow && !merged.contains(QStringLiteral("children")) && current.contains(QStringLiteral("children")))
-                merged.insert(QStringLiteral("children"), current.value(QStringLiteral("children")));
-
-            nodes.replace(index, merged);
-            return true;
-        }
-
-        const QString currentPath = current.value(QStringLiteral("path")).toString();
-
-        if (!currentPath.isEmpty() && path.startsWith(currentPath + QLatin1Char('/'))) {
-            QJsonArray children = current.value(QStringLiteral("children")).toArray();
-
-            if (replaceInTree(children, path, node, shallow)) {
-                current.insert(QStringLiteral("children"), children);
-                nodes.replace(index, current);
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
-}
-
-void DevChannel::applyPatch(const QVariantList &patches)
-{
-    for (const QVariant &value : patches) {
-        const QVariantMap patch = value.toMap();
-        const QString path = patch.value(QStringLiteral("path")).toString();
-        const QJsonObject node = QJsonObject::fromVariantMap(patch.value(QStringLiteral("node")).toMap());
-
-        if (path.isEmpty())
-            continue;
-
-        replaceInTree(tree_, path, node, patch.value(QStringLiteral("shallow")).toBool());
-    }
+    return hooks_.tree ? hooks_.tree() : QJsonArray();
 }
 
 void DevChannel::requestReload()
@@ -280,7 +231,7 @@ void DevChannel::handle(const QJsonObject &command)
     }
 
     if (name == QLatin1String("tree")) {
-        reply(request, true, tree_);
+        reply(request, true, currentTree());
         return;
     }
 
@@ -428,7 +379,7 @@ void DevChannel::dispatch(const QJsonObject &node, const QString &event, const Q
 QJsonObject DevChannel::resolveNode(const QJsonObject &command, QString *event) const
 {
     bool found = false;
-    QJsonObject node = findNode(tree_, command, event, &found);
+    QJsonObject node = findNode(currentTree(), command, event, &found);
 
     if (found && !event->isEmpty())
         return node;
@@ -590,7 +541,7 @@ bool DevChannel::nodeCenter(const QJsonObject &command, QPointF *point, QJsonObj
 
     bool found = false;
 
-    *node = findAny(tree_, command, &found);
+    *node = findAny(currentTree(), command, &found);
 
     QQuickWindow *view = findView();
 

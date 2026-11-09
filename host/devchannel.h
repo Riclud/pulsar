@@ -28,6 +28,7 @@ struct DevHooks {
     /** Returns `{ value }` or `{ error, stack }`. */
     std::function<QJsonObject(const QString &code)> evaluate;
     std::function<QJsonObject()> store;
+    std::function<QJsonArray()> tree;
 };
 
 /** Dev-only control channel: long-poll for commands, POST for logs and replies. */
@@ -39,11 +40,10 @@ public:
 
     void start();
     void sendLog(const QString &level, const QString &message, const QString &source);
-    void setTree(const QVariantList &tree);
-    void applyPatch(const QVariantList &patches);
     void requestReload();
 
 private:
+    QJsonArray currentTree() const;
     void hello();
     void poll();
     void onPoll(QNetworkReply *reply);
@@ -74,7 +74,6 @@ private:
     QNetworkAccessManager network_;
     QTimer retry_;
     QVector<QJsonObject> pendingLogs_;
-    QJsonArray tree_;
     bool polling_ = false;
     bool connected_ = false;
 };

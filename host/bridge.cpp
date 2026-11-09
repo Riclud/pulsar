@@ -1,6 +1,5 @@
 #include "bridge.h"
 #include "log.h"
-#include "native_renderer.h"
 #include "quickjs_thread.h"
 
 #include <QAction>
@@ -236,19 +235,8 @@ void Bridge::startQuickJs(const QString &bundle)
     if (!quickjs_) {
         quickjs_ = new pulsar::QuickJsThread(this);
 
-        if (qEnvironmentVariableIsSet("PULSAR_NATIVE"))
-            native_ = new pulsar::NativeRenderer(qobject_cast<QQmlEngine *>(engine_), this);
-
         connect(quickjs_, &pulsar::QuickJsThread::message, this, [this](const QJsonObject &message) {
-            const QString method = message.value(QLatin1String("method")).toString();
-
-            if (qEnvironmentVariableIsSet("PULSAR_FRAME_TRACE") && method.startsWith(QLatin1String("__ui")))
-                pulsar::traceNextFrame(method);
-
-            if (native_ && native_->handle(message))
-                return;
-
-            handleResponse(QJsonDocument(message).toJson(QJsonDocument::Compact));
+            handleObject(message);
         });
         connect(quickjs_, &pulsar::QuickJsThread::binary, this, [this](quint32 id, const QByteArray &bytes) {
             Q_EMIT data(id, bytes);
@@ -902,7 +890,17 @@ void Bridge::handleResponse(const QByteArray &payload)
     if (!doc.isObject())
         return;
 
-    const QJsonObject obj = doc.object();
+    handleObject(doc.object());
+}
+
+void Bridge::handleObject(const QJsonObject &obj)
+{
+    const QString method = obj.value(QLatin1String("method")).toString();
+
+    if (method == QLatin1String("__ui") || method == QLatin1String("__ui-patch")) {
+        Q_EMIT uiMessage(method, obj.value(QLatin1String("params")).toObject());
+        return;
+    }
 
     // Responses carry an "id"; unsolicited notifications (Bun push) do not.
     const bool hasId = obj.contains(QStringLiteral("id"));

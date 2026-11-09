@@ -51,6 +51,7 @@
 
 #include <utility>
 
+#include "native_renderer.h"
 #include "assoc.h"
 #include "bridge.h"
 #include "embedded.h"
@@ -161,7 +162,19 @@ static void appendCrashLog(const QString &text)
     reportCrash(text);
 }
 
-static QHash<QString, QVariantList> g_uiTrees;
+static QHash<QString, pulsar::NativeRenderer *> g_renderers;
+
+static pulsar::NativeRenderer *rendererFor(const QString &label)
+{
+    const QString key = label.isEmpty() ? QStringLiteral("main") : label;
+
+    pulsar::NativeRenderer *&renderer = g_renderers[key];
+
+    if (!renderer)
+        renderer = new pulsar::NativeRenderer(qApp);
+
+    return renderer;
+}
 static quint64 g_uiPatchSeq = 0;
 static QSet<QString> g_requested;
 static QString gPrimaryLabel;
@@ -693,58 +706,14 @@ static QVariant mergedUiNode(const QVariantMap &current, const QVariant &node, b
     return merged;
 }
 
-static bool replaceUiNode(QVariantList &nodes, const QString &path, const QVariant &node, bool shallow)
-{
-    for (QVariant &value : nodes) {
-        QVariantMap current = value.toMap();
-        const QString currentPath = current.value(QStringLiteral("path")).toString();
 
-        if (currentPath == path) {
-            value = mergedUiNode(current, node, shallow);
-            return true;
-        }
-
-        if (!path.startsWith(currentPath + QLatin1Char('/')))
-            continue;
-
-        QVariantList children = current.value(QStringLiteral("children")).toList();
-
-        if (!replaceUiNode(children, path, node, shallow))
-            continue;
-
-        current.insert(QStringLiteral("children"), children);
-        value = current;
-
-        return true;
-    }
-
-    return false;
-}
-
-static void patchStoredUiTree(const QString &label, const QVariantList &patches)
-{
-    auto tree = g_uiTrees.find(label);
-
-    if (tree == g_uiTrees.end())
-        return;
-
-    for (const QVariant &value : patches) {
-        const QVariantMap patch = value.toMap();
-
-        replaceUiNode(*tree, patch.value(QStringLiteral("path")).toString(), patch.value(QStringLiteral("node")),
-                      patch.value(QStringLiteral("shallow")).toBool());
-    }
-}
 
 static void wireWindowEvents(QObject *root, const QString &label);
 
 static void applyUiTree(const QString &label)
 {
-    if (!g_uiTrees.contains(label))
-        return;
-
     if (QObject *root = g_roots.value(label))
-        root->setProperty("tree", g_uiTrees.value(label));
+        rendererFor(label)->attach(root);
 }
 
 static void showWindow(QQmlApplicationEngine &engine, const WindowConfig &cfg)
@@ -823,6 +792,9 @@ static bool canKeepWindows(const QList<WindowConfig> &configs)
 
 static void destroyWindows(QQmlApplicationEngine &engine)
 {
+    for (pulsar::NativeRenderer *renderer : std::as_const(g_renderers))
+        renderer->detach();
+
     for (QObject *root : std::as_const(g_roots))
         delete root;
 
@@ -1369,6 +1341,8 @@ static void handleWindowCommand(QQmlApplicationEngine &engine, const QVariantMap
         g_configs.remove(label);
         g_requested.remove(label);
 
+        rendererFor(label)->detach();
+
         if (QObject *root = g_roots.take(label))
             root->deleteLater();
 
@@ -1468,6 +1442,34 @@ int main(int argc, char **argv)
     QQmlPropertyMap *store = new QQmlPropertyMap(&app);
     Bridge *bridge = new Bridge(&engine, store, &app);
 
+    QObject::connect(bridge, &Bridge::uiMessage, &app, [](const QString &method, const QJsonObject &params) {
+        const QString target = params.value(QLatin1String("target")).toString();
+        pulsar::NativeRenderer *renderer = rendererFor(target);
+
+        if (qEnvironmentVariableIsSet("PULSAR_FRAME_TRACE"))
+            pulsar::traceNextFrame(renderer->window(), method);
+
+        const bool debug = qEnvironmentVariableIsSet("PULSAR_DEBUG");
+
+        if (method == QLatin1String("__ui")) {
+            const QJsonArray tree = params.value(QLatin1String("tree")).toArray();
+
+            renderer->setTree(tree);
+
+            if (debug)
+                qInfo().noquote() << "UI render" << target << "nodes=" << tree.size();
+
+            return;
+        }
+
+        const QJsonArray patches = params.value(QLatin1String("patches")).toArray();
+
+        renderer->applyPatches(patches);
+
+        if (debug)
+            qInfo().noquote() << "UI patch" << target << "ops=" << patches.size();
+    });
+
 // Exposed to QML as `import Pulsar 1.0` -> Pulsar.emit(...) / Store.*
     qmlRegisterSingletonInstance("Pulsar", 1, 0, "Pulsar", bridge);
     qmlRegisterSingletonInstance("Pulsar", 1, 0, "Store", store);
@@ -1494,6 +1496,7 @@ int main(int argc, char **argv)
             bridge->notify(QStringLiteral("__event"), params);
         };
         hooks.reload = [bridge]() { bridge->restart(); };
+        hooks.tree = []() { return rendererFor(QStringLiteral("main"))->snapshot(); };
         hooks.evaluate = [bridge](const QString &code) { return bridge->evaluateForDev(code); };
         hooks.store = [store]() {
             QJsonObject out;
@@ -1787,41 +1790,6 @@ int main(int argc, char **argv)
                              bridge->postMessage(m.value(QStringLiteral("event")).toString(),
                                                  m.value(QStringLiteral("payload")),
                                                  m.value(QStringLiteral("target")).toString());
-                         } else if (method == QLatin1String("__ui")) {
-                             // JS-built UI tree for a renderer window.
-                             const QVariantMap m = params.toVariant().toMap();
-                             const QString target = m.value(QStringLiteral("target")).toString();
-                             const QVariantList tree = m.value(QStringLiteral("tree")).toList();
-
-                             g_uiTrees.insert(target, tree);
-
-                             if (gDevChannel && (target == QLatin1String("main") || target.isEmpty()))
-                                 gDevChannel->setTree(tree);
-
-                             if (QObject *root = g_roots.value(target))
-                                 root->setProperty("tree", tree);
-
-                             if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
-                                 qInfo().noquote() << "UI render" << target << "nodes=" << tree.size();
-                         } else if (method == QLatin1String("__ui-patch")) {
-                             const QVariantMap m = params.toVariant().toMap();
-                             const QString target = m.value(QStringLiteral("target")).toString();
-                             const QVariantList patches = m.value(QStringLiteral("patches")).toList();
-
-                             patchStoredUiTree(target, patches);
-
-                             if (gDevChannel && (target == QLatin1String("main") || target.isEmpty()))
-                                 gDevChannel->applyPatch(patches);
-
-                             if (QObject *root = g_roots.value(target)) {
-                                 QVariantMap patch;
-                                 patch.insert(QStringLiteral("seq"), QVariant::fromValue(++g_uiPatchSeq));
-                                 patch.insert(QStringLiteral("patches"), patches);
-                                 root->setProperty("uiPatch", patch);
-                             }
-
-                             if (qEnvironmentVariableIsSet("PULSAR_DEBUG"))
-                                 qInfo().noquote() << "UI patch" << target << "ops=" << patches.size();
                          } else if (method == QLatin1String("__toast")) {
                              QVariantMap toast;
 

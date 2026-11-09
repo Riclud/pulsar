@@ -575,13 +575,13 @@ void EmbeddedBridge::handleMessage(const QJsonObject &message)
 
     if (method == QLatin1String("__ui")) {
         Q_EMIT uiTree(params.value(QStringLiteral("target")).toString(),
-                      params.value(QStringLiteral("tree")).toArray().toVariantList());
+                      params.value(QStringLiteral("tree")).toArray());
         return;
     }
 
     if (method == QLatin1String("__ui-patch")) {
         Q_EMIT uiPatch(params.value(QStringLiteral("target")).toString(),
-                       params.value(QStringLiteral("patches")).toArray().toVariantList());
+                       params.value(QStringLiteral("patches")).toArray());
         return;
     }
 

@@ -24,17 +24,16 @@ ApplicationWindow {
     readonly property var flingCurve: makeFlingCurve()
     readonly property bool effectsAvailable: host.GraphicsInfo.api !== GraphicsInfo.Software
     property var tappedItems: []
+    property var nativeRenderer: null
+    readonly property Item nativeHost: host
+    readonly property Component nativeFlickable: flickableComponent
+    readonly property Component nativeClickableBox: clickableBoxComponent
     property var gapLayouts: []
     property var madeComponents: ({})
     property bool reordering: false
     property int revealTicks: 0
-    property var tree: []
-    property var uiTree: []
-    property var uiPatch: null
     // `dialog.toast` on the desktop: { seq, text } from the host.
     property var toastRequest: null
-    property string treeShape: ""
-    property bool treeGrabPending: false
     property var scrollPositions: ({})
     property var nodeItems: ({})
     property bool patchShallow: false
@@ -1394,6 +1393,37 @@ ApplicationWindow {
 
         Rectangle {
             property var pulsarMeta: null
+        }
+    }
+
+    Component {
+        id: clickableBoxComponent
+
+        Rectangle {
+            id: clickableBox
+
+            property var pulsarMeta: null
+
+            TapHandler {
+                longPressThreshold: 0.5
+
+                onTapped: {
+                    if (!view.hasEvent(clickableBox.pulsarMeta.node, "click"))
+                        return;
+
+                    view.tappedItems.push(clickableBox);
+                    Qt.callLater(view.flushTap);
+                }
+
+                onLongPressed: {
+                    if (view.hasEvent(clickableBox.pulsarMeta.node, "longPress"))
+                        view.emitEvent(clickableBox.pulsarMeta.node, "longPress");
+                }
+            }
+
+            HoverHandler {
+                cursorShape: Qt.PointingHandCursor
+            }
         }
     }
 
@@ -4481,197 +4511,13 @@ ApplicationWindow {
         }
     }
 
-    onThemeDataChanged: {
-        if (uiTree.length > 0)
-            Qt.callLater(rebuild);
-    }
 
-    onTreeChanged: {
-        uiTree = tree || [];
-        renderTree();
-    }
 
-    onUiPatchChanged: {
-        if (uiPatch && uiPatch.patches)
-            applyUiPatch(uiPatch.patches);
-    }
 
-    function renderTree() {
-        errorText = "";
 
-        if (treeGrabPending)
-            return;
 
-        const route = treeRouteSignature(uiTree);
-        const signature = route !== null ? route : treeSignature(uiTree, 0);
 
-        if (treeShape === "" || signature === treeShape) {
-            treeShape = signature;
-            rebuild();
-            return;
-        }
 
-        treeShape = signature;
-
-        if (view.transitionMode === "none") {
-            rebuild();
-            return;
-        }
-
-        if (view.transitionMode === "snapshot") {
-            treeGrabPending = true;
-
-            host.grabToImage(function (result) {
-                treeGrabPending = false;
-                rebuild();
-                playTransition(result);
-            });
-
-            return;
-        }
-
-        playFade();
-    }
-
-    function replaceTreeBranch(nodes, path, node, shallow) {
-        for (let index = 0; index < nodes.length; index++) {
-            const current = nodes[index];
-
-            if (current.path === path) {
-                if (node.children === undefined && shallow && current.children !== undefined)
-                    node.children = current.children;
-
-                nodes[index] = node;
-                return true;
-            }
-
-            if (current.children && path.indexOf(current.path + "/") === 0) {
-                if (replaceTreeBranch(current.children, path, node, shallow))
-                    return true;
-            }
-        }
-
-        return false;
-    }
-
-    function applyUiPatch(patches) {
-        if (!patches || patches.length === 0)
-            return;
-
-        view.building++;
-
-        try {
-            applyPatchList(patches);
-        } finally {
-            view.building--;
-        }
-    }
-
-    function applyPatchList(patches) {
-        const started = Date.now();
-
-        view.uiStats = { created: 0, updated: 0, removed: 0, reordered: 0 };
-
-        for (const patch of patches) {
-            if (!patch || !patch.path || !patch.node) {
-                renderTree();
-                return;
-            }
-
-            if (!replaceTreeBranch(view.uiTree, patch.path, patch.node, patch.shallow === true)) {
-                renderTree();
-                return;
-            }
-        }
-
-        const route = treeRouteSignature(view.uiTree);
-
-        treeShape = route !== null ? route : treeSignature(view.uiTree, 0);
-
-        for (const patch of patches) {
-            const item = view.nodeItems[patch.path];
-
-            if (!item || item.pulsarMeta.type !== patch.node.type) {
-                renderTree();
-                return;
-            }
-
-            view.uiStats.updated++;
-            view.patchShallow = patch.shallow === true;
-
-            try {
-                updateNode(item, patch.node, false);
-            } finally {
-                view.patchShallow = false;
-            }
-        }
-
-        const elapsed = Date.now() - started;
-
-        if (PulsarBridge.env("PULSAR_DEBUG"))
-            console.log("PulsarView patch " + patches.length
-                    + " +" + view.uiStats.created
-                    + " ~" + view.uiStats.updated
-                    + " -" + view.uiStats.removed
-                    + " reorder=" + view.uiStats.reordered
-                    + " " + elapsed + "ms");
-    }
-
-    function treeRouteSignature(nodes) {
-        const walk = function (list, level) {
-            if (!list || level > 1)
-                return null;
-
-            for (let i = 0; i < list.length; i++) {
-                const node = list[i];
-
-                if (!node)
-                    continue;
-
-                const key = node.props ? node.props.key : undefined;
-
-                if (key !== undefined)
-                    return node.type + "@" + node.path;
-
-                const nested = walk(node.children || [], level + 1);
-
-                if (nested !== null)
-                    return nested;
-            }
-
-            return null;
-        };
-
-        return walk(nodes, 0);
-    }
-
-    function treeSignature(nodes, depth) {
-        const parts = [];
-        const walk = function (list, level) {
-            if (!list || level > 3)
-                return;
-
-            for (let i = 0; i < list.length; i++) {
-                const node = list[i];
-
-                if (!node)
-                    continue;
-
-                parts.push(node.type + "@" + node.path);
-                walk(node.children || [], level + 1);
-            }
-        };
-
-        walk(nodes, 0);
-
-        return parts.join("|");
-    }
-
-    function playFade() {
-        host.opacity = 0;
-        rebuild();
-        fadeIn.restart();
-    }
 
     NumberAnimation {
         id: fadeIn
@@ -7707,51 +7553,6 @@ ApplicationWindow {
         return total;
     }
 
-    function rebuild() {
-        if (!host.pulsarMeta)
-            host.pulsarMeta = contentMeta();
-
-        const started = Date.now();
-        const focus = captureFocus();
-
-        view.uiStats = { created: 0, updated: 0, removed: 0, reordered: 0 };
-        view.building++;
-
-        try {
-            reconcile(host, view.uiTree || [], true);
-        } finally {
-            view.building--;
-        }
-
-        restoreFocus(focus);
-
-        view.motionReady = (view.uiTree || []).length > 0;
-
-        const elapsed = Date.now() - started;
-
-        if (PulsarBridge.env("PULSAR_DEBUG"))
-            console.log("PulsarView built " + host.children.length
-                    + " +" + view.uiStats.created
-                    + " ~" + view.uiStats.updated
-                    + " -" + view.uiStats.removed
-                    + " reorder=" + view.uiStats.reordered
-                    + " " + elapsed + "ms");
-
-        if (PulsarBridge.env("PULSAR_INSPECTOR") !== "") {
-            view.inspectText = "nodes " + view.countItems(host)
-                    + " · build " + elapsed + " ms"
-                    + " · +" + view.uiStats.created
-                    + " ~" + view.uiStats.updated
-                    + " -" + view.uiStats.removed
-                    + " ↕" + view.uiStats.reordered + "\n"
-                    + Math.round(view.width) + "x" + Math.round(view.height)
-                    + " · dpr " + view.screen.devicePixelRatio
-                    + " · font " + view.fontScale
-                    + " · " + Qt.platform.os;
-        }
-
-        maybeTestClick();
-    }
 
     function scrollAncestor(item) {
         let node = item ? item.parent : null;
@@ -7793,8 +7594,104 @@ ApplicationWindow {
     }
 
     // Dev control: where a node is on screen, so `pulsar hover` and `click` aim real input at it.
-    function devItemRect(path) {
+    function nativeMount(node, parent) {
+        view.building++;
+
+        try {
+            return createNode(node, parent, false);
+        } finally {
+            view.building--;
+        }
+    }
+
+    function nativeUpdate(item, node, shallow) {
+        view.building++;
+        view.patchShallow = shallow === true;
+
+        try {
+            updateNode(item, node, false);
+        } finally {
+            view.patchShallow = false;
+            view.building--;
+        }
+    }
+
+    function nativePatch(path, node, shallow) {
         const item = view.nodeItems[path];
+
+        if (!item || item.pulsarMeta.type !== node.type)
+            return false;
+
+        nativeUpdate(item, node, shallow);
+
+        return true;
+    }
+
+    function nativeDiscard(item) {
+        discardItem(item);
+
+        return item.visible;
+    }
+
+    function nativeScroll(item, node) {
+        if (item.pulsarMeta) {
+            item.pulsarMeta.node = node;
+        } else {
+            item.pulsarMeta = { type: node.type, node: node, index: ({}), order: [], content: null, extra: ({}) };
+            item.boundsBehavior = Qt.binding(function () {
+                return prop(item.pulsarMeta.node.props, "overscroll", true)
+                        && item.contentHeight > item.height
+                        && item.contentY > item.originY + 1
+                        ? Flickable.DragOverBounds
+                        : Flickable.StopAtBounds;
+            });
+
+            setupScrollMemory(item, node);
+        }
+
+        item.maximumFlickVelocity = prop(node.props, "flick", true) === false ? 0 : 8000;
+    }
+
+    function nativeTransition() {
+        if (view.transitionMode === "none") {
+            view.nativeRenderer.commit();
+
+            return false;
+        }
+
+        if (view.transitionMode === "snapshot") {
+            host.grabToImage(function (result) {
+                view.nativeRenderer.commit();
+                playTransition(result);
+            });
+
+            return true;
+        }
+
+        host.opacity = 0;
+        view.nativeRenderer.commit();
+        fadeIn.restart();
+
+        return false;
+    }
+
+    function nativeAfterTree(count, elapsed) {
+        view.motionReady = count > 0;
+
+        if (PulsarBridge.env("PULSAR_INSPECTOR") !== "") {
+            view.inspectText = "nodes " + view.countItems(host)
+                    + " · build " + elapsed + " ms\n"
+                    + Math.round(view.width) + "x" + Math.round(view.height)
+                    + " · dpr " + view.screen.devicePixelRatio
+                    + " · font " + view.fontScale
+                    + " · " + Qt.platform.os;
+        }
+
+        maybeTestClick();
+    }
+
+    function devItemRect(path) {
+        const item = view.nodeItems[path] || (view.nativeRenderer ? view.nativeRenderer.itemAt(path) : null);
 
         if (!item || !item.visible || item.width <= 0 || item.height <= 0)
             return null;

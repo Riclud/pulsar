@@ -5,89 +5,222 @@
 #include <QJsonObject>
 #include <QList>
 #include <QObject>
+#include <QPointer>
 #include <QQmlComponent>
-#include <QQmlEngine>
+#include <QQmlProperty>
 #include <QQuickItem>
+#include <QSet>
 #include <QString>
+#include <QVariantMap>
 
+#include <limits>
 #include <memory>
 #include <vector>
 
-class QQuickWindow;
-
 namespace pulsar {
 
-/** Row or column whose children are placed in list order, with no QtQuick.Layouts involved. */
+/** Places children in list order; replaces QtQuick.Layouts for the nodes C++ owns. */
 class NativeStack : public QQuickItem {
     Q_OBJECT
 
 public:
+    enum class Mode { Column, Row, Overlap };
+    enum class Align { Default, Start, Center, End };
+
+    struct Edges {
+        qreal top = 0;
+        qreal right = 0;
+        qreal bottom = 0;
+        qreal left = 0;
+
+        bool operator==(const Edges &) const = default;
+    };
+
+    /** Live view of the Layout.* values that QML writes on a child it manages. */
+    struct QmlHints {
+        QQmlProperty fillWidth;
+        QQmlProperty fillHeight;
+        QQmlProperty preferredWidth;
+        QQmlProperty preferredHeight;
+        QQmlProperty minimumWidth;
+        QQmlProperty minimumHeight;
+        QQmlProperty maximumWidth;
+        QQmlProperty maximumHeight;
+    };
+
     struct Kid {
         QQuickItem *item = nullptr;
         bool fillWidth = false;
         bool fillHeight = false;
+        qreal flex = 0;
+        qreal preferredWidth = -1;
+        qreal preferredHeight = -1;
+        qreal minWidth = 0;
+        qreal minHeight = 0;
+        qreal maxWidth = std::numeric_limits<qreal>::infinity();
+        qreal maxHeight = std::numeric_limits<qreal>::infinity();
+        Align align = Align::Default;
+        std::shared_ptr<QmlHints> qml;
     };
 
     explicit NativeStack(QQuickItem *parent = nullptr);
 
-    void configure(bool horizontal, qreal gap, qreal padding);
+    void configure(Mode mode, qreal gap, const Edges &edges);
     void setKids(const QList<Kid> &kids);
+
+    /** Keeps a child in its slot while its exit animation plays. */
+    void keepLeaving(const Kid &kid, QQuickItem *after);
 
 protected:
     void updatePolish() override;
     void geometryChange(const QRectF &next, const QRectF &previous) override;
 
+private slots:
+    void hintsChanged();
+
 private:
+    struct Leaving {
+        Kid kid;
+        QPointer<QQuickItem> after;
+    };
+
+    struct Measured {
+        const Kid *kid = nullptr;
+        bool fillWidth = false;
+        bool fillHeight = false;
+        qreal preferredWidth = 0;
+        qreal preferredHeight = 0;
+        qreal minWidth = 0;
+        qreal minHeight = 0;
+        qreal maxWidth = 0;
+        qreal maxHeight = 0;
+    };
+
+    Measured measure(const Kid &kid) const;
+    void watch(const Kid &kid);
+    void placeOverlapping();
+    qreal place(const Measured &kid, qreal perWeight, qreal crossSpace, qreal cursor);
+    void mergeLeaving();
+
     QList<Kid> kids_;
-    bool horizontal_ = false;
+    QList<Kid> ordered_;
+    QList<Leaving> leaving_;
+    Mode mode_ = Mode::Column;
     qreal gap_ = 0;
-    qreal padding_ = 0;
+    Edges edges_;
 };
 
+/** Owns the UI of one window: compares incoming trees and updates only what changed. */
 class NativeRenderer : public QObject {
     Q_OBJECT
 
 public:
-    explicit NativeRenderer(QQmlEngine *engine, QObject *parent = nullptr);
+    explicit NativeRenderer(QObject *parent = nullptr);
     ~NativeRenderer() override;
 
-    /** Takes __ui and __ui-patch messages; returns false for anything else. */
-    bool handle(const QJsonObject &message);
+    /** A root without the renderer hooks (a hand-written QML window) is ignored. */
+    void attach(QObject *root);
+    void detach();
+    void clear();
+
+    void setTree(const QJsonArray &tree);
+    void applyPatches(const QJsonArray &patches);
+
+    QJsonArray snapshot() const;
+    QObject *window() const { return root_; }
+
+    Q_INVOKABLE QObject *itemAt(const QString &path) const;
+    Q_INVOKABLE void commit();
+
+private slots:
+    void refreshTheme();
 
 private:
+    enum class Kind { Island, Stack, Scroll, Box, ClickableBox, Text };
+
     struct Node {
         QString path;
         QString type;
+        Kind kind = Kind::Island;
+        QJsonObject json;
         QJsonObject props;
         QQuickItem *item = nullptr;
         NativeStack *stack = nullptr;
+        Node *parent = nullptr;
         bool insideScroll = false;
-        bool contentBound = false;
+        std::shared_ptr<NativeStack::QmlHints> hints;
         std::vector<std::unique_ptr<Node>> children;
     };
 
-    std::unique_ptr<Node> create(const QJsonObject &json, bool insideScroll);
-    QQuickItem *instantiate(QQmlComponent &component);
-    bool attachRoot();
-    void applyTree(const QJsonArray &tree);
-    void applyPatches(const QJsonArray &patches);
-    void sync(Node &node, const QJsonObject &json, bool withChildren);
-    void syncChildren(Node &node, const QJsonArray &children);
-    void applyProps(Node &node, const QJsonObject &props);
-    void forget(Node &node);
-    QQuickItem *childParent(const Node &node) const;
+    struct Theme {
+        QVariantMap colors;
+        QVariant text;
+        QVariant border;
+        QString fontFamily;
+        qreal fontScale = 1;
+        int spacing = 8;
+    };
 
-    QQmlEngine *engine_;
-    QQmlComponent rectangle_;
-    QQmlComponent text_;
-    QQmlComponent flickable_;
-    std::unique_ptr<Node> root_;
+    struct Stats {
+        int created = 0;
+        int updated = 0;
+        int removed = 0;
+        int reordered = 0;
+    };
+
+    void loadTheme();
+    void createRoot();
+    void renderTree(const QJsonArray &tree);
+    void applyPatchList(const QJsonArray &patches);
+    void applyPatch(const QString &path, const QJsonObject &json, bool shallow);
+    bool patchIsland(const QString &path, const QJsonObject &json, bool shallow);
+    void replaceNode(Node &node, const QJsonObject &json);
+
+    std::unique_ptr<Node> create(const QJsonObject &json, Node *parent);
+    QQuickItem *instantiate(QQmlComponent *component);
+    void adopt(QQuickItem *item, QQuickItem *parent);
+
+    void sync(Node &node, const QJsonObject &json, bool withChildren);
+    void syncIsland(Node &node, const QJsonObject &json, bool shallow);
+    void updateIsland(Node &node, bool shallow);
+    void syncChildren(Node &node, const QJsonArray &children);
+    void applyProps(Node &node);
+    void applyCommon(Node &node);
+    void applyBox(Node &node);
+    void applyText(Node &node);
+    void applyScroll(Node &node);
+    void refreshKids(Node &node);
+    void bindScroll(Node &node);
+    void bindBox(Node &node);
+
+    NativeStack::Kid kidFor(const Node &parent, Node &child) const;
+    std::shared_ptr<NativeStack::QmlHints> makeHints(QQuickItem *item) const;
+    Kind kindFor(const QJsonObject &json, bool insideScroll) const;
+    QJsonObject snapshotNode(const Node &node) const;
+    void forget(Node &node);
+    void discard(Node &node, QQuickItem *after);
+    void reapplyAll(Node &node);
+    QString resolveColor(const QJsonValue &value, const QVariant &fallback) const;
+
+    QPointer<QObject> root_;
+    QQuickItem *host_ = nullptr;
+    std::unique_ptr<QQmlComponent> rectangle_;
+    std::unique_ptr<QQmlComponent> text_;
+    QQmlComponent *flickable_ = nullptr;
+    QQmlComponent *clickableBox_ = nullptr;
+    std::unique_ptr<Node> tree_;
     QHash<QString, Node *> index_;
+    QSet<Node *> dirtyStacks_;
+    Theme theme_;
+    Stats stats_;
     QJsonArray pendingTree_;
+    QList<QJsonArray> queuedPatches_;
+    QString treeShape_;
     bool hasPendingTree_ = false;
+    bool waitingForTransition_ = false;
 };
 
-/** Logs the time from now until the next frame is rendered. */
-void traceNextFrame(const QString &label);
+/** Logs the time from now until the window renders its next frame. */
+void traceNextFrame(QObject *window, const QString &label);
 
 } // namespace pulsar
