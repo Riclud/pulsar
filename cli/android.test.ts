@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs"
+import { createHash } from "crypto"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
 import { join } from "path"
 import type { AppManifest } from "../core/sdk/manifest.ts"
@@ -10,6 +11,12 @@ import {
   appFiles,
   clearStaleBuildDir,
   devManifest,
+  download,
+  installOpenssl,
+  OPENSSL_LIBS,
+  opensslComplete,
+  opensslURL,
+  verifyChecksum,
 } from "./android.ts"
 
 const manifest: AppManifest = {
@@ -174,5 +181,94 @@ describe("androidQtComplete", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
+  })
+})
+
+describe("OpenSSL libraries", () => {
+  const scratch = (): string => mkdtempSync(join(tmpdir(), "pulsar-openssl-"))
+  const sha = (text: string): string => createHash("sha256").update(text).digest("hex")
+
+  test("pins both _3.so libraries with a SHA-256 each", () => {
+    expect(OPENSSL_LIBS.map((lib) => lib.name)).toEqual(["libcrypto_3.so", "libssl_3.so"])
+
+    for (const lib of OPENSSL_LIBS) expect(lib.sha256).toMatch(/^[0-9a-f]{64}$/)
+  })
+
+  test("downloads from the pinned commit", () => {
+    expect(opensslURL("libssl_3.so")).toMatch(
+      /^https:\/\/raw\.githubusercontent\.com\/KDAB\/android_openssl\/[0-9a-f]{40}\/ssl_3\/arm64-v8a\/libssl_3\.so$/,
+    )
+  })
+
+  test("verifyChecksum keeps a matching file", () => {
+    const dir = scratch()
+    const file = join(dir, "lib.so")
+
+    writeFileSync(file, "good")
+    verifyChecksum(file, sha("good"))
+
+    expect(existsSync(file)).toBe(true)
+    rmSync(dir, { recursive: true })
+  })
+
+  test("verifyChecksum deletes a mismatching file and fails", () => {
+    const dir = scratch()
+    const file = join(dir, "lib.so")
+
+    writeFileSync(file, "bad")
+
+    expect(() => verifyChecksum(file, sha("good"))).toThrow(/checksum mismatch for lib\.so/)
+    expect(existsSync(file)).toBe(false)
+    rmSync(dir, { recursive: true })
+  })
+
+  test("download retries 5xx answers and then succeeds", async () => {
+    const dir = scratch()
+    const file = join(dir, "lib.so")
+
+    let calls = 0
+
+    await download("https://example.invalid/lib.so", file, {
+      retryDelayMS: 0,
+      fetcher: async () => {
+        calls += 1
+
+        return calls < 3 ? new Response("", { status: 504 }) : new Response("data")
+      },
+    })
+
+    expect(calls).toBe(3)
+    expect(readFileSync(file, "utf8")).toBe("data")
+    rmSync(dir, { recursive: true })
+  })
+
+  test("download does not retry a 404", async () => {
+    const dir = scratch()
+
+    let calls = 0
+
+    const result = download("https://example.invalid/lib.so", join(dir, "lib.so"), {
+      retryDelayMS: 0,
+      fetcher: async () => {
+        calls += 1
+
+        return new Response("", { status: 404 })
+      },
+    })
+
+    await expect(result).rejects.toThrow(/404/)
+    expect(calls).toBe(1)
+    rmSync(dir, { recursive: true })
+  })
+
+  test("installOpenssl rejects served bytes that miss the pinned checksum", async () => {
+    const dir = scratch()
+
+    const result = installOpenssl(dir, { fetcher: async () => new Response("tampered") })
+
+    await expect(result).rejects.toThrow(/checksum mismatch/)
+    expect(opensslComplete(dir)).toBe(false)
+    expect(existsSync(join(dir, OPENSSL_LIBS[0].name))).toBe(false)
+    rmSync(dir, { recursive: true })
   })
 })

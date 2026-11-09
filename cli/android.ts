@@ -82,12 +82,97 @@ const adoptiumOs = (): string =>
 
 const adoptiumArch = (): string => (process.arch === "arm64" ? "aarch64" : "x64")
 
-const download = async (url: string, dest: string): Promise<void> => {
-  const res = await fetch(url)
+const DOWNLOAD_ATTEMPTS = 4
 
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${url}`)
+export interface DownloadOptions {
+  fetcher?: (url: string) => Promise<Response>
+  retryDelayMS?: number
+}
 
-  writeFileSync(dest, Buffer.from(await res.arrayBuffer()))
+/** Download `url` to `dest`, retrying network errors and 5xx answers (GitHub returns them now and then). */
+export const download = async (url: string, dest: string, options: DownloadOptions = {}): Promise<void> => {
+  const fetcher = options.fetcher ?? ((target: string) => fetch(target))
+  const retryDelayMS = options.retryDelayMS ?? 2000
+
+  let failure = new Error(`download failed for ${url}`)
+
+  for (let attempt = 1; attempt <= DOWNLOAD_ATTEMPTS; attempt++) {
+    if (attempt > 1) await new Promise((done) => setTimeout(done, retryDelayMS * (attempt - 1)))
+
+    let res: Response
+
+    try {
+      res = await fetcher(url)
+    } catch (e) {
+      failure = new Error(`${e instanceof Error ? e.message : String(e)} for ${url}`)
+
+      continue
+    }
+
+    if (res.ok) {
+      writeFileSync(dest, Buffer.from(await res.arrayBuffer()))
+
+      return
+    }
+
+    failure = new Error(`${res.status} ${res.statusText} for ${url}`)
+
+    if (res.status < 500) throw failure
+  }
+
+  throw failure
+}
+
+// KDAB/android_openssl, `ssl_3` is the directory for Qt 6.5.0 and newer (OpenSSL 3.1.8).
+// Qt's TLS plugin loads libssl_3.so and libcrypto_3.so by name; Qt does not ship them.
+export const OPENSSL_COMMIT = "b71f1470962019bd89534a2919f5925f93bc5779"
+
+export const OPENSSL_LIBS = [
+  { name: "libcrypto_3.so", sha256: "1e6c12ae0c2dadfe9d178d7f80f0ab248a1877a234066098bf5594e5205e5740" },
+  { name: "libssl_3.so", sha256: "01d2bd0baac626efd3309f35f99c4b826dd9b885a7e4d14d5b12b3603d3a407f" },
+] as const
+
+export const opensslDir = (): string => join(androidBase(), "openssl", OPENSSL_COMMIT.slice(0, 12), ANDROID_ABI)
+
+export const opensslURL = (name: string): string => {
+  return `https://raw.githubusercontent.com/KDAB/android_openssl/${OPENSSL_COMMIT}/ssl_3/${ANDROID_ABI}/${name}`
+}
+
+export const fileSHA256 = (file: string): string => {
+  return createHash("sha256").update(readFileSync(file)).digest("hex")
+}
+
+/** Check `file` against `expected`; a mismatching file is deleted so it is never used. */
+export const verifyChecksum = (file: string, expected: string): void => {
+  const actual = fileSHA256(file)
+
+  if (actual === expected) return
+
+  rmSync(file, { force: true })
+
+  throw new Error(`checksum mismatch for ${basename(file)}: expected ${expected}, got ${actual}; the file was deleted`)
+}
+
+export const opensslComplete = (dir = opensslDir()): boolean => {
+  return OPENSSL_LIBS.every((lib) => existsSync(join(dir, lib.name)) && fileSHA256(join(dir, lib.name)) === lib.sha256)
+}
+
+/** Fetch the OpenSSL libraries Qt's TLS backend needs; verified files are reused. */
+export const installOpenssl = async (dir = opensslDir(), options: DownloadOptions = {}): Promise<string> => {
+  mkdirSync(dir, { recursive: true })
+
+  for (const lib of OPENSSL_LIBS) {
+    const file = join(dir, lib.name)
+
+    if (existsSync(file) && fileSHA256(file) === lib.sha256) continue
+
+    ui.step(`downloading ${lib.name} (OpenSSL for Qt TLS)`)
+
+    await download(opensslURL(lib.name), file, options)
+    verifyChecksum(file, lib.sha256)
+  }
+
+  return dir
 }
 
 const extract = (archive: string, dest: string): void => {
@@ -245,6 +330,8 @@ export const installAndroid = async (version?: string): Promise<AndroidTools> =>
     extract(archive, join(base, "qt"))
     rmSync(archive, { force: true })
   }
+
+  await installOpenssl()
 
   return findAndroidTools()
 }
@@ -618,6 +705,14 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
     tools = await installAndroid(cliVersion())
   }
 
+  if (!opensslComplete()) {
+    if (process.env.PULSAR_NO_INSTALL === "1") {
+      throw new Error("OpenSSL for Android TLS is missing; run: pulsar install --android")
+    }
+
+    await installOpenssl()
+  }
+
   const name = manifest?.name ?? basename(appDir)
   const packageName = androidPackageName(manifest, dev)
   const appLabel = dev ? `${name} (dev)` : name
@@ -719,6 +814,7 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
       ...(permissions.length > 0 ? [`-DPULSAR_ANDROID_PERMISSIONS=${permissions.join(";")}`] : []),
       ...(dev ? ["-DPULSAR_ANDROID_DEV=ON"] : []),
       `-DPULSAR_ANDROID_PACKAGE_DIR=${packageSources ?? ""}`,
+      `-DPULSAR_ANDROID_OPENSSL_DIR=${opensslDir()}`,
       `-DQT_HOST_PATH=${tools.hostQt}`,
     ],
     { stdio: "inherit", env },

@@ -308,6 +308,14 @@ if(ANDROID)
         )
     endif()
 
+    # Qt's OpenSSL TLS plugin loads these by name at runtime and Qt does not ship them.
+    if(NOT PULSAR_ANDROID_OPENSSL_DIR)
+        message(FATAL_ERROR "PULSAR_ANDROID_OPENSSL_DIR is not set; run: pulsar install --android")
+    endif()
+    set_target_properties(pulsar-android PROPERTIES
+        QT_ANDROID_EXTRA_LIBS "${PULSAR_ANDROID_OPENSSL_DIR}/libcrypto_3.so;${PULSAR_ANDROID_OPENSSL_DIR}/libssl_3.so"
+    )
+
     set_target_properties(pulsar-android PROPERTIES
         QT_ANDROID_PACKAGE_NAME "${PULSAR_ANDROID_PACKAGE_NAME}"
         QT_ANDROID_APP_NAME "${PULSAR_ANDROID_APP_NAME}"
