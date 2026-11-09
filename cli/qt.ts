@@ -74,8 +74,24 @@ const isSystemLib = (path: string) => {
   return path.startsWith("/usr/lib") || path.startsWith("/System/") || path.startsWith("/lib")
 }
 
-const qmakeQuery = (key: string) => {
-  for (const qmake of [process.env.PULSAR_QMAKE, "qmake6", "qmake"]) {
+/**
+ * qmake of the Qt the host is linked with. The first qmake on PATH may belong
+ * to another Qt, and bundling that one mixes two versions at start.
+ */
+const linkedQmake = (hostPath: string | undefined) => {
+  if (!hostPath || !existsSync(hostPath)) return undefined
+
+  const core = neededLibs(hostPath).find((path) => /\/libQt6Core\.so/.test(path))
+
+  if (!core) return undefined
+
+  const bins = join(dirname(dirname(realpathSync(core))), "bin")
+
+  return ["qmake6", "qmake"].map((name) => join(bins, name)).find((path) => existsSync(path))
+}
+
+const qmakeQuery = (key: string, hostPath?: string) => {
+  for (const qmake of [process.env.PULSAR_QMAKE, linkedQmake(hostPath), "qmake6", "qmake"]) {
     if (!qmake) continue
 
     const r = spawnSync(qmake, ["-query", key], { encoding: "utf8" })
@@ -327,7 +343,7 @@ const appleQtFiles = (
 }
 
 const windowsQtFiles = (hostPath: string, tools: string[]): QtFile[] | null => {
-  const binsDir = qmakeQuery("QT_INSTALL_BINS")
+  const binsDir = qmakeQuery("QT_INSTALL_BINS", hostPath)
   const windeployqt = binsDir ? join(binsDir, "windeployqt.exe") : "windeployqt"
   const stage = mkdtempSync(join(tmpdir(), "pulsar-qt-"))
   const qmlRoot = join(pulsarRoot(), "host", "qml")
@@ -383,8 +399,8 @@ const windowsQtFiles = (hostPath: string, tools: string[]): QtFile[] | null => {
 }
 
 /** Paths of Qt command-line tools, such as qsb, found next to qmake. */
-export const qtTools = (names: string[]): string[] => {
-  const binsDir = qmakeQuery("QT_INSTALL_BINS")
+export const qtTools = (names: string[], hostPath?: string): string[] => {
+  const binsDir = qmakeQuery("QT_INSTALL_BINS", hostPath)
 
   if (!binsDir) return []
 
@@ -397,9 +413,9 @@ export const qtFiles = (hostPath: string, tools: string[] = []): QtFile[] | null
   if (root) return filesFromRoot(root)
   if (isWindows) return windowsQtFiles(hostPath, tools)
 
-  const libsDir = qmakeQuery("QT_INSTALL_LIBS")
-  const pluginsDir = qmakeQuery("QT_INSTALL_PLUGINS")
-  const qmlDir = qmakeQuery("QT_INSTALL_QML")
+  const libsDir = qmakeQuery("QT_INSTALL_LIBS", hostPath)
+  const pluginsDir = qmakeQuery("QT_INSTALL_PLUGINS", hostPath)
+  const qmlDir = qmakeQuery("QT_INSTALL_QML", hostPath)
 
   if (!libsDir || !existsSync(libsDir)) return null
   if (isMac) return appleQtFiles(hostPath, libsDir, pluginsDir ?? "", qmlDir ?? "", tools)
