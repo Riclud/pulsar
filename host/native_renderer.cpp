@@ -1,6 +1,7 @@
 #include "native_renderer.h"
 
 #include <QColor>
+#include <QCoreApplication>
 #include <QElapsedTimer>
 #include <QFont>
 #include <QJSValue>
@@ -10,6 +11,7 @@
 #include <QQuickWindow>
 #include <QSet>
 #include <QSharedPointer>
+#include <QTimer>
 #include <QTextOption>
 
 #include <algorithm>
@@ -1603,8 +1605,35 @@ QJsonArray NativeRenderer::snapshot() const
     return out;
 }
 
+static void startStallTrace()
+{
+    static bool started = false;
+
+    if (started)
+        return;
+
+    started = true;
+
+    auto *timer = new QTimer(qApp);
+    auto *clock = new QElapsedTimer();
+
+    clock->start();
+    timer->setInterval(1);
+
+    QObject::connect(timer, &QTimer::timeout, timer, [clock]() {
+        const qint64 gap = clock->restart();
+
+        if (gap >= 8)
+            qInfo().noquote() << "[stall]" << gap << "ms";
+    });
+
+    timer->start();
+}
+
 void traceNextFrame(QObject *window, const QString &label)
 {
+    startStallTrace();
+
     auto *quick = qobject_cast<QQuickWindow *>(window);
 
     if (!quick)
