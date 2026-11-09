@@ -55,6 +55,14 @@ src/main.ts     entry: creates the App and renders windows
 - **OS permissions.** Android runtime permissions go in `osPermissions`: `notifications`,
   `camera`, `microphone`, `location`, `storage`, `biometric`.
 - **Android** needs `"compat": "portable"`: no Node or Bun APIs anywhere in the app.
+- **Video.** The in-app player (FFmpeg) is bundled on desktop and Android when the app uses
+  `media`, `MediaPlayer` or `VideoOutput`; `"video": true` or `false` overrides that.
+  Android apps with it decode in software by default, because hardware decoding shows a
+  green or black picture on some phones.
+- **Environment.** `"env": { "NAME": "value" }` in `pulsar.json` sets environment variables
+  in every host before Qt reads them. Strings only; a variable already set in the
+  environment wins. Do not set `QT_FFMPEG_DECODING_HW_DEVICE_TYPES` to `mediacodec` on
+  Android yet: the app crashes on the first frame.
 
 ## Engines
 

@@ -41,7 +41,7 @@ import {
 } from "./core.ts"
 import { ANDROID_QT_VERSION, buildAndroid, bundleRuntime, installAndroid } from "./android.ts"
 import { buildIos } from "./ios.ts"
-import { launcherName, readManifest, resolveEntry, type BuildTarget } from "./app.ts"
+import { launcherName, readManifest, resolveEntry, wantsVideo, type BuildTarget } from "./app.ts"
 import { create } from "./create.ts"
 import {
   deviceBack,
@@ -139,29 +139,18 @@ const chooseDesktopEngine = async (
   return { engine: "bun", entry: resolveEntry(appDir, manifest, "desktop", "bun"), reasons: violations }
 }
 
-const MEDIA_USE = /\bmedia\s*\.\s*(load|play|toggle)\s*\(|\b(MediaPlayer|VideoOutput)\s*\{/
-const SOURCE_FILE = /\.(m?[jt]sx?|qml)$/
-const NOT_SOURCES = new Set(["node_modules", "dist", "build", ".git", ".pulsar"])
+const describeVideo = (video: boolean, target: "desktop" | "android" = "desktop"): void => {
+  if (target === "android") {
+    ui.detail(
+      "video",
+      video
+        ? "FFmpeg backend packaged, software decoding by default"
+        : `not packaged, no video playback ${ui.dim('("video": true adds it)')}`,
+    )
 
-/** Whether the app plays audio or video itself, so it needs FFmpeg. */
-const usesMedia = (appDir: string): boolean => {
-  const walk = (dir: string): boolean => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (NOT_SOURCES.has(entry.name)) continue
-
-      const path = join(dir, entry.name)
-
-      if (entry.isDirectory() && walk(path)) return true
-      if (entry.isFile() && SOURCE_FILE.test(entry.name) && MEDIA_USE.test(readFileSync(path, "utf8"))) return true
-    }
-
-    return false
+    return
   }
 
-  return walk(appDir)
-}
-
-const describeVideo = (video: boolean): void => {
   if (video) {
     ui.detail("video", "in-app player bundled (FFmpeg, about 20 MB)")
 
@@ -449,8 +438,10 @@ const checkTarget = async (appDir: string, target: BuildTarget): Promise<void> =
 
   if (target === "desktop") {
     describeEngine(await chooseDesktopEngine(appDir, manifest))
-    describeVideo(manifest?.video ?? usesMedia(appDir))
+    describeVideo(wantsVideo(appDir, manifest))
   }
+
+  if (target === "android") describeVideo(wantsVideo(appDir, manifest), "android")
 
   if (target === "android" && !targets.includes("android")) {
     ui.error(`android is not listed in targets (${targets.join(", ")})`)
@@ -989,7 +980,7 @@ const build = async () => {
   const outDir = resolve(flagValue("--out") ?? flagValue("-o") ?? "dist")
   const name = launcherName(appDir)
   const chosen = await chooseDesktopEngine(appDir, manifest)
-  const video = manifest?.video ?? usesMedia(appDir)
+  const video = wantsVideo(appDir, manifest)
 
   ui.header("build", basename(appDir), platformId())
   describeEngine(chosen)

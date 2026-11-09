@@ -21,6 +21,12 @@ All notable changes to this project are documented here. The format follows
 - `scanner.scan()` reads QR codes with the camera on Android (CameraX and ZXing, added to
   the APK only for apps that list `"scanner"`), and `QrCode` draws them on any platform.
 - `dialog.toast` shows a toast on the desktop too, at the bottom of the window.
+- Android apps with `"video": true`, or that use `media`, `MediaPlayer` or `VideoOutput`,
+  get Qt's FFmpeg multimedia backend in the APK, decoding in software by default because
+  hardware decoding shows a green or black picture on some phones. Other apps do not grow.
+- `env` in `pulsar.json` sets environment variables in every host before Qt reads them; a
+  variable already set in the environment wins. `pulsar.json` is checked for a bad `env` or
+  `video`.
 
 ## [2.1.0] - 2026-11-07
 

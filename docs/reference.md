@@ -194,9 +194,25 @@ import { platform } from "pulsar"
 const { os, kind, engine } = platform() // "linux" | "darwin" | "win32" | "android" | "ios", "desktop" | "mobile", "bun" | "quickjs"
 ```
 
-Apps get the in-app video player (FFmpeg, about 20 MB) only when they use `media`.
-Without it, videos open in the system player. Set `"video": true` or `false` in
-`pulsar.json` to decide yourself.
+Apps get the in-app video player (FFmpeg, about 20 MB) only when they use `media`,
+`MediaPlayer` or `VideoOutput`. Without it, desktop videos open in the system player and
+Android apps have no video backend. Set `"video": true` or `false` in `pulsar.json` to
+decide yourself. On Android the player is the FFmpeg multimedia backend from the Qt kit;
+see Video on Android below.
+
+#### Environment variables
+
+`pulsar.json` can set environment variables for the app. Every host applies them at
+startup, before Qt or the multimedia backend reads them, on desktop and on Android:
+
+```json
+{ "env": { "QT_FFMPEG_DECODING_HW_DEVICE_TYPES": "none" } }
+```
+
+Names and values are strings; `pulsar check`, `pulsar dev` and `pulsar build` reject
+anything else. A variable that is already set in the environment, such as by your shell,
+wins over the manifest. Desktop apps run from a single-file build read the manifest from
+inside the executable, so `env` works there too.
 
 ### Live reload
 
@@ -221,6 +237,20 @@ JDK 17, the Android SDK/NDK and the Qt for Android bundle with matching host
 tools. The result is `dist/<name>.apk` for `arm64-v8a` (minSdk 28, targetSdk
 35). `pulsar install --android` performs the same setup without building, and
 `pulsar check --target android` rejects `node:`/`bun:` imports before packaging.
+
+#### Video on Android
+
+An app with `"video": true`, or one that uses `media`, `MediaPlayer` or `VideoOutput`,
+gets Qt's FFmpeg multimedia backend in the APK (the plugin and the libav\* libraries,
+several MB more). Other apps do not. Without the backend Qt logs "No QtMultimedia
+backends found" and nothing plays.
+
+Hardware decoding gives a green or black picture on some phones (a Samsung S24 Ultra
+reports "Error transferring the data to system memory: -38"), so Android apps with the
+backend decode in software by default. To try hardware decoding, set
+`env` in `pulsar.json` replaces them. Hardware decoding (`mediacodec`) is not usable yet:
+with this backend the app crashes on the first frame (`QtSurfaceTextureListener` has no
+native implementation), so keep the software default.
 
 `net.fetch` and streaming `net.request` work on Android: transport runs in the
 native host through QtNetwork. `net.websocket` needs the Qt WebSockets module,

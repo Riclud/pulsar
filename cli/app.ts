@@ -1,20 +1,56 @@
-import { existsSync, readFileSync } from "fs"
+import { existsSync, readdirSync, readFileSync } from "fs"
 import { basename, dirname, join } from "path"
-import type { AppManifest, RuntimeKind, Target } from "../core/sdk/manifest.ts"
+import { validateManifest, type AppManifest, type RuntimeKind, type Target } from "../core/sdk/manifest.ts"
 import { ui } from "./ui.ts"
 
 export type BuildTarget = Target | "portable"
 
 export const readManifest = (appDir: string): AppManifest | null => {
-  try {
-    const parsed = JSON.parse(readFileSync(join(appDir, "pulsar.json"), "utf8")) as unknown
+  let parsed: unknown
 
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as AppManifest
+  try {
+    parsed = JSON.parse(readFileSync(join(appDir, "pulsar.json"), "utf8"))
   } catch {
     // A missing or broken pulsar.json means no manifest.
+    return null
   }
 
-  return null
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null
+
+  const problems = validateManifest(parsed)
+
+  for (const problem of problems) ui.error(`pulsar.json: ${problem}`)
+
+  if (problems.length > 0) process.exit(1)
+
+  return parsed as AppManifest
+}
+
+const MEDIA_USE = /\bmedia\s*\.\s*(load|play|toggle)\s*\(|\b(MediaPlayer|VideoOutput)\s*\{/
+const SOURCE_FILE = /\.(m?[jt]sx?|qml)$/
+const NOT_SOURCES = new Set(["node_modules", "dist", "build", ".git", ".pulsar"])
+
+/** Whether the app plays audio or video itself, so it needs FFmpeg. */
+export const usesMedia = (appDir: string): boolean => {
+  const walk = (dir: string): boolean => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (NOT_SOURCES.has(entry.name)) continue
+
+      const path = join(dir, entry.name)
+
+      if (entry.isDirectory() && walk(path)) return true
+      if (entry.isFile() && SOURCE_FILE.test(entry.name) && MEDIA_USE.test(readFileSync(path, "utf8"))) return true
+    }
+
+    return false
+  }
+
+  return walk(appDir)
+}
+
+/** Whether the build bundles the video backend: the manifest decides, else the app's use of media. */
+export const wantsVideo = (appDir: string, manifest: AppManifest | null): boolean => {
+  return manifest?.video ?? usesMedia(appDir)
 }
 
 export const resolveEntry = (

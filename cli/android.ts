@@ -5,6 +5,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, r
 import { homedir } from "os"
 import { basename, dirname, join, resolve } from "path"
 import type { AppManifest } from "../core/sdk/manifest.ts"
+import { wantsVideo } from "./app.ts"
 import { cliVersion, platformId, pulsarHome, pulsarRoot, releaseUrl } from "./core.ts"
 import { createIgnoreFilter } from "./ignore.ts"
 import { ui } from "./ui.ts"
@@ -813,6 +814,7 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
       `-DPULSAR_ANDROID_VERSION_CODE=${versionCode(versionName)}`,
       ...(permissions.length > 0 ? [`-DPULSAR_ANDROID_PERMISSIONS=${permissions.join(";")}`] : []),
       ...(dev ? ["-DPULSAR_ANDROID_DEV=ON"] : []),
+      `-DPULSAR_ANDROID_VIDEO=${wantsVideo(appDir, manifest) ? "ON" : "OFF"}`,
       `-DPULSAR_ANDROID_PACKAGE_DIR=${packageSources ?? ""}`,
       `-DPULSAR_ANDROID_OPENSSL_DIR=${opensslDir()}`,
       `-DQT_HOST_PATH=${tools.hostQt}`,
@@ -823,6 +825,9 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
   if (configure.status !== 0) throw new Error("android configure failed")
 
   patchDeploymentTools(join(buildDir, "android-pulsar-android-deployment-settings.json"), tools.hostQt)
+
+  // androiddeployqt only adds to libs/, so the FFmpeg libraries of an earlier "video": true build would stay.
+  rmSync(join(buildDir, "android-build", "libs"), { recursive: true, force: true })
 
   const compile = spawnSync("cmake", ["--build", buildDir, "--target", "pulsar-android_make_apk", "--parallel", "6"], {
     stdio: "inherit",

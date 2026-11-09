@@ -17,7 +17,7 @@ import {
   devManifest,
   findAndroidTools,
 } from "./android.ts"
-import { readManifest, resolveEntry } from "./app.ts"
+import { readManifest, resolveEntry, wantsVideo } from "./app.ts"
 import { createIgnoreFilter } from "./ignore.ts"
 import { compileAppShaders } from "./shaders.ts"
 import { mapErrorText, parseInlineSourceMap, type SourceMapper } from "./sourcemap.ts"
@@ -109,7 +109,7 @@ const hashTree = (hash: ReturnType<typeof createHash>, dir: string, prefix: stri
   }
 }
 
-const nativeFingerprint = (manifest: AppManifest | null, packageName: string): string => {
+const nativeFingerprint = (manifest: AppManifest | null, packageName: string, video: boolean): string => {
   const root = pulsarRoot()
   const hash = createHash("sha256")
 
@@ -123,6 +123,8 @@ const nativeFingerprint = (manifest: AppManifest | null, packageName: string): s
       version: manifest?.version,
       abi: ANDROID_ABI,
       qt: ANDROID_QT_VERSION,
+      video,
+      env: manifest?.env,
     }),
   )
 
@@ -245,7 +247,7 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
     return result.stdout.includes("package:")
   }
 
-  const fingerprint = nativeFingerprint(manifest, packageName)
+  const fingerprint = nativeFingerprint(manifest, packageName, wantsVideo(appDir, manifest))
   const previous = existsSync(fingerprintPath)
     ? (JSON.parse(readFileSync(fingerprintPath, "utf8")) as { fingerprint?: string }).fingerprint
     : undefined
