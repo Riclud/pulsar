@@ -59,6 +59,18 @@ The JS UI renderer bundles the Paper Mono font (`host/qml/fonts/PaperMono-*.ttf`
 
 - License text: `host/qml/fonts/LICENSE-PaperMono.txt`
 
+## OpenSSL — Android TLS (Apache-2.0)
+
+Android apps bundle the OpenSSL 3.1.8 shared libraries `libssl_3.so` and `libcrypto_3.so`, which
+Qt's TLS backend loads at runtime for HTTPS. `pulsar install --android` downloads the prebuilt
+arm64-v8a libraries published by KDAB, pinned to one commit and checked by SHA-256. They are not
+stored in this repository. OpenSSL 3 is licensed under the Apache License 2.0.
+
+- Source: https://github.com/openssl/openssl
+- Prebuilt libraries: https://github.com/KDAB/android_openssl
+- License text: https://github.com/openssl/openssl/blob/openssl-3.1.8/LICENSE.txt
+- Apache-2.0: https://www.apache.org/licenses/LICENSE-2.0
+
 ## Acknowledgements
 
 Qt is a trademark of The Qt Company Ltd. This project is not affiliated with or
