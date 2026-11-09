@@ -926,9 +926,8 @@ void NativeRenderer::replaceNode(Node &node, const QJsonObject &json)
     dirtyStacks_.remove(&node);
     discard(node, after);
 
-    *slot = create(json, parent);
+    *slot = createSynced(json, parent);
 
-    sync(**slot, json, true);
     refreshKids(*parent);
 }
 
@@ -1013,7 +1012,7 @@ std::unique_ptr<NativeRenderer::Node> NativeRenderer::create(const QJsonObject &
     QQuickItem *parentItem = parent->stack;
 
     if (node->kind == Kind::Island) {
-        mountQml(*node, json, parentItem);
+        mountQml(*node, json, parentItem, creationDepth_ > 1);
 
         return node;
     }
@@ -1023,7 +1022,7 @@ std::unique_ptr<NativeRenderer::Node> NativeRenderer::create(const QJsonObject &
 
         own.remove(QLatin1String("children"));
 
-        mountQml(*node, own, parentItem);
+        mountQml(*node, own, parentItem, true);
         bindShell(*node);
 
         return node;
@@ -1055,12 +1054,56 @@ std::unique_ptr<NativeRenderer::Node> NativeRenderer::create(const QJsonObject &
     return node;
 }
 
-void NativeRenderer::mountQml(Node &node, const QJsonObject &own, QQuickItem *parentItem)
+// The enter animation grows a node to its full height, so a shell starts it only once its children exist.
+std::unique_ptr<NativeRenderer::Node> NativeRenderer::createSynced(const QJsonObject &json, Node *parent)
+{
+    creationDepth_++;
+
+    std::unique_ptr<Node> node = create(json, parent);
+
+    sync(*node, json, true);
+
+    creationDepth_--;
+
+    if (creationDepth_ > 0 || node->kind != Kind::Shell || !node->props.contains(QLatin1String("enter")))
+        return node;
+
+    // Text wrapping depends on the width, and the parent has not placed this child yet.
+    if (parent->type != QLatin1String("row") && parent->stack)
+        node->item->setWidth(parent->stack->width());
+
+    settle(*node);
+
+    QMetaObject::invokeMethod(root_, "nativeEnter", Q_ARG(QVariant, itemArg(node->item)));
+
+    return node;
+}
+
+void NativeRenderer::settle(Node &node)
+{
+    // Twice: widths flow down on the way in, implicit heights come back up on the way out.
+    if (node.stack)
+        node.stack->ensurePolished();
+
+    for (const std::unique_ptr<Node> &child : node.children)
+        settle(*child);
+
+    if (!node.stack)
+        return;
+
+    node.stack->ensurePolished();
+
+    if (node.kind == Kind::Shell)
+        node.stack->parentItem()->ensurePolished();
+}
+
+void NativeRenderer::mountQml(Node &node, const QJsonObject &own, QQuickItem *parentItem, bool holdEnter)
 {
     QVariant mounted;
 
     QMetaObject::invokeMethod(root_, "nativeMount", Q_RETURN_ARG(QVariant, mounted),
-                              Q_ARG(QVariant, own.toVariantMap()), Q_ARG(QVariant, itemArg(parentItem)));
+                              Q_ARG(QVariant, own.toVariantMap()), Q_ARG(QVariant, itemArg(parentItem)),
+                              Q_ARG(QVariant, holdEnter));
 
     node.item = qobject_cast<QQuickItem *>(mounted.value<QObject *>());
     node.json = own;
@@ -1505,11 +1548,11 @@ void NativeRenderer::syncChildren(Node &node, const QJsonArray &children)
             stats_.updated++;
             child = std::move(found->second);
             previous.erase(found);
+            sync(*child, json, true);
         } else {
-            child = create(json, &node);
+            child = createSynced(json, &node);
         }
 
-        sync(*child, json, true);
         node.children.push_back(std::move(child));
     }
 

@@ -7594,14 +7594,30 @@ ApplicationWindow {
     }
 
     // Dev control: where a node is on screen, so `pulsar hover` and `click` aim real input at it.
-    function nativeMount(node, parent) {
+    function nativeMount(node, parent, holdEnter) {
         view.building++;
+
+        if (holdEnter)
+            view.creatingNodes++;
 
         try {
             return createNode(node, parent, false);
         } finally {
+            if (holdEnter)
+                view.creatingNodes--;
+
             view.building--;
         }
+    }
+
+    function nativeEnter(item) {
+        const node = item.pulsarMeta.node;
+
+        if (!view.motionReady || !node.props.enter || !item.visible)
+            return;
+
+        item.pulsarMeta.extra.motion.playEnter(node.props.enter);
+        logMotion("enter", node.path);
     }
 
     function nativeUpdate(item, node, shallow) {

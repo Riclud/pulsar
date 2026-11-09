@@ -169,6 +169,16 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "shell-enter",
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "1600" },
+    check: (output) => {
+      const heights = (output.match(/SIZE entering (\d+)/g) ?? []).map((line) => Number(line.split(" ")[2]))
+      const growing = new Set(heights.filter((height) => height > 8 && height < 72))
+
+      return growing.size >= 3 && heights.at(-1) === 80
+    },
+  },
+  {
     name: "hidden-padding",
     check: (output) => {
       const sizes = output.split("\n").filter((line) => line.includes("SIZE padded "))

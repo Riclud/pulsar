@@ -193,6 +193,8 @@ private:
     void replaceNode(Node &node, const QJsonObject &json);
 
     std::unique_ptr<Node> create(const QJsonObject &json, Node *parent);
+    std::unique_ptr<Node> createSynced(const QJsonObject &json, Node *parent);
+    void settle(Node &node);
     QQuickItem *instantiate(QQmlComponent *component);
     void adopt(QQuickItem *item, QQuickItem *parent);
 
@@ -216,7 +218,7 @@ private:
     void forget(Node &node);
     void discard(Node &node, QQuickItem *after);
     void reapplyAll(Node &node);
-    void mountQml(Node &node, const QJsonObject &own, QQuickItem *parentItem);
+    void mountQml(Node &node, const QJsonObject &own, QQuickItem *parentItem, bool holdEnter);
     void bindShell(Node &node);
     bool hasQmlDescendant(const Node &node) const;
     QString resolveColor(const QJsonValue &value, const QVariant &fallback) const;
@@ -236,6 +238,7 @@ private:
     QList<QJsonArray> queuedPatches_;
     QString treeShape_;
     bool hasPendingTree_ = false;
+    int creationDepth_ = 0;
     bool waitingForTransition_ = false;
 };
 
