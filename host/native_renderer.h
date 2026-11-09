@@ -92,6 +92,7 @@ protected:
 
 private slots:
     void hintsChanged();
+    void windowChanged(QQuickWindow *next);
 
 private:
     struct Leaving {
@@ -117,6 +118,8 @@ private:
     void placeLayers();
     qreal place(const Measured &kid, qreal perWeight, qreal crossSpace, qreal cursor);
     void mergeLeaving();
+    bool mirrored() const;
+    QPointF mirroredAt(qreal x, qreal y, qreal itemWidth) const;
 
     QList<Kid> kids_;
     QList<Kid> ordered_;

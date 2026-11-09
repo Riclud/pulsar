@@ -305,11 +305,33 @@ bool debugging()
 NativeStack::NativeStack(QQuickItem *parent)
     : QQuickItem(parent)
 {
+    connect(this, &QQuickItem::windowChanged, this, &NativeStack::windowChanged);
 }
 
 void NativeStack::hintsChanged()
 {
     polish();
+}
+
+void NativeStack::windowChanged(QQuickWindow *next)
+{
+    if (!next)
+        return;
+
+    // The window mirrors layouts with LayoutMirroring and exposes the result as layoutMirrored.
+    connect(next, SIGNAL(layoutMirroredChanged()), this, SLOT(hintsChanged()), Qt::UniqueConnection);
+
+    polish();
+}
+
+bool NativeStack::mirrored() const
+{
+    return window() && window()->property("layoutMirrored").toBool();
+}
+
+QPointF NativeStack::mirroredAt(qreal x, qreal y, qreal itemWidth) const
+{
+    return { mirrored() ? width() - x - itemWidth : x, y };
 }
 
 void NativeStack::configure(Mode mode, qreal gap, const Edges &edges)
@@ -405,7 +427,7 @@ void NativeStack::placeLayers()
             const qreal x = at.left.set ? at.left.value : at.right.set ? width() - at.right.value - w : 0;
             const qreal y = at.top.set ? at.top.value : at.bottom.set ? height() - at.bottom.value - h : 0;
 
-            kid.item->setPosition({ x, y });
+            kid.item->setPosition(mirroredAt(x, y, w));
             kid.item->setSize({ w, h });
 
             continue;
@@ -572,8 +594,11 @@ qreal NativeStack::place(const Measured &kid, qreal perWeight, qreal crossSpace,
     else if (align == Align::End)
         crossAt += crossSpace - cross;
 
-    kid.kid->item->setPosition(row ? QPointF(cursor, crossAt) : QPointF(crossAt, cursor));
-    kid.kid->item->setSize(row ? QSizeF(main, cross) : QSizeF(cross, main));
+    const QSizeF size = row ? QSizeF(main, cross) : QSizeF(cross, main);
+    const QPointF at = row ? QPointF(cursor, crossAt) : QPointF(crossAt, cursor);
+
+    kid.kid->item->setPosition(mirroredAt(at.x(), at.y(), size.width()));
+    kid.kid->item->setSize(size);
 
     return main;
 }

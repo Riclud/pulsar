@@ -14,6 +14,7 @@ ApplicationWindow {
 
     LayoutMirroring.enabled: themeData && themeData.direction === "rtl"
     LayoutMirroring.childrenInherit: true
+    readonly property bool layoutMirrored: LayoutMirroring.enabled
 
     Material.theme: themeBackground.hsvValue < 0.5 ? Material.Dark : Material.Light
     Material.background: themeSurface
@@ -6241,12 +6242,15 @@ ApplicationWindow {
 
         const extra = item.pulsarMeta.extra;
 
-        if (extra.lastLayoutWidth === item.width && extra.lastLayoutHeight === item.height)
+        if (extra.lastLayoutWidth === item.width && extra.lastLayoutHeight === item.height
+                && extra.lastLayoutX === item.x && extra.lastLayoutY === item.y)
             return;
 
         extra.lastLayoutWidth = item.width;
         extra.lastLayoutHeight = item.height;
-        emitEvent(item.pulsarMeta.node, "layout", { width: item.width, height: item.height });
+        extra.lastLayoutX = item.x;
+        extra.lastLayoutY = item.y;
+        emitEvent(item.pulsarMeta.node, "layout", { width: item.width, height: item.height, x: item.x, y: item.y });
     }
 
     function scheduleLayout(item) {
@@ -6277,6 +6281,8 @@ ApplicationWindow {
         item.pulsarMeta.extra.layoutWatched = true;
         item.widthChanged.connect(function () { scheduleLayout(item); });
         item.heightChanged.connect(function () { scheduleLayout(item); });
+        item.xChanged.connect(function () { scheduleLayout(item); });
+        item.yChanged.connect(function () { scheduleLayout(item); });
         scheduleLayout(item);
     }
 

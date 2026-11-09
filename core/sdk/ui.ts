@@ -209,8 +209,8 @@ interface CommonOptions {
     bottom?: number
     left?: number
   }
-  /** Receive the measured size after layout. */
-  onLayout?: (size: { width: number; height: number }) => void
+  /** Receive the measured size and the position inside the parent after layout. */
+  onLayout?: (box: { width: number; height: number; x: number; y: number }) => void
   onFocus?: () => void
   onBlur?: () => void
   /** Neon glow around the node; `true` uses the theme primary. */
@@ -865,7 +865,7 @@ const makeNode = <P extends object>(
 ): UiNode => {
   const { neon, onLayout, onFocus, onBlur, drag, ...rest } = props as P & {
     neon?: boolean | NeonOptions
-    onLayout?: (size: { width: number; height: number }) => void
+    onLayout?: (box: { width: number; height: number; x: number; y: number }) => void
     onFocus?: () => void
     onBlur?: () => void
     drag?: DragOptions
@@ -880,9 +880,9 @@ const makeNode = <P extends object>(
   if (layout) {
     eventList.push("layout")
     callbackMap.layout = (value) => {
-      const size = value as { width: number; height: number }
+      const box = value as { width: number; height: number; x: number; y: number }
 
-      layout({ width: size.width, height: size.height })
+      layout({ width: box.width, height: box.height, x: box.x, y: box.y })
     }
   }
 

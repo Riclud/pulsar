@@ -18,6 +18,7 @@ type Scenario = {
 
 const root = resolve(import.meta.dir, "..")
 const fixtures = join(root, "tests", "embedded", "regressions")
+const only = process.argv[2]
 const override = process.env.PULSAR_EMBEDDED_HOST
 const binary =
   override ?? join(root, "build", "bin", process.platform === "win32" ? "qml-host-qjs.exe" : "qml-host-qjs")
@@ -146,6 +147,31 @@ const scenarios: Scenario[] = [
         output.includes("SIZE padded 48") &&
         output.includes("SIZE around 40") &&
         output.includes("SIZE elevated 72")
+      )
+    },
+  },
+  {
+    name: "rtl",
+    env: { AUTO_QUIT_MS: "3500" },
+    check: (output) => {
+      const settled = new Map<string, string>()
+      const phases: string[] = []
+
+      for (const line of output.split("\n")) {
+        const mark = line.match(/PHASE (ltr|rtl)$/)
+        const pos = line.match(/POS (\w+) (\d+)$/)
+
+        if (mark) phases.push("")
+        if (pos) settled.set(`${phases.length}:${pos[1]}`, pos[2]!)
+      }
+
+      const row = (phase: number) => ["a", "b", "start", "end"].map((name) => settled.get(`${phase}:${name}`))
+
+      return (
+        phases.length === 3 &&
+        row(1).join() === "10,55,10,360" &&
+        row(2).join() === "350,315,350,0" &&
+        row(3).join() === "10,55,10,360"
       )
     },
   },
@@ -404,6 +430,8 @@ if (!buildHost()) {
 let failed = 0
 
 for (const scenario of scenarios) {
+  if (only && scenario.name !== only) continue
+
   const passed = await runScenario(scenario)
 
   if (!passed) failed++
