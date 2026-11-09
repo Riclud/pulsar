@@ -439,14 +439,24 @@ const runScenario = async (scenario: Scenario) => {
       stderr: "pipe",
     })
 
+    // A host that hangs on shutdown must fail the scenario, not stall the run.
+    let timedOut = false
+    const limit = Number(scenario.env?.AUTO_QUIT_MS ?? 1500) + 20000
+    const timer = setTimeout(() => {
+      timedOut = true
+      run.kill("SIGKILL")
+    }, limit)
+
     const [stdout, stderr, exitCode] = await Promise.all([
       new Response(run.stdout).text(),
       new Response(run.stderr).text(),
       run.exited,
     ])
+    clearTimeout(timer)
+
     const hostOutput = existsSync(hostLog) ? readFileSync(hostLog, "utf8") : ""
-    const output = `${stdout}\n${stderr}\n${hostOutput}`
-    const passed = exitCode === 0 && scenario.check(output) && !output.includes("recursive rearrange") && !output.includes("read-only property") && !output.includes("as the root of a QML document")
+    const output = `${stdout}\n${stderr}\n${hostOutput}${timedOut ? `\nhost hung: killed after ${limit} ms\n` : ""}`
+    const passed = !timedOut && exitCode === 0 && scenario.check(output) && !output.includes("recursive rearrange") && !output.includes("read-only property") && !output.includes("as the root of a QML document")
 
     console.log(`${passed ? "ok  " : "FAIL"} ${scenario.name} (exit ${exitCode})`)
 
