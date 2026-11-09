@@ -227,10 +227,13 @@ ApplicationWindow {
             const distance = touchpad ? -event.pixelDelta.y : -event.angleDelta.y;
             const base = wheeling.running ? wheeling.target : flick.contentY;
 
-            // Both the wheel and the touchpad move a target, and the list follows it
-            // every frame, so the speed never jumps between events or with their rate.
+            if (!wheeling.running)
+                wheeling.velocity = 0;
+
+            // Both the wheel and the touchpad move a target, and a critically damped spring
+            // follows it: velocity stays continuous, so a new tick cannot kick the motion.
             wheeling.target = Math.max(minY(), Math.min(maxY(), base + distance));
-            wheeling.lag = touchpad ? 0.035 : 0.075;
+            wheeling.stiffness = touchpad ? 60 : 30;
             wheeling.start();
         }
 
@@ -282,19 +285,26 @@ ApplicationWindow {
             id: wheeling
 
             property real target: 0
-            property real lag: 0.075
+            property real velocity: 0
+            property real stiffness: 30
 
             onTriggered: {
-                const follow = 1 - Math.exp(-Math.max(frameTime, 0.001) / lag);
-                const next = inertia.flick.contentY + (target - inertia.flick.contentY) * follow;
+                // The exact solution of the spring, so the result does not depend on frame length.
+                const elapsed = Math.max(frameTime, 0.001);
+                const offset = inertia.flick.contentY - target;
+                const decay = Math.exp(-stiffness * elapsed);
+                const carry = (velocity + stiffness * offset) * elapsed;
+                const nextOffset = (offset + carry) * decay;
 
-                if (Math.abs(target - next) < 0.5) {
+                velocity = (velocity - stiffness * carry) * decay;
+
+                if (Math.abs(nextOffset) < 0.5 && Math.abs(velocity) < 20) {
                     inertia.flick.contentY = target;
                     stop();
                     return;
                 }
 
-                inertia.flick.contentY = next;
+                inertia.flick.contentY = Math.max(inertia.minY(), Math.min(inertia.maxY(), target + nextOffset));
             }
         }
 
