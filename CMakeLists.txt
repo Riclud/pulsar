@@ -66,11 +66,14 @@ FetchContent_MakeAvailable(quickjs)
 # Built-in renderer for JS-driven windows (loaded as qrc:/runtime/PulsarView.qml).
 # The same resources are linked into every host that can render JS windows.
 function(pulsar_add_view_resources target resource_name)
+    file(GLOB view_node_files CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/nodes/*.qml")
     qt_add_resources(${target} ${resource_name}
         PREFIX "/runtime"
         BASE "${CMAKE_CURRENT_SOURCE_DIR}/host/qml"
         FILES
             "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/PulsarView.qml"
+            ${view_node_files}
             "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/shaders/wave.frag.qsb"
             "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/shaders/lightning.frag.qsb"
             "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/shaders/aurora.frag.qsb"
