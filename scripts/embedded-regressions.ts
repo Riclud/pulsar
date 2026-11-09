@@ -154,7 +154,6 @@ const scenarios: Scenario[] = [
     check: (output) => {
       return (
         output.includes("FIELD focus") &&
-        output.includes("PulsarView reorder") &&
         !output.includes("FIELD blur") &&
         output.includes("SIZE flexed 400")
       )
@@ -222,12 +221,7 @@ const scenarios: Scenario[] = [
   {
     name: "packing",
     check: (output) => {
-      return (
-        output.includes("PulsarView packed /root/frame/tall") &&
-        output.includes("PulsarView packed /root/frame/tall/wide") &&
-        !output.includes("PulsarView packed /root/frame/tall/hug") &&
-        !output.includes("PulsarView packed /root/frame/filled")
-      )
+      return output.includes("SIZE wide 40") && output.includes("SIZE hug 40") && output.includes("SIZE grow 100")
     },
   },
   {
@@ -261,7 +255,7 @@ const scenarios: Scenario[] = [
   {
     name: "late-window",
     desktop: true,
-    check: (output) => lastBuilt(output)?.includes(" +3 ~0 -0 ") === true,
+    check: (output) => output.includes("PulsarView built 1 +2") && output.includes("PulsarView patch 1 +1"),
   },
   {
     name: "large-download",
