@@ -27,8 +27,10 @@ class PerfRecorder : public QObject {
 public:
     using Resolve = std::function<bool(const QJsonObject &target, QPointF *point)>;
     using Done = std::function<void(const QJsonObject &report)>;
+    using Dispatch = std::function<bool(const QJsonObject &step)>;
 
-    PerfRecorder(QQuickWindow *window, const QJsonArray &steps, Resolve resolve, Done done, QObject *parent = nullptr);
+    PerfRecorder(QQuickWindow *window, const QJsonArray &steps, Resolve resolve, Dispatch dispatch, Done done,
+                 QObject *parent = nullptr);
 
     void start();
 
@@ -64,18 +66,22 @@ private:
     void note(const QString &kind);
     bool locate(const QJsonObject &step, QPointF *point);
     void trackFlickableAt(const QPointF &point);
+    void watchFor(const QJsonObject &step);
+    void checkAppeared();
     void sendMouse(QEvent::Type type, const QPointF &point, Qt::MouseButton button);
     void sendKey(int key, const QString &text);
 
     QPointer<QQuickWindow> window_;
     QJsonArray steps_;
     Resolve resolve_;
+    Dispatch dispatch_;
     Done done_;
     std::deque<Action> actions_;
     QElapsedTimer clock_;
     QJsonArray inputs_;
     QString error_;
     QPointer<QObject> flickable_;
+    QString untilPath_;
     Qt::MouseButtons buttons_ = Qt::NoButton;
 
     QMutex mutex_;

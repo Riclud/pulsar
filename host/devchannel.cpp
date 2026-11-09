@@ -663,7 +663,17 @@ void DevChannel::handlePerf(const QJsonValue &request, const QJsonObject &comman
         reply(request, true, report);
     };
 
-    auto *recorder = new pulsar::PerfRecorder(view, command.value(QStringLiteral("steps")).toArray(), resolve, done, this);
+    const auto send = [this](const QJsonObject &step) {
+        bool found = false;
+        const QJsonObject node = findAny(currentTree(), step, &found);
+
+        if (found)
+            dispatch(node, step.value(QStringLiteral("event")).toString(QStringLiteral("click")), QJsonValue());
+
+        return found;
+    };
+
+    auto *recorder = new pulsar::PerfRecorder(view, command.value(QStringLiteral("steps")).toArray(), resolve, send, done, this);
 
     recorder->start();
 }

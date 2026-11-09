@@ -56,11 +56,13 @@ QString graphicsApiName(QSGRendererInterface::GraphicsApi api)
 
 } // namespace
 
-PerfRecorder::PerfRecorder(QQuickWindow *window, const QJsonArray &steps, Resolve resolve, Done done, QObject *parent)
+PerfRecorder::PerfRecorder(QQuickWindow *window, const QJsonArray &steps, Resolve resolve, Dispatch dispatch, Done done,
+                           QObject *parent)
     : QObject(parent)
     , window_(window)
     , steps_(steps)
     , resolve_(std::move(resolve))
+    , dispatch_(std::move(dispatch))
     , done_(std::move(done))
 {
 }
@@ -147,6 +149,9 @@ void PerfRecorder::connectFrames()
         guiFrame_.animating = now();
         guiFrame_.hasY = !flickable_.isNull();
         guiFrame_.y = flickable_ ? flickable_->property("contentY").toDouble() : 0;
+
+        lock.unlock();
+        checkAppeared();
     }, Qt::DirectConnection);
 
     // The GUI thread starts the next frame before the render thread has swapped this one,
@@ -168,6 +173,30 @@ void PerfRecorder::connectFrames()
         pending_.swapped = now();
         frames_.append(std::exchange(pending_, {}));
     }, Qt::DirectConnection);
+}
+
+void PerfRecorder::watchFor(const QJsonObject &step)
+{
+    untilPath_ = step.value(QLatin1String("until")).toString();
+}
+
+// Runs once per frame, so the mark is at most one frame later than the UI change.
+void PerfRecorder::checkAppeared()
+{
+    if (untilPath_.isEmpty())
+        return;
+
+    QObject *renderer = window_->property("nativeRenderer").value<QObject *>();
+    QObject *item = nullptr;
+
+    if (renderer)
+        QMetaObject::invokeMethod(renderer, "itemAt", Q_RETURN_ARG(QObject *, item), Q_ARG(QString, untilPath_));
+
+    if (!item)
+        return;
+
+    note(QStringLiteral("appeared"));
+    untilPath_.clear();
 }
 
 void PerfRecorder::start()
@@ -204,6 +233,18 @@ void PerfRecorder::plan(const QJsonObject &step)
 
             note(QStringLiteral("hover"));
             sendMouse(QEvent::MouseMove, point, Qt::NoButton);
+        });
+
+        return;
+    }
+
+    if (kind == QLatin1String("dispatch")) {
+        at(0, [this, step]() {
+            watchFor(step);
+            note(QStringLiteral("dispatch:") + step.value(QLatin1String("label")).toString());
+
+            if (!dispatch_(step))
+                fail(QStringLiteral("cannot dispatch to: ") + step.value(QLatin1String("path")).toString());
         });
 
         return;
@@ -277,6 +318,7 @@ void PerfRecorder::planTap(const QJsonObject &step)
             return;
 
         sendMouse(QEvent::MouseMove, *point, Qt::NoButton);
+        watchFor(step);
         note(QStringLiteral("press"));
         sendMouse(QEvent::MouseButtonPress, *point, Qt::LeftButton);
     });
