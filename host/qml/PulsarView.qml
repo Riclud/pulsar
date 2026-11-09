@@ -7345,6 +7345,17 @@ ApplicationWindow {
                 item.palette.accent = resolveColor(props.color, view.themePrimary);
             }
         } else if (node.type === "image") {
+            const boxed = props.width !== undefined && props.height !== undefined;
+
+            // Only with a known size: an image of unknown size would shift the layout when it arrives.
+            item.asynchronous = boxed;
+
+            if (boxed) {
+                const side = Math.ceil(Math.max(props.width, props.height) * view.screen.devicePixelRatio * 2);
+
+                item.sourceSize = Qt.size(side, side);
+            }
+
             item.source = prop(props, "src", "");
 
             if (props.fillMode !== undefined)

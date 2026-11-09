@@ -192,7 +192,10 @@ void PerfRecorder::checkAppeared()
     if (renderer)
         QMetaObject::invokeMethod(renderer, "itemAt", Q_RETURN_ARG(QObject *, item), Q_ARG(QString, untilPath_));
 
-    if (!item)
+    const auto *quick = qobject_cast<QQuickItem *>(item);
+
+    // A kept-alive screen exists before it is shown, so existing is not enough.
+    if (!quick || !quick->isVisible())
         return;
 
     note(QStringLiteral("appeared"));
