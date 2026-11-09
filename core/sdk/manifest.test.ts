@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test"
-import { manifestCompat, manifestRuntime, manifestTargets, resolveAppConfig, resolveWindows } from "./manifest.ts"
+import {
+  manifestCompat,
+  manifestRuntime,
+  manifestTargets,
+  resolveAppConfig,
+  resolveWindows,
+  validateManifest,
+} from "./manifest.ts"
 import type { AppManifest } from "./manifest.ts"
 
 const manifest: AppManifest = {
@@ -82,5 +89,44 @@ describe("target policy", () => {
 
     expect(manifestRuntime(value, "android")).toBe("quickjs")
     expect(manifestCompat(value)).toBe("portable")
+  })
+})
+
+describe("validateManifest", () => {
+  test("accepts a manifest without env or video", () => {
+    expect(validateManifest({ id: "com.example.app" })).toEqual([])
+  })
+
+  test("accepts string env values, including empty ones", () => {
+    expect(validateManifest({ video: true, env: { QT_FFMPEG_DECODING_HW_DEVICE_TYPES: "none", EMPTY: "" } })).toEqual([])
+  })
+
+  test("rejects a manifest that is not an object", () => {
+    expect(validateManifest(null)).toHaveLength(1)
+    expect(validateManifest([])).toHaveLength(1)
+    expect(validateManifest("x")).toHaveLength(1)
+  })
+
+  test("rejects an env that is not an object", () => {
+    expect(validateManifest({ env: "A=1" })).toEqual(['"env" must be an object of string values'])
+    expect(validateManifest({ env: ["A"] })).toHaveLength(1)
+    expect(validateManifest({ env: null })).toHaveLength(1)
+  })
+
+  test("rejects env values that are not strings", () => {
+    expect(validateManifest({ env: { A: 1, B: true, C: "ok" } })).toEqual([
+      '"env.A" must be a string',
+      '"env.B" must be a string',
+    ])
+  })
+
+  test("rejects env names the OS cannot hold", () => {
+    expect(validateManifest({ env: { "": "x" } })).toHaveLength(1)
+    expect(validateManifest({ env: { "A=B": "x" } })).toHaveLength(1)
+    expect(validateManifest({ env: { "A\0B": "x" } })).toHaveLength(1)
+  })
+
+  test("rejects a video that is not a boolean", () => {
+    expect(validateManifest({ video: "yes" })).toEqual(['"video" must be true or false'])
   })
 })

@@ -72,11 +72,47 @@ export interface AppManifest {
   /** Extra paths kept out of builds, using .gitignore syntax. */
   ignore?: string[]
   /**
-   * Bundle the in-app video player (FFmpeg, about 20 MB) in desktop builds.
-   * Defaults to true when the app uses `media`. Without it videos open in the
-   * system player.
+   * Bundle the in-app video player (FFmpeg, about 20 MB) on desktop and
+   * Android. Defaults to true when the app uses `media`, `MediaPlayer` or
+   * `VideoOutput`. Without it, desktop videos open in the system player and
+   * Android apps get no video backend. Android apps with the player decode in
+   * software unless `env` says otherwise.
    */
   video?: boolean
+  /**
+   * Environment variables set at startup by every host, before Qt reads them.
+   * A variable already set in the process environment (such as by the user's
+   * shell) wins over the manifest. Values are strings.
+   */
+  env?: Record<string, string>
+}
+
+/**
+ * Check the parts of a parsed pulsar.json that the build and the hosts rely on.
+ * Returns one message per problem, empty when the manifest is fine.
+ */
+export const validateManifest = (manifest: unknown): string[] => {
+  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) return ["the manifest must be an object"]
+
+  const problems: string[] = []
+  const { env, video } = manifest as Record<string, unknown>
+
+  if (video !== undefined && typeof video !== "boolean") problems.push('"video" must be true or false')
+
+  if (env === undefined) return problems
+
+  if (!env || typeof env !== "object" || Array.isArray(env)) {
+    problems.push('"env" must be an object of string values')
+
+    return problems
+  }
+
+  for (const [key, value] of Object.entries(env)) {
+    if (key === "" || key.includes("=") || key.includes("\0")) problems.push(`"env" has an invalid name: ${JSON.stringify(key)}`)
+    if (typeof value !== "string") problems.push(`"env.${key}" must be a string`)
+  }
+
+  return problems
 }
 
 const WINDOW_KEYS = [

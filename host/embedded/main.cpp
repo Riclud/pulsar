@@ -1,4 +1,5 @@
 #include "bridge.h"
+#include "manifest_env.h"
 #include "net.h"
 #include "native_renderer.h"
 #include "quickjs_thread.h"
@@ -355,8 +356,33 @@ static void reportCrashRemote(const QString &text)
     manager->post(request, QJsonDocument(body).toJson(QJsonDocument::Compact));
 }
 
+// The manifest's env has to be in place before QGuiApplication reads Qt's own
+// variables, so read pulsar.json without the application object: from the
+// bundled resources on mobile, from the app directory elsewhere.
+static void applyEarlyManifestEnv()
+{
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
+    QFile file(QStringLiteral(":/app/pulsar.json"));
+#else
+    QFile file(QDir(appDir()).filePath(QStringLiteral("pulsar.json")));
+#endif
+
+    if (file.open(QIODevice::ReadOnly))
+        pulsar::applyManifestEnv(file.readAll());
+
+#ifdef PULSAR_ANDROID_VIDEO
+    // Hardware decoding of video gives a green or black picture on some phones
+    // (FFmpeg "Error transferring the data to system memory: -38"), so software
+    // decoding is the default. The manifest's env or the system can override it.
+    pulsar::setEnvDefault("QT_FFMPEG_DECODING_HW_DEVICE_TYPES", "none");
+    pulsar::setEnvDefault("QT_DISABLE_HW_TEXTURES_CONVERSION", "1");
+#endif
+}
+
 int main(int argc, char **argv)
 {
+    applyEarlyManifestEnv();
+
 #if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
     if (!qEnvironmentVariableIsSet("QSG_RENDER_LOOP"))
         qputenv("QSG_RENDER_LOOP", "threaded");
@@ -433,6 +459,9 @@ int main(int argc, char **argv)
     };
 
     readManifest(dir);
+
+    // A dev payload fetched from the PC can carry a different env.
+    pulsar::applyManifestEnv(manifestJson.toUtf8());
 
     qputenv("PULSAR_APP", dir.toLocal8Bit());
 

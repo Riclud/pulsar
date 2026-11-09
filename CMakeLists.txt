@@ -91,6 +91,7 @@ if(IOS)
         host/quickjs_thread.cpp
         host/native_renderer.cpp
         host/net.cpp
+        host/manifest_env.cpp
         host/embedded/bridge.h
         host/quickjs_runtime.h
         host/quickjs_thread.h
@@ -148,6 +149,7 @@ add_executable(qml-host
     host/recent.cpp
     host/assoc.cpp
     host/net.cpp
+    host/manifest_env.cpp
     host/power.cpp
     host/bridge.h
     host/secure.h
@@ -212,6 +214,7 @@ add_executable(qml-host-qjs
     host/quickjs_thread.cpp
     host/native_renderer.cpp
     host/net.cpp
+    host/manifest_env.cpp
     host/embedded/bridge.h
     host/quickjs_runtime.h
     host/quickjs_thread.h
@@ -264,6 +267,7 @@ if(ANDROID)
         host/quickjs_thread.cpp
         host/native_renderer.cpp
         host/net.cpp
+        host/manifest_env.cpp
         host/embedded/bridge.h
         host/devchannel.h
         host/perf_recorder.h
@@ -290,6 +294,19 @@ if(ANDROID)
     )
 
     pulsar_link_websockets(pulsar-android)
+
+    # The FFmpeg multimedia backend is packaged only for apps that play video; the CLI sets this.
+    if(PULSAR_ANDROID_VIDEO)
+        if(NOT TARGET Qt6::QFFmpegMediaPlugin)
+            message(FATAL_ERROR "The Qt for Android kit has no FFmpeg multimedia plugin")
+        endif()
+        # androiddeployqt takes plugins from the modules the app links.
+        target_link_libraries(pulsar-android PRIVATE Qt6::Multimedia)
+        qt_import_plugins(pulsar-android
+            INCLUDE_BY_TYPE multimedia Qt6::QFFmpegMediaPlugin
+        )
+        target_compile_definitions(pulsar-android PRIVATE PULSAR_ANDROID_VIDEO=1)
+    endif()
 
     pulsar_add_view_resources(pulsar-android "pulsarview_android")
 

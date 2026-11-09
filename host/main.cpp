@@ -56,6 +56,7 @@
 #include "bridge.h"
 #include "embedded.h"
 #include "log.h"
+#include "manifest_env.h"
 #include "net.h"
 #include "power.h"
 #include "recent.h"
@@ -1389,9 +1390,41 @@ static void handleWindowCommand(QQmlApplicationEngine &engine, const QVariantMap
     }
 }
 
+// The executable's path before QCoreApplication exists, which
+// applicationFilePath() needs.
+static QString executablePathEarly(const char *argv0)
+{
+#ifdef Q_OS_LINUX
+    const QString self = QFileInfo(QStringLiteral("/proc/self/exe")).symLinkTarget();
+
+    if (!self.isEmpty())
+        return self;
+#endif
+
+    return QFileInfo(QString::fromLocal8Bit(argv0)).absoluteFilePath();
+}
+
+// The manifest's env has to be in place before QApplication reads Qt's own
+// variables (QT_QPA_*, QSG_*, QT_SCALE_FACTOR), so find pulsar.json without the
+// application object: inside an appended payload, or in the app directory.
+static void applyEarlyManifestEnv(const char *argv0)
+{
+    QByteArray json = pulsarReadEmbeddedEntry(executablePathEarly(argv0), QStringLiteral("app/pulsar.json"));
+
+    if (json.isEmpty()) {
+        QFile file(QDir(appDir()).filePath(QStringLiteral("pulsar.json")));
+
+        if (file.open(QIODevice::ReadOnly))
+            json = file.readAll();
+    }
+
+    pulsar::applyManifestEnv(json);
+}
+
 int main(int argc, char **argv)
 {
     pulsar::initLogs();
+    applyEarlyManifestEnv(argc > 0 ? argv[0] : "");
 
     // QApplication (Widgets) so native dialogs and the tray work; QQml works
     // with it as well.

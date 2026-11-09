@@ -81,12 +81,9 @@ void setExecutable(const QString &path)
                               | QFile::ExeGroup | QFile::ReadOther | QFile::ExeOther);
 }
 
-} // namespace
-
-bool pulsarExtractEmbedded(const QString &exePath, QString *rootOut)
+// Positions `exe` at the first entry and reads the container header.
+bool openPayload(QFile &exe, quint64 *buildID, quint32 *count)
 {
-    QFile exe(exePath);
-
     if (!exe.open(QIODevice::ReadOnly))
         return false;
 
@@ -122,13 +119,71 @@ bool pulsarExtractEmbedded(const QString &exePath, QString *rootOut)
     if (std::memcmp(header, kHeaderMagic, 4) != 0)
         return false;
 
-    const quint32 version = readU32(header + 4);
-
-    if (version != kFormatVersion)
+    if (readU32(header + 4) != kFormatVersion)
         return false;
 
-    const quint64 buildId = readU64(header + 8);
-    const quint32 count = readU32(header + 16);
+    *buildID = readU64(header + 8);
+    *count = readU32(header + 16);
+
+    return true;
+}
+
+} // namespace
+
+QByteArray pulsarReadEmbeddedEntry(const QString &exePath, const QString &rel)
+{
+    QFile exe(exePath);
+    quint64 buildID = 0;
+    quint32 count = 0;
+
+    if (!openPayload(exe, &buildID, &count))
+        return QByteArray();
+
+    for (quint32 i = 0; i < count; ++i) {
+        uchar lenBuf[4];
+
+        if (exe.read(reinterpret_cast<char *>(lenBuf), 4) != 4)
+            return QByteArray();
+
+        const quint32 pathLen = readU32(lenBuf);
+        QByteArray pathBytes(pathLen, Qt::Uninitialized);
+
+        if (exe.read(pathBytes.data(), pathLen) != qint64(pathLen))
+            return QByteArray();
+
+        uchar dataLenBuf[8];
+
+        if (exe.read(reinterpret_cast<char *>(dataLenBuf), 8) != 8)
+            return QByteArray();
+
+        const quint64 dataLen = readU64(dataLenBuf);
+
+        if (QString::fromUtf8(pathBytes) != rel) {
+            if (!exe.seek(exe.pos() + qint64(dataLen)))
+                return QByteArray();
+
+            continue;
+        }
+
+        QByteArray data(qint64(dataLen), Qt::Uninitialized);
+
+        if (exe.read(data.data(), qint64(dataLen)) != qint64(dataLen))
+            return QByteArray();
+
+        return data;
+    }
+
+    return QByteArray();
+}
+
+bool pulsarExtractEmbedded(const QString &exePath, QString *rootOut)
+{
+    QFile exe(exePath);
+    quint64 buildId = 0;
+    quint32 count = 0;
+
+    if (!openPayload(exe, &buildId, &count))
+        return false;
 
     const QString cacheBase = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
 
