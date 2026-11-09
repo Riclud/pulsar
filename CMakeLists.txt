@@ -133,6 +133,8 @@ add_executable(qml-host
     host/devchannel.cpp
     host/devchannel.h
     host/quickjs_runtime.cpp
+    host/native_renderer.cpp
+    host/native_renderer.h
     host/quickjs_thread.cpp
     host/quickjs_runtime.h
     host/quickjs_thread.h
