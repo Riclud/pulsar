@@ -46,6 +46,9 @@ public:
         QQmlProperty minimumHeight;
         QQmlProperty maximumWidth;
         QQmlProperty maximumHeight;
+
+        /** The child's enter/exit animation, once it has one; null for children without motion. */
+        QPointer<QObject> motion;
     };
 
     struct Inset {
@@ -110,6 +113,8 @@ private:
         qreal minHeight = 0;
         qreal maxWidth = 0;
         qreal maxHeight = 0;
+        qreal share = 1;
+        qreal gapBefore = 0;
     };
 
     Measured measure(const Kid &kid) const;

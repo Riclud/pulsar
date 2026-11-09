@@ -176,6 +176,23 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "column-gap-motion",
+    env: { AUTO_QUIT_MS: "6500" },
+    check: (output) => {
+      const lines = output.split("\n")
+      const from = lines.findIndex((line) => line.includes("PHASE hide"))
+      const ys = lines
+        .slice(from)
+        .map((line) => line.match(/LAST (\d+)$/)?.[1])
+        .filter((value) => value !== undefined)
+        .map(Number)
+      const jumps = ys.slice(1).map((value, index) => Math.abs(value - ys[index]!))
+
+      // A 60 px gap that jumps instead of following the height shows as one step of 60.
+      return from >= 0 && ys.length > 20 && Math.min(...ys) === 100 && Math.max(...jumps) < 25
+    },
+  },
+  {
     name: "focus",
     check: (output) => {
       return (

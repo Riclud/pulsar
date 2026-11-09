@@ -794,6 +794,8 @@ ApplicationWindow {
         PointHandler {
             id: motion
 
+            objectName: "pulsarMotion"
+
             readonly property Item host: parent
             property bool following: false
             property real offsetX: 0

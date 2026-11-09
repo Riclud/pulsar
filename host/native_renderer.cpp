@@ -445,6 +445,18 @@ void NativeStack::placeLayers()
     }
 }
 
+// How far a child has opened while it animates its height; its gap scales with it.
+static qreal openShare(const QObject *motion)
+{
+    const qreal full = motion->property("fullHeight").toReal();
+    const qreal limit = motion->property("heightLimit").toReal();
+
+    if (full <= 0 || limit >= full)
+        return 1;
+
+    return qMax(0.0, limit / full);
+}
+
 NativeStack::Measured NativeStack::measure(const Kid &kid) const
 {
     Measured out;
@@ -468,6 +480,9 @@ NativeStack::Measured NativeStack::measure(const Kid &kid) const
         out.minHeight = kid.qml->minimumHeight.read().toReal();
         out.maxWidth = kid.qml->maximumWidth.read().toReal();
         out.maxHeight = kid.qml->maximumHeight.read().toReal();
+
+        if (kid.qml->motion)
+            out.share = openShare(kid.qml->motion);
     }
 
     if (out.preferredWidth < 0)
@@ -523,7 +538,18 @@ void NativeStack::updatePolish()
 
     const qreal mainEdges = row ? edges_.left + edges_.right : edges_.top + edges_.bottom;
     const qreal crossEdges = row ? edges_.top + edges_.bottom : edges_.left + edges_.right;
-    const qreal gaps = gap_ * qMax<qsizetype>(0, shown.size() - 1);
+    qreal gaps = 0;
+    qreal opened = 0;
+
+    for (Measured &kid : shown) {
+        // Only columns animate their gaps.
+        const qreal share = row ? 1 : kid.share;
+
+        kid.gapBefore = gap_ * share * qMin(1.0, opened);
+        gaps += kid.gapBefore;
+        opened += share;
+    }
+
     const qreal mainSpace = (row ? width() : height()) - mainEdges - gaps;
     const qreal crossSpace = qMax(0.0, (row ? height() : width()) - crossEdges);
 
@@ -551,8 +577,10 @@ void NativeStack::updatePolish()
 
     qreal cursor = row ? edges_.left : edges_.top;
 
-    for (const Measured &kid : std::as_const(shown))
-        cursor += place(kid, perWeight, crossSpace, cursor) + gap_;
+    for (const Measured &kid : std::as_const(shown)) {
+        cursor += kid.gapBefore;
+        cursor += place(kid, perWeight, crossSpace, cursor);
+    }
 
     const qreal contentMain = implicitMain + gaps + mainEdges;
     const qreal contentCross = implicitCross + crossEdges;
@@ -718,6 +746,10 @@ void NativeRenderer::updateIsland(Node &node, bool shallow)
 {
     QMetaObject::invokeMethod(root_, "nativeUpdate", Q_ARG(QVariant, itemArg(node.item)),
                               Q_ARG(QVariant, node.json.toVariantMap()), Q_ARG(QVariant, shallow));
+
+    // A node gets its motion object the first time it asks for an animation.
+    if (node.hints && !node.hints->motion)
+        node.hints->motion = node.item->findChild<QObject *>(QStringLiteral("pulsarMotion"), Qt::FindDirectChildrenOnly);
 }
 
 void NativeRenderer::createRoot()
