@@ -6682,6 +6682,7 @@ ApplicationWindow {
             });
 
             watchScroll(item, node);
+            applyScrollKey(item, props);
 
             const contentColumn = (node.children || [])[0];
             const firstChild = contentColumn && contentColumn.children ? contentColumn.children[0] : null;
@@ -7748,6 +7749,19 @@ ApplicationWindow {
         return item.visible;
     }
 
+    function applyScrollKey(item, props) {
+        const extra = item.pulsarMeta.extra;
+        const key = props.scrollKey;
+
+        if (extra.hasScrollKey && key !== extra.lastScrollKey) {
+            item.contentY = item.originY;
+            view.scrollPositions[extra.scrollKey] = item.originY;
+        }
+
+        extra.hasScrollKey = key !== undefined;
+        extra.lastScrollKey = key;
+    }
+
     function nativeScroll(item, node) {
         if (item.pulsarMeta) {
             item.pulsarMeta.node = node;
@@ -7765,6 +7779,7 @@ ApplicationWindow {
         }
 
         item.maximumFlickVelocity = prop(node.props, "flick", true) === false ? 0 : 8000;
+        applyScrollKey(item, node.props);
     }
 
     function nativeTransition() {

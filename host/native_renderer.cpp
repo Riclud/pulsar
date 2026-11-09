@@ -124,6 +124,7 @@ const QSet<QString> &scrollProps()
         QStringLiteral("spacing"),
         QStringLiteral("flick"),
         QStringLiteral("overscroll"),
+        QStringLiteral("scrollKey"),
         QStringLiteral("itemKeys"),
     };
 

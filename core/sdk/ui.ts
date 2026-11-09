@@ -275,6 +275,8 @@ export interface ScrollState {
 }
 
 export interface PageOptions extends CommonOptions {
+  /** Scrolls back to the top whenever this value changes, for a screen that is reused for new content. */
+  scrollKey?: string | number
   gap?: number
   padding?: number
   header?: UiChild
@@ -295,6 +297,8 @@ export interface StackOptions extends CommonOptions, PaddingOptions, SurfaceOpti
 }
 
 export interface ScrollOptions extends CommonOptions {
+  /** Scrolls back to the top whenever this value changes, for a screen that is reused for new content. */
+  scrollKey?: string | number
   gap?: number
   padding?: number
   flick?: boolean
@@ -1636,12 +1640,12 @@ export const container = (options: ContainerOptions = {}, ...children: UiChild[]
 }
 
 export const page = (options: PageOptions = {}, ...children: UiChild[]): UiNode => {
-  const { gap = 12, padding = 16, header, footer, flick, overscroll, onScroll, ...props } = options
+  const { gap = 12, padding = 16, header, footer, flick, overscroll, onScroll, scrollKey, ...props } = options
 
   return column(
     { ...props, fill: true, gap, padding },
     header ?? null,
-    scroll({ fill: true, flick, overscroll, onScroll }, column({ gap, fillWidth: true }, ...children)),
+    scroll({ fill: true, flick, overscroll, onScroll, scrollKey }, column({ gap, fillWidth: true }, ...children)),
     footer ?? null,
   )
 }
