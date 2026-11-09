@@ -127,6 +127,14 @@ ApplicationWindow {
         z: 1
         visible: frames.running || wheeling.running || pressed
 
+        readonly property bool scrolling: frames.running || wheeling.running || flick.moving
+
+        onScrollingChanged: view.noteScrolling(scrolling)
+        Component.onDestruction: {
+            if (scrolling)
+                view.noteScrolling(false);
+        }
+
         onPressed: {
             frames.stop()
             wheeling.stop()
@@ -1422,7 +1430,11 @@ ApplicationWindow {
             }
 
             HoverHandler {
+                id: clickableHover
+
                 cursorShape: Qt.PointingHandCursor
+
+                Component.onCompleted: view.trackHover(clickableHover)
             }
         }
     }
@@ -6008,7 +6020,7 @@ ApplicationWindow {
             });
 
             if (clickableSurface) {
-                const hover = make("import QtQuick; HoverHandler { cursorShape: Qt.PointingHandCursor }", item);
+                view.trackHover(make("import QtQuick; HoverHandler { cursorShape: Qt.PointingHandCursor }", item));
             }
         }
     }
@@ -6138,6 +6150,7 @@ ApplicationWindow {
 
         extra.hover = make("import QtQuick; HoverHandler {}", item);
         extra.hover.cursorShape = Qt.PointingHandCursor;
+        view.trackHover(extra.hover);
         extra.hover.hoveredChanged.connect(function () {
             refreshStates(item);
         });
@@ -7594,6 +7607,50 @@ ApplicationWindow {
     }
 
     // Dev control: where a node is on screen, so `pulsar hover` and `click` aim real input at it.
+    // Content moving under a still pointer changes hover every frame, and each change runs state
+    // updates and a cursor switch, so scrolling switches hover off until the list has stopped.
+    property var hoverHandlers: []
+    property int scrollingLists: 0
+
+    Timer {
+        id: hoverResume
+
+        interval: 150
+        onTriggered: view.setHoverEnabled(true)
+    }
+
+    function trackHover(handler) {
+        view.hoverHandlers.push(handler);
+
+        if (view.scrollingLists > 0)
+            handler.enabled = false;
+    }
+
+    function setHoverEnabled(enabled) {
+        view.hoverHandlers = view.hoverHandlers.filter(function (handler) {
+            return handler !== null && handler !== undefined;
+        });
+
+        for (const handler of view.hoverHandlers)
+            handler.enabled = enabled;
+    }
+
+    function noteScrolling(active) {
+        view.scrollingLists += active ? 1 : -1;
+
+        if (active) {
+            hoverResume.stop();
+
+            if (view.scrollingLists === 1)
+                setHoverEnabled(false);
+
+            return;
+        }
+
+        if (view.scrollingLists === 0)
+            hoverResume.restart();
+    }
+
     function nativeMount(node, parent, holdEnter) {
         view.building++;
 
