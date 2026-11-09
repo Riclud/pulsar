@@ -57,7 +57,7 @@ const QSet<QString> &commonProps()
         QStringLiteral("minWidth"),  QStringLiteral("minHeight"), QStringLiteral("maxWidth"),
         QStringLiteral("maxHeight"), QStringLiteral("visible"),   QStringLiteral("opacity"),
         QStringLiteral("enabled"),   QStringLiteral("zIndex"),    QStringLiteral("clip"),
-        QStringLiteral("rotation"),
+        QStringLiteral("rotation"),  QStringLiteral("absolute"),
     };
 
     return props;
@@ -107,6 +107,13 @@ const QSet<QString> &stackProps()
         QStringLiteral("alignItems"),
         QStringLiteral("itemKeys"),
     };
+
+    return props;
+}
+
+const QSet<QString> &spacerProps()
+{
+    static const QSet<QString> props = { QStringLiteral("size") };
 
     return props;
 }
@@ -386,6 +393,36 @@ void NativeStack::geometryChange(const QRectF &next, const QRectF &previous)
         polish();
 }
 
+void NativeStack::placeLayers()
+{
+    for (const Kid &kid : std::as_const(ordered_)) {
+        const Measured size = measure(kid);
+        const Absolute &at = kid.absolute;
+
+        if (at.enabled) {
+            const qreal w = at.left.set && at.right.set ? width() - at.left.value - at.right.value : size.preferredWidth;
+            const qreal h = at.top.set && at.bottom.set ? height() - at.top.value - at.bottom.value : size.preferredHeight;
+            const qreal x = at.left.set ? at.left.value : at.right.set ? width() - at.right.value - w : 0;
+            const qreal y = at.top.set ? at.top.value : at.bottom.set ? height() - at.bottom.value - h : 0;
+
+            kid.item->setPosition({ x, y });
+            kid.item->setSize({ w, h });
+
+            continue;
+        }
+
+        if (kid.fillsLayer) {
+            kid.item->setPosition({ 0, 0 });
+            kid.item->setSize({ width(), height() });
+
+            continue;
+        }
+
+        kid.item->setPosition({ (width() - size.preferredWidth) / 2, (height() - size.preferredHeight) / 2 });
+        kid.item->setSize({ size.preferredWidth, size.preferredHeight });
+    }
+}
+
 NativeStack::Measured NativeStack::measure(const Kid &kid) const
 {
     Measured out;
@@ -443,6 +480,11 @@ void NativeStack::updatePolish()
 {
     if (mode_ == Mode::Overlap) {
         placeOverlapping();
+        return;
+    }
+
+    if (mode_ == Mode::Layers) {
+        placeLayers();
         return;
     }
 
@@ -638,7 +680,10 @@ void NativeRenderer::reapplyAll(Node &node)
         return;
     }
 
-    applyProps(node);
+    if (node.kind == Kind::Shell)
+        updateIsland(node, false);
+    else
+        applyProps(node);
 
     for (const std::unique_ptr<Node> &child : node.children)
         reapplyAll(*child);
@@ -891,16 +936,16 @@ NativeRenderer::Kind NativeRenderer::kindFor(const QJsonObject &json, bool insid
     const QJsonObject props = json.value(QLatin1String("props")).toObject();
     const QJsonArray events = json.value(QLatin1String("events")).toArray();
 
+    if (type == QLatin1String("card"))
+        return Kind::Shell;
+
     if (type == QLatin1String("box")) {
-        for (const QJsonValue &event : events) {
-            const QString name = event.toString();
+        const bool plainEvents = std::all_of(events.begin(), events.end(), [](const QJsonValue &event) {
+            return event.toString() == QLatin1String("click") || event.toString() == QLatin1String("longPress");
+        });
 
-            if (name != QLatin1String("click") && name != QLatin1String("longPress"))
-                return Kind::Island;
-        }
-
-        if (!propsAllowed(props, { &commonProps(), &paddingProps(), &boxProps() }))
-            return Kind::Island;
+        if (!plainEvents || !propsAllowed(props, { &commonProps(), &paddingProps(), &boxProps() }))
+            return Kind::Shell;
 
         return events.isEmpty() ? Kind::Box : Kind::ClickableBox;
     }
@@ -910,6 +955,12 @@ NativeRenderer::Kind NativeRenderer::kindFor(const QJsonObject &json, bool insid
 
     if (type == QLatin1String("text"))
         return propsAllowed(props, { &commonProps(), &textProps() }) ? Kind::Text : Kind::Island;
+
+    if (type == QLatin1String("spacer"))
+        return propsAllowed(props, { &commonProps(), &spacerProps() }) ? Kind::Spacer : Kind::Island;
+
+    if (type == QLatin1String("stack"))
+        return propsAllowed(props, { &commonProps() }) ? Kind::Stack : Kind::Island;
 
     const bool flowingList = type == QLatin1String("list") && insideScroll;
 
@@ -960,19 +1011,25 @@ std::unique_ptr<NativeRenderer::Node> NativeRenderer::create(const QJsonObject &
     QQuickItem *parentItem = parent->stack;
 
     if (node->kind == Kind::Island) {
-        QVariant mounted;
-
-        QMetaObject::invokeMethod(root_, "nativeMount", Q_RETURN_ARG(QVariant, mounted),
-                                  Q_ARG(QVariant, json.toVariantMap()), Q_ARG(QVariant, itemArg(parentItem)));
-
-        node->item = qobject_cast<QQuickItem *>(mounted.value<QObject *>());
-        node->json = json;
-        node->props = json.value(QLatin1String("props")).toObject();
+        mountQml(*node, json, parentItem);
 
         return node;
     }
 
-    if (node->kind == Kind::Stack) {
+    if (node->kind == Kind::Shell) {
+        QJsonObject own = json;
+
+        own.remove(QLatin1String("children"));
+
+        mountQml(*node, own, parentItem);
+        bindShell(*node);
+
+        return node;
+    }
+
+    if (node->kind == Kind::Spacer) {
+        node->item = new QQuickItem();
+    } else if (node->kind == Kind::Stack) {
         node->stack = new NativeStack();
         node->item = node->stack;
     } else if (node->kind == Kind::Text) {
@@ -994,6 +1051,39 @@ std::unique_ptr<NativeRenderer::Node> NativeRenderer::create(const QJsonObject &
         bindScroll(*node);
 
     return node;
+}
+
+void NativeRenderer::mountQml(Node &node, const QJsonObject &own, QQuickItem *parentItem)
+{
+    QVariant mounted;
+
+    QMetaObject::invokeMethod(root_, "nativeMount", Q_RETURN_ARG(QVariant, mounted),
+                              Q_ARG(QVariant, own.toVariantMap()), Q_ARG(QVariant, itemArg(parentItem)));
+
+    node.item = qobject_cast<QQuickItem *>(mounted.value<QObject *>());
+    node.json = own;
+    node.props = own.value(QLatin1String("props")).toObject();
+}
+
+void NativeRenderer::bindShell(Node &node)
+{
+    QVariant content;
+
+    QMetaObject::invokeMethod(root_, "nativeShellContent", Q_RETURN_ARG(QVariant, content), Q_ARG(QVariant, itemArg(node.item)));
+
+    auto *stack = new NativeStack();
+
+    adopt(stack, qobject_cast<QQuickItem *>(content.value<QObject *>()));
+
+    QQmlContext *context = qmlContext(root_);
+
+    QQmlProperty(stack, QStringLiteral("Layout.fillWidth"), context).write(true);
+    QQmlProperty(stack, QStringLiteral("Layout.fillHeight"), context).write(true);
+
+    // QML keeps the padding on its own layout; only the card's child spacing is ours.
+    stack->configure(NativeStack::Mode::Column, node.type == QLatin1String("card") ? theme_.spacing : 0, {});
+
+    node.stack = stack;
 }
 
 void NativeRenderer::bindBox(Node &node)
@@ -1048,6 +1138,18 @@ void NativeRenderer::sync(Node &node, const QJsonObject &json, bool withChildren
 {
     if (node.kind == Kind::Island) {
         syncIsland(node, json, false);
+        return;
+    }
+
+    if (node.kind == Kind::Shell) {
+        QJsonObject own = json;
+
+        own.remove(QLatin1String("children"));
+        syncIsland(node, own, false);
+
+        if (withChildren)
+            syncChildren(node, json.value(QLatin1String("children")).toArray());
+
         return;
     }
 
@@ -1123,6 +1225,14 @@ void NativeRenderer::applyProps(Node &node)
 
     if (node.kind == Kind::Box || node.kind == Kind::ClickableBox) {
         applyBox(node);
+        return;
+    }
+
+    if (node.kind == Kind::Spacer)
+        return;
+
+    if (node.type == QLatin1String("stack")) {
+        node.stack->configure(NativeStack::Mode::Layers, 0, {});
         return;
     }
 
@@ -1259,7 +1369,20 @@ NativeStack::Kid NativeRenderer::kidFor(const Node &parent, Node &child) const
                                                                                : NativeStack::Align::Start;
     }
 
-    if (child.kind == Kind::Island) {
+    if (parent.type == QLatin1String("stack")) {
+        const QJsonObject at = props.value(QLatin1String("absolute")).toObject();
+
+        const auto inset = [&](QLatin1String key) {
+            return NativeStack::Inset{ at.contains(key), at.value(key).toDouble() };
+        };
+
+        kid.absolute = { props.contains(QLatin1String("absolute")), inset(QLatin1String("top")), inset(QLatin1String("right")),
+                         inset(QLatin1String("bottom")), inset(QLatin1String("left")) };
+        kid.fillsLayer = !props.contains(QLatin1String("width")) && !props.contains(QLatin1String("height"))
+            && !props.contains(QLatin1String("align"));
+    }
+
+    if (child.kind == Kind::Island || child.kind == Kind::Shell) {
         if (!child.hints)
             child.hints = makeHints(child.item);
 
@@ -1292,8 +1415,10 @@ NativeStack::Kid NativeRenderer::kidFor(const Node &parent, Node &child) const
         kid.fillHeight = kid.fillHeight || row;
     }
 
-    kid.preferredWidth = number(props, QLatin1String("width"), -1);
-    kid.preferredHeight = number(props, QLatin1String("height"), -1);
+    const qreal fallbackSize = child.kind == Kind::Spacer ? number(props, QLatin1String("size"), 0) : -1;
+
+    kid.preferredWidth = number(props, QLatin1String("width"), fallbackSize);
+    kid.preferredHeight = number(props, QLatin1String("height"), fallbackSize);
     kid.minWidth = number(props, QLatin1String("minWidth"), 0);
     kid.minHeight = number(props, QLatin1String("minHeight"), 0);
     kid.maxWidth = number(props, QLatin1String("maxWidth"), kid.maxWidth);
@@ -1413,12 +1538,23 @@ void NativeRenderer::forget(Node &node)
     }
 }
 
+bool NativeRenderer::hasQmlDescendant(const Node &node) const
+{
+    return std::any_of(node.children.begin(), node.children.end(), [this](const std::unique_ptr<Node> &child) {
+        return child->kind == Kind::Island || child->kind == Kind::Shell || hasQmlDescendant(*child);
+    });
+}
+
 void NativeRenderer::discard(Node &node, QQuickItem *after)
 {
     forget(node);
 
-    if (node.kind != Kind::Island) {
+    if (node.kind != Kind::Island && node.kind != Kind::Shell) {
+        if (hasQmlDescendant(node))
+            QMetaObject::invokeMethod(root_, "nativeForget", Q_ARG(QVariant, node.path));
+
         delete node.item;
+
         return;
     }
 

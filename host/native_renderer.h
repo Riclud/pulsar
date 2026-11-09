@@ -24,7 +24,7 @@ class NativeStack : public QQuickItem {
     Q_OBJECT
 
 public:
-    enum class Mode { Column, Row, Overlap };
+    enum class Mode { Column, Row, Overlap, Layers };
     enum class Align { Default, Start, Center, End };
 
     struct Edges {
@@ -48,8 +48,23 @@ public:
         QQmlProperty maximumHeight;
     };
 
+    struct Inset {
+        bool set = false;
+        qreal value = 0;
+    };
+
+    struct Absolute {
+        bool enabled = false;
+        Inset top;
+        Inset right;
+        Inset bottom;
+        Inset left;
+    };
+
     struct Kid {
         QQuickItem *item = nullptr;
+        bool fillsLayer = true;
+        Absolute absolute;
         bool fillWidth = false;
         bool fillHeight = false;
         qreal flex = 0;
@@ -99,6 +114,7 @@ private:
     Measured measure(const Kid &kid) const;
     void watch(const Kid &kid);
     void placeOverlapping();
+    void placeLayers();
     qreal place(const Measured &kid, qreal perWeight, qreal crossSpace, qreal cursor);
     void mergeLeaving();
 
@@ -136,7 +152,7 @@ private slots:
     void refreshTheme();
 
 private:
-    enum class Kind { Island, Stack, Scroll, Box, ClickableBox, Text };
+    enum class Kind { Island, Shell, Stack, Scroll, Box, ClickableBox, Text, Spacer };
 
     struct Node {
         QString path;
@@ -200,6 +216,9 @@ private:
     void forget(Node &node);
     void discard(Node &node, QQuickItem *after);
     void reapplyAll(Node &node);
+    void mountQml(Node &node, const QJsonObject &own, QQuickItem *parentItem);
+    void bindShell(Node &node);
+    bool hasQmlDescendant(const Node &node) const;
     QString resolveColor(const QJsonValue &value, const QVariant &fallback) const;
 
     QPointer<QObject> root_;

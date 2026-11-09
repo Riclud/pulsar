@@ -4937,7 +4937,7 @@ ApplicationWindow {
     function refreshPacking(layout, horizontal) {
         const extra = layout.pulsarMeta.extra;
 
-        if (extra.packing)
+        if (extra.packing || extra.nativeContent)
             return;
 
         extra.packing = true;
@@ -7625,6 +7625,27 @@ ApplicationWindow {
         nativeUpdate(item, node, shallow);
 
         return true;
+    }
+
+    function nativeShellContent(item) {
+        const content = item.pulsarMeta.content;
+        const extra = content.pulsarMeta.extra;
+
+        extra.nativeContent = true;
+
+        if (extra.filler)
+            extra.filler.visible = false;
+
+        return content;
+    }
+
+    function nativeForget(path) {
+        const prefix = path + "/";
+
+        for (const known in view.nodeItems) {
+            if (known === path || known.indexOf(prefix) === 0)
+                delete view.nodeItems[known];
+        }
     }
 
     function nativeDiscard(item) {
