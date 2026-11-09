@@ -1,7 +1,6 @@
 #include "native_renderer.h"
 
 #include <QColor>
-#include <QCoreApplication>
 #include <QElapsedTimer>
 #include <QFont>
 #include <QJSValue>
@@ -10,8 +9,6 @@
 #include <QQmlEngine>
 #include <QQuickWindow>
 #include <QSet>
-#include <QSharedPointer>
-#include <QTimer>
 #include <QTextOption>
 
 #include <algorithm>
@@ -1646,52 +1643,6 @@ QJsonArray NativeRenderer::snapshot() const
         out.append(snapshotNode(*child));
 
     return out;
-}
-
-static void startStallTrace()
-{
-    static bool started = false;
-
-    if (started)
-        return;
-
-    started = true;
-
-    auto *timer = new QTimer(qApp);
-    auto *clock = new QElapsedTimer();
-
-    clock->start();
-    timer->setInterval(1);
-
-    QObject::connect(timer, &QTimer::timeout, timer, [clock]() {
-        const qint64 gap = clock->restart();
-
-        if (gap >= 8)
-            qInfo().noquote() << "[stall]" << gap << "ms";
-    });
-
-    timer->start();
-}
-
-void traceNextFrame(QObject *window, const QString &label)
-{
-    startStallTrace();
-
-    auto *quick = qobject_cast<QQuickWindow *>(window);
-
-    if (!quick)
-        return;
-
-    auto timer = QSharedPointer<QElapsedTimer>::create();
-    auto connection = QSharedPointer<QMetaObject::Connection>::create();
-
-    timer->start();
-
-    *connection = QObject::connect(quick, &QQuickWindow::afterRendering, quick, [timer, connection, label]() {
-        QObject::disconnect(*connection);
-
-        qInfo().noquote() << "[frame]" << label << timer->elapsed() << "ms";
-    }, Qt::DirectConnection);
 }
 
 } // namespace pulsar

@@ -1,5 +1,7 @@
 #include "devchannel.h"
 
+#include "perf_recorder.h"
+
 #include <QBuffer>
 #include <QCoreApplication>
 #include <QHash>
@@ -19,6 +21,8 @@
 #include <QWindow>
 
 namespace {
+
+constexpr int kClickHoldMs = 50;
 
 constexpr int RETRY_MS = 1000;
 constexpr int POLL_TIMEOUT_MS = 30000;
@@ -263,6 +267,11 @@ void DevChannel::handle(const QJsonObject &command)
 
     if (name == QLatin1String("wheel")) {
         handleWheel(request, command);
+        return;
+    }
+
+    if (name == QLatin1String("perf")) {
+        handlePerf(request, command);
         return;
     }
 
@@ -610,9 +619,6 @@ void DevChannel::handlePointer(const QJsonValue &request, const QJsonObject &com
     if (action == QLatin1String("click") || action == QLatin1String("press"))
         sendMouse(window, QEvent::MouseButtonPress, point, button);
 
-    if (action == QLatin1String("click") || action == QLatin1String("release"))
-        sendMouse(window, QEvent::MouseButtonRelease, point, button);
-
     QJsonObject result;
 
     result.insert(QStringLiteral("x"), point.x());
@@ -620,7 +626,43 @@ void DevChannel::handlePointer(const QJsonValue &request, const QJsonObject &com
     result.insert(QStringLiteral("path"), node.value(QStringLiteral("path")));
     result.insert(QStringLiteral("text"), nodeText(node));
 
-    reply(request, true, result);
+    if (action == QLatin1String("release"))
+        sendMouse(window, QEvent::MouseButtonRelease, point, button);
+
+    if (action != QLatin1String("click")) {
+        reply(request, true, result);
+        return;
+    }
+
+    // Pointer handlers need the button held across event loop turns, as with a real click.
+    QTimer::singleShot(kClickHoldMs, this, [this, window, point, button, request, result]() {
+        sendMouse(window, QEvent::MouseButtonRelease, point, button);
+        reply(request, true, result);
+    });
+}
+
+void DevChannel::handlePerf(const QJsonValue &request, const QJsonObject &command)
+{
+    QQuickWindow *view = findView();
+
+    if (!view) {
+        reply(request, false, QStringLiteral("no window"));
+        return;
+    }
+
+    const auto resolve = [this](const QJsonObject &target, QPointF *point) {
+        QJsonObject node;
+
+        return nodeCenter(target, point, &node);
+    };
+
+    const auto done = [this, request](const QJsonObject &report) {
+        reply(request, true, report);
+    };
+
+    auto *recorder = new pulsar::PerfRecorder(view, command.value(QStringLiteral("steps")).toArray(), resolve, done, this);
+
+    recorder->start();
 }
 
 void DevChannel::handleWheel(const QJsonValue &request, const QJsonObject &command)

@@ -1446,9 +1446,6 @@ int main(int argc, char **argv)
         const QString target = params.value(QLatin1String("target")).toString();
         pulsar::NativeRenderer *renderer = rendererFor(target);
 
-        if (qEnvironmentVariableIsSet("PULSAR_FRAME_TRACE"))
-            pulsar::traceNextFrame(renderer->window(), method);
-
         const bool debug = qEnvironmentVariableIsSet("PULSAR_DEBUG");
 
         if (method == QLatin1String("__ui")) {

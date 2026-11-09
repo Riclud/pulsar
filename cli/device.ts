@@ -1,6 +1,7 @@
 import { spawnSync } from "child_process"
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs"
 import { dirname, join, resolve } from "path"
+import { formatPerf, summarizePerf, type PerfReport } from "./perf.ts"
 
 interface DevSession {
   port: number
@@ -245,6 +246,18 @@ export const deviceHover = async (appDir: string, query: TapQuery, leave = false
 /** Desktop: turns the wheel over a node; positive `dy` scrolls the content down. */
 export const deviceScroll = async (appDir: string, query: TapQuery, dy: number): Promise<void> => {
   console.log(JSON.stringify(await controlRetry(() => control(appDir, { cmd: "wheel", dy, ...selectorOf(query) }))))
+}
+
+/** Plays a scenario in the running app and records every frame it draws. */
+export const devicePerf = async (appDir: string, scenarioPath: string, outPath?: string): Promise<void> => {
+  const steps = JSON.parse(readFileSync(scenarioPath, "utf8")) as unknown[]
+  const report = (await control(appDir, { cmd: "perf", steps })) as PerfReport
+
+  if (report.error) throw new Error(report.error)
+
+  if (outPath) writeFileSync(outPath, JSON.stringify(report))
+
+  console.log(formatPerf(report, summarizePerf(report)))
 }
 
 /** Desktop: types text key by key into the focused field. */

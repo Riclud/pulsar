@@ -24,6 +24,9 @@ import { mapErrorText, parseInlineSourceMap, type SourceMapper } from "./sourcem
 import { pulsarRoot } from "./core.ts"
 import { ui } from "./ui.ts"
 
+const COMMAND_REPLY_MS = 5000
+const PERF_REPLY_MS = 100_000
+
 export interface DevAndroidOptions {
   appDir: string
   device?: string
@@ -301,7 +304,7 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
         if (index >= 0) commands.splice(index, 1)
 
         reject(new Error("device did not reply"))
-      }, 5000)
+      }, body.cmd === "perf" ? PERF_REPLY_MS : COMMAND_REPLY_MS)
 
       replies.set(request, { resolve, timer })
       commands.push(command)
@@ -361,7 +364,7 @@ export const devAndroid = async (options: DevAndroidOptions): Promise<void> => {
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: options.port ?? 0,
-    idleTimeout: 30,
+    idleTimeout: 120,
     async fetch(request) {
       const url = new URL(request.url)
 

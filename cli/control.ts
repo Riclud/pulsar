@@ -13,6 +13,7 @@ export type ControlServer = {
 }
 
 const REPLY_TIMEOUT_MS = 5000
+const PERF_REPLY_TIMEOUT_MS = 100_000
 const POLL_HOLD_MS = 20000
 
 const json = (body: unknown): Response => {
@@ -57,7 +58,7 @@ export const startDesktopControl = (appDir: string, name: string): ControlServer
         if (index >= 0) commands.splice(index, 1)
 
         resolve({ ok: false, error: "the app did not reply" })
-      }, REPLY_TIMEOUT_MS)
+      }, body.cmd === "perf" ? PERF_REPLY_TIMEOUT_MS : REPLY_TIMEOUT_MS)
 
       replies.set(request, { resolve, timer })
       commands.push(command)
@@ -92,7 +93,7 @@ export const startDesktopControl = (appDir: string, name: string): ControlServer
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: 0,
-    idleTimeout: 30,
+    idleTimeout: 120,
     async fetch(request) {
       const path = new URL(request.url).pathname
 

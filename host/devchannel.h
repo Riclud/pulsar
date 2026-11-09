@@ -64,6 +64,7 @@ private:
     QJsonObject findAny(const QJsonArray &nodes, const QJsonObject &command, bool *found) const;
     void handlePointer(const QJsonValue &request, const QJsonObject &command);
     void handleWheel(const QJsonValue &request, const QJsonObject &command);
+    void handlePerf(const QJsonValue &request, const QJsonObject &command);
     void handleKey(const QJsonValue &request, const QJsonObject &command);
     void handleKeys(const QJsonValue &request, const QJsonObject &command);
     void sendMouse(QQuickWindow *window, QEvent::Type type, const QPointF &point, Qt::MouseButton button);

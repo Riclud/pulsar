@@ -133,7 +133,9 @@ add_executable(qml-host
     host/main.cpp
     host/bridge.cpp
     host/devchannel.cpp
+    host/perf_recorder.cpp
     host/devchannel.h
+    host/perf_recorder.h
     host/quickjs_runtime.cpp
     host/quickjs_thread.cpp
     host/native_renderer.cpp
@@ -256,6 +258,7 @@ if(ANDROID)
         host/embedded/main.cpp
         host/embedded/bridge.cpp
         host/devchannel.cpp
+        host/perf_recorder.cpp
         host/embedded/devfetch.cpp
         host/quickjs_runtime.cpp
         host/quickjs_thread.cpp
@@ -263,6 +266,7 @@ if(ANDROID)
         host/net.cpp
         host/embedded/bridge.h
         host/devchannel.h
+        host/perf_recorder.h
         host/embedded/devfetch.h
         host/quickjs_runtime.h
         host/quickjs_thread.h

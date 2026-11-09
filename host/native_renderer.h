@@ -242,7 +242,4 @@ private:
     bool waitingForTransition_ = false;
 };
 
-/** Logs the time from now until the window renders its next frame. */
-void traceNextFrame(QObject *window, const QString &label);
-
 } // namespace pulsar

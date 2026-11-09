@@ -51,6 +51,7 @@ import {
   deviceKey,
   deviceKeys,
   deviceReload,
+  devicePerf,
   deviceScroll,
   deviceSelect,
   deviceShot,
@@ -1149,6 +1150,7 @@ const COMMANDS: Array<[string, Array<[string, string]>]> = [
       ["ui", "dump the running dev app's UI tree (--system for uiautomator)"],
       ["state", "dump the running dev app's store"],
       ["tap <text>", "press a node by text (--path|--id|--event|--at x,y)"],
+      ["perf <file>", "play timed input from a JSON scenario and report frame pacing (--out report.json)"],
       ["hover <text>", "move the pointer over a node, desktop (--leave)"],
       ["scroll <text>", "turn the wheel over a node, desktop (--dy px, default 120)"],
       ["keys <text>", "type key by key into the focused field, desktop"],
@@ -1295,6 +1297,9 @@ switch (cmd) {
   }
   case "hover":
     await runDevice(() => deviceHover(process.cwd(), nodeQuery(), args.includes("--leave")))
+    break
+  case "perf":
+    await runDevice(() => devicePerf(process.cwd(), positional()[0] ?? "", flagValue("--out")))
     break
   case "scroll":
     await runDevice(() => deviceScroll(process.cwd(), nodeQuery(), Number(flagValue("--dy") ?? 120)))
