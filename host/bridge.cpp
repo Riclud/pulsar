@@ -1,6 +1,6 @@
 #include "bridge.h"
 #include "log.h"
-#include "quickjs_runtime.h"
+#include "quickjs_thread.h"
 
 #include <QAction>
 #include <QClipboard>
@@ -233,21 +233,21 @@ void Bridge::startQuickJs(const QString &bundle)
         manifest = QString::fromUtf8(manifestFile.readAll());
 
     if (!quickjs_) {
-        quickjs_ = new pulsar::QuickJsRuntime(this);
+        quickjs_ = new pulsar::QuickJsThread(this);
 
-        connect(quickjs_, &pulsar::QuickJsRuntime::message, this, [this](const QJsonObject &message) {
+        connect(quickjs_, &pulsar::QuickJsThread::message, this, [this](const QJsonObject &message) {
             handleResponse(QJsonDocument(message).toJson(QJsonDocument::Compact));
         });
-        connect(quickjs_, &pulsar::QuickJsRuntime::binary, this, [this](quint32 id, const QByteArray &bytes) {
+        connect(quickjs_, &pulsar::QuickJsThread::binary, this, [this](quint32 id, const QByteArray &bytes) {
             Q_EMIT data(id, bytes);
         });
-        connect(quickjs_, &pulsar::QuickJsRuntime::failed, this, [this](const QString &message) {
+        connect(quickjs_, &pulsar::QuickJsThread::failed, this, [this](const QString &message) {
             pulsar::forwardLine(QStringLiteral("[error] [pulsar] ") + message);
             Q_EMIT response(-1, QJSValue(QJSValue::NullValue), engine_->toScriptValue(message));
         });
     }
 
-    quickjsStarted_ = quickjs_->restart(bundle, manifest, appDir);
+    quickjsStarted_ = quickjs_->reload(bundle, manifest, appDir);
 
     if (!quickjsStarted_)
         return;

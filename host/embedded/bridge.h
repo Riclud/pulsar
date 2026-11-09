@@ -17,7 +17,7 @@ class QFileSystemWatcher;
 
 namespace pulsar {
 class NetworkService;
-class QuickJsRuntime;
+class QuickJsThread;
 }
 
 /** QML-facing bridge backed by the in-process QuickJS runtime. */
@@ -26,7 +26,7 @@ class EmbeddedBridge : public QObject {
     Q_PROPERTY(QString colorScheme READ colorScheme NOTIFY colorSchemeChanged)
 
 public:
-    EmbeddedBridge(pulsar::QuickJsRuntime *runtime, QJSEngine *engine, QQmlPropertyMap *store,
+    EmbeddedBridge(pulsar::QuickJsThread *runtime, QJSEngine *engine, QQmlPropertyMap *store,
                    QObject *parent = nullptr);
 
     Q_INVOKABLE qint64 invoke(const QString &method, const QJSValue &params);
@@ -119,7 +119,7 @@ private:
     void applyState(const QJsonObject &state, const QJsonArray &unset);
     void reply(const QString &method, const QJsonObject &params);
 
-    pulsar::QuickJsRuntime *runtime_;
+    pulsar::QuickJsThread *runtime_;
     pulsar::NetworkService *network_ = nullptr;
     QJSEngine *engine_;
     QQmlPropertyMap *store_;

@@ -1,7 +1,7 @@
 #include "bridge.h"
 
 #include "net.h"
-#include "quickjs_runtime.h"
+#include "quickjs_thread.h"
 #include "screen_info.h"
 
 #include <QClipboard>
@@ -63,7 +63,7 @@ static QJsonValue secureQuery(const QString &kind, const QJsonObject &params)
 #endif
 }
 
-EmbeddedBridge::EmbeddedBridge(pulsar::QuickJsRuntime *runtime, QJSEngine *engine,
+EmbeddedBridge::EmbeddedBridge(pulsar::QuickJsThread *runtime, QJSEngine *engine,
                                QQmlPropertyMap *store, QObject *parent)
     : QObject(parent)
     , runtime_(runtime)

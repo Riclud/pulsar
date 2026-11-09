@@ -9,6 +9,8 @@
 
 #include <quickjs.h>
 
+#include <atomic>
+
 class QTimer;
 
 namespace pulsar {
@@ -63,6 +65,9 @@ public:
 
     void runJobs();
 
+    /** Stops running JS. Safe from any thread; the next reset() clears it. */
+    void requestInterrupt();
+
 signals:
     void message(const QJsonObject &message);
     void binary(quint32 id, const QByteArray &data);
@@ -108,6 +113,7 @@ private:
     QList<PendingRejection> rejections_;
     bool rejectionFlushQueued_ = false;
     int nextTimer_ = 1;
+    std::atomic_bool interrupted_ = false;
 
     friend JSValue jsPulsarSend(JSContext *, JSValueConst, int, JSValueConst *);
     friend JSValue jsPulsarSendBinary(JSContext *, JSValueConst, int, JSValueConst *);

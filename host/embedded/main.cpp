@@ -1,6 +1,6 @@
 #include "bridge.h"
 #include "net.h"
-#include "quickjs_runtime.h"
+#include "quickjs_thread.h"
 
 #include <QDir>
 #include <QDateTime>
@@ -437,7 +437,7 @@ int main(int argc, char **argv)
 
     QQmlApplicationEngine engine;
     QQmlPropertyMap store;
-    pulsar::QuickJsRuntime runtime;
+    pulsar::QuickJsThread runtime;
     EmbeddedBridge bridge(&runtime, &engine, &store);
 
 #ifdef PULSAR_DEV
@@ -696,8 +696,8 @@ int main(int argc, char **argv)
     engine.rootContext()->setContextProperty(QStringLiteral("PulsarWindowLabel"), QStringLiteral("main"));
     engine.rootContext()->setContextProperty(QStringLiteral("PulsarEmbedded"), true);
 
-    QObject::connect(&runtime, &pulsar::QuickJsRuntime::message, &bridge, &EmbeddedBridge::handleMessage);
-    QObject::connect(&runtime, &pulsar::QuickJsRuntime::failed, [&](const QString &message) {
+    QObject::connect(&runtime, &pulsar::QuickJsThread::message, &bridge, &EmbeddedBridge::handleMessage);
+    QObject::connect(&runtime, &pulsar::QuickJsThread::failed, [&](const QString &message) {
         qWarning().noquote() << "pulsar: runtime failed:" << message;
 
         bridge.setErrorText(message);
@@ -801,7 +801,7 @@ int main(int argc, char **argv)
         return true;
     };
 
-    if (!runtime.start(dir + QStringLiteral("/runtime.js"), manifestJson, dir)) {
+    if (!runtime.load(dir + QStringLiteral("/runtime.js"), manifestJson, dir)) {
         qWarning().noquote() << "pulsar: cannot start the embedded runtime";
         return 1;
     }
@@ -877,7 +877,7 @@ int main(int argc, char **argv)
         bridge.reset();
         runtime.setRestoreState(state);
 
-        if (!runtime.restart(dir + QStringLiteral("/runtime.js"), manifestJson, dir)) {
+        if (!runtime.reload(dir + QStringLiteral("/runtime.js"), manifestJson, dir)) {
             qWarning().noquote() << "pulsar: reload failed";
 
 #ifdef PULSAR_DEV

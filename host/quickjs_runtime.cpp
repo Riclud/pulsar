@@ -1,5 +1,6 @@
 #include "quickjs_runtime.h"
 
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
@@ -152,6 +153,9 @@ bool QuickJsRuntime::createContext()
 
     JS_SetContextOpaque(context_, this);
     JS_SetHostPromiseRejectionTracker(runtime_, &QuickJsRuntime::trackRejection, this);
+    JS_SetInterruptHandler(runtime_, [](JSContext *, void *opaque) -> int {
+        return static_cast<QuickJsRuntime *>(opaque)->interrupted_.load() ? 1 : 0;
+    }, this);
 
     installGlobals();
 
@@ -245,8 +249,14 @@ void QuickJsRuntime::reset()
     manifest_ = {};
     appDir_.clear();
     nextTimer_ = 1;
+    interrupted_ = false;
 
     createContext();
+}
+
+void QuickJsRuntime::requestInterrupt()
+{
+    interrupted_ = true;
 }
 
 bool QuickJsRuntime::restart(const QString &bundlePath, const QString &manifestJson, const QString &appDir)
@@ -1003,7 +1013,18 @@ JSValue jsPulsarOpenUrl(JSContext *ctx, JSValueConst, int argc, JSValueConst *ar
 {
     if (argc < 1)
         return JS_NewBool(ctx, false);
-    return JS_NewBool(ctx, QDesktopServices::openUrl(QUrl(toQString(ctx, argv[0]))));
+
+    const QUrl url(toQString(ctx, argv[0]));
+
+    if (!url.isValid())
+        return JS_NewBool(ctx, false);
+
+    // Needs the GUI thread, which may be waiting for this one, so the result cannot be awaited.
+    QMetaObject::invokeMethod(QCoreApplication::instance(), [url]() {
+        QDesktopServices::openUrl(url);
+    }, Qt::QueuedConnection);
+
+    return JS_NewBool(ctx, true);
 }
 
 JSValue jsPulsarSetTimeout(JSContext *ctx, JSValueConst, int argc, JSValueConst *argv)

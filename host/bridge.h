@@ -13,7 +13,7 @@
 class QQmlPropertyMap;
 
 namespace pulsar {
-class QuickJsRuntime;
+class QuickJsThread;
 }
 class QMenu;
 class QMenuBar;
@@ -117,7 +117,7 @@ private:
     void handleDataFrame(const QByteArray &payload);
 
     QProcess process_;
-    pulsar::QuickJsRuntime *quickjs_ = nullptr;
+    pulsar::QuickJsThread *quickjs_ = nullptr;
     bool quickjsStarted_ = false;
     QJSEngine *engine_;
     QQmlPropertyMap *store_ = nullptr;

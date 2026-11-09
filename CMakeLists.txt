@@ -88,9 +88,11 @@ if(IOS)
         host/embedded/main.cpp
         host/embedded/bridge.cpp
         host/quickjs_runtime.cpp
+        host/quickjs_thread.cpp
         host/net.cpp
         host/embedded/bridge.h
         host/quickjs_runtime.h
+        host/quickjs_thread.h
         host/net.h
         "${PULSAR_IOS_APP_QRC}"
     )
@@ -131,7 +133,9 @@ add_executable(qml-host
     host/devchannel.cpp
     host/devchannel.h
     host/quickjs_runtime.cpp
+    host/quickjs_thread.cpp
     host/quickjs_runtime.h
+    host/quickjs_thread.h
     host/log.cpp
     host/embedded.cpp
     host/secure.cpp
@@ -199,9 +203,11 @@ add_executable(qml-host-qjs
     host/embedded/main.cpp
     host/embedded/bridge.cpp
     host/quickjs_runtime.cpp
+    host/quickjs_thread.cpp
     host/net.cpp
     host/embedded/bridge.h
     host/quickjs_runtime.h
+    host/quickjs_thread.h
     host/net.h
 )
 target_include_directories(qml-host-qjs PRIVATE host host/embedded)
@@ -246,11 +252,13 @@ if(ANDROID)
         host/devchannel.cpp
         host/embedded/devfetch.cpp
         host/quickjs_runtime.cpp
+        host/quickjs_thread.cpp
         host/net.cpp
         host/embedded/bridge.h
         host/devchannel.h
         host/embedded/devfetch.h
         host/quickjs_runtime.h
+        host/quickjs_thread.h
         host/net.h
     )
     target_include_directories(pulsar-android PRIVATE host host/embedded)
