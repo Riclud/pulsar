@@ -114,7 +114,7 @@ const scenarios: Scenario[] = [
         output.includes("PulsarView enter /root/hidden") &&
         output.includes("PulsarView enter /root/flip") &&
         !output.includes("PulsarView hide done /root/flip") &&
-        !/PulsarView\.qml:\d+: (?!TypeError: Cannot (read property 'colorScheme'|call method '(devMode|env)') of null)/.test(
+        !/(?:PulsarView|nodes\/\w+)\.qml:\d+: (?!TypeError: Cannot (read property 'colorScheme'|call method '(devMode|env)') of null)/.test(
           output,
         )
       )
@@ -304,7 +304,7 @@ const scenarios: Scenario[] = [
         output.includes("PulsarView state disabled /root/panel") &&
         output.includes("PulsarView state normal /root/panel") &&
         output.includes("SIZE filled 400") &&
-        !/PulsarView\.qml:\d+: (?!TypeError: Cannot (read property 'colorScheme'|call method '(devMode|env)') of null)/.test(
+        !/(?:PulsarView|nodes\/\w+)\.qml:\d+: (?!TypeError: Cannot (read property 'colorScheme'|call method '(devMode|env)') of null)/.test(
           output,
         )
       )
