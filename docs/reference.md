@@ -899,15 +899,32 @@ socket.close(1000, "bye")
 
 `net.download(url, path, options)` writes a response straight to disk:
 `headers`, `timeoutMs`, `resume` (continue a partial file with a Range request
-when the server allows it) and `onProgress(received, total)`. It resolves with
-`{ path, bytes, resumed, status, statusText, url, headers }`.
+when the server allows it), `onProgress(received, total)`, `signal` and `throwOnError`.
+It resolves with `{ path, bytes, resumed, status, statusText, url, headers }`.
 
 ```ts
+const controller = new AbortController()
+
 const file = await net.download("https://example.com/big.zip", "big.zip", {
   resume: true,
+  signal: controller.signal,
   onProgress: (received, total) => console.log(received, total),
 })
 ```
+
+`signal` is anything shaped like an `AbortSignal` (`aborted`, `addEventListener("abort")`,
+`removeEventListener`). Aborting stops the request and rejects with a `NetError` of kind
+`"aborted"`; the partial file is deleted, except with `resume: true`, where it is kept so
+the next call continues it. `throwOnError: true` rejects on a status of 400 or more instead
+of saving the error page. `net.fetch` takes `throwOnError` too, and every response has `ok`.
+
+A failed request rejects with a `NetError`. Besides `code` it has `kind` (`"timeout"`,
+`"dns"`, `"tls"`, `"refused"`, `"http"`, `"aborted"`, `"redirect"`, `"too-large"`,
+`"unsupported"` or `"network"`), `host`, `url`, `status` (for `"http"`) and `connected`:
+`true` when the server answered or the TLS handshake was reached, `false` when no
+connection was made (DNS failure, refused) and `null` when that is not known. The
+message reads like `dns for api.example.com: Host api.example.com not found (no
+connection made)`; only the host is in it, never the path or query.
 
 `fs.watch(path, listener)` reports changes to a file or directory and returns an
 unsubscribe function; watches are reference-counted per path.

@@ -85,6 +85,7 @@ describe("net", () => {
       url: "https://example.com/a",
       headers: { "content-type": "text/plain" },
       text: "hello",
+      ok: true,
     })
   })
 
@@ -279,5 +280,215 @@ describe("net.websocket", () => {
     setup()
 
     expect(() => net.websocket("http://example.com/ws")).toThrow(/unsupported WebSocket URL/)
+  })
+
+  describe("errors", () => {
+    const fail = async (
+      url: string,
+      error: { code: string; message: string },
+      before: Array<Record<string, unknown>> = [],
+    ): Promise<NetError> => {
+      const transport = setup()
+      const pending = net.fetch(url)
+      const id = lastParams(transport).id as number
+
+      for (const event of before) netInternals.handleMessage({ id, ...event })
+
+      netInternals.handleMessage({ id, type: "error", ...error })
+
+      try {
+        await pending
+      } catch (e) {
+        return e as NetError
+      }
+
+      throw new Error("expected a rejection")
+    }
+
+    test("a DNS failure names the host and says no connection was made", async () => {
+      const error = await fail("https://api.example.com/items?token=secret", {
+        code: "ERR_DNS",
+        message: "Host api.example.com not found",
+      })
+
+      expect(error).toMatchObject({ kind: "dns", host: "api.example.com", connected: false, code: "ERR_DNS" })
+      expect(error.message).toContain("api.example.com")
+      expect(error.message).toContain("no connection made")
+      expect(error.message).not.toContain("secret")
+    })
+
+    test("a generic network error is told apart by its text", async () => {
+      const refused = await fail("http://localhost:9/", { code: "ERR_NETWORK", message: "Connection refused" })
+      const dns = await fail("https://nope.invalid/", { code: "ERR_NETWORK", message: "Host nope.invalid not found" })
+      const other = await fail("https://example.com/", { code: "ERR_NETWORK", message: "Connection closed" })
+
+      expect(refused).toMatchObject({ kind: "refused", connected: false, host: "localhost" })
+      expect(dns.kind).toBe("dns")
+      expect(other).toMatchObject({ kind: "network", connected: null })
+    })
+
+    test("TLS and timeouts keep what the connection did", async () => {
+      const tls = await fail("https://expired.example.com/", { code: "ERR_TLS", message: "handshake failed" })
+      const early = await fail("https://slow.example.com/", { code: "ERR_TIMEOUT", message: "request timed out" })
+      const late = await fail("https://slow.example.com/", { code: "ERR_TIMEOUT", message: "request timed out" }, [
+        { type: "response", status: 200, statusText: "OK", url: "https://slow.example.com/", headers: {} },
+      ])
+
+      expect(tls).toMatchObject({ kind: "tls", connected: true })
+      expect(early).toMatchObject({ kind: "timeout", connected: null })
+      expect(late).toMatchObject({ kind: "timeout", connected: true })
+    })
+
+    test("throwOnError rejects an HTTP status with its code", async () => {
+      const transport = setup()
+      const pending = net.fetch("https://example.com/missing", { throwOnError: true })
+      const id = lastParams(transport).id as number
+
+      netInternals.handleMessage({
+        id,
+        type: "response",
+        status: 404,
+        statusText: "Not Found",
+        url: "https://example.com/missing",
+        headers: {},
+      })
+      netInternals.handleMessage({ id, type: "end" })
+
+      const error = await pending.catch((e: unknown) => e as NetError)
+
+      expect(error).toBeInstanceOf(NetError)
+      expect(error).toMatchObject({ kind: "http", status: 404, host: "example.com", connected: true })
+    })
+
+    test("a 404 resolves with ok false by default", async () => {
+      const transport = setup()
+      const pending = net.fetch("https://example.com/missing")
+      const id = lastParams(transport).id as number
+
+      netInternals.handleMessage({ id, type: "response", status: 404, statusText: "Not Found", url: "", headers: {} })
+      netInternals.handleMessage({ id, type: "end" })
+
+      expect((await pending).ok).toBe(false)
+    })
+  })
+
+  describe("download cancellation", () => {
+    class Signal {
+      aborted = false
+      private listeners: Array<() => void> = []
+
+      addEventListener(_type: "abort", listener: () => void): void {
+        this.listeners.push(listener)
+      }
+
+      removeEventListener(_type: "abort", listener: () => void): void {
+        this.listeners = this.listeners.filter((item) => item !== listener)
+      }
+
+      abort(): void {
+        this.aborted = true
+        for (const listener of this.listeners) listener()
+      }
+    }
+
+    const files = (): string[] => {
+      const log: string[] = []
+
+      registerCapability("fs.exists", (async () => false) as never)
+      registerCapability("fs.stat", (async () => ({ size: 0 })) as never)
+      registerCapability("fs.writeFile", (async (p: { path: string }) => log.push(`write:${p.path}`)) as never)
+      registerCapability("fs.appendBytes", (async () => log.push("append")) as never)
+      registerCapability("fs.remove", (async (p: { path: string }) => log.push(`remove:${p.path}`)) as never)
+
+      return log
+    }
+
+    const started = async (transport: FakeTransport): Promise<number> => {
+      for (let i = 0; i < 20 && transport.messages.length === 0; i++) await Promise.resolve()
+
+      return lastParams(transport).id as number
+    }
+
+    test("aborting sends an abort, rejects and removes the partial file", async () => {
+      const transport = setup()
+      const log = files()
+      const signal = new Signal()
+      const pending = net.download("https://example.com/big", "/tmp/big", { signal })
+      const id = await started(transport)
+
+      netInternals.handleMessage({ id, type: "response", status: 200, statusText: "OK", url: "", headers: {} })
+      netInternals.handleMessage({ id, type: "data", text: "abc" })
+
+      signal.abort()
+
+      // A chunk that was already on its way must not recreate the file.
+      netInternals.handleMessage({ id, type: "data", text: "late" })
+
+      const error = await pending.catch((e: unknown) => e as NetError)
+
+      expect(transport.messages.at(-1)!.params).toEqual({ id, action: "abort" })
+      expect(error).toMatchObject({ kind: "aborted", code: "ERR_ABORTED", host: "example.com", connected: true })
+      expect(log).toEqual(["write:/tmp/big", "append", "remove:/tmp/big"])
+    })
+
+    test("a signal that is already aborted never starts a request", async () => {
+      const transport = setup()
+      const log = files()
+      const signal = new Signal()
+
+      signal.abort()
+
+      const error = await net
+        .download("https://example.com/big", "/tmp/big", { signal })
+        .catch((e: unknown) => e as NetError)
+
+      expect(error).toMatchObject({ kind: "aborted" })
+      expect(transport.messages).toHaveLength(0)
+      expect(log).toEqual([])
+    })
+
+    test("aborting before the request starts still removes the created file", async () => {
+      const transport = setup()
+      const log = files()
+      const signal = new Signal()
+      const pending = net.download("https://example.com/big", "/tmp/big", { signal })
+
+      signal.abort()
+
+      const error = await pending.catch((e: unknown) => e as NetError)
+
+      expect(error).toMatchObject({ kind: "aborted" })
+      expect(transport.messages).toHaveLength(0)
+      expect(log).toEqual(["write:/tmp/big", "remove:/tmp/big"])
+    })
+
+    test("a resumable download keeps its partial file when aborted", async () => {
+      const transport = setup()
+      const log = files()
+      const signal = new Signal()
+      const pending = net.download("https://example.com/big", "/tmp/big", { signal, resume: true })
+      const id = await started(transport)
+
+      netInternals.handleMessage({ id, type: "response", status: 200, statusText: "OK", url: "", headers: {} })
+      signal.abort()
+
+      await pending.catch(() => undefined)
+
+      expect(log.some((entry) => entry.startsWith("remove"))).toBe(false)
+    })
+
+    test("throwOnError stops a download of an error page", async () => {
+      const transport = setup()
+      const log = files()
+      const pending = net.download("https://example.com/missing", "/tmp/missing", { throwOnError: true })
+      const id = await started(transport)
+
+      netInternals.handleMessage({ id, type: "response", status: 404, statusText: "Not Found", url: "", headers: {} })
+
+      const error = await pending.catch((e: unknown) => e as NetError)
+
+      expect(error).toMatchObject({ kind: "http", status: 404 })
+      expect(log).toEqual(["write:/tmp/missing", "remove:/tmp/missing"])
+    })
   })
 })

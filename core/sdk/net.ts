@@ -19,6 +19,8 @@ export interface NetOptions {
   tlsFingerprint?: boolean | string
   /** Largest response the host accepts; defaults to 64 MB, 0 removes the limit. */
   maxBytes?: number
+  /** Reject with a NetError of kind "http" when the status is 400 or more. */
+  throwOnError?: boolean
 }
 
 export interface NetResponseInfo {
@@ -31,6 +33,15 @@ export interface NetResponseInfo {
 export interface NetResponse extends NetResponseInfo {
   text: string
   bytes?: Uint8Array
+  /** True for a 2xx status. */
+  ok: boolean
+}
+
+/** The part of an AbortSignal that downloads use, so the DOM type is not needed. */
+export interface AbortSignalLike {
+  readonly aborted: boolean
+  addEventListener(type: "abort", listener: () => void, options?: { once?: boolean }): void
+  removeEventListener(type: "abort", listener: () => void): void
 }
 
 export interface DownloadOptions {
@@ -39,6 +50,13 @@ export interface DownloadOptions {
   /** Continue a partial file with a Range request when the server allows it. */
   resume?: boolean
   onProgress?: (received: number, total: number | null) => void
+  /**
+   * Cancels the download. The promise rejects with a NetError of kind "aborted" and the
+   * partial file is deleted, unless `resume` is set: then it stays for the next attempt.
+   */
+  signal?: AbortSignalLike
+  /** Reject with a NetError of kind "http" when the status is 400 or more, instead of saving the error page. */
+  throwOnError?: boolean
 }
 
 export interface DownloadResult extends NetResponseInfo {
@@ -52,13 +70,84 @@ export interface NetErrorData {
   message: string
 }
 
+export type NetErrorKind =
+  "timeout" | "dns" | "tls" | "refused" | "http" | "aborted" | "redirect" | "too-large" | "unsupported" | "network"
+
+export interface NetErrorDetails {
+  /** The URL of the request; only its host is put in the message, so a token in the query stays out of logs. */
+  url?: string
+  /** True when the server answered or the TLS handshake was reached, false when no connection was made, null when unknown. */
+  connected?: boolean | null
+  status?: number
+}
+
+const KIND_BY_CODE: Record<string, NetErrorKind> = {
+  ERR_TIMEOUT: "timeout",
+  ERR_DNS: "dns",
+  ERR_TLS: "tls",
+  ERR_REFUSED: "refused",
+  ERR_ABORTED: "aborted",
+  ERR_REDIRECT: "redirect",
+  ERR_TOO_LARGE: "too-large",
+  ERR_FINGERPRINT_UNAVAILABLE: "unsupported",
+  ERR_UNSUPPORTED: "unsupported",
+}
+
+const hostOf = (url: string | undefined): string => {
+  const match = /^[a-z][a-z0-9+.-]*:\/\/(?:[^/?#@]*@)?([^/?#:]+|\[[^\]]*\])/i.exec(url ?? "")
+
+  return match?.[1] ?? ""
+}
+
+/** Hosts that report a generic network error still say what happened in the text. */
+const kindOf = (code: string, message: string): NetErrorKind => {
+  const known = KIND_BY_CODE[code]
+
+  if (known) return known
+  if (code === "HTTP_STATUS") return "http"
+  if (/not found|name resolution|lookup|dns/i.test(message)) return "dns"
+  if (/refused/i.test(message)) return "refused"
+  if (/ssl|tls|certificate|handshake/i.test(message)) return "tls"
+  if (/timed? ?out/i.test(message)) return "timeout"
+
+  return "network"
+}
+
+const connectedFor = (kind: NetErrorKind, details: NetErrorDetails): boolean | null => {
+  if (details.connected !== undefined) return details.connected
+  if (kind === "dns" || kind === "refused") return false
+  if (kind === "tls" || kind === "http" || kind === "redirect" || kind === "too-large") return true
+
+  return null
+}
+
+const CONNECTION_TEXT = { true: "connection made", false: "no connection made", null: "connection unknown" } as const
+
 export class NetError extends Error {
   readonly code: string
+  readonly kind: NetErrorKind
+  readonly host: string
+  readonly url: string
+  readonly connected: boolean | null
+  readonly status?: number
 
-  constructor(code: string, message: string) {
-    super(message)
+  constructor(code: string, message: string, details: NetErrorDetails = {}) {
+    const kind = kindOf(code, message)
+    const host = hostOf(details.url)
+    const connected = connectedFor(kind, details)
+    const where = host ? ` ${host}` : ""
+    const status = details.status === undefined ? "" : ` ${details.status}`
+
+    super(
+      `${kind}${status}${where ? ` for${where}` : ""}: ${message} (${CONNECTION_TEXT[String(connected) as "true"]})`,
+    )
     this.name = "NetError"
     this.code = code
+    this.kind = kind
+    this.host = host
+    this.url = details.url ?? ""
+    this.connected = connected
+    if (details.status !== undefined) this.status = details.status
   }
 }
 
@@ -392,14 +481,27 @@ class NetClient {
       const request = this.request(url, options)
 
       let info: NetResponseInfo = { status: 0, statusText: "", url, headers: {} }
-
+      let responded = false
       let text = ""
 
       let binary: Uint8Array[] | null = null
       let total = 0
 
+      const finish = (response: Omit<NetResponse, "ok">): void => {
+        const ok = response.status >= 200 && response.status < 300
+
+        if (options.throwOnError && response.status >= 400) {
+          reject(new NetError("HTTP_STATUS", response.statusText || "request failed", { url, status: response.status }))
+
+          return
+        }
+
+        resolve({ ...response, ok })
+      }
+
       request.on("response", (value) => {
         info = value
+        responded = true
       })
       request.on("data", (chunk) => {
         if (typeof chunk === "string") {
@@ -414,7 +516,7 @@ class NetClient {
       })
       request.on("end", () => {
         if (!binary) {
-          resolve({ ...info, text })
+          finish({ ...info, text })
 
           return
         }
@@ -428,22 +530,71 @@ class NetClient {
           offset += chunk.byteLength
         }
 
-        resolve({ ...info, text: "", bytes })
+        finish({ ...info, text: "", bytes })
       })
-      request.on("error", (error) => reject(new NetError(error.code, error.message)))
+      request.on("error", (error) => {
+        reject(new NetError(error.code, error.message, { url, connected: responded ? true : undefined }))
+      })
     })
   }
 
   download(url: string, path: string, options: DownloadOptions = {}): Promise<DownloadResult> {
     return new Promise((resolve, reject) => {
+      const signal = options.signal
+
       let info: NetResponseInfo = { status: 0, statusText: "", url, headers: {} }
       let received = 0
       let total: number | null = null
       let resumed = false
+      let responded = false
+      let settled = false
+      let request: NetRequest | null = null
       let failure: Error | null = null
       let chain: Promise<unknown> = Promise.resolve()
 
       const headers: Record<string, string> = { ...(options.headers ?? {}) }
+
+      const settle = (finish: () => void): void => {
+        if (settled) return
+
+        settled = true
+        signal?.removeEventListener("abort", onAbort)
+        finish()
+      }
+
+      const abortedError = (): NetError => {
+        return new NetError("ERR_ABORTED", "download aborted", { url, connected: responded ? true : undefined })
+      }
+
+      // The host may keep sending for a moment after abort(), so the file is removed once writes have settled.
+      const discardPartial = async (): Promise<void> => {
+        await chain
+
+        if (options.resume) return
+
+        try {
+          await fs.remove(path)
+        } catch {
+          // Nothing to remove when the file was never created.
+        }
+      }
+
+      const onAbort = (): void => {
+        if (settled) return
+
+        settled = true
+        request?.abort()
+
+        void discardPartial().then(() => reject(abortedError()))
+      }
+
+      if (signal?.aborted) {
+        reject(abortedError())
+
+        return
+      }
+
+      signal?.addEventListener("abort", onAbort, { once: true })
 
       const prepare = options.resume
         ? fs.exists(path).then(async (exists) => {
@@ -459,15 +610,22 @@ class NetClient {
           })
         : fs.writeFile(path, "", "utf8").then(() => undefined)
 
+      // An abort during the preparation still has to wait for the file it creates.
+      chain = prepare.catch(() => undefined)
+
       prepare
         .then(() => {
-          const request = this.request(url, {
+          if (settled) return
+
+          const current = this.request(url, {
             method: "GET",
             headers,
             timeoutMs: options.timeoutMs,
             responseType: "binary",
             maxBytes: 0,
           })
+
+          request = current
 
           const track = (work: Promise<unknown>): void => {
             chain = chain
@@ -477,11 +635,27 @@ class NetClient {
               })
           }
 
-          request.on("response", (value) => {
+          current.on("response", (value) => {
+            if (settled) return
+
             info = value
+            responded = true
 
             const length = Number(value.headers["content-length"] ?? value.headers["Content-Length"])
             const offset = value.status === 206 ? received : 0
+
+            if (options.throwOnError && value.status >= 400) {
+              current.abort()
+              settle(() => {
+                void discardPartial().then(() => {
+                  reject(
+                    new NetError("HTTP_STATUS", value.statusText || "request failed", { url, status: value.status }),
+                  )
+                })
+              })
+
+              return
+            }
 
             total = Number.isFinite(length) ? length + offset : null
 
@@ -495,7 +669,9 @@ class NetClient {
             options.onProgress?.(received, total)
           })
 
-          request.on("data", (chunk) => {
+          current.on("data", (chunk) => {
+            if (settled) return
+
             const bytes = typeof chunk === "string" ? textBytes(chunk) : chunk
 
             received += bytes.byteLength
@@ -504,21 +680,29 @@ class NetClient {
             options.onProgress?.(received, total)
           })
 
-          request.on("end", () => {
-            void chain.then(() => {
-              if (failure) {
-                reject(failure)
+          current.on("end", () => {
+            if (settled) return
 
-                return
-              }
+            settle(() => {
+              void chain.then(() => {
+                if (failure) {
+                  reject(failure)
 
-              resolve({ ...info, path, bytes: received, resumed })
+                  return
+                }
+
+                resolve({ ...info, path, bytes: received, resumed })
+              })
             })
           })
 
-          request.on("error", (error) => reject(new NetError(error.code, error.message)))
+          current.on("error", (error) => {
+            settle(() => {
+              reject(new NetError(error.code, error.message, { url, connected: responded ? true : undefined }))
+            })
+          })
         })
-        .catch((error) => reject(error instanceof Error ? error : new Error(String(error))))
+        .catch((error) => settle(() => reject(error instanceof Error ? error : new Error(String(error)))))
     })
   }
 

@@ -904,15 +904,33 @@ socket.close(1000, "bye")
 
 `net.download(url, path, options)` пишет ответ сразу на диск: `headers`,
 `timeoutMs`, `resume` (продолжить частично скачанный файл Range-запросом, если
-сервер разрешает) и `onProgress(received, total)`. Возвращает `{ path, bytes,
-resumed, status, statusText, url, headers }`.
+сервер разрешает), `onProgress(received, total)`, `signal` и `throwOnError`.
+Возвращает `{ path, bytes, resumed, status, statusText, url, headers }`.
 
 ```ts
+const controller = new AbortController()
+
 const file = await net.download("https://example.com/big.zip", "big.zip", {
   resume: true,
+  signal: controller.signal,
   onProgress: (received, total) => console.log(received, total),
 })
 ```
+
+`signal` — любой объект формы `AbortSignal` (`aborted`, `addEventListener("abort")`,
+`removeEventListener`). Отмена останавливает запрос и отклоняет промис `NetError` вида
+`"aborted"`; недокачанный файл удаляется, кроме случая `resume: true`: там он остаётся,
+чтобы следующий вызов продолжил его. `throwOnError: true` отклоняет ответ со статусом 400
+и выше, вместо того чтобы сохранить страницу с ошибкой. `throwOnError` есть и у
+`net.fetch`, а у каждого ответа есть `ok`.
+
+Неудачный запрос отклоняется `NetError`. Кроме `code` у него есть `kind` (`"timeout"`,
+`"dns"`, `"tls"`, `"refused"`, `"http"`, `"aborted"`, `"redirect"`, `"too-large"`,
+`"unsupported"` или `"network"`), `host`, `url`, `status` (для `"http"`) и `connected`:
+`true`, если сервер ответил или дошло до TLS-рукопожатия, `false`, если соединения не
+было (DNS, отказ), и `null`, если это неизвестно. Сообщение выглядит так:
+`dns for api.example.com: Host api.example.com not found (no connection made)`; в нём
+только хост, без пути и запроса.
 
 `fs.watch(path, listener)` сообщает об изменениях файла или каталога и
 возвращает функцию отписки; наблюдатели считаются по пути.

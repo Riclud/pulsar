@@ -70,6 +70,10 @@ QString networkErrorCode(QNetworkReply::NetworkError error)
         return QStringLiteral("ERR_TLS");
     case QNetworkReply::TooManyRedirectsError:
         return QStringLiteral("ERR_REDIRECT");
+    case QNetworkReply::HostNotFoundError:
+        return QStringLiteral("ERR_DNS");
+    case QNetworkReply::ConnectionRefusedError:
+        return QStringLiteral("ERR_REFUSED");
     default:
         return QStringLiteral("ERR_NETWORK");
     }

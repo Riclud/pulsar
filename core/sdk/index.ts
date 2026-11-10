@@ -252,9 +252,12 @@ export { net, NetError } from "./net.ts"
 export { MediaManager, media } from "./media.ts"
 export type { MediaState, MediaTrack, MediaSnapshot } from "./media.ts"
 export type {
+  AbortSignalLike,
   DownloadOptions,
   DownloadResult,
   NetErrorData,
+  NetErrorDetails,
+  NetErrorKind,
   NetOptions,
   NetRequest,
   NetResponse,

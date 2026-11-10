@@ -123,8 +123,8 @@ timeoutMs?, redirect?, maxRedirects?, responseType?, tlsFingerprint? }` starts
 statusText, url, headers }`, then either `{ id, type: "data", text }` for
   text responses or data frames with `streamId = id` for binary responses, and
   finally `{ id, type: "end" }` or `{ id, type: "error", code, message }`;
-- error codes: `ERR_NETWORK`, `ERR_TIMEOUT`, `ERR_ABORTED`, `ERR_TLS`,
-  `ERR_TOO_LARGE`, `ERR_REDIRECT`, `ERR_FINGERPRINT_UNAVAILABLE`;
+- error codes: `ERR_NETWORK`, `ERR_DNS`, `ERR_REFUSED`, `ERR_TIMEOUT`, `ERR_ABORTED`,
+  `ERR_TLS`, `ERR_TOO_LARGE`, `ERR_REDIRECT`, `ERR_FINGERPRINT_UNAVAILABLE`;
 - `tlsFingerprint` selects the impersonating backend. Builds without it fail
   with `ERR_FINGERPRINT_UNAVAILABLE` instead of silently using the native TLS
   stack.
