@@ -709,8 +709,30 @@ VirtualList({
 })
 ```
 
-Virtual lists use a fixed item shape (`title`, `subtitle`, `icon`, `trailing`,
-`section`). If a row needs arbitrary components, use `For` instead.
+Without `render`, a virtual list uses a fixed item shape (`title`, `subtitle`, `icon`,
+`trailing`, `section`). To draw each row yourself, pass `render` and a `rowHeight`:
+
+```ts
+VirtualList({
+  items: tasks(),
+  rowHeight: 64,
+  keyOf: (task) => task.id,
+  render: (task) =>
+    Row(
+      { gap: 12, alignItems: "center", paddingX: 16, fillWidth: true, onClick: () => openTask(task.id) },
+      Checkbox({ checked: task.done }),
+      Text({ text: task.text, expand: true }),
+    ),
+  onEndReached: loadMore,
+})
+```
+
+`render(item, index)` runs only for the rows near the viewport (`overscan`, six rows by
+default, on each side), so a list of 100,000 items costs the same as one of 100. Every row
+is exactly `rowHeight` tall (56 by default) and as wide as the list; a taller row is cut
+off. `keyOf` keeps a row's state when items move. `controller` takes a scroll controller,
+so `scrollTo` works here too. The selection, swipe, refresh, sticky section and reorder
+options belong to the fixed item shape and are ignored when `render` is given.
 
 ### Grid
 

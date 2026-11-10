@@ -1798,6 +1798,14 @@ ApplicationWindow {
     }
 
     Component {
+        id: virtualRowsComponent
+
+        VirtualRowsNode {
+            view: viewRef
+        }
+    }
+
+    Component {
         id: virtualListComponent
 
         VirtualListNode {
@@ -3059,6 +3067,8 @@ ApplicationWindow {
             item = flickableComponent.createObject(parent);
         } else if (node.type === "grid") {
             item = gridComponent.createObject(parent);
+        } else if (node.type === "virtualRows") {
+            item = virtualRowsComponent.createObject(parent);
         } else if (node.type === "virtualList") {
             item = virtualListComponent.createObject(parent);
         } else if (node.type === "card") {
@@ -3703,7 +3713,7 @@ ApplicationWindow {
 
         const props = node.props;
         const defaultFillWidth = node.type === "card" || node.type === "list" || node.type === "scroll"
-                || node.type === "wrap" || node.type === "grid" || node.type === "virtualList"
+                || node.type === "wrap" || node.type === "grid" || node.type === "virtualList" || node.type === "virtualRows"
                 || node.type === "appBar" || node.type === "divider" || node.type === "textInput"
                 || node.type === "textArea" || node.type === "pager" || node.type === "tabs"
                 || node.type === "navRail" || node.type === "segmented"
@@ -3713,7 +3723,7 @@ ApplicationWindow {
         const fill = prop(props, "fill", undefined);
         let fillWidth = defaultFillWidth;
         let fillHeight = node.type === "list" || node.type === "scroll" || node.type === "grid"
-                || node.type === "virtualList" || node.type === "pager"
+                || node.type === "virtualList" || node.type === "virtualRows" || node.type === "pager"
                 || node.type === "navRail";
 
         if ((node.type === "list" || node.type === "scroll") && insideScroll(item))
@@ -4086,6 +4096,31 @@ ApplicationWindow {
                         && cellProps.fillWidth !== false)
                     cell.Layout.fillWidth = true;
             }
+        } else if (node.type === "virtualRows") {
+            item.nodeData = node;
+            item.rowHeight = prop(props, "rowHeight", 56);
+            item.rowCount = prop(props, "count", 0);
+            item.firstRow = prop(props, "start", 0);
+
+            if (!item.rows.pulsarMeta)
+                item.rows.pulsarMeta = contentMeta();
+
+            reconcile(item.rows, node.children || [], false);
+
+            const rowItems = item.rows.children;
+
+            for (let i = 0; i < rowItems.length; i++) {
+                const row = rowItems[i];
+
+                row.x = 0;
+                row.y = i * item.rowHeight;
+                row.height = item.rowHeight;
+                row.width = Qt.binding(function () {
+                    return item.rows.width;
+                });
+            }
+
+            item.scheduleReport();
         } else if (node.type === "virtualList") {
             const list = item.listView;
             const items = prop(props, "items", []);

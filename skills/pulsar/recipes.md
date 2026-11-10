@@ -349,6 +349,36 @@ export const Chat = (): ReturnType<typeof Page> => {
 
 `scroll.scrollTo(0, { animated: true })` goes back to the top.
 
+## 14. A long list with your own rows
+
+`VirtualList` with `render` draws only the rows near the viewport, so 50,000 items cost the
+same as 50. Rows have a fixed `rowHeight`.
+
+```ts
+import { Row, Text, VirtualList } from "pulsar"
+
+interface Track {
+  id: string
+  title: string
+  length: string
+}
+
+export const Tracks = (tracks: Track[], play: (id: string) => void): ReturnType<typeof VirtualList> => {
+  return VirtualList({
+    items: tracks,
+    rowHeight: 56,
+    keyOf: (track) => track.id,
+    render: (track) => {
+      return Row(
+        { gap: 12, alignItems: "center", paddingX: 16, fillWidth: true, onClick: () => play(track.id) },
+        Text({ text: track.title, expand: true }),
+        Text({ text: track.length, color: "subtext" }),
+      )
+    },
+  })
+}
+```
+
 ## 13. Check your work
 
 ```sh

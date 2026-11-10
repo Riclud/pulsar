@@ -728,9 +728,32 @@ VirtualList({
 })
 ```
 
-Виртуальные списки используют фиксированную форму элемента (`title`, `subtitle`,
-`icon`, `trailing`, `section`). Если строке нужны произвольные компоненты,
-используйте `For`.
+Без `render` виртуальный список использует фиксированную форму элемента (`title`,
+`subtitle`, `icon`, `trailing`, `section`). Чтобы нарисовать строку самому, передайте
+`render` и `rowHeight`:
+
+```ts
+VirtualList({
+  items: tasks(),
+  rowHeight: 64,
+  keyOf: (task) => task.id,
+  render: (task) =>
+    Row(
+      { gap: 12, alignItems: "center", paddingX: 16, fillWidth: true, onClick: () => openTask(task.id) },
+      Checkbox({ checked: task.done }),
+      Text({ text: task.text, expand: true }),
+    ),
+  onEndReached: loadMore,
+})
+```
+
+`render(item, index)` вызывается только для строк рядом с видимой областью (`overscan`, по
+умолчанию шесть строк с каждой стороны), поэтому список из 100 000 элементов стоит как
+список из 100. Каждая строка ровно `rowHeight` высотой (по умолчанию 56) и во всю ширину
+списка; более высокая строка обрезается. `keyOf` сохраняет состояние строки при
+перестановках. В `controller` передаётся контроллер прокрутки, так что `scrollTo` работает и
+здесь. Выбор, свайпы, обновление, липкие секции и перестановка относятся к фиксированной
+форме элемента и при заданном `render` игнорируются.
 
 ### Grid
 

@@ -1304,6 +1304,8 @@ padding })` caps and centers content on large windows.
   action.
 - Every node accepts `tooltip`, `a11yLabel` and `a11yHint`; buttons, cards, images
   and chips also take `onLongPress`.
+- `VirtualList({ items, rowHeight, render })` draws your own rows and renders only the
+  ones near the viewport; see the [UI guide](guide-ui.md#virtuallist).
 - `VirtualList({ items })` virtualises long lists and supports `selectable`,
   `reorderable`, `refreshable`, sticky sections and swipe actions; `Zoomable`
   adds pinch zoom around its child.

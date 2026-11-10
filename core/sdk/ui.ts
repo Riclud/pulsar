@@ -1,4 +1,4 @@
-import { Computation } from "./reactive.ts"
+import { Computation, signal } from "./reactive.ts"
 import type { ColorValue } from "./theme.ts"
 
 export type UiNodeType =
@@ -14,6 +14,7 @@ export type UiNodeType =
   | "list"
   | "grid"
   | "virtualList"
+  | "virtualRows"
   | "card"
   | "appBar"
   | "text"
@@ -372,6 +373,20 @@ export interface VirtualListOptions extends CommonOptions {
   onPress?: (key: string | number) => void
   onAction?: (key: string | number, action: string) => void
   onReorder?: (from: number, to: number) => void
+}
+
+export interface VirtualRowsOptions<T> extends CommonOptions {
+  items: T[]
+  /** Draws one row. It is called only for the rows near the viewport. */
+  render: (item: T, index: number) => UiNode
+  keyOf?: (item: T, index: number) => string | number
+  /** Height of every row in pixels (default 56). Rows must not be taller: the list is placed by it. */
+  rowHeight?: number
+  /** How many rows beyond the viewport are kept rendered on each side (default 6). */
+  overscan?: number
+  /** Called once each time the viewport reaches the last rows. */
+  onEndReached?: () => void
+  controller?: ScrollController
 }
 
 export interface GradientOptions {
@@ -865,6 +880,7 @@ const textOf = (children: UiChild[]): string => {
 }
 
 const handlers = new Map<number, Record<string, UiHandler>>()
+
 export interface ScrollToOptions {
   /** Glide to the position instead of jumping. */
   animated?: boolean
@@ -1245,6 +1261,75 @@ export const list = <T>(options: ListOptions<T>): UiNode => {
 
 export const grid = (options: GridOptions = {}, ...children: UiChild[]): UiNode => {
   return makeNode("grid", options, children)
+}
+
+interface VisibleRange {
+  first: number
+  last: number
+}
+
+const FIRST_WINDOW = 24
+
+/** Renders only the rows near the viewport; the host reports which rows are visible. */
+const defineVirtualRows = (): DefinedComponent<VirtualRowsOptions<unknown>> => {
+  return component<VirtualRowsOptions<unknown>>((props) => {
+    const span = signal({ start: 0, end: FIRST_WINDOW })
+
+    let reachedFor = -1
+
+    const onRange = (range: VisibleRange): void => {
+      const current = span.peek()
+      const count = props.items.length
+      const overscan = props.overscan ?? 6
+      const nearStart = current.start > 0 && range.first < current.start + 2
+      const nearEnd = current.end < count && range.last >= current.end - 2
+
+      if (nearStart || nearEnd) span.set({ start: Math.max(0, range.first - overscan), end: range.last + 1 + overscan })
+
+      if (!props.onEndReached || count === 0 || range.last < count - 2 || reachedFor === count) return
+
+      reachedFor = count
+      props.onEndReached()
+    }
+
+    return () => {
+      const items = props.items
+      const window = span.get()
+      const start = Math.min(window.start, Math.max(0, items.length - 1))
+      const end = Math.min(items.length, Math.max(window.end, start + 1))
+      const keys: Array<string | number> = []
+      const rows: UiNode[] = []
+
+      for (let index = start; index < end; index++) {
+        const item = items[index]
+
+        keys.push(props.keyOf?.(item, index) ?? implicitItemKey(item) ?? index)
+        rows.push(props.render(item, index))
+      }
+
+      const {
+        items: _items,
+        render: _render,
+        keyOf: _keyOf,
+        overscan: _overscan,
+        onEndReached: _end,
+        controller,
+        ...rest
+      } = props
+      const node = withController({ ...rest, count: items.length, start, itemKeys: keys }, controller)
+
+      return makeNode("virtualRows", node, rows, ["range"], { range: (value) => onRange(value as VisibleRange) })
+    }
+  })
+}
+
+let virtualRowsComponent: DefinedComponent<VirtualRowsOptions<unknown>> | undefined
+
+// Defined on first use, because `component` is declared further down.
+const virtualRows = (props: VirtualRowsOptions<unknown>): UiNode => {
+  virtualRowsComponent ??= defineVirtualRows()
+
+  return virtualRowsComponent(props)
 }
 
 export const virtualList = (options: VirtualListOptions): UiNode => {
@@ -2457,7 +2542,18 @@ export const Scroll = (options: ScrollOptions = {}, ...children: UiChild[]): UiN
 
 export const Grid = (options: GridOptions = {}, ...children: UiChild[]): UiNode => grid(options, ...children)
 
-export const VirtualList = (options: VirtualListOptions): UiNode => virtualList(options)
+/**
+ * A long list. Give it `items` with a title (and optional subtitle, icon, trailing) for the
+ * built-in row, or `render(item)` and `rowHeight` to draw each row yourself.
+ */
+export const VirtualList: {
+  <T>(options: VirtualRowsOptions<T>): UiNode
+  (options: VirtualListOptions): UiNode
+} = (options: VirtualListOptions | VirtualRowsOptions<unknown>): UiNode => {
+  if ("render" in options) return virtualRows(options)
+
+  return virtualList(options)
+}
 
 export const Card = (options: CardOptions = {}, ...children: UiChild[]): UiNode => card(options, ...children)
 
@@ -2570,13 +2666,15 @@ const nodeSegment = (node: UiNode, index: number, keys?: Array<string | number>,
   return slots?.[index] ?? String(index)
 }
 
+const keyedByItems = (type: string): boolean => type === "list" || type === "virtualRows"
+
 const serializeNode = (node: UiNode, path: string): Record<string, unknown> => {
   if (node.cacheable && node.serialized?.path === path) return node.serialized.out
 
   const out: Record<string, unknown> = { id: node.id, type: node.type, props: node.props, path }
 
   if (node.children) {
-    const childKeys = node.type === "list" ? (node.props.itemKeys as Array<string | number> | undefined) : undefined
+    const childKeys = keyedByItems(node.type) ? (node.props.itemKeys as Array<string | number> | undefined) : undefined
 
     out.children = serialize(node.children, path, childKeys, node.slots)
   }
@@ -2660,7 +2758,7 @@ const sameOwnProps = (a: SerializedUiNode, b: SerializedUiNode): boolean => {
 }
 
 const isKeyedChild = (parent: SerializedUiNode, child: SerializedUiNode): boolean => {
-  return child.props.key !== undefined || (parent.type === "list" && Array.isArray(parent.props.itemKeys))
+  return child.props.key !== undefined || (keyedByItems(parent.type) && Array.isArray(parent.props.itemKeys))
 }
 
 type ChildOps = {
@@ -2804,7 +2902,7 @@ const collectNode = (node: UiNode, path: string): { routes: UiRoutes; ids: numbe
   if (callbacks) routes[path] = callbacks
 
   if (node.children) {
-    const childKeys = node.type === "list" ? (node.props.itemKeys as Array<string | number> | undefined) : undefined
+    const childKeys = keyedByItems(node.type) ? (node.props.itemKeys as Array<string | number> | undefined) : undefined
     const child = collectUiHandlers(node.children, path, childKeys, node.slots)
 
     Object.assign(routes, child.routes)

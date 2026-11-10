@@ -1314,6 +1314,8 @@ padding })` ограничивает ширину и центрирует кон
   действием.
 - Любой узел принимает `tooltip`, `a11yLabel` и `a11yHint`; у кнопок, карточек,
   картинок и чипов есть ещё `onLongPress`.
+- `VirtualList({ items, rowHeight, render })` рисует ваши строки и держит только те, что
+  рядом с видимой областью; см. [руководство по UI](guide-ui.ru.md#virtuallist).
 - `VirtualList({ items })` виртуализирует длинные списки и поддерживает
   `selectable`, `reorderable`, `refreshable`, залипающие секции и свайп-действия;
   `Zoomable` добавляет pinch-zoom вокруг дочернего элемента.

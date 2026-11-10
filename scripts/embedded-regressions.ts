@@ -626,6 +626,22 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "virtual-rows",
+    env: { AUTO_QUIT_MS: "2200" },
+    check: (output) => {
+      const first = output.match(/FIRST rendered=(\d+) highest=(\d+)/)
+      const far = output.match(/FAR rendered=(\d+) lowest=(\d+) highest=(\d+)/)
+
+      if (!first || !far) return false
+
+      const [rendered, highest] = [Number(first[1]), Number(first[2])]
+      const [moved, lowest, top] = [Number(far[1]), Number(far[2]), Number(far[3])]
+
+      // 1000 rows exist, only a window of them is ever drawn: first the top, then around row 500.
+      return rendered < 80 && highest < 80 && moved > 0 && moved < 80 && lowest >= 480 && top >= 505 && top < 540
+    },
+  },
+  {
     name: "packing",
     check: (output) => {
       return output.includes("SIZE wide 40") && output.includes("SIZE hug 40") && output.includes("SIZE grow 100")
