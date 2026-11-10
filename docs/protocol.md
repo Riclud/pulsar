@@ -199,10 +199,16 @@ sent again when the root children or a node type change.
 
 ```
 __ui       { target, tree }                               runtime -> host (full render)
-__ui-patch { target, patches: [{ path, node, shallow? }] } runtime -> host (changed nodes)
+__ui-patch { target, patches: [{ path, node, shallow?, op?, index? }] } runtime -> host (changed nodes)
 __event    { name: "ui-event", data: { target, path, id, event, value } }
                                                           host -> runtime
 ```
+
+A patch with `op` edits the children of a node whose children are all keyed:
+`insert` puts `node` at `index` under the parent `path`, `remove` drops the
+child at `path`, and `move` puts the child at `path` at `index`. Remove and move
+carry an empty `node`. They are applied in order, and patches for the children
+that stay follow them.
 
 A patch with `shallow: true` replaces only the node's own props and events: it
 has no `children`, and the host keeps the ones it already has. Any other patch
