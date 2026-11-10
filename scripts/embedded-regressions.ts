@@ -249,6 +249,49 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "qml-no-emit",
+    env: { AUTO_QUIT_MS: "1200" },
+    files: {
+      "probe.qml": [
+        "import QtQuick",
+        "Item {",
+        "    property int step: 0",
+        '    onStepChanged: console.log("QML_PROBE step " + step)',
+        "}",
+      ].join("\n"),
+    },
+    check: (output) => output.includes("QML_PROBE step 2") && !output.includes("pulsarEmit"),
+  },
+  {
+    name: "qml-release",
+    env: { AUTO_QUIT_MS: "1800" },
+    files: {
+      "probe.qml": [
+        "import QtQuick",
+        "Item {",
+        '    property string name: ""',
+        '    Component.onDestruction: console.log("QML_PROBE destroyed " + name)',
+        "    // Looks like a MediaPlayer to the host.",
+        "    QtObject {",
+        "        id: player",
+        "        property int playbackState: 1",
+        '        property url source: "file:///tmp/none.mp4"',
+        "        function stop() {",
+        '            console.log("QML_PROBE stop " + name)',
+        "        }",
+        "    }",
+        "}",
+      ].join("\n"),
+    },
+    check: (output) => {
+      const lines = output.split("\n")
+      const at = (text: string) => lines.findIndex((line) => line.includes(text))
+
+      // p0 is replaced by p1 (new key), p1 is removed.
+      return at("stop p0") > 0 && at("stop p1") > 0
+    },
+  },
+  {
     name: "hidden-padding",
     check: (output) => {
       const sizes = output.split("\n").filter((line) => line.includes("SIZE padded "))

@@ -1302,8 +1302,11 @@ padding })` caps and centers content on large windows.
   for a plain outline instead of the glow). Content stays crisp. Under software
   rendering the GPU glow is replaced by the outline automatically.
 - `Qml({ source: "ui/widget.qml", props, onEvent })` embeds an app QML
-  component inside the JS tree. The loaded item calls `pulsarEmit(name, value)`
-  to reach `onEvent`; `props` are applied on load and on every render.
+  component inside the JS tree. `props` are applied on load and on every render.
+  To reach `onEvent`, the item declares `property var pulsarEmit` and calls
+  `pulsarEmit(name, value)`; an item that never emits can leave it out. When the
+  node is removed or its `source` changes, the host stops every `MediaPlayer` and
+  `Video` inside the item and clears its `source` before the item is deleted.
 - `onLayout({ width, height })` reports measured size, `onScroll({ offset,
   contentHeight, height })` works on `Page`, `Scroll` and `For`, and every node
   accepts `onFocus`/`onBlur`.

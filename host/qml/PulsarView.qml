@@ -1783,6 +1783,9 @@ ApplicationWindow {
             property var pulsarEmit: null
 
             onLoaded: view.applyQmlProps(qmlLoader, qmlLoader.pulsarMeta ? qmlLoader.pulsarMeta.node : null)
+
+            // The loaded item is deleted later; a player in it must not play until then.
+            Component.onDestruction: view.releaseMedia(qmlLoader.item)
         }
     }
 
@@ -2653,6 +2656,30 @@ ApplicationWindow {
         }
     }
 
+    // Stops every media player (MediaPlayer, Video) below an item loaded from the app's QML.
+    function releaseMedia(object, depth) {
+        if (!object || (depth || 0) > 40)
+            return;
+
+        if (object.playbackState !== undefined && typeof object.stop === "function") {
+            object.stop();
+
+            if (object.source !== undefined)
+                object.source = "";
+        }
+
+        if (object.item !== undefined && object.item !== null)
+            releaseMedia(object.item, (depth || 0) + 1);
+
+        const parts = object.data;
+
+        if (!parts)
+            return;
+
+        for (let i = 0; i < parts.length; i++)
+            releaseMedia(parts[i], (depth || 0) + 1);
+    }
+
     function applyQmlProps(loader, node) {
         if (!loader || !node)
             return;
@@ -2671,7 +2698,9 @@ ApplicationWindow {
         if (!loaded)
             return;
 
-        loaded.pulsarEmit = emit;
+        // The property is optional: an item that never emits does not declare it.
+        if ("pulsarEmit" in loaded)
+            loaded.pulsarEmit = emit;
 
         if (loader.pulsarMeta.extra.qmlSized !== loaded) {
             loader.pulsarMeta.extra.qmlSized = loaded;
@@ -4351,6 +4380,8 @@ ApplicationWindow {
 
             // Loader.source is a url, so a plain comparison with the string always differs and reloads the item.
             if (item.source.toString() !== url) {
+                releaseMedia(item.item);
+
                 if (url.length === 0) {
                     item.source = "";
                 } else {
