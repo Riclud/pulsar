@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs
 import { tmpdir } from "os"
 import { join, resolve } from "path"
 import { bundleRuntime } from "../cli/android.ts"
+import { startDrive, type DriveStep } from "./lib/devdrive.ts"
 import { prebuilt, runPool, testJobs } from "./lib/pool.ts"
 
 type Scenario = {
@@ -18,6 +19,8 @@ type Scenario = {
   /** Run the desktop host with the bundle on its in-process QuickJS runtime. */
   quickjsDesktop?: boolean
   env?: Record<string, string>
+  /** Real pointer input sent through the dev channel, with the time each step is sent. */
+  drive?: DriveStep[]
   check: (output: string) => boolean
 }
 
@@ -341,6 +344,24 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "box-scroll-hover",
+    quickjsDesktop: true,
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "3000" },
+    drive: [
+      { at: 600, cmd: { cmd: "pointer", action: "hover", x: 50, y: 20 } },
+            { at: 900, cmd: { cmd: "wheel", dy: 120, x: 50, y: 20 } },
+      { at: 950, cmd: { cmd: "wheel", dy: 120, x: 50, y: 20 } },
+      { at: 1000, cmd: { cmd: "wheel", dy: 120, x: 50, y: 20 } },
+    ],
+    check: (output) => {
+      const hovers = output.split("\n").filter((line) => line.includes("PulsarView state hover "))
+
+      // Hover is off while the list scrolls: the first row loses it once, and the row that ends up
+      // under the pointer gets it back after the scroll. Without that every row passing by flashes.
+      return hovers.length === 2 && /\/root\/list\/r0( |$)/.test(hovers[0]!) && !/\/root\/list\/r0( |$)/.test(hovers[1]!)
+    },
+  },
+  {
     name: "nested-list",
     check: (output) => output.includes("LIST page 120") && output.includes("LIST column 300"),
   },
@@ -477,6 +498,7 @@ const runScenario = async (scenario: Scenario): Promise<Outcome> => {
 
   for (const [name, text] of Object.entries(scenario.files ?? {})) writeFileSync(join(dir, name), text)
   const hostLog = join(dir, "host.log")
+  const drive = scenario.drive ? startDrive(scenario.drive) : undefined
 
   try {
     if (scenario.desktop) prepareDesktop(scenario, dir)
@@ -496,6 +518,7 @@ const runScenario = async (scenario: Scenario): Promise<Outcome> => {
         ...scenario.env,
         ...(scenario.quickjsDesktop ? { PULSAR_QUICKJS_BUNDLE: join(dir, "runtime.js") } : {}),
         QT_LOG_FILE: hostLog,
+        ...(drive ? { PULSAR_DEV_URL: drive.url } : {}),
         XDG_DATA_HOME: join(dir, "data"),
         XDG_CONFIG_HOME: join(dir, "config"),
         XDG_CACHE_HOME: join(dir, "cache"),
@@ -520,7 +543,8 @@ const runScenario = async (scenario: Scenario): Promise<Outcome> => {
     clearTimeout(timer)
 
     const hostOutput = existsSync(hostLog) ? readFileSync(hostLog, "utf8") : ""
-    const output = `${stdout}\n${stderr}\n${hostOutput}${timedOut ? `\nhost hung: killed after ${limit} ms\n` : ""}`
+    const driven = drive ? `\nDRIVE ${JSON.stringify(drive.replies)}\n` : ""
+    const output = `${stdout}\n${stderr}\n${hostOutput}${driven}${timedOut ? `\nhost hung: killed after ${limit} ms\n` : ""}`
     const passed =
       !timedOut &&
       exitCode === 0 &&
@@ -533,6 +557,7 @@ const runScenario = async (scenario: Scenario): Promise<Outcome> => {
 
     return { name: scenario.name, passed, report: passed ? head : `${head}\n${output}`, ms: Date.now() - started }
   } finally {
+    drive?.stop()
     rmSync(dir, { recursive: true, force: true })
   }
 }

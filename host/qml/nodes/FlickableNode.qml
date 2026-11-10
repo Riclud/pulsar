@@ -10,7 +10,7 @@ Flickable {
     maximumFlickVelocity: 8000
 
     Inertia {
-        renderer: view
+        renderer: scrollFlick.view
         flick: scrollFlick
         stretch: true
     }

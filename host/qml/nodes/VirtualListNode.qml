@@ -37,7 +37,7 @@ Item {
         maximumFlickVelocity: 8000
 
         Inertia {
-            renderer: view
+            renderer: vlistRoot.view
             flick: vlist
         }
 

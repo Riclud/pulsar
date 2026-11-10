@@ -9,7 +9,7 @@ Flickable {
     maximumFlickVelocity: 8000
 
     Inertia {
-        renderer: view
+        renderer: gridFlick.view
         flick: gridFlick
     }
 

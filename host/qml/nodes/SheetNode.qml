@@ -199,7 +199,7 @@ Item {
                 id: sheetScroll
 
                 Inertia {
-                    renderer: view
+                    renderer: sheetRoot.view
                     flick: sheetScroll
                 }
 
