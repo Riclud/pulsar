@@ -379,6 +379,35 @@ export const Tracks = (tracks: Track[], play: (id: string) => void): ReturnType<
 }
 ```
 
+## 15. Do something when a row comes into view
+
+`onEnterViewport` and `onVisible` work on any node in a scroll, and only the nodes that ask
+are checked, so every row of a long list can use them.
+
+```ts
+import { Column, Page, Text, createState } from "pulsar"
+
+const seen = createState({ ids: [] as string[] })
+
+export const Feed = (posts: { id: string; text: string }[]): ReturnType<typeof Page> => {
+  return Page(
+    {},
+    Column(
+      { gap: 8, fillWidth: true },
+      ...posts.map((post) => {
+        return Text({
+          key: post.id,
+          text: post.text,
+          onEnterViewport: () => {
+            if (!seen.ids.includes(post.id)) seen.ids = [...seen.ids, post.id]
+          },
+        })
+      }),
+    ),
+  )
+}
+```
+
 ## 13. Check your work
 
 ```sh

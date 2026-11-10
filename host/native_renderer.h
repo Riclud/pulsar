@@ -164,6 +164,7 @@ public:
 
 private slots:
     void refreshTheme();
+    void scheduleVisibilitySlot();
 
 private:
     enum class Kind { Island, Shell, Stack, Scroll, Box, ClickableBox, StateBox, Text, Spacer };
@@ -179,6 +180,9 @@ private:
         Node *parent = nullptr;
         bool insideScroll = false;
         bool styled = false;
+        // The scroll (or the window) a node's visibility is measured in; null while it is not watched.
+        QQuickItem *viewport = nullptr;
+        int visibleState = -1;
         QString lastState;
         std::shared_ptr<NativeStack::QmlHints> hints;
         std::vector<std::unique_ptr<Node>> children;
@@ -236,6 +240,11 @@ private:
     void bindBox(Node &node);
     void refreshState(Node &node);
     void applyPointer(Node &node);
+    void refreshWatch(Node &node);
+    void unwatch(Node &node);
+    void hookViewport(QQuickItem *viewport);
+    void scheduleVisibility(QQuickItem *viewport);
+    void checkVisibility(QQuickItem *viewport);
 
     NativeStack::Kid kidFor(const Node &parent, Node &child) const;
     std::shared_ptr<NativeStack::QmlHints> makeHints(QQuickItem *item) const;
@@ -259,6 +268,9 @@ private:
     std::unique_ptr<Node> tree_;
     QHash<QString, Node *> index_;
     QSet<Node *> dirtyStacks_;
+    QHash<QQuickItem *, QList<Node *>> watched_;
+    QSet<QQuickItem *> hooked_;
+    QSet<QQuickItem *> pendingVisibility_;
     Theme theme_;
     Stats stats_;
     QJsonArray pendingTree_;

@@ -1336,6 +1336,14 @@ padding })` caps and centers content on large windows.
   for scrolls QML draws (for example one with `onScroll`), and stops a fling that is in
   progress. `scrollToEnd` waits for rows added in the same update. One controller
   serves one scroll.
+- `onVisible(visible)`, `onEnterViewport()` and `onLeaveViewport()` tell when a node
+  comes into view or leaves it: inside a scroll it is measured against that scroll,
+  elsewhere against the window. Use them to load an image, start a video or mark a
+  message as read. The renderer checks once per frame while something moves and only
+  for nodes that ask (5,000 watched rows cost about 2 ms a check), so a long list can
+  watch every row. A node only has to be partly inside to count as visible. They work on
+  every node the renderer draws and on QML nodes, but not on nodes inside a QML node
+  (for example in a `Sheet`).
 - `a11yRole` and `a11yChecked` add screen-reader roles and state; `a11yLabel`
   and `a11yHint` still set the accessible name and description.
 - `component()` re-renders only when a signal, store key or prop it read changes.

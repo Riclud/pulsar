@@ -214,6 +214,17 @@ interface CommonOptions {
   onLayout?: (box: { width: number; height: number; x: number; y: number }) => void
   onFocus?: () => void
   onBlur?: () => void
+  /**
+   * Called with `true` when the node comes into view and `false` when it leaves. A node in a
+   * scroll is measured against that scroll, any other node against the window. The renderer
+   * checks once per frame while something moves, and only for nodes that ask, so long lists stay cheap.
+   * Works for nodes the renderer draws itself and for QML nodes, but not for nodes inside a QML node.
+   */
+  onVisible?: (visible: boolean) => void
+  /** Called when the node comes into view (see `onVisible`). */
+  onEnterViewport?: () => void
+  /** Called when the node leaves the view (see `onVisible`). */
+  onLeaveViewport?: () => void
   /** Neon glow around the node; `true` uses the theme primary. */
   neon?: boolean | NeonOptions
 }
@@ -944,11 +955,14 @@ const makeNode = <P extends object>(
   events: string[] = [],
   callbacks?: Record<string, UiHandler>,
 ): UiNode => {
-  const { neon, onLayout, onFocus, onBlur, drag, ...rest } = props as P & {
+  const { neon, onLayout, onFocus, onBlur, onVisible, onEnterViewport, onLeaveViewport, drag, ...rest } = props as P & {
     neon?: boolean | NeonOptions
     onLayout?: (box: { width: number; height: number; x: number; y: number }) => void
     onFocus?: () => void
     onBlur?: () => void
+    onVisible?: (visible: boolean) => void
+    onEnterViewport?: () => void
+    onLeaveViewport?: () => void
     drag?: DragOptions
   }
   const id = nextId++
@@ -975,6 +989,21 @@ const makeNode = <P extends object>(
   if (blur) {
     eventList.push("blur")
     callbackMap.blur = () => blur()
+  }
+
+  if (typeof onVisible === "function") {
+    eventList.push("visible")
+    callbackMap.visible = (value) => onVisible(value === true)
+  }
+
+  if (typeof onEnterViewport === "function") {
+    eventList.push("enterViewport")
+    callbackMap.enterViewport = () => onEnterViewport()
+  }
+
+  if (typeof onLeaveViewport === "function") {
+    eventList.push("leaveViewport")
+    callbackMap.leaveViewport = () => onLeaveViewport()
   }
 
   const release = drag?.onRelease

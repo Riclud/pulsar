@@ -8,7 +8,9 @@
 #include <QQmlContext>
 #include <QQmlEngine>
 #include <QQuickWindow>
+#include <QScopeGuard>
 #include <QSet>
+#include <QTimer>
 #include <QTextOption>
 
 #include <algorithm>
@@ -160,6 +162,18 @@ const QSet<QString> &scrollProps()
     };
 
     return props;
+}
+
+// Events the renderer raises itself, so a node that only has these stays native.
+bool passiveEvent(const QString &event)
+{
+    return event == QLatin1String("visible") || event == QLatin1String("enterViewport")
+        || event == QLatin1String("leaveViewport");
+}
+
+bool hasActiveEvents(const QJsonArray &events)
+{
+    return std::any_of(events.begin(), events.end(), [](const QJsonValue &event) { return !passiveEvent(event.toString()); });
 }
 
 bool propsAllowed(const QJsonObject &props, std::initializer_list<const QSet<QString> *> allowed)
@@ -790,6 +804,9 @@ void NativeRenderer::detach()
 
     // The window owns the items and is about to delete them.
     index_.clear();
+    watched_.clear();
+    hooked_.clear();
+    pendingVisibility_.clear();
     tree_.reset();
     root_ = nullptr;
     host_ = nullptr;
@@ -1303,7 +1320,8 @@ NativeRenderer::Kind NativeRenderer::kindFor(const QJsonObject &json, bool insid
 
     if (type == QLatin1String("card") || type == QLatin1String("box")) {
         const bool plainEvents = std::all_of(events.begin(), events.end(), [](const QJsonValue &event) {
-            return event.toString() == QLatin1String("click") || event.toString() == QLatin1String("longPress");
+            return event.toString() == QLatin1String("click") || event.toString() == QLatin1String("longPress")
+                || passiveEvent(event.toString());
         });
 
         if (!plainEvents)
@@ -1317,7 +1335,7 @@ NativeRenderer::Kind NativeRenderer::kindFor(const QJsonObject &json, bool insid
             if (!propsAllowed(props, { &commonProps(), &paddingProps(), &boxProps() }))
                 return Kind::Shell;
 
-            return events.isEmpty() ? Kind::Box : Kind::ClickableBox;
+            return hasActiveEvents(events) ? Kind::ClickableBox : Kind::Box;
         }
 
         const bool known = propsAllowed(props, { &commonProps(), &paddingProps(), &boxProps(), &stateProps(), &transitionProp() });
@@ -1325,7 +1343,7 @@ NativeRenderer::Kind NativeRenderer::kindFor(const QJsonObject &json, bool insid
         return known && statesPortable(props) ? Kind::StateBox : Kind::Shell;
     }
 
-    if (!events.isEmpty())
+    if (hasActiveEvents(events))
         return Kind::Island;
 
     if (type == QLatin1String("text"))
@@ -1560,6 +1578,8 @@ void NativeRenderer::bindScroll(Node &node)
 
 void NativeRenderer::sync(Node &node, const QJsonObject &json, bool withChildren)
 {
+    const auto watch = qScopeGuard([&]() { refreshWatch(node); });
+
     if (node.kind == Kind::Island) {
         syncIsland(node, json, false);
         return;
@@ -1711,7 +1731,7 @@ void NativeRenderer::stateInput(const QString &path)
 // The pointing hand shows over anything that reacts to the pointer, and stays once it has.
 void NativeRenderer::applyPointer(Node &node)
 {
-    const bool clicks = !node.json.value(QLatin1String("events")).toArray().isEmpty();
+    const bool clicks = hasActiveEvents(node.json.value(QLatin1String("events")).toArray());
     const bool reacts = node.props.contains(QLatin1String("hover")) || node.props.contains(QLatin1String("hoverColor"));
 
     if (QObject *tap = node.item->property("tapHandler").value<QObject *>())
@@ -2090,6 +2110,7 @@ void NativeRenderer::syncChildren(Node &node, const QJsonArray &children)
 void NativeRenderer::forget(Node &node)
 {
     index_.remove(node.path);
+    unwatch(node);
 
     for (const std::unique_ptr<Node> &child : node.children) {
         dirtyStacks_.remove(child.get());
@@ -2123,6 +2144,196 @@ void NativeRenderer::discard(Node &node, QQuickItem *after)
 
     if (animating.toBool() && node.parent->stack && node.item->parentItem() == node.parent->stack)
         node.parent->stack->keepLeaving(kidFor(*node.parent, node), after);
+}
+
+bool wantsVisibility(const QJsonArray &events)
+{
+    return std::any_of(events.begin(), events.end(), [](const QJsonValue &event) { return passiveEvent(event.toString()); });
+}
+
+void NativeRenderer::refreshWatch(Node &node)
+{
+    if (!node.item || !node.parent)
+        return;
+
+    const bool wants = wantsVisibility(node.json.value(QLatin1String("events")).toArray());
+
+    if (!wants) {
+        unwatch(node);
+
+        return;
+    }
+
+    if (node.viewport)
+        return;
+
+    QQuickItem *viewport = host_;
+
+    for (const Node *up = node.parent; up; up = up->parent) {
+        if (up->kind == Kind::Scroll && up->item) {
+            viewport = up->item;
+
+            break;
+        }
+    }
+
+    if (!viewport)
+        return;
+
+    node.viewport = viewport;
+    node.visibleState = -1;
+    watched_[viewport].append(&node);
+
+    hookViewport(viewport);
+    connect(node.item, &QQuickItem::yChanged, this, [this, viewport]() { scheduleVisibility(viewport); });
+    connect(node.item, &QQuickItem::heightChanged, this, [this, viewport]() { scheduleVisibility(viewport); });
+    scheduleVisibility(viewport);
+}
+
+void NativeRenderer::unwatch(Node &node)
+{
+    if (!node.viewport)
+        return;
+
+    const auto found = watched_.find(node.viewport);
+
+    if (found != watched_.end())
+        found->removeOne(&node);
+
+    node.viewport = nullptr;
+    node.visibleState = -1;
+}
+
+// One scroll feeds all the nodes watching it, so a long list costs one connection, not one per row.
+void NativeRenderer::hookViewport(QQuickItem *viewport)
+{
+    if (hooked_.contains(viewport))
+        return;
+
+    hooked_.insert(viewport);
+
+    const auto schedule = [this, viewport]() { scheduleVisibility(viewport); };
+
+    if (viewport == host_) {
+        connect(viewport, &QQuickItem::widthChanged, this, schedule);
+        connect(viewport, &QQuickItem::heightChanged, this, schedule);
+    } else {
+        for (const char *signal : { SIGNAL(contentYChanged()), SIGNAL(contentHeightChanged()), SIGNAL(heightChanged()),
+                                    SIGNAL(widthChanged()) }) {
+            connect(viewport, signal, this, SLOT(scheduleVisibilitySlot()));
+        }
+    }
+
+    connect(viewport, &QObject::destroyed, this, [this, viewport]() {
+        hooked_.remove(viewport);
+        pendingVisibility_.remove(viewport);
+        watched_.remove(viewport);
+    });
+}
+
+void NativeRenderer::scheduleVisibilitySlot()
+{
+    if (auto *viewport = qobject_cast<QQuickItem *>(sender()))
+        scheduleVisibility(viewport);
+}
+
+// Coalesced: scrolling and layout change many things per frame, one check follows them all.
+void NativeRenderer::scheduleVisibility(QQuickItem *viewport)
+{
+    if (pendingVisibility_.contains(viewport))
+        return;
+
+    pendingVisibility_.insert(viewport);
+
+    QTimer::singleShot(16, this, [this, viewport = QPointer<QQuickItem>(viewport)]() {
+        if (!viewport)
+            return;
+
+        pendingVisibility_.remove(viewport);
+        checkVisibility(viewport);
+    });
+}
+
+// An empty node still has a place: it is in view when that place is.
+static bool overlaps(qreal start, qreal length, qreal extent)
+{
+    if (length <= 0)
+        return start >= 0 && start <= extent;
+
+    return start + length > 0 && start < extent;
+}
+
+void NativeRenderer::checkVisibility(QQuickItem *viewport)
+{
+    const auto found = watched_.constFind(viewport);
+
+    if (found == watched_.constEnd() || !root_)
+        return;
+
+    QElapsedTimer timer;
+
+    timer.start();
+
+    const qreal width = viewport->width();
+    const qreal height = viewport->height();
+    const bool shown = viewport->isVisible() && width > 0 && height > 0;
+
+    // Emitting can change the tree, so decide for all first.
+    struct Change {
+        QVariantMap node;
+        bool visible;
+        bool first;
+        QStringList events;
+    };
+
+    QList<Change> changes;
+
+    for (Node *node : *found) {
+        bool visible = shown && node->item && node->item->isVisible();
+
+        if (visible) {
+            const QRectF box = node->item->mapRectToItem(viewport, QRectF(0, 0, node->item->width(), node->item->height()));
+
+            visible = overlaps(box.left(), box.width(), width) && overlaps(box.top(), box.height(), height);
+        }
+
+        if (int(visible) == node->visibleState)
+            continue;
+
+        const bool first = node->visibleState < 0;
+
+        node->visibleState = visible;
+
+        QStringList events;
+
+        for (const QJsonValue &event : node->json.value(QLatin1String("events")).toArray())
+            events.append(event.toString());
+
+        changes.append({ { { QStringLiteral("path"), node->path },
+                           { QStringLiteral("id"), node->json.value(QLatin1String("id")).toVariant() },
+                           { QStringLiteral("events"), node->json.value(QLatin1String("events")).toVariant() } },
+                         visible, first, events });
+    }
+
+    const auto raise = [this](const Change &change, const QString &event, const QVariant &value) {
+        if (!change.events.contains(event))
+            return;
+
+        QMetaObject::invokeMethod(root_, "emitEvent", Q_ARG(QVariant, change.node), Q_ARG(QVariant, event), Q_ARG(QVariant, value));
+    };
+
+    if (debugging() && !changes.isEmpty())
+        qInfo().noquote() << QStringLiteral("PulsarView visibility %1 watched, %2 changed, %3 ms")
+                                 .arg(found->size()).arg(changes.size()).arg(timer.nsecsElapsed() / 1e6, 0, 'f', 2);
+
+    for (const Change &change : std::as_const(changes)) {
+        raise(change, QStringLiteral("visible"), change.visible);
+
+        if (change.visible)
+            raise(change, QStringLiteral("enterViewport"), QVariant());
+        else if (!change.first)
+            raise(change, QStringLiteral("leaveViewport"), QVariant());
+    }
 }
 
 bool NativeRenderer::command(const QJsonObject &params)

@@ -585,6 +585,7 @@ const scenarios: Scenario[] = [
   },
   {
     name: "scroll-to",
+    serial: true,
     env: { AUTO_QUIT_MS: "2800" },
     check: (output) => {
       const moved = output.split("\n").filter((line) => line.includes("PulsarView scrolled"))
@@ -605,6 +606,7 @@ const scenarios: Scenario[] = [
   },
   {
     name: "scroll-to-desktop",
+    serial: true,
     fixture: "scroll-to",
     desktop: true,
     env: { AUTO_QUIT_MS: "2800" },
@@ -627,6 +629,7 @@ const scenarios: Scenario[] = [
   },
   {
     name: "virtual-rows",
+    serial: true,
     env: { AUTO_QUIT_MS: "2200" },
     check: (output) => {
       const first = output.match(/FIRST rendered=(\d+) highest=(\d+)/)
@@ -639,6 +642,26 @@ const scenarios: Scenario[] = [
 
       // 1000 rows exist, only a window of them is ever drawn: first the top, then around row 500.
       return rendered < 80 && highest < 80 && moved > 0 && moved < 80 && lowest >= 480 && top >= 505 && top < 540
+    },
+  },
+  {
+    name: "visibility",
+    serial: true,
+    env: { AUTO_QUIT_MS: "2000" },
+    check: (output) => {
+      const count = (text: string) => output.split("\n").filter((line) => line.endsWith(text)).length
+      const rows = (from: number, to: number) => Array.from({ length: to - from }, (_, index) => from + index)
+
+      return (
+        // 30 px rows in 300 px: rows 0 to 9 are on the first screen, row 10 is not.
+        rows(0, 10).every((row) => count(`ENTER ${row}`) === 1 && count(`VISIBLE ${row} true`) === 1) &&
+        rows(10, 20).every((row) => count(`ENTER ${row}`) === 0) &&
+        // The scroll to 600 px shows rows 20 to 29 and hides the first ten.
+        rows(20, 30).every((row) => count(`ENTER ${row}`) === 1) &&
+        rows(0, 10).every((row) => count(`LEAVE ${row}`) === 1 && count(`VISIBLE ${row} false`) === 1) &&
+        count("ENTER 40") === 0 &&
+        count("LEAVE 25") === 0
+      )
     },
   },
   {
