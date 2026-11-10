@@ -523,6 +523,18 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "box-fill",
+    desktop: true,
+    check: (output) => {
+      return (
+        output.includes("FILL box 200 10") &&
+        output.includes("FILL card 208 10") &&
+        output.includes("FILL column 180 10") &&
+        output.includes("FILL hug 0 10")
+      )
+    },
+  },
+  {
     name: "packing",
     check: (output) => {
       return output.includes("SIZE wide 40") && output.includes("SIZE hug 40") && output.includes("SIZE grow 100")

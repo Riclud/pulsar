@@ -1950,8 +1950,9 @@ NativeStack::Kid NativeRenderer::kidFor(const Node &parent, Node &child) const
 
     const bool flowsInScroll = child.kind == Kind::Stack && child.type == QLatin1String("list");
 
-    kid.fillWidth = typesFillingWidth().contains(child.type);
-    kid.fillHeight = typesFillingHeight().contains(child.type) && !flowsInScroll;
+    // A size given by the app wins over the fill a type has by default.
+    kid.fillWidth = typesFillingWidth().contains(child.type) && !props.contains(QLatin1String("width"));
+    kid.fillHeight = typesFillingHeight().contains(child.type) && !flowsInScroll && !props.contains(QLatin1String("height"));
 
     if (props.contains(QLatin1String("expand")))
         kid.fillWidth = props.value(QLatin1String("expand")).toBool();

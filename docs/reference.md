@@ -1312,7 +1312,7 @@ padding })` caps and centers content on large windows.
 - `component()` re-renders only when a signal, store key or prop it read changes.
   See the [components guide](guide-components.md).
 - `justify`, `alignItems`, `flex`, `paddingX`, `paddingY`, per-side padding, min and
-  max sizes, `clip`, `zIndex` and `absolute` lay out any node; `Row`, `Column`,
+  max sizes, `clip`, `zIndex` and `absolute` (only inside a `Stack`) lay out any node; `Row`, `Column`,
   `Wrap` and `Stack` accept the surface props of `Box`. See the
   [guide for web developers](guide-web.md).
 - `Wave`, `Lightning` and `Aurora` are ready GPU effects, and `Shader({ source })` runs your

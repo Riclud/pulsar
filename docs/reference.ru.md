@@ -1313,7 +1313,7 @@ intensity: 1.2 } })` или `Text({ neon: true })`. Компонент обор�
 - `component()` перерисовывается, только когда изменился прочитанный им сигнал, ключ
   store или свойство. См. [руководство по компонентам](guide-components.ru.md).
 - `justify`, `alignItems`, `flex`, `paddingX`, `paddingY`, отступы по сторонам,
-  минимальные и максимальные размеры, `clip`, `zIndex` и `absolute` работают для
+  минимальные и максимальные размеры, `clip`, `zIndex` и `absolute` (только внутри `Stack`) работают для
   любого узла; `Row`, `Column`, `Wrap` и `Stack` принимают свойства оформления `Box`.
   См. [руководство для веб-разработчиков](guide-web.ru.md).
 - `Wave`, `Lightning` и `Aurora` — готовые эффекты на видеокарте, а `Shader({ source })`

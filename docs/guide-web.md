@@ -214,6 +214,17 @@ do otherwise. Set a `width` or `fillWidth: false` if you want a narrow `Row`. If
 centered child seems to do nothing, the `Row` or its parent is probably narrower than
 you think, so add `fillWidth`.
 
+**A child cannot fill a parent that hugs its content.** `fillWidth` takes the width
+the parent has, so inside a `Box`, `Card`, `Row` or `Column` that is only as wide as
+its content, the child collapses to nothing. Give the parent a `width` or its own
+`fillWidth`. An explicit `width` or `height` on a node also switches off the fill that
+types such as `Card` have by default.
+
+**Only `Stack` has layers.** `Box` and `Card` stack their children like a `Column`, so
+`absolute` is ignored there; wrap the content in a `Stack` instead. In a `Stack` a
+child with `width`, `height` or `align` is centred, and any other child fills it. A
+`Stack` without a size is as big as its largest child.
+
 ## Build a screen, step by step
 
 Here is a contact card, built the way you would build it on the web.

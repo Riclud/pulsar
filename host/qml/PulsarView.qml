@@ -3696,6 +3696,11 @@ ApplicationWindow {
             fillWidth = fill;
             fillHeight = fill;
         }
+        // A size given by the app wins over the fill a type has by default.
+        if (props.width !== undefined && fill === undefined && props.expand === undefined)
+            fillWidth = false;
+        if (props.height !== undefined && fill === undefined)
+            fillHeight = false;
         if (props.fillWidth !== undefined)
             fillWidth = props.fillWidth;
         if (props.fillHeight !== undefined)
