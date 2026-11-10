@@ -7078,7 +7078,8 @@ ApplicationWindow {
                     : /^[a-z][a-z0-9+.-]*:/i.test(source) ? source
                     : "file://" + (source.charAt(0) === "/" ? source : base + "/" + source);
 
-            if (item.source !== url) {
+            // Loader.source is a url, so a plain comparison with the string always differs and reloads the item.
+            if (item.source.toString() !== url) {
                 if (url.length === 0) {
                     item.source = "";
                 } else {

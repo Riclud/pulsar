@@ -10,6 +10,8 @@ type Scenario = {
   desktop?: boolean
   /** Fixture file name, when it differs from the scenario name. */
   fixture?: string
+  /** Extra files written into the app folder, by name. */
+  files?: Record<string, string>
   /** Run the desktop host with the bundle on its in-process QuickJS runtime. */
   quickjsDesktop?: boolean
   env?: Record<string, string>
@@ -222,6 +224,24 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "qml-keeps-item",
+    env: { AUTO_QUIT_MS: "1500" },
+    files: {
+      "probe.qml": [
+        "import QtQuick",
+        "Item {",
+        "    property var pulsarEmit: null",
+        "    property int step: 0",
+        '    Component.onCompleted: console.log("QML_PROBE created")',
+        '    onStepChanged: console.log("QML_PROBE step " + step)',
+        "}",
+      ].join("\n"),
+    },
+    check: (output) => {
+      return (output.match(/QML_PROBE created/g) ?? []).length === 1 && output.includes("QML_PROBE step 3")
+    },
+  },
+  {
     name: "hidden-padding",
     check: (output) => {
       const sizes = output.split("\n").filter((line) => line.includes("SIZE padded "))
@@ -389,6 +409,8 @@ const runScenario = async (scenario: Scenario) => {
   if ((scenario.desktop || scenario.quickjsDesktop) && override) return true
 
   const dir = mkdtempSync(join(tmpdir(), "pulsar-regression-"))
+
+  for (const [name, text] of Object.entries(scenario.files ?? {})) writeFileSync(join(dir, name), text)
   const hostLog = join(dir, "host.log")
 
   try {
