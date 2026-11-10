@@ -86,6 +86,17 @@ const QSet<QString> &textProps()
     return props;
 }
 
+const QSet<QString> &iconProps()
+{
+    static const QSet<QString> props = {
+        QStringLiteral("name"),
+        QStringLiteral("size"),
+        QStringLiteral("color"),
+    };
+
+    return props;
+}
+
 const QSet<QString> &boxProps()
 {
     static const QSet<QString> props = {
@@ -711,6 +722,7 @@ void NativeRenderer::loadTheme()
     theme_.text = root_->property("themeText");
     theme_.border = root_->property("themeBorder");
     theme_.fontFamily = root_->property("fontFamily").toString();
+    theme_.iconFamily = root_->property("iconFamily").toString();
     theme_.fontScale = root_->property("fontScale").toReal();
     theme_.spacing = root_->property("themeSpacing").toInt();
 }
@@ -1216,6 +1228,9 @@ NativeRenderer::Kind NativeRenderer::kindFor(const QJsonObject &json, bool insid
     if (type == QLatin1String("text"))
         return propsAllowed(props, { &commonProps(), &textProps() }) ? Kind::Text : Kind::Island;
 
+    if (type == QLatin1String("icon"))
+        return propsAllowed(props, { &commonProps(), &iconProps() }) ? Kind::Text : Kind::Island;
+
     if (type == QLatin1String("spacer"))
         return propsAllowed(props, { &commonProps(), &spacerProps() }) ? Kind::Spacer : Kind::Island;
 
@@ -1518,7 +1533,11 @@ void NativeRenderer::applyProps(Node &node)
     applyCommon(node);
 
     if (node.kind == Kind::Text) {
-        applyText(node);
+        if (node.type == QLatin1String("icon"))
+            applyIcon(node);
+        else
+            applyText(node);
+
         return;
     }
 
@@ -1579,6 +1598,31 @@ void NativeRenderer::applyScroll(Node &node)
     };
 
     QMetaObject::invokeMethod(root_, "nativeScroll", Q_ARG(QVariant, itemArg(node.item)), Q_ARG(QVariant, own));
+}
+
+// The glyph is text in the icon font, drawn as the QML icon branch does.
+void NativeRenderer::applyIcon(Node &node)
+{
+    QQuickItem *item = node.item;
+    const QJsonObject &props = node.props;
+    const QString align = props.value(QLatin1String("align")).toString();
+    const QString color = resolveColor(props.value(QLatin1String("color")), theme_.text);
+
+    QFont font(theme_.iconFamily);
+
+    font.setPixelSize(int(std::round(number(props, QLatin1String("size"), 24) * theme_.fontScale)));
+
+    item->setProperty("text", props.value(QLatin1String("name")).toString());
+    item->setProperty("font", font);
+    item->setProperty("color", color);
+    item->setProperty("horizontalAlignment", int(align == QLatin1String("center") ? Qt::AlignHCenter
+                                                 : align == QLatin1String("right") || align == QLatin1String("end")
+                                                     ? Qt::AlignRight
+                                                     : Qt::AlignLeft));
+
+    if (debugging())
+        qInfo().noquote() << "PulsarView icon" << node.path << "family=" + font.family()
+                          << "px=" + QString::number(font.pixelSize()) << "color=" + color;
 }
 
 void NativeRenderer::applyText(Node &node)

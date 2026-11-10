@@ -181,6 +181,7 @@ private:
         QVariant text;
         QVariant border;
         QString fontFamily;
+        QString iconFamily;
         qreal fontScale = 1;
         int spacing = 8;
     };
@@ -218,6 +219,7 @@ private:
     void applyCommon(Node &node);
     void applyBox(Node &node);
     void applyText(Node &node);
+    void applyIcon(Node &node);
     void applyScroll(Node &node);
     void refreshKids(Node &node);
     void bindScroll(Node &node);

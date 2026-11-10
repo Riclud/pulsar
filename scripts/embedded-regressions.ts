@@ -318,6 +318,29 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "icons",
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "1500" },
+    check: (output) => {
+      // The badged icon is not native, so only four glyphs log. Each logs again when the theme changes.
+      const lines = output.split("\n")
+
+      const last = (name: string) => {
+        return lines.filter((line) => line.includes(`PulsarView icon /root/row/${name} `)).at(-1)
+      }
+
+      const first = lines.find((line) => line.includes("PulsarView icon /root/row/plain "))
+
+      return (
+        first?.includes("family=Material Icons px=24") === true &&
+        last("plain")?.endsWith("family=Test Icons px=36 color=#ff112233") === true &&
+        last("sized")?.endsWith("family=Test Icons px=48 color=#ff112233") === true &&
+        last("themed")?.endsWith("family=Test Icons px=36 color=#336699") === true &&
+        last("literal")?.endsWith("family=Test Icons px=36 color=#ff0000") === true &&
+        last("badged") === undefined
+      )
+    },
+  },
+  {
     name: "nested-list",
     check: (output) => output.includes("LIST page 120") && output.includes("LIST column 300"),
   },
