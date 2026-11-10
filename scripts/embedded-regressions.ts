@@ -3,9 +3,12 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs
 import { tmpdir } from "os"
 import { join, resolve } from "path"
 import { bundleRuntime } from "../cli/android.ts"
+import { prebuilt, runPool, testJobs } from "./lib/pool.ts"
 
 type Scenario = {
   name: string
+  /** Measures timing or sizes over time, so it must not share the machine with other scenarios. */
+  serial?: boolean
   standalone?: boolean
   desktop?: boolean
   /** Fixture file name, when it differs from the scenario name. */
@@ -105,6 +108,7 @@ const scenarios: Scenario[] = [
   },
   {
     name: "motion",
+    serial: true,
     env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "3200" },
     check: (output) => {
       return (
@@ -154,6 +158,7 @@ const scenarios: Scenario[] = [
   },
   {
     name: "rtl",
+    serial: true,
     env: { AUTO_QUIT_MS: "3500" },
     check: (output) => {
       const settled = new Map<string, string>()
@@ -179,6 +184,7 @@ const scenarios: Scenario[] = [
   },
   {
     name: "column-gap-motion",
+    serial: true,
     env: { AUTO_QUIT_MS: "6500" },
     check: (output) => {
       const lines = output.split("\n")
@@ -197,11 +203,7 @@ const scenarios: Scenario[] = [
   {
     name: "focus",
     check: (output) => {
-      return (
-        output.includes("FIELD focus") &&
-        !output.includes("FIELD blur") &&
-        output.includes("SIZE flexed 400")
-      )
+      return output.includes("FIELD focus") && !output.includes("FIELD blur") && output.includes("SIZE flexed 400")
     },
   },
   {
@@ -215,6 +217,7 @@ const scenarios: Scenario[] = [
   },
   {
     name: "shell-enter",
+    serial: true,
     env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "1600" },
     check: (output) => {
       const heights = (output.match(/SIZE entering (\d+)/g) ?? []).map((line) => Number(line.split(" ")[2]))
@@ -251,6 +254,7 @@ const scenarios: Scenario[] = [
   },
   {
     name: "canvas",
+    serial: true,
     check: (output) => {
       return (
         output.includes("CANVAS still 300 40 #123456") &&
@@ -274,6 +278,7 @@ const scenarios: Scenario[] = [
   },
   {
     name: "arrange",
+    serial: true,
     check: (output) => {
       const glide = (output.match(/ARRANGE glide (\d+)/g) ?? []).map((line) => Number(line.split(" ")[2]))
       const between = glide.filter((value) => value > 5 && value < 95).length
@@ -363,6 +368,8 @@ const scenarios: Scenario[] = [
 const buildHost = () => {
   if (override) return existsSync(override)
 
+  if (prebuilt()) return existsSync(binary)
+
   const build = Bun.spawnSync({
     cmd: ["cmake", "--build", "build", "--target", "qml-host-qjs", "qml-host", "bridge"],
     cwd: root,
@@ -405,8 +412,18 @@ const prepareDesktop = (scenario: Scenario, dir: string) => {
   writeFileSync(join(dir, "pulsar.json"), JSON.stringify(manifest))
 }
 
-const runScenario = async (scenario: Scenario) => {
-  if ((scenario.desktop || scenario.quickjsDesktop) && override) return true
+type Outcome = {
+  name: string
+  passed: boolean
+  report: string
+  ms: number
+}
+
+const runScenario = async (scenario: Scenario): Promise<Outcome> => {
+  const started = Date.now()
+
+  if ((scenario.desktop || scenario.quickjsDesktop) && override)
+    return { name: scenario.name, passed: true, report: "", ms: 0 }
 
   const dir = mkdtempSync(join(tmpdir(), "pulsar-regression-"))
 
@@ -456,15 +473,17 @@ const runScenario = async (scenario: Scenario) => {
 
     const hostOutput = existsSync(hostLog) ? readFileSync(hostLog, "utf8") : ""
     const output = `${stdout}\n${stderr}\n${hostOutput}${timedOut ? `\nhost hung: killed after ${limit} ms\n` : ""}`
-    const passed = !timedOut && exitCode === 0 && scenario.check(output) && !output.includes("recursive rearrange") && !output.includes("read-only property") && !output.includes("as the root of a QML document")
+    const passed =
+      !timedOut &&
+      exitCode === 0 &&
+      scenario.check(output) &&
+      !output.includes("recursive rearrange") &&
+      !output.includes("read-only property") &&
+      !output.includes("as the root of a QML document")
 
-    console.log(`${passed ? "ok  " : "FAIL"} ${scenario.name} (exit ${exitCode})`)
+    const head = `${passed ? "ok  " : "FAIL"} ${scenario.name} (exit ${exitCode}, ${Date.now() - started} ms)`
 
-    if (!passed) console.log(output.split("\n").slice(-40).join("\n"))
-
-    if (!passed && process.env.PULSAR_REGRESSION_VERBOSE) console.error(output)
-
-    return passed
+    return { name: scenario.name, passed, report: passed ? head : `${head}\n${output}`, ms: Date.now() - started }
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -476,21 +495,55 @@ if (!buildHost()) {
   process.exit(1)
 }
 
-let failed = 0
+const selected = scenarios.filter((scenario) => !only || scenario.name === only)
+const jobs = testJobs()
 
-for (const scenario of scenarios) {
-  if (only && scenario.name !== only) continue
+const run = async (scenario: Scenario) => {
+  const outcome = await runScenario(scenario)
 
-  const passed = await runScenario(scenario)
+  if (outcome.report) console.log(outcome.report)
 
-  if (!passed) failed++
+  return outcome
+}
+
+const outcomes: Outcome[] = []
+
+if (jobs === 1) {
+  // The old behaviour: every scenario in order, one at a time.
+  for (const scenario of selected) outcomes.push(await run(scenario))
+}
+
+if (jobs > 1) {
+  const parallel = selected.filter((scenario) => !scenario.serial)
+  const serial = selected.filter((scenario) => scenario.serial)
+
+  // Timing-sensitive scenarios run one at a time in their own lane, never next to each other.
+  // The lane plus the pool stay within `jobs` hosts, so the machine is never saturated.
+  const lane = async () => {
+    const done: Outcome[] = []
+
+    for (const scenario of serial) done.push(await run(scenario))
+
+    return done
+  }
+
+  const pool = runPool(
+    parallel.map((scenario) => () => run(scenario)),
+    jobs - 1,
+  )
+
+  const [laneOutcomes, poolOutcomes] = await Promise.all([lane(), pool])
+
+  outcomes.push(...poolOutcomes, ...laneOutcomes)
 }
 
 void server.stop(true)
 
-if (failed > 0) {
-  console.error(`embedded-regressions: ${failed} FAILED`)
+const failed = outcomes.filter((outcome) => !outcome.passed)
+
+if (failed.length > 0) {
+  console.error(`embedded-regressions: ${failed.length} FAILED (${failed.map((outcome) => outcome.name).join(", ")})`)
   process.exit(1)
 }
 
-console.log("embedded-regressions: OK")
+console.log(`embedded-regressions: OK (${outcomes.length} scenarios, jobs ${jobs})`)
