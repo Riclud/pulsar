@@ -1175,6 +1175,14 @@ const COMMANDS: Array<[string, Array<[string, string]>]> = [
   ],
 ]
 
+const ENVIRONMENT: Array<[string, string]> = [
+  ["PULSAR_SOURCE", "use a Pulsar checkout (CLI, SDK, host) instead of the installed toolchain"],
+  ["PULSAR_HOME", "where the toolchain is installed"],
+  ["PULSAR_HOST", "path of a qml-host binary to run and pack"],
+  ["PULSAR_NODE", "Node binary for compat: node apps"],
+  ["PULSAR_ANDROID_*", "Qt, SDK, NDK and Java locations, and the keystore, for Android builds"],
+]
+
 const usage = () => {
   ui.banner(cliVersion())
 
@@ -1186,6 +1194,11 @@ const usage = () => {
     console.log("")
   }
 
+  console.log(`  ${ui.bold("Environment")}`)
+
+  for (const [name, text] of ENVIRONMENT) console.log(`    ${ui.code(name.padEnd(18))} ${ui.dim(text)}`)
+
+  console.log("")
   console.log(`  ${ui.dim("Docs:")} https://pulsarjs.org`)
   console.log("")
 }
