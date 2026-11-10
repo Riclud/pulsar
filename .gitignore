@@ -56,3 +56,6 @@ aqtinstall.log
 
 # dev session marker (`pulsar dev --android`)
 .pulsar/
+
+# Claude Code agent worktrees.
+.claude/worktrees/
