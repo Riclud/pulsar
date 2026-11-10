@@ -554,8 +554,14 @@ const scenarios: Scenario[] = [
   {
     name: "tabs-column",
     check: (output) => {
-      const tabs = output.match(/TABS tabs (\d+) (\d+)/g)?.at(-1)?.split(" ")
-      const footer = output.match(/TABS footer (\d+) (\d+)/g)?.at(-1)?.split(" ")
+      const tabs = output
+        .match(/TABS tabs (\d+) (\d+)/g)
+        ?.at(-1)
+        ?.split(" ")
+      const footer = output
+        .match(/TABS footer (\d+) (\d+)/g)
+        ?.at(-1)
+        ?.split(" ")
 
       if (!tabs || !footer) return false
 
@@ -752,6 +758,7 @@ const runScenario = async (scenario: Scenario): Promise<Outcome> => {
       new Response(run.stderr).text(),
       run.exited,
     ])
+
     clearTimeout(timer)
 
     const hostOutput = existsSync(hostLog) ? readFileSync(hostLog, "utf8") : ""

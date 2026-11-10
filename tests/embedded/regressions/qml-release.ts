@@ -9,7 +9,9 @@ app.window("main").render(() => {
 
   return Column(
     { key: "root" },
-    phase === 0 || phase === 1 ? Qml({ key: phase === 0 ? "first" : "second", source: "probe.qml", props: { name: `p${phase}` } }) : null,
+    phase === 0 || phase === 1
+      ? Qml({ key: phase === 0 ? "first" : "second", source: "probe.qml", props: { name: `p${phase}` } })
+      : null,
     phase >= 2 ? Text({ key: "gone", text: "removed" }) : null,
   )
 })

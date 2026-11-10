@@ -24,7 +24,7 @@ app.window("main").render(() => {
         { key: "sized", width: 200, color: "#234" },
         Box({ key: "in-box", fillWidth: true, height: 10, onLayout: report("box") }),
       ),
-      Card({ key: "card", width: 240}, Box({ key: "in-card", fillWidth: true, height: 10, onLayout: report("card") })),
+      Card({ key: "card", width: 240 }, Box({ key: "in-card", fillWidth: true, height: 10, onLayout: report("card") })),
       Column(
         { key: "wide", width: 180 },
         Box({ key: "in-column", fillWidth: true, height: 10, onLayout: report("column") }),
