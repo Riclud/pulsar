@@ -1277,8 +1277,9 @@ padding })` caps and centers content on large windows.
   take `password`, `keyboardType`, `autoFocus`, `maxLength`, `readOnly` and
   `onSubmitted`/`onFocus`/`onBlur`. `Text({ markdown: true })` renders Markdown;
   `selectable`, `elide`, `maxLines` and `align` control plain text.
-- `Tabs({ items, index })` is a tab strip; `Segmented` is the compact
-  alternative. `Pager({ index, interactive })` swipes between children and
+- `Tabs({ items, index })` is a tab strip with its pages; it is as tall as the bar
+  plus the tallest page, so add `fillHeight: true` (or `flex`) to make it take the
+  rest of a `Column`. `Segmented` is the compact alternative. `Pager({ index, interactive })` swipes between children and
   reports `onPageChange`.
 - `Sheet({ placement: "bottom" })` slides from the bottom; set `handle: true` to show
   a drag handle. `Popover` anchors a floating panel at `x`/`y`;

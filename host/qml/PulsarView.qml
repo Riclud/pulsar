@@ -3684,7 +3684,7 @@ ApplicationWindow {
         const fill = prop(props, "fill", undefined);
         let fillWidth = defaultFillWidth;
         let fillHeight = node.type === "list" || node.type === "scroll" || node.type === "grid"
-                || node.type === "virtualList" || node.type === "pager" || node.type === "tabs"
+                || node.type === "virtualList" || node.type === "pager"
                 || node.type === "navRail";
 
         if ((node.type === "list" || node.type === "scroll") && insideScroll(item))

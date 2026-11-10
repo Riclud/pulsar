@@ -40,7 +40,7 @@ const QSet<QString> &typesFillingHeight()
 {
     static const QSet<QString> types = {
         QStringLiteral("list"),  QStringLiteral("scroll"), QStringLiteral("grid"),    QStringLiteral("virtualList"),
-        QStringLiteral("pager"), QStringLiteral("tabs"),   QStringLiteral("navRail"),
+        QStringLiteral("pager"), QStringLiteral("navRail"),
     };
 
     return types;

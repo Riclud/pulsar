@@ -509,6 +509,20 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "tabs-column",
+    check: (output) => {
+      const tabs = output.match(/TABS tabs (\d+) (\d+)/g)?.at(-1)?.split(" ")
+      const footer = output.match(/TABS footer (\d+) (\d+)/g)?.at(-1)?.split(" ")
+
+      if (!tabs || !footer) return false
+
+      const [tabsY, tabsHeight, footerY] = [Number(tabs[2]), Number(tabs[3]), Number(footer[2])]
+
+      // The bar plus one 60 px page, not the rest of the column.
+      return tabsHeight >= 100 && tabsHeight < 160 && footerY === tabsY + tabsHeight
+    },
+  },
+  {
     name: "packing",
     check: (output) => {
       return output.includes("SIZE wide 40") && output.includes("SIZE hug 40") && output.includes("SIZE grow 100")

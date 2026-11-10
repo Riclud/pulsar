@@ -1286,8 +1286,9 @@ padding })` ограничивает ширину и центрирует кон
   `readOnly` и `onSubmitted`/`onFocus`/`onBlur`. `Text({ markdown: true })`
   рендерит Markdown; `selectable`, `elide`, `maxLines` и `align` управляют
   обычным текстом.
-- `Tabs({ items, index })` — полоса вкладок; `Segmented` — компактная
-  альтернатива. `Pager({ index, interactive })` листает дочерние элементы
+- `Tabs({ items, index })` — полоса вкладок со страницами; высота равна полосе
+  плюс самой высокой странице, чтобы занять остаток `Column`, добавьте
+  `fillHeight: true` (или `flex`). `Segmented` — компактная альтернатива. `Pager({ index, interactive })` листает дочерние элементы
   свайпом и сообщает `onPageChange`.
 - `Sheet({ placement: "bottom" })` выезжает снизу; `handle: true` показывает
   ручку для перетаскивания. `Popover` привязывает плавающую панель к `x`/`y`;
