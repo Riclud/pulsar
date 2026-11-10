@@ -311,6 +311,13 @@ export interface ListOptions<T> extends CommonOptions {
   items: T[]
   render: (item: T, index: number) => UiNode
   keyOf?: (item: T, index: number) => string | number
+  /**
+   * Keep each row's node while its item (and its index, if `render` takes one)
+   * is the same. A kept row reruns only when a signal it read changes, so
+   * `render` must read only its arguments and signals: values captured from the
+   * surrounding render are not seen again until the item changes.
+   */
+  memo?: boolean
   spacing?: number
   padding?: number
   onScroll?: (state: ScrollState) => void
@@ -1116,10 +1123,55 @@ const implicitItemKey = (value: unknown): string | number | undefined => {
   return typeof key === "string" || typeof key === "number" ? key : undefined
 }
 
+const memoRows = <T>(
+  parent: ComponentInstance,
+  items: T[],
+  itemKeys: Array<string | number>,
+  render: (item: T, index: number) => UiNode,
+): UiNode[] => {
+  const position = parent.calls.get(ROW_SCOPE) ?? 0
+  const scope = `rows:${position}`
+  const group = parent.instances.get(scope) ?? new Map<string, ComponentInstance>()
+  const readsIndex = render.length > 1
+
+  parent.calls.set(ROW_SCOPE, position + 1)
+  parent.instances.set(scope, group)
+
+  return items.map((item, index) => {
+    let id = `key:${String(itemKeys[index])}`
+
+    if (parent.seen.has(group.get(id) as ComponentInstance)) id = `${id}#${index}`
+
+    const props = { item, index }
+    const existing = group.get(id)
+
+    if (!existing) {
+      const created = createInstance(null, parent, props)
+
+      created.render = () => render(created.props.item as T, created.props.index as number)
+      group.set(id, created)
+      parent.seen.add(created)
+      renderInstance(created)
+
+      return created.node as UiNode
+    }
+
+    const changed = !Object.is(existing.props.item, item) || (readsIndex && existing.props.index !== index)
+
+    existing.props = props
+    existing.render = () => render(existing.props.item as T, existing.props.index as number)
+    parent.seen.add(existing)
+
+    if ((changed || existing.dirty) && !isPaused(existing)) renderInstance(existing)
+
+    return existing.node as UiNode
+  })
+}
+
 export const list = <T>(options: ListOptions<T>): UiNode => {
-  const { items, render, keyOf, onScroll, ...props } = options
-  const children = items.map((item, index) => render(item, index))
+  const { items, render, keyOf, memo, onScroll, ...props } = options
   const itemKeys = items.map((item, index) => keyOf?.(item, index) ?? implicitItemKey(item) ?? index)
+  const children = memo && currentInstance ? memoRows(currentInstance, items, itemKeys, render) : items.map((item, index) => render(item, index))
 
   if (!onScroll) return makeNode("list", { ...props, itemKeys }, children)
 
@@ -1686,6 +1738,8 @@ export interface UiRoot {
 }
 
 let currentInstance: ComponentInstance | null = null
+
+const ROW_SCOPE = Symbol("rows")
 
 const pendingMounts: Array<{ instance: ComponentInstance; run: () => void | Cleanup }> = []
 
@@ -2493,10 +2547,31 @@ const sameChildPaths = (a: SerializedUiNode, b: SerializedUiNode): boolean => {
   return true
 }
 
+const sameShallow = (a: Record<string, unknown>, b: Record<string, unknown>): boolean => {
+  const keys = Object.keys(a)
+
+  if (keys.length !== Object.keys(b).length) return false
+
+  for (const key of keys) {
+    if (!Object.is(a[key], b[key])) return false
+  }
+
+  return true
+}
+
+const sameEvents = (a: string[] | undefined, b: string[] | undefined): boolean => {
+  if (a === b) return true
+  if (!a || !b) return (a ?? b)?.length === 0
+
+  return a.length === b.length && a.every((event, index) => event === b[index])
+}
+
 const sameOwnProps = (a: SerializedUiNode, b: SerializedUiNode): boolean => {
   if (a.type !== b.type) return false
-  if (JSON.stringify(a.events ?? []) !== JSON.stringify(b.events ?? [])) return false
+  if (!sameEvents(a.events, b.events)) return false
+  if (a.props === b.props || sameShallow(a.props, b.props)) return true
 
+  // Equal values are the common case; JSON also ignores functions and undefined.
   return JSON.stringify(a.props) === JSON.stringify(b.props)
 }
 

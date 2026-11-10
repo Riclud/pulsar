@@ -872,3 +872,14 @@ describe("layout additions", () => {
     expect(out[0]!.props.hoverColor).toBe("#123456")
   })
 })
+
+describe("diffUiTrees props comparison", () => {
+  test("ignores function props like JSON does and sees nested changes", () => {
+    const tree = (onTap: () => void, shadow: { x: number }) => {
+      return serialize([box({ color: "red", shadow, onTap } as never)])
+    }
+
+    expect(diffUiTrees(tree(() => {}, { x: 1 }), tree(() => {}, { x: 1 }))).toEqual([])
+    expect(diffUiTrees(tree(() => {}, { x: 1 }), tree(() => {}, { x: 2 }))?.length).toBe(1)
+  })
+})

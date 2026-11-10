@@ -1,7 +1,19 @@
 import { describe, expect, test } from "bun:test"
 import { App } from "./app.ts"
 import { computed, createState, effect, signal } from "./reactive.ts"
-import { Column, KeepAlive, Text, collectUiHandlers, component, onCleanup, onMount, type UiPatch } from "./ui.ts"
+import {
+  Column,
+  For,
+  KeepAlive,
+  Row,
+  Text,
+  collectUiHandlers,
+  component,
+  dispatchWindowEvent,
+  onCleanup,
+  onMount,
+  type UiPatch,
+} from "./ui.ts"
 
 const tick = async () => {
   await Promise.resolve()
@@ -375,5 +387,208 @@ describe("KeepAlive", () => {
     await tick()
 
     expect(counts.cleanup).toBe(1)
+  })
+})
+
+describe("memo rows", () => {
+  interface Item {
+    readonly ID: string
+    readonly title: string
+  }
+
+  const withoutIDs = (value: unknown): unknown => {
+    return JSON.parse(JSON.stringify(value, (key, inner) => (key === "id" ? undefined : inner)))
+  }
+
+  type Shown = { path: string; children?: Shown[] }
+
+  const find = (nodes: Shown[], path: string): Shown | null => {
+    for (const node of nodes) {
+      if (node.path === path) return node
+      if (path.startsWith(`${node.path}/`)) return find(node.children ?? [], path)
+    }
+
+    return null
+  }
+
+  const mount = (memo: boolean) => {
+    const { app, trees, patches } = harness()
+    const shown: { tree: Shown[] } = { tree: [] }
+
+    // What the host would show: the last full tree with every patch applied.
+    app.onSendUi = (_label, tree) => {
+      trees.push(tree)
+      shown.tree = structuredClone(tree) as Shown[]
+    }
+
+    app.onSendUiPatch = (_label, sent) => {
+      patches.push(sent)
+
+      for (const patch of sent) {
+        const target = find(shown.tree, patch.path)
+
+        if (!target) throw new Error(`no node at ${patch.path}`)
+
+        if (patch.shallow) Object.assign(target, structuredClone(patch.node), { children: target.children })
+        else Object.assign(target, structuredClone(patch.node))
+      }
+    }
+    const items = signal<Item[]>([
+      { ID: "a", title: "A" },
+      { ID: "b", title: "B" },
+      { ID: "c", title: "C" },
+    ])
+    const extra = signal("x")
+    const mode = signal("plain")
+    const renders: string[] = []
+    const taps: string[] = []
+
+    app.window("main").render(() => {
+      // Read outside the rows: a captured value is only fresh for rows that rerun.
+      return Column(
+        { key: "root" },
+        For({
+          each: items.get(),
+          keyOf: (item) => item.ID,
+          memo,
+          render: (item) => {
+            renders.push(item.ID)
+
+            return Row(
+              { onLayout: () => taps.push(`${item.ID}:${item.title}`) },
+              Text({ text: item.title }),
+              Text({ text: extra.get() }),
+              mode.get() === "plain" ? null : Text({ text: `mode ${item.ID}` }),
+            )
+          },
+        }),
+      )
+    })
+
+    return { app, trees, patches, shown, items, extra, mode, renders, taps }
+  }
+
+  const tap = (path: string) => dispatchWindowEvent("main", path, "layout", { width: 1, height: 1, x: 0, y: 0 })
+
+  test("produces the same tree as a plain list across changes", async () => {
+    const plain = mount(false)
+    const memo = mount(true)
+
+    await tick()
+
+    const steps: Array<(m: typeof plain) => void> = [
+      (m) => m.items.set(m.items.peek().map((item) => (item.ID === "b" ? { ...item, title: "B2" } : item))),
+      (m) => m.items.set([{ ID: "z", title: "Z" }, ...m.items.peek()]),
+      (m) => m.items.set([...m.items.peek()].reverse()),
+      (m) => m.extra.set("y"),
+      (m) => m.mode.set("more"),
+      (m) => m.items.set(m.items.peek().slice(1)),
+    ]
+
+    for (const step of steps) {
+      step(plain)
+      step(memo)
+      await tick()
+
+      expect(withoutIDs(memo.shown.tree)).toEqual(withoutIDs(plain.shown.tree))
+    }
+  })
+
+  test("reruns only the row whose signal changed", async () => {
+    const { extra, renders } = mount(true)
+
+    await tick()
+    renders.length = 0
+
+    extra.set("y")
+    await tick()
+
+    // Every row reads `extra`, so every row reruns; none is built twice.
+    expect(renders.sort()).toEqual(["a", "b", "c"])
+  })
+
+  test("skips unchanged rows when the list changes", async () => {
+    const { items, renders, patches } = mount(true)
+
+    await tick()
+    renders.length = 0
+
+    items.set(items.peek().map((item) => (item.ID === "b" ? { ...item, title: "B2" } : item)))
+    await tick()
+
+    expect(renders).toEqual(["b"])
+    expect(JSON.stringify(patches.at(-1))).toContain("B2")
+  })
+
+  test("a row reads a signal it does not get as a prop", async () => {
+    const { mode, renders, patches } = mount(true)
+
+    await tick()
+    renders.length = 0
+
+    mode.set("more")
+    await tick()
+
+    expect(renders.sort()).toEqual(["a", "b", "c"])
+    expect(JSON.stringify(patches.at(-1))).toContain("mode a")
+  })
+
+  test("reordering keeps rows and moves their paths", async () => {
+    const { items, shown, renders, taps } = mount(true)
+
+    await tick()
+    renders.length = 0
+
+    items.set([...items.peek()].reverse())
+    await tick()
+
+    const root = shown.tree[0] as { children: Array<{ children: Array<{ path: string }> }> }
+
+    expect(renders).toEqual([])
+    expect(root.children[0]!.children.map((row) => row.path)).toEqual(["/root/0/c", "/root/0/b", "/root/0/a"])
+
+    tap("/root/0/a")
+    expect(taps).toEqual(["a:A"])
+  })
+
+  test("a reused row keeps working handlers, a changed row gets new ones", async () => {
+    const { items, taps } = mount(true)
+
+    await tick()
+
+    items.set(items.peek().map((item) => (item.ID === "b" ? { ...item, title: "B2" } : item)))
+    await tick()
+
+    tap("/root/0/a")
+    tap("/root/0/b")
+    expect(taps).toEqual(["a:A", "b:B2"])
+  })
+
+  test("conditional children inside a kept row follow their signal", async () => {
+    const { mode, patches, items } = mount(true)
+
+    await tick()
+    mode.set("more")
+    await tick()
+    mode.set("plain")
+    await tick()
+
+    expect(JSON.stringify(patches.at(-1))).not.toContain("mode a")
+
+    items.set([...items.peek(), { ID: "d", title: "D" }])
+    await tick()
+    expect(JSON.stringify(patches.at(-1))).toContain('"/root/0/d"')
+  })
+
+  test("removed rows are disposed", async () => {
+    const { items, renders } = mount(true)
+
+    await tick()
+    items.set(items.peek().filter((item) => item.ID !== "a"))
+    await tick()
+    items.set([{ ID: "a", title: "A" }, ...items.peek()])
+    await tick()
+
+    expect(renders.filter((ID) => ID === "a")).toEqual(["a", "a"])
   })
 })
