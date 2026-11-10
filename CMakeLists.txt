@@ -2,6 +2,13 @@ cmake_minimum_required(VERSION 3.21)
 
 project(pulsar LANGUAGES CXX)
 
+# Speed up rebuilds when ccache is installed; no effect when it is missing.
+find_program(PULSAR_CCACHE ccache)
+if(PULSAR_CCACHE AND NOT CMAKE_C_COMPILER_LAUNCHER AND NOT CMAKE_CXX_COMPILER_LAUNCHER)
+    set(CMAKE_C_COMPILER_LAUNCHER "${PULSAR_CCACHE}")
+    set(CMAKE_CXX_COMPILER_LAUNCHER "${PULSAR_CCACHE}")
+endif()
+
 set(PULSAR_VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/package.json")
 if(NOT EXISTS "${PULSAR_VERSION_FILE}")
     set(PULSAR_VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/cli/package.json")
