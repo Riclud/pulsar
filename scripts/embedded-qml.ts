@@ -3,15 +3,18 @@
 import { cpSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
 import { join, resolve } from "path"
+import { prebuilt } from "./lib/pool.ts"
 
 const root = resolve(import.meta.dir, "..")
 const binary = join(root, "build", "bin", process.platform === "win32" ? "qml-host-qjs.exe" : "qml-host-qjs")
 
-const build = Bun.spawnSync({
-  cmd: ["cmake", "--build", "build", "--target", "qml-host-qjs"],
-  cwd: root,
-  stdio: ["ignore", "ignore", "inherit"],
-})
+const build = prebuilt()
+  ? { exitCode: 0 }
+  : Bun.spawnSync({
+      cmd: ["cmake", "--build", "build", "--target", "qml-host-qjs"],
+      cwd: root,
+      stdio: ["ignore", "ignore", "inherit"],
+    })
 
 if (build.exitCode !== 0 || !existsSync(binary)) {
   console.error("embedded-qml: qml-host-qjs is not built")
@@ -58,7 +61,12 @@ try {
 
   const output = `${run.stdout.toString()}\n${run.stderr.toString()}`
 
-  if (run.exitCode !== 0 || !output.includes("STORE greeting") || !output.includes("STORE pong") || !output.includes("CALLRESULT true")) {
+  if (
+    run.exitCode !== 0 ||
+    !output.includes("STORE greeting") ||
+    !output.includes("STORE pong") ||
+    !output.includes("CALLRESULT true")
+  ) {
     console.error(output)
     console.error("embedded-qml: FAILED")
     process.exit(1)

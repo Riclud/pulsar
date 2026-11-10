@@ -3,15 +3,18 @@
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
 import { join, resolve } from "path"
+import { prebuilt } from "./lib/pool.ts"
 
 const root = resolve(import.meta.dir, "..")
 const binary = join(root, "build", "bin", process.platform === "win32" ? "qjs-runtime.exe" : "qjs-runtime")
 
-const build = Bun.spawnSync({
-  cmd: ["cmake", "--build", "build", "--target", "qjs-runtime"],
-  cwd: root,
-  stdio: ["ignore", "ignore", "inherit"],
-})
+const build = prebuilt()
+  ? { exitCode: 0 }
+  : Bun.spawnSync({
+      cmd: ["cmake", "--build", "build", "--target", "qjs-runtime"],
+      cwd: root,
+      stdio: ["ignore", "ignore", "inherit"],
+    })
 
 if (build.exitCode !== 0 || !existsSync(binary)) {
   console.error("embedded: qjs-runtime is not built")
