@@ -72,6 +72,7 @@ import { update } from "./update.ts"
 import { startDesktopControl } from "./control.ts"
 import { runMcp } from "./mcp.ts"
 import { installSkill } from "./skill.ts"
+import { runStage } from "./stage.ts"
 import { ui } from "./ui.ts"
 
 const [cmd, ...args] = process.argv.slice(2)
@@ -989,7 +990,12 @@ const build = async () => {
   const assembly = mkdtempSync(join(tmpdir(), "pulsar-build-"))
 
   const pack = async (entries: PayloadEntry[]) => {
-    if (!slim) collectQt(entries, host, video)
+    if (!slim) {
+      ui.step("collect the Qt libraries")
+      collectQt(entries, host, video)
+    }
+
+    ui.step("write the executable")
 
     const buildId = fnv1a64(entries.map((e) => `${e.path}:${e.data.length}`))
     const container = await encodeContainer(entries, buildId)
@@ -1014,6 +1020,8 @@ const build = async () => {
   }
 
   const packQuickJs = async () => {
+    ui.step("bundle the app")
+
     const text = await quickjsBundleText(chosen.entry, assembly)
 
     if (text === null) process.exit(1)
@@ -1038,6 +1046,8 @@ const build = async () => {
   const bridge = findBridge(host)
 
   const packNode = async () => {
+    ui.step("bundle the app")
+
     const nodeBinary = findNode()
 
     warnSharedNode(nodeBinary)
@@ -1088,16 +1098,14 @@ const build = async () => {
     )
 
     const runtimeOut = join(assembly, process.platform === "win32" ? "runtime.exe" : "runtime")
-    const compile = spawnSync(bunCommand().path, ["build", entryPath, "--compile", "--outfile", runtimeOut], {
-      cwd: appDir,
-      stdio: "inherit",
-      env: bunCommand().env,
-    })
+    const compile = await runStage(
+      "compile the runtime",
+      bunCommand().path,
+      ["build", entryPath, "--compile", "--outfile", runtimeOut],
+      { cwd: appDir, env: bunCommand().env },
+    )
 
-    if (compile.status !== 0 || !existsSync(runtimeOut)) {
-      ui.error("runtime compilation failed")
-      process.exit(1)
-    }
+    if (compile.status !== 0 || !existsSync(runtimeOut)) process.exit(1)
 
     // The outer binary is the Qt-free launcher; it extracts the payload and
     // exec()s the bundled host (which loads the bundled Qt via its RPATH).

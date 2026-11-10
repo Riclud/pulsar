@@ -8,6 +8,7 @@ import type { AppManifest } from "../core/sdk/manifest.ts"
 import { wantsVideo } from "./app.ts"
 import { cliVersion, platformId, pulsarHome, pulsarRoot, releaseUrl } from "./core.ts"
 import { createIgnoreFilter } from "./ignore.ts"
+import { runStage } from "./stage.ts"
 import { ui } from "./ui.ts"
 
 export const ANDROID_QT_VERSION = "6.9.3"
@@ -793,7 +794,8 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
   const permissions = androidPermissions(manifest)
   const packageSources = preparePackageSources(buildDir, tools.qt, manifest)
 
-  const configure = spawnSync(
+  const configure = await runStage(
+    "configure the Android project",
     qtCmake,
     [
       "-S",
@@ -819,7 +821,7 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
       `-DPULSAR_ANDROID_OPENSSL_DIR=${opensslDir()}`,
       `-DQT_HOST_PATH=${tools.hostQt}`,
     ],
-    { stdio: "inherit", env },
+    { env },
   )
 
   if (configure.status !== 0) throw new Error("android configure failed")
@@ -829,10 +831,12 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
   // androiddeployqt only adds to libs/, so the FFmpeg libraries of an earlier "video": true build would stay.
   rmSync(join(buildDir, "android-build", "libs"), { recursive: true, force: true })
 
-  const compile = spawnSync("cmake", ["--build", buildDir, "--target", "pulsar-android_make_apk", "--parallel", "6"], {
-    stdio: "inherit",
-    env,
-  })
+  const compile = await runStage(
+    "compile and package the APK",
+    "cmake",
+    ["--build", buildDir, "--target", "pulsar-android_make_apk", "--parallel", "6"],
+    { env },
+  )
 
   if (compile.status !== 0) throw new Error("android build failed")
 
@@ -853,7 +857,7 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
   if (options.aab) {
     const androidBuildDir = join(buildDir, "android-build")
     const gradlew = join(androidBuildDir, process.platform === "win32" ? "gradlew.bat" : "gradlew")
-    const bundle = spawnSync(gradlew, ["bundleRelease"], { cwd: androidBuildDir, stdio: "inherit", env })
+    const bundle = await runStage("build the app bundle", gradlew, ["bundleRelease"], { cwd: androidBuildDir, env })
 
     if (bundle.status !== 0) throw new Error("android bundle build failed")
 

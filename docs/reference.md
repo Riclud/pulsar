@@ -1473,6 +1473,11 @@ apps — desktop and Android APKs — against that checkout's host and SDK:
 PULSAR_SOURCE=/path/to/pulsar pulsar build --target android
 ```
 
+`pulsar build` prints a line when each stage starts and ends (bundle, collect Qt,
+configure, compile, package). The tools' own output is kept quiet; when a stage fails,
+the last lines of it are shown. Add `--verbose` (or set `PULSAR_VERBOSE=1`) to stream
+everything. `pulsar help` lists the environment variables the CLI reads.
+
 Qt is located with CMake's `find_package(Qt6)`, so pass `-DCMAKE_PREFIX_PATH=<qt>`
 if it is not in a standard location. `PULSAR_QMAKE` still selects the `qmake`
 used when packaging (`pulsar build` bundles Qt).
