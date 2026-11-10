@@ -3,27 +3,35 @@
 // Bun supervision. Cross-platform replacement for scripts/smoke.sh.
 import { mkdtempSync, readFileSync, rmSync } from "fs"
 import { tmpdir } from "os"
+import { AsyncLocalStorage } from "async_hooks"
 import { basename, join, resolve } from "path"
+import { prebuilt, runPool, testJobs } from "./lib/pool.ts"
 
 const root = resolve(import.meta.dir, "..")
 const host = join(root, "build", "bin", process.platform === "win32" ? "qml-host.exe" : "qml-host")
 
-const configure = Bun.spawnSync({
-  cmd: ["cmake", "-S", ".", "-B", "build", "-DCMAKE_BUILD_TYPE=Release"],
-  cwd: root,
-  stdio: ["inherit", "inherit", "inherit"],
-})
+if (!prebuilt()) {
+  const configure = Bun.spawnSync({
+    cmd: ["cmake", "-S", ".", "-B", "build", "-DCMAKE_BUILD_TYPE=Release"],
+    cwd: root,
+    stdio: ["inherit", "inherit", "inherit"],
+  })
 
-if (configure.exitCode !== 0) {
-  console.error("smoke: cmake configure failed")
-  process.exit(configure.exitCode ?? 1)
-}
+  if (configure.exitCode !== 0) {
+    console.error("smoke: cmake configure failed")
+    process.exit(configure.exitCode ?? 1)
+  }
 
-const build = Bun.spawnSync({ cmd: ["cmake", "--build", "build"], cwd: root, stdio: ["inherit", "inherit", "inherit"] })
+  const build = Bun.spawnSync({
+    cmd: ["cmake", "--build", "build"],
+    cwd: root,
+    stdio: ["inherit", "inherit", "inherit"],
+  })
 
-if (build.exitCode !== 0) {
-  console.error("smoke: build failed")
-  process.exit(build.exitCode ?? 1)
+  if (build.exitCode !== 0) {
+    console.error("smoke: build failed")
+    process.exit(build.exitCode ?? 1)
+  }
 }
 
 const tmp = mkdtempSync(join(tmpdir(), "pulsar-smoke-"))
@@ -50,14 +58,41 @@ const assocLog = join(tmp, "assoc.log")
 const netLog = join(tmp, "net.log")
 const deniedLog = join(tmp, "denied.log")
 
-let failed = false
-
-const runHostBinary = (bin: string, env: Record<string, string>) => {
-  Bun.spawnSync({ cmd: [bin], cwd: root, env: { ...process.env, ...env }, stdio: ["ignore", "ignore", "ignore"] })
+type Step = {
+  name: string
+  /** Long step: started first when running in parallel, so it does not become the tail of the run. */
+  slow?: boolean
+  run: () => Promise<void>
 }
 
-const runHost = (env: Record<string, string>) => {
-  runHostBinary(host, env)
+// Each step reports into its own record so parallel steps do not blur each other.
+const current = new AsyncLocalStorage<{ name: string; failed: boolean }>()
+
+let failed = false
+
+const markFailed = () => {
+  failed = true
+
+  const step = current.getStore()
+
+  if (step) step.failed = true
+}
+
+const label = () => current.getStore()?.name ?? "smoke"
+
+const runHostBinary = async (bin: string, env: Record<string, string>) => {
+  const proc = Bun.spawn({
+    cmd: [bin],
+    cwd: root,
+    env: { ...process.env, ...env },
+    stdio: ["ignore", "ignore", "ignore"],
+  })
+
+  await proc.exited
+}
+
+const runHost = async (env: Record<string, string>) => {
+  await runHostBinary(host, env)
 }
 
 const check = (file: string, needle: string) => {
@@ -70,8 +105,8 @@ const check = (file: string, needle: string) => {
   }
 
   if (!text.includes(needle)) {
-    console.error(`smoke: missing: ${needle}\n--- ${file}\n${text.split("\n").slice(-30).join("\n")}\n---`)
-    failed = true
+    console.error(`smoke[${label()}]: missing: ${needle}\n--- ${file}\n${text.split("\n").slice(-30).join("\n")}\n---`)
+    markFailed()
   }
 }
 
@@ -85,8 +120,8 @@ const checkAbsent = (file: string, needle: string) => {
   }
 
   if (text.includes(needle)) {
-    console.error(`smoke: unexpected: ${needle}`)
-    failed = true
+    console.error(`smoke[${label()}]: unexpected: ${needle}`)
+    markFailed()
   }
 }
 
@@ -111,491 +146,609 @@ const waitFor = async (file: string, needle: string, timeoutMs = 4000): Promise<
   return false
 }
 
-try {
-  runHost({
-    PULSAR_DEBUG: "1",
-    QT_QPA_PLATFORM: "offscreen",
-    AUTO_QUIT_MS: "4000",
-    SELFTEST: "1500",
-    PULSAR_TEST_DATA: "pulsar-binary",
-    QT_LOG_FILE: log,
-  })
-
-  check(log, "NOTIFY __config")
-  check(log, "HELLO runtime= bun")
-  check(log, "DATA stream= 1 len= 13")
-  check(log, "STORE name = QVariant(QString, tick 0)")
-  check(log, "STORE name = QVariant(QString, tick 1)")
-  check(log, "SELFTEST resp")
-
-  // Bun supervision: a dying runtime must be detected and reported by the host.
-  runHost({
-    PULSAR_DEBUG: "1",
-    QT_QPA_PLATFORM: "offscreen",
-    PULSAR_TEST_CRASH_MS: "800",
-    AUTO_QUIT_MS: "6000",
-    QT_LOG_FILE: crashLog,
-  })
-  check(crashLog, "bun crashed")
-
-  // Large messages: a state snapshot well beyond the old 64 KiB line limit
-  // must still reach the host intact.
-  runHost({
-    PULSAR_DEBUG: "1",
-    QT_QPA_PLATFORM: "offscreen",
-    PULSAR_TEST_BIG_ITEMS: "20000",
-    AUTO_QUIT_MS: "4000",
-    QT_LOG_FILE: bigLog,
-  })
-  check(bigLog, "STORE big (list size 20000")
-
-  // QML -> capability round trip through the promise API.
-  runHost({
-    PULSAR_DEBUG: "1",
-    QT_QPA_PLATFORM: "offscreen",
-    QML_MAIN: join(root, "tests", "qml", "call.qml"),
-    AUTO_QUIT_MS: "4000",
-    QT_LOG_FILE: callLog,
-  })
-  check(callLog, "CALLRESULT true")
-  check(callLog, "CALLCLIP hi pulsar")
-
-  // Error surface: a broken app QML must surface a clear message instead of a
-  // silent exit.
-  runHost({
-    PULSAR_DEBUG: "1",
-    QT_QPA_PLATFORM: "offscreen",
-    PULSAR_APP: join(root, "tests", "apps", "bad-qml"),
-    AUTO_QUIT_MS: "4000",
-    QT_LOG_FILE: qmlErrLog,
-  })
-  check(qmlErrLog, "app failed to load")
-
-  // Storage + app paths: a fixture app persists a value and reports it via the
-  // store; XDG dirs point at temp so the user's home stays untouched.
-  runHost({
-    PULSAR_DEBUG: "1",
-    QT_QPA_PLATFORM: "offscreen",
-    PULSAR_APP: join(root, "tests", "apps", "storage-app"),
-    XDG_DATA_HOME: join(tmp, "data"),
-    XDG_CONFIG_HOME: join(tmp, "config"),
-    XDG_CACHE_HOME: join(tmp, "cache"),
-    HOME: join(tmp, "home"),
-    AUTO_QUIT_MS: "4000",
-    QT_LOG_FILE: storageLog,
-  })
-  check(storageLog, "STORE storageOk = QVariant(bool, true)")
-  check(storageLog, "min= 320")
-  check(storageLog, "resizable= false")
-
-  // Two-way logging: QML console reaches the app (qmlLog) and app logs reach
-  // QML subscribers and come back (jsLog).
-  runHost({
-    PULSAR_DEBUG: "1",
-    QT_QPA_PLATFORM: "offscreen",
-    PULSAR_APP: join(root, "tests", "apps", "log-app"),
-    AUTO_QUIT_MS: "4000",
-    QT_LOG_FILE: logLog,
-  })
-  check(logLog, "STORE qmlLog = QVariant(bool, true)")
-  check(logLog, "STORE jsLog = QVariant(bool, true)")
-
-  // Multi-window: every window in pulsar.json is created and shares the store.
-  runHost({
-    PULSAR_DEBUG: "1",
-    QT_QPA_PLATFORM: "offscreen",
-    PULSAR_APP: join(root, "tests", "apps", "two-window"),
-    AUTO_QUIT_MS: "3000",
-    QT_LOG_FILE: twoLog,
-  })
-  check(twoLog, "window-main-ready")
-  check(twoLog, "window-second-ready")
-  check(twoLog, "CONFIG window second")
-  check(twoLog, "title= Second Window")
-
-  // Window control + lifecycle: app.window(label) commands reach the host, a
-  // closed window emits a window-close event back to the app, a window created
-  // in code shows up, resize events fire, and backend->UI events reach QML.
-  runHost({
-    PULSAR_DEBUG: "1",
-    QT_QPA_PLATFORM: "offscreen",
-    PULSAR_APP: join(root, "tests", "apps", "window-ctl"),
-    AUTO_QUIT_MS: "3000",
-    QT_LOG_FILE: winLog,
-  })
-  check(winLog, "WINDOW setTitle second")
-  check(winLog, "CONFIG window third")
-  check(winLog, "STORE closedLabel = QVariant(QString, second)")
-  check(winLog, "STORE secondClosed = QVariant(bool, true)")
-  check(winLog, "STORE resizedLabel = QVariant(QString, third)")
-  check(winLog, "STORE uiEvent = QVariant(QString, ping)")
-  check(winLog, "STORE uiTarget = QVariant(QString, main)")
-
-  // Native dialogs: the runtime/host round-trip resolves the app's promise
-  // (PULSAR_DIALOG_STUB skips the modal dialog in headless CI).
-  runHost({
-    PULSAR_DEBUG: "1",
-    QT_QPA_PLATFORM: "offscreen",
-    PULSAR_DIALOG_STUB: "/tmp/picked.txt",
-    PULSAR_APP: join(root, "tests", "apps", "dialog-app"),
-    AUTO_QUIT_MS: "3000",
-    QT_LOG_FILE: dialogLog,
-  })
-  check(dialogLog, "STORE picked = QVariant(QString, /tmp/picked.txt)")
-  check(dialogLog, "STORE messaged = QVariant(bool, true)")
-
-  // System APIs: theme, screens, locale, notifications, multi/dir dialogs.
-  runHost({
-    PULSAR_DEBUG: "1",
-    QT_QPA_PLATFORM: "offscreen",
-    PULSAR_DIALOG_STUB: "/tmp/picked.txt",
-    PULSAR_APP: join(root, "tests", "apps", "system-app"),
-    AUTO_QUIT_MS: "3000",
-    QT_LOG_FILE: systemLog,
-  })
-  check(systemLog, "STORE themeOk = QVariant(bool, true)")
-  check(systemLog, "STORE screensOk = QVariant(bool, true)")
-  check(systemLog, "STORE localeOk = QVariant(bool, true)")
-  check(systemLog, "STORE notifyToken = QVariant(QString, 1)")
-  check(systemLog, "STORE multiOk = QVariant(bool, true)")
-  check(systemLog, "STORE dirOk = QVariant(bool, true)")
-
-  // Secure storage: set/get/remove round trip through the host secret backend
-  // (PULSAR_SECURE_STUB swaps the OS keychain for an in-memory store in CI).
-  runHost({
-    PULSAR_DEBUG: "1",
-    QT_QPA_PLATFORM: "offscreen",
-    PULSAR_SECURE_STUB: "1",
-    PULSAR_APP: join(root, "tests", "apps", "secure-app"),
-    AUTO_QUIT_MS: "3000",
-    QT_LOG_FILE: secureLog,
-  })
-  check(secureLog, "STORE secureAvailable = QVariant(bool, true)")
-  check(secureLog, "STORE secureOk = QVariant(bool, true)")
-
-  // JS-built UI: a window without `ui` is rendered from the tree; a synthetic
-  // click travels back to the app and updates the store (and the UI).
-  runHost({
-    PULSAR_DEBUG: "1",
-    QT_QPA_PLATFORM: "offscreen",
-    PULSAR_UI_AUTOCLICK_MS: "800",
-    PULSAR_APP: join(root, "tests", "apps", "js-ui"),
-    AUTO_QUIT_MS: "2500",
-    QT_LOG_FILE: jsUiLog,
-  })
-  check(jsUiLog, "UI render main nodes= 1")
-  check(jsUiLog, "PulsarView built 1")
-  check(jsUiLog, "UI patch main ops=")
-  check(jsUiLog, "STORE count = QVariant(qlonglong, 1)")
-  check(jsUiLog, "STORE open = QVariant(bool, true)")
-  check(jsUiLog, "STORE mutated = QVariant(bool, true)")
-  checkAbsent(jsUiLog, "Error:")
-
-  // Keyed reconcile: inserting at the front creates one row, reordering moves
-  // the existing rows instead of clearing and rebuilding the list container.
-  runHost({
-    PULSAR_DEBUG: "1",
-    QT_QPA_PLATFORM: "offscreen",
-    PULSAR_APP: join(root, "tests", "apps", "js-reconcile"),
-    AUTO_QUIT_MS: "2500",
-    QT_LOG_FILE: jsReconcileLog,
-  })
-  check(jsReconcileLog, "PulsarView patch 1 +1")
-  check(jsReconcileLog, "PulsarView patch 1 +0")
-  check(jsReconcileLog, "reorder=4")
-  checkAbsent(jsReconcileLog, "PulsarView built 1 +4")
-  checkAbsent(jsReconcileLog, "Error:")
-
-  // Extended UI kit: every new node type is created by the QML renderer
-  // without warnings.
-  runHost({
-    PULSAR_DEBUG: "1",
-    QT_QPA_PLATFORM: "offscreen",
-    PULSAR_APP: join(root, "tests", "apps", "ui-kit"),
-    AUTO_QUIT_MS: "2000",
-    QT_LOG_FILE: uiKitLog,
-  })
-  check(uiKitLog, "PulsarView built 1")
-  check(uiKitLog, "STORE permission = QVariant(bool, true)")
-  check(uiKitLog, "STORE permissionRequest = QVariant(bool, true)")
-  checkAbsent(uiKitLog, "Error:")
-  checkAbsent(uiKitLog, "qml:")
-
-  // System tray: the app can configure the menu through the tray capability.
-  runHost({
-    PULSAR_DEBUG: "1",
-    QT_QPA_PLATFORM: "offscreen",
-    PULSAR_APP: join(root, "tests", "apps", "tray-app"),
-    AUTO_QUIT_MS: "3000",
-    QT_LOG_FILE: trayLog,
-  })
-  check(trayLog, "TRAY menu items= 3")
-  check(trayLog, "STORE traySet = QVariant(bool, true)")
-
-  // Deep links + single instance: launch arguments become open-url/open-file
-  // events, and a second launch is forwarded to the running instance.
+const steps: Step[] = [
   {
-    const deepEnv = {
-      PULSAR_DEBUG: "1",
-      QT_QPA_PLATFORM: "offscreen",
-      PULSAR_APP: join(root, "tests", "apps", "deep-link"),
-      PULSAR_INSTANCE_KEY: "smoke-" + basename(tmp),
-      AUTO_QUIT_MS: "6000",
-      QT_LOG_FILE: deepLog,
-    }
-
-    const first = Bun.spawn({
-      cmd: [host, "file:///tmp/pulsar-first.txt", "pulsar-test://hello"],
-      cwd: root,
-      env: { ...process.env, ...deepEnv },
-      stdio: ["ignore", "ignore", "ignore"],
-    })
-
-    if (!(await waitFor(deepLog, "STORE openUrl"))) {
-      console.error("smoke: deep-link first instance did not start")
-      failed = true
-    }
-
-    Bun.spawnSync({
-      cmd: [host, "file:///tmp/pulsar-second.txt"],
-      cwd: root,
-      env: { ...process.env, ...deepEnv },
-      stdio: ["ignore", "ignore", "ignore"],
-    })
-
-    if (!(await waitFor(deepLog, "STORE secondArgv"))) {
-      console.error("smoke: second instance was not forwarded")
-      failed = true
-    }
-
-    first.kill()
-
-    check(deepLog, "STORE openFile = QVariant(QString, /tmp/pulsar-first.txt)")
-    check(deepLog, "STORE openUrl = QVariant(QString, pulsar-test://hello)")
-    check(deepLog, "STORE openFile = QVariant(QString, /tmp/pulsar-second.txt)")
-    check(deepLog, "STORE secondArgv = QVariant(QString,")
-  }
-
-  // Recent documents: adding a file updates the freedesktop recent list, and
-  // clearing wipes it (XDG_DATA_HOME points at temp so the real list is safe).
-  {
-    const dataDir = join(tmp, "recent-data")
-    const xbel = join(dataDir, "recently-used.xbel")
-
-    const env = {
-      PULSAR_DEBUG: "1",
-      QT_QPA_PLATFORM: "offscreen",
-      PULSAR_APP: join(root, "tests", "apps", "recent-app"),
-      XDG_DATA_HOME: dataDir,
-      AUTO_QUIT_MS: "3000",
-    }
-
-    runHost({ ...env, PULSAR_RECENT_MODE: "add", QT_LOG_FILE: recentLog })
-    check(recentLog, "RECENT add /tmp/pulsar-recent.txt")
-    check(recentLog, "STORE recentAdded = QVariant(bool, true)")
-    check(xbel, "pulsar-recent.txt")
-
-    runHost({ ...env, PULSAR_RECENT_MODE: "clear", QT_LOG_FILE: recentClearLog })
-    check(recentClearLog, "RECENT clear")
-    check(recentClearLog, "STORE recentCleared = QVariant(bool, true)")
-
-    let afterClear = ""
-
-    try {
-      afterClear = readFileSync(xbel, "utf8")
-    } catch {
-      // No file means the list was cleared.
-    }
-
-    if (afterClear.includes("pulsar-recent.txt")) {
-      console.error("smoke: recent documents were not cleared")
-      failed = true
-    }
-  }
-
-  // File associations: the manifest entry produces a desktop file and a
-  // mimeapps default, and a second launch does not duplicate either.
-  {
-    const dataDir = join(tmp, "assoc-data")
-    const configDir = join(tmp, "assoc-config")
-
-    const env = {
-      PULSAR_DEBUG: "1",
-      QT_QPA_PLATFORM: "offscreen",
-      PULSAR_APP: join(root, "tests", "apps", "assoc-app"),
-      XDG_DATA_HOME: dataDir,
-      XDG_CONFIG_HOME: configDir,
-      HOME: join(tmp, "assoc-home"),
-      AUTO_QUIT_MS: "2500",
-      QT_LOG_FILE: assocLog,
-    }
-
-    runHost(env)
-    runHost(env)
-
-    const desktop = join(dataDir, "applications", "com.pulsar.assocapp.desktop")
-    const mimeapps = join(configDir, "mimeapps.list")
-
-    check(assocLog, "ASSOC register 1 com.pulsar.assocapp")
-    check(desktop, "MimeType=application/x-pulsar-foo;")
-
-    const line = "application/x-pulsar-foo=com.pulsar.assocapp.desktop"
-
-    let content = ""
-
-    try {
-      content = readFileSync(mimeapps, "utf8")
-    } catch {
-      // No file means no association was written.
-    }
-
-    const occurrences = content.split(line).length - 1
-
-    if (occurrences !== 1) {
-      console.error(`smoke: mimeapps default written ${occurrences} times`)
-      failed = true
-    }
-  }
-
-  // Network: the host performs real HTTP requests against a local server,
-  // covering methods, headers, bodies, redirects, streaming, timeout and abort.
-  {
-    const server = Bun.serve({
-      hostname: "127.0.0.1",
-      port: 0,
-      fetch: async (request, server) => {
-        const path = new URL(request.url).pathname
-
-        if (path === "/ws") {
-          if (server.upgrade(request, { headers: { "Sec-WebSocket-Protocol": "chat" } })) return
-
-          return new Response("upgrade failed", { status: 400 })
-        }
-
-        if (path === "/hello") return new Response("hello pulsar", { headers: { "Content-Type": "text/plain" } })
-
-        if (path === "/echo") {
-          const body = await request.text()
-
-          return Response.json({ method: request.method, body, header: request.headers.get("x-test") })
-        }
-
-        if (path === "/binary")
-          return new Response(new Uint8Array([0, 1, 2, 255]), {
-            headers: { "Content-Type": "application/octet-stream" },
-          })
-
-        if (path === "/redirect") return Response.redirect(new URL("/hello", request.url).toString(), 302)
-
-        if (path === "/slow") {
-          await Bun.sleep(500)
-
-          return new Response("slow")
-        }
-
-        if (path === "/chunks") {
-          const stream = new ReadableStream({
-            start: (controller) => {
-              controller.enqueue(new TextEncoder().encode("abc"))
-              controller.enqueue(new TextEncoder().encode("def"))
-              controller.close()
-            },
-          })
-
-          return new Response(stream, { headers: { "Content-Type": "text/plain" } })
-        }
-
-        return new Response("not found", { status: 404 })
-      },
-      websocket: {
-        message(ws, message) {
-          if (typeof message === "string") ws.send(`echo:${message}`)
-          else ws.send(message)
-        },
-      },
-    })
-
-    try {
-      const proc = Bun.spawn({
-        cmd: [host],
-        cwd: root,
-        env: {
-          ...process.env,
-          PULSAR_DEBUG: "1",
-          QT_QPA_PLATFORM: "offscreen",
-          PULSAR_APP: join(root, "tests", "apps", "net-app"),
-          PULSAR_NET_BASE: `http://127.0.0.1:${server.port}`,
-          AUTO_QUIT_MS: "6000",
-          QT_LOG_FILE: netLog,
-        },
-        stdio: ["ignore", "ignore", "ignore"],
+    name: "main round trip",
+    run: async () => {
+      await runHost({
+        PULSAR_DEBUG: "1",
+        QT_QPA_PLATFORM: "offscreen",
+        AUTO_QUIT_MS: "4000",
+        SELFTEST: "1500",
+        PULSAR_TEST_DATA: "pulsar-binary",
+        QT_LOG_FILE: log,
       })
 
-      const timer = setTimeout(() => proc.kill(), 15000)
+      check(log, "NOTIFY __config")
+      check(log, "HELLO runtime= bun")
+      check(log, "DATA stream= 1 len= 13")
+      check(log, "STORE name = QVariant(QString, tick 0)")
+      check(log, "STORE name = QVariant(QString, tick 1)")
+      check(log, "SELFTEST resp")
+    },
+  },
+  {
+    name: "Bun supervision",
+    run: async () => {
+      // Bun supervision: a dying runtime must be detected and reported by the host.
+      await runHost({
+        PULSAR_DEBUG: "1",
+        QT_QPA_PLATFORM: "offscreen",
+        PULSAR_TEST_CRASH_MS: "800",
+        AUTO_QUIT_MS: "6000",
+        QT_LOG_FILE: crashLog,
+      })
+      check(crashLog, "bun crashed")
+    },
+  },
+  {
+    name: "Large messages",
+    run: async () => {
+      // Large messages: a state snapshot well beyond the old 64 KiB line limit
+      // must still reach the host intact.
+      await runHost({
+        PULSAR_DEBUG: "1",
+        QT_QPA_PLATFORM: "offscreen",
+        PULSAR_TEST_BIG_ITEMS: "20000",
+        AUTO_QUIT_MS: "4000",
+        QT_LOG_FILE: bigLog,
+      })
+      check(bigLog, "STORE big (list size 20000")
+    },
+  },
+  {
+    name: "QML -> capability round trip through the promise API",
+    run: async () => {
+      // QML -> capability round trip through the promise API.
+      await runHost({
+        PULSAR_DEBUG: "1",
+        QT_QPA_PLATFORM: "offscreen",
+        QML_MAIN: join(root, "tests", "qml", "call.qml"),
+        AUTO_QUIT_MS: "4000",
+        QT_LOG_FILE: callLog,
+      })
+      check(callLog, "CALLRESULT true")
+      check(callLog, "CALLCLIP hi pulsar")
+    },
+  },
+  {
+    name: "Error surface",
+    run: async () => {
+      // Error surface: a broken app QML must surface a clear message instead of a
+      // silent exit.
+      await runHost({
+        PULSAR_DEBUG: "1",
+        QT_QPA_PLATFORM: "offscreen",
+        PULSAR_APP: join(root, "tests", "apps", "bad-qml"),
+        AUTO_QUIT_MS: "4000",
+        QT_LOG_FILE: qmlErrLog,
+      })
+      check(qmlErrLog, "app failed to load")
+    },
+  },
+  {
+    name: "Storage + app paths",
+    run: async () => {
+      // Storage + app paths: a fixture app persists a value and reports it via the
+      // store; XDG dirs point at temp so the user's home stays untouched.
+      await runHost({
+        PULSAR_DEBUG: "1",
+        QT_QPA_PLATFORM: "offscreen",
+        PULSAR_APP: join(root, "tests", "apps", "storage-app"),
+        XDG_DATA_HOME: join(tmp, "data"),
+        XDG_CONFIG_HOME: join(tmp, "config"),
+        XDG_CACHE_HOME: join(tmp, "cache"),
+        HOME: join(tmp, "home"),
+        AUTO_QUIT_MS: "4000",
+        QT_LOG_FILE: storageLog,
+      })
+      check(storageLog, "STORE storageOk = QVariant(bool, true)")
+      check(storageLog, "min= 320")
+      check(storageLog, "resizable= false")
+    },
+  },
+  {
+    name: "Two-way logging",
+    run: async () => {
+      // Two-way logging: QML console reaches the app (qmlLog) and app logs reach
+      // QML subscribers and come back (jsLog).
+      await runHost({
+        PULSAR_DEBUG: "1",
+        QT_QPA_PLATFORM: "offscreen",
+        PULSAR_APP: join(root, "tests", "apps", "log-app"),
+        AUTO_QUIT_MS: "4000",
+        QT_LOG_FILE: logLog,
+      })
+      check(logLog, "STORE qmlLog = QVariant(bool, true)")
+      check(logLog, "STORE jsLog = QVariant(bool, true)")
+    },
+  },
+  {
+    name: "Multi-window",
+    run: async () => {
+      // Multi-window: every window in pulsar.json is created and shares the store.
+      await runHost({
+        PULSAR_DEBUG: "1",
+        QT_QPA_PLATFORM: "offscreen",
+        PULSAR_APP: join(root, "tests", "apps", "two-window"),
+        AUTO_QUIT_MS: "3000",
+        QT_LOG_FILE: twoLog,
+      })
+      check(twoLog, "window-main-ready")
+      check(twoLog, "window-second-ready")
+      check(twoLog, "CONFIG window second")
+      check(twoLog, "title= Second Window")
+    },
+  },
+  {
+    name: "Window control + lifecycle",
+    run: async () => {
+      // Window control + lifecycle: app.window(label) commands reach the host, a
+      // closed window emits a window-close event back to the app, a window created
+      // in code shows up, resize events fire, and backend->UI events reach QML.
+      await runHost({
+        PULSAR_DEBUG: "1",
+        QT_QPA_PLATFORM: "offscreen",
+        PULSAR_APP: join(root, "tests", "apps", "window-ctl"),
+        AUTO_QUIT_MS: "3000",
+        QT_LOG_FILE: winLog,
+      })
+      check(winLog, "WINDOW setTitle second")
+      check(winLog, "CONFIG window third")
+      check(winLog, "STORE closedLabel = QVariant(QString, second)")
+      check(winLog, "STORE secondClosed = QVariant(bool, true)")
+      check(winLog, "STORE resizedLabel = QVariant(QString, third)")
+      check(winLog, "STORE uiEvent = QVariant(QString, ping)")
+      check(winLog, "STORE uiTarget = QVariant(QString, main)")
+    },
+  },
+  {
+    name: "Native dialogs",
+    run: async () => {
+      // Native dialogs: the runtime/host round-trip resolves the app's promise
+      // (PULSAR_DIALOG_STUB skips the modal dialog in headless CI).
+      await runHost({
+        PULSAR_DEBUG: "1",
+        QT_QPA_PLATFORM: "offscreen",
+        PULSAR_DIALOG_STUB: "/tmp/picked.txt",
+        PULSAR_APP: join(root, "tests", "apps", "dialog-app"),
+        AUTO_QUIT_MS: "3000",
+        QT_LOG_FILE: dialogLog,
+      })
+      check(dialogLog, "STORE picked = QVariant(QString, /tmp/picked.txt)")
+      check(dialogLog, "STORE messaged = QVariant(bool, true)")
+    },
+  },
+  {
+    name: "System APIs",
+    run: async () => {
+      // System APIs: theme, screens, locale, notifications, multi/dir dialogs.
+      await runHost({
+        PULSAR_DEBUG: "1",
+        QT_QPA_PLATFORM: "offscreen",
+        PULSAR_DIALOG_STUB: "/tmp/picked.txt",
+        PULSAR_APP: join(root, "tests", "apps", "system-app"),
+        AUTO_QUIT_MS: "3000",
+        QT_LOG_FILE: systemLog,
+      })
+      check(systemLog, "STORE themeOk = QVariant(bool, true)")
+      check(systemLog, "STORE screensOk = QVariant(bool, true)")
+      check(systemLog, "STORE localeOk = QVariant(bool, true)")
+      check(systemLog, "STORE notifyToken = QVariant(QString, 1)")
+      check(systemLog, "STORE multiOk = QVariant(bool, true)")
+      check(systemLog, "STORE dirOk = QVariant(bool, true)")
+    },
+  },
+  {
+    name: "Secure storage",
+    run: async () => {
+      // Secure storage: set/get/remove round trip through the host secret backend
+      // (PULSAR_SECURE_STUB swaps the OS keychain for an in-memory store in CI).
+      await runHost({
+        PULSAR_DEBUG: "1",
+        QT_QPA_PLATFORM: "offscreen",
+        PULSAR_SECURE_STUB: "1",
+        PULSAR_APP: join(root, "tests", "apps", "secure-app"),
+        AUTO_QUIT_MS: "3000",
+        QT_LOG_FILE: secureLog,
+      })
+      check(secureLog, "STORE secureAvailable = QVariant(bool, true)")
+      check(secureLog, "STORE secureOk = QVariant(bool, true)")
+    },
+  },
+  {
+    name: "JS-built UI",
+    run: async () => {
+      // JS-built UI: a window without `ui` is rendered from the tree; a synthetic
+      // click travels back to the app and updates the store (and the UI).
+      await runHost({
+        PULSAR_DEBUG: "1",
+        QT_QPA_PLATFORM: "offscreen",
+        PULSAR_UI_AUTOCLICK_MS: "800",
+        PULSAR_APP: join(root, "tests", "apps", "js-ui"),
+        AUTO_QUIT_MS: "2500",
+        QT_LOG_FILE: jsUiLog,
+      })
+      check(jsUiLog, "UI render main nodes= 1")
+      check(jsUiLog, "PulsarView built 1")
+      check(jsUiLog, "UI patch main ops=")
+      check(jsUiLog, "STORE count = QVariant(qlonglong, 1)")
+      check(jsUiLog, "STORE open = QVariant(bool, true)")
+      check(jsUiLog, "STORE mutated = QVariant(bool, true)")
+      checkAbsent(jsUiLog, "Error:")
+    },
+  },
+  {
+    name: "Keyed reconcile",
+    run: async () => {
+      // Keyed reconcile: inserting at the front creates one row, reordering moves
+      // the existing rows instead of clearing and rebuilding the list container.
+      await runHost({
+        PULSAR_DEBUG: "1",
+        QT_QPA_PLATFORM: "offscreen",
+        PULSAR_APP: join(root, "tests", "apps", "js-reconcile"),
+        AUTO_QUIT_MS: "2500",
+        QT_LOG_FILE: jsReconcileLog,
+      })
+      check(jsReconcileLog, "PulsarView patch 1 +1")
+      check(jsReconcileLog, "PulsarView patch 1 +0")
+      check(jsReconcileLog, "reorder=4")
+      checkAbsent(jsReconcileLog, "PulsarView built 1 +4")
+      checkAbsent(jsReconcileLog, "Error:")
+    },
+  },
+  {
+    name: "Extended UI kit",
+    run: async () => {
+      // Extended UI kit: every new node type is created by the QML renderer
+      // without warnings.
+      await runHost({
+        PULSAR_DEBUG: "1",
+        QT_QPA_PLATFORM: "offscreen",
+        PULSAR_APP: join(root, "tests", "apps", "ui-kit"),
+        AUTO_QUIT_MS: "2000",
+        QT_LOG_FILE: uiKitLog,
+      })
+      check(uiKitLog, "PulsarView built 1")
+      check(uiKitLog, "STORE permission = QVariant(bool, true)")
+      check(uiKitLog, "STORE permissionRequest = QVariant(bool, true)")
+      checkAbsent(uiKitLog, "Error:")
+      checkAbsent(uiKitLog, "qml:")
+    },
+  },
+  {
+    name: "System tray",
+    run: async () => {
+      // System tray: the app can configure the menu through the tray capability.
+      await runHost({
+        PULSAR_DEBUG: "1",
+        QT_QPA_PLATFORM: "offscreen",
+        PULSAR_APP: join(root, "tests", "apps", "tray-app"),
+        AUTO_QUIT_MS: "3000",
+        QT_LOG_FILE: trayLog,
+      })
+      check(trayLog, "TRAY menu items= 3")
+      check(trayLog, "STORE traySet = QVariant(bool, true)")
+    },
+  },
+  {
+    name: "Deep links + single instance",
+    run: async () => {
+      // Deep links + single instance: launch arguments become open-url/open-file
+      // events, and a second launch is forwarded to the running instance.
+      {
+        const deepEnv = {
+          PULSAR_DEBUG: "1",
+          QT_QPA_PLATFORM: "offscreen",
+          PULSAR_APP: join(root, "tests", "apps", "deep-link"),
+          PULSAR_INSTANCE_KEY: "smoke-" + basename(tmp),
+          AUTO_QUIT_MS: "6000",
+          QT_LOG_FILE: deepLog,
+        }
 
-      await proc.exited
-      clearTimeout(timer)
-    } finally {
-      void server.stop(true)
-    }
+        const first = Bun.spawn({
+          cmd: [host, "file:///tmp/pulsar-first.txt", "pulsar-test://hello"],
+          cwd: root,
+          env: { ...process.env, ...deepEnv },
+          stdio: ["ignore", "ignore", "ignore"],
+        })
 
-    check(netLog, "STORE netText = QVariant(bool, true)")
-    check(netLog, "STORE netEcho = QVariant(bool, true)")
-    check(netLog, "STORE netBinary = QVariant(bool, true)")
-    check(netLog, "STORE netRedirect = QVariant(bool, true)")
-    check(netLog, "STORE netManual = QVariant(bool, true)")
-    check(netLog, "STORE netRedirectError = QVariant(bool, true)")
-    check(netLog, "STORE netStream = QVariant(bool, true)")
-    check(netLog, "STORE netTimeout = QVariant(bool, true)")
-    check(netLog, "STORE netAbort = QVariant(bool, true)")
-    check(netLog, "STORE netFingerprint = QVariant(bool, true)")
-    check(netLog, "STORE netWebSocket = QVariant(bool, true)")
-    check(netLog, "STORE netOk = QVariant(bool, true)")
-  }
+        if (!(await waitFor(deepLog, "STORE openUrl"))) {
+          console.error("smoke: deep-link first instance did not start")
+          markFailed()
+        }
 
-  // Permissions: an app that declares `permissions: []` cannot use fs, and the
-  // denial surfaces as a rejected capability call.
-  runHost({
-    PULSAR_DEBUG: "1",
-    QT_QPA_PLATFORM: "offscreen",
-    PULSAR_APP: join(root, "tests", "apps", "denied"),
-    AUTO_QUIT_MS: "3000",
-    QT_LOG_FILE: deniedLog,
-  })
-  check(deniedLog, "permission denied: fs.readFile")
+        // Async: a blocking spawn here would freeze every other parallel step.
+        await Bun.spawn({
+          cmd: [host, "file:///tmp/pulsar-second.txt"],
+          cwd: root,
+          env: { ...process.env, ...deepEnv },
+          stdio: ["ignore", "ignore", "ignore"],
+        }).exited
 
-  // Single-file build: `pulsar build` must produce one self-contained
-  // executable that extracts itself and runs the QML app.
-  const singleDir = join(tmp, "single")
-  const singleLog = join(tmp, "single.log")
-  const built = Bun.spawnSync({
-    cmd: ["bun", join(root, "cli", "index.ts"), "build", "--slim", "--out", singleDir],
-    cwd: join(root, "examples", "hello"),
-    stdio: ["ignore", "ignore", "inherit"],
-  })
+        if (!(await waitFor(deepLog, "STORE secondArgv"))) {
+          console.error("smoke: second instance was not forwarded")
+          markFailed()
+        }
 
-  if (built.exitCode !== 0) {
-    console.error("smoke: pulsar build failed")
+        first.kill()
+
+        check(deepLog, "STORE openFile = QVariant(QString, /tmp/pulsar-first.txt)")
+        check(deepLog, "STORE openUrl = QVariant(QString, pulsar-test://hello)")
+        check(deepLog, "STORE openFile = QVariant(QString, /tmp/pulsar-second.txt)")
+        check(deepLog, "STORE secondArgv = QVariant(QString,")
+      }
+    },
+  },
+  {
+    name: "Recent documents",
+    run: async () => {
+      // Recent documents: adding a file updates the freedesktop recent list, and
+      // clearing wipes it (XDG_DATA_HOME points at temp so the real list is safe).
+      {
+        const dataDir = join(tmp, "recent-data")
+        const xbel = join(dataDir, "recently-used.xbel")
+
+        const env = {
+          PULSAR_DEBUG: "1",
+          QT_QPA_PLATFORM: "offscreen",
+          PULSAR_APP: join(root, "tests", "apps", "recent-app"),
+          XDG_DATA_HOME: dataDir,
+          AUTO_QUIT_MS: "3000",
+        }
+
+        await runHost({ ...env, PULSAR_RECENT_MODE: "add", QT_LOG_FILE: recentLog })
+        check(recentLog, "RECENT add /tmp/pulsar-recent.txt")
+        check(recentLog, "STORE recentAdded = QVariant(bool, true)")
+        check(xbel, "pulsar-recent.txt")
+
+        await runHost({ ...env, PULSAR_RECENT_MODE: "clear", QT_LOG_FILE: recentClearLog })
+        check(recentClearLog, "RECENT clear")
+        check(recentClearLog, "STORE recentCleared = QVariant(bool, true)")
+
+        let afterClear = ""
+
+        try {
+          afterClear = readFileSync(xbel, "utf8")
+        } catch {
+          // No file means the list was cleared.
+        }
+
+        if (afterClear.includes("pulsar-recent.txt")) {
+          console.error("smoke: recent documents were not cleared")
+          markFailed()
+        }
+      }
+    },
+  },
+  {
+    name: "File associations",
+    run: async () => {
+      // File associations: the manifest entry produces a desktop file and a
+      // mimeapps default, and a second launch does not duplicate either.
+      {
+        const dataDir = join(tmp, "assoc-data")
+        const configDir = join(tmp, "assoc-config")
+
+        const env = {
+          PULSAR_DEBUG: "1",
+          QT_QPA_PLATFORM: "offscreen",
+          PULSAR_APP: join(root, "tests", "apps", "assoc-app"),
+          XDG_DATA_HOME: dataDir,
+          XDG_CONFIG_HOME: configDir,
+          HOME: join(tmp, "assoc-home"),
+          AUTO_QUIT_MS: "2500",
+          QT_LOG_FILE: assocLog,
+        }
+
+        await runHost(env)
+        await runHost(env)
+
+        const desktop = join(dataDir, "applications", "com.pulsar.assocapp.desktop")
+        const mimeapps = join(configDir, "mimeapps.list")
+
+        check(assocLog, "ASSOC register 1 com.pulsar.assocapp")
+        check(desktop, "MimeType=application/x-pulsar-foo;")
+
+        const line = "application/x-pulsar-foo=com.pulsar.assocapp.desktop"
+
+        let content = ""
+
+        try {
+          content = readFileSync(mimeapps, "utf8")
+        } catch {
+          // No file means no association was written.
+        }
+
+        const occurrences = content.split(line).length - 1
+
+        if (occurrences !== 1) {
+          console.error(`smoke: mimeapps default written ${occurrences} times`)
+          markFailed()
+        }
+      }
+    },
+  },
+  {
+    name: "Network",
+    run: async () => {
+      // Network: the host performs real HTTP requests against a local server,
+      // covering methods, headers, bodies, redirects, streaming, timeout and abort.
+      {
+        const server = Bun.serve({
+          hostname: "127.0.0.1",
+          port: 0,
+          fetch: async (request, server) => {
+            const path = new URL(request.url).pathname
+
+            if (path === "/ws") {
+              if (server.upgrade(request, { headers: { "Sec-WebSocket-Protocol": "chat" } })) return
+
+              return new Response("upgrade failed", { status: 400 })
+            }
+
+            if (path === "/hello") return new Response("hello pulsar", { headers: { "Content-Type": "text/plain" } })
+
+            if (path === "/echo") {
+              const body = await request.text()
+
+              return Response.json({ method: request.method, body, header: request.headers.get("x-test") })
+            }
+
+            if (path === "/binary")
+              return new Response(new Uint8Array([0, 1, 2, 255]), {
+                headers: { "Content-Type": "application/octet-stream" },
+              })
+
+            if (path === "/redirect") return Response.redirect(new URL("/hello", request.url).toString(), 302)
+
+            if (path === "/slow") {
+              await Bun.sleep(500)
+
+              return new Response("slow")
+            }
+
+            if (path === "/chunks") {
+              const stream = new ReadableStream({
+                start: (controller) => {
+                  controller.enqueue(new TextEncoder().encode("abc"))
+                  controller.enqueue(new TextEncoder().encode("def"))
+                  controller.close()
+                },
+              })
+
+              return new Response(stream, { headers: { "Content-Type": "text/plain" } })
+            }
+
+            return new Response("not found", { status: 404 })
+          },
+          websocket: {
+            message(ws, message) {
+              if (typeof message === "string") ws.send(`echo:${message}`)
+              else ws.send(message)
+            },
+          },
+        })
+
+        try {
+          const proc = Bun.spawn({
+            cmd: [host],
+            cwd: root,
+            env: {
+              ...process.env,
+              PULSAR_DEBUG: "1",
+              QT_QPA_PLATFORM: "offscreen",
+              PULSAR_APP: join(root, "tests", "apps", "net-app"),
+              PULSAR_NET_BASE: `http://127.0.0.1:${server.port}`,
+              AUTO_QUIT_MS: "6000",
+              QT_LOG_FILE: netLog,
+            },
+            stdio: ["ignore", "ignore", "ignore"],
+          })
+
+          const timer = setTimeout(() => proc.kill(), 15000)
+
+          await proc.exited
+          clearTimeout(timer)
+        } finally {
+          void server.stop(true)
+        }
+
+        check(netLog, "STORE netText = QVariant(bool, true)")
+        check(netLog, "STORE netEcho = QVariant(bool, true)")
+        check(netLog, "STORE netBinary = QVariant(bool, true)")
+        check(netLog, "STORE netRedirect = QVariant(bool, true)")
+        check(netLog, "STORE netManual = QVariant(bool, true)")
+        check(netLog, "STORE netRedirectError = QVariant(bool, true)")
+        check(netLog, "STORE netStream = QVariant(bool, true)")
+        check(netLog, "STORE netTimeout = QVariant(bool, true)")
+        check(netLog, "STORE netAbort = QVariant(bool, true)")
+        check(netLog, "STORE netFingerprint = QVariant(bool, true)")
+        check(netLog, "STORE netWebSocket = QVariant(bool, true)")
+        check(netLog, "STORE netOk = QVariant(bool, true)")
+      }
+    },
+  },
+  {
+    name: "Permissions",
+    run: async () => {
+      // Permissions: an app that declares `permissions: []` cannot use fs, and the
+      // denial surfaces as a rejected capability call.
+      await runHost({
+        PULSAR_DEBUG: "1",
+        QT_QPA_PLATFORM: "offscreen",
+        PULSAR_APP: join(root, "tests", "apps", "denied"),
+        AUTO_QUIT_MS: "3000",
+        QT_LOG_FILE: deniedLog,
+      })
+      check(deniedLog, "permission denied: fs.readFile")
+    },
+  },
+  {
+    name: "Single-file build",
+    slow: true,
+    run: async () => {
+      // Single-file build: `pulsar build` must produce one self-contained
+      // executable that extracts itself and runs the QML app.
+      const singleDir = join(tmp, "single")
+      const singleLog = join(tmp, "single.log")
+      const built = Bun.spawn({
+        cmd: ["bun", join(root, "cli", "index.ts"), "build", "--slim", "--out", singleDir],
+        cwd: join(root, "examples", "hello"),
+        stdio: ["ignore", "ignore", "inherit"],
+      })
+
+      if ((await built.exited) !== 0) {
+        console.error("smoke: pulsar build failed")
+        markFailed()
+      } else {
+        const app = join(singleDir, process.platform === "win32" ? "hello.exe" : "hello")
+
+        await runHostBinary(app, {
+          PULSAR_DEBUG: "1",
+          QT_QPA_PLATFORM: "offscreen",
+          XDG_CACHE_HOME: join(tmp, "single-cache"),
+          AUTO_QUIT_MS: "4000",
+          QT_LOG_FILE: singleLog,
+        })
+        check(singleLog, "CONFIG window main")
+        check(singleLog, "STORE greeting = QVariant(QString, Hello, World!)")
+      }
+    },
+  },
+]
+
+const jobs = testJobs()
+
+const runStep = async (step: Step) => {
+  const started = Date.now()
+  const record = { name: step.name, failed: false }
+
+  try {
+    await current.run(record, step.run)
+  } catch (error) {
+    console.error(`smoke[${step.name}]: threw ${error instanceof Error ? error.stack : String(error)}`)
+    record.failed = true
     failed = true
-  } else {
-    const app = join(singleDir, process.platform === "win32" ? "hello.exe" : "hello")
-
-    runHostBinary(app, {
-      PULSAR_DEBUG: "1",
-      QT_QPA_PLATFORM: "offscreen",
-      XDG_CACHE_HOME: join(tmp, "single-cache"),
-      AUTO_QUIT_MS: "4000",
-      QT_LOG_FILE: singleLog,
-    })
-    check(singleLog, "CONFIG window main")
-    check(singleLog, "STORE greeting = QVariant(QString, Hello, World!)")
   }
+
+  console.log(`${record.failed ? "FAIL" : "ok  "} ${step.name} (${Date.now() - started} ms)`)
+}
+
+try {
+  // jobs 1 runs the steps in order, one at a time, as before.
+  const ordered = jobs === 1 ? steps : [...steps].sort((a, b) => Number(b.slow ?? false) - Number(a.slow ?? false))
+
+  await runPool(
+    ordered.map((step) => () => runStep(step)),
+    jobs,
+  )
 
   if (failed) {
     console.error("smoke: FAILED")
     process.exitCode = 1
   } else {
-    console.log("smoke: OK")
+    console.log(`smoke: OK (${steps.length} steps, jobs ${jobs})`)
   }
 } finally {
   rmSync(tmp, { recursive: true, force: true })
