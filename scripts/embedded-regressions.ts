@@ -499,6 +499,16 @@ const scenarios: Scenario[] = [
     check: (output) => output.includes("LIST page 120") && output.includes("LIST column 300"),
   },
   {
+    name: "stack-centre",
+    check: (output) => {
+      return (
+        output.includes("BOX after 100 20 10 10") &&
+        output.includes("BOX small 40 15 20 20") &&
+        output.includes("BOX dot 140 90 20 20")
+      )
+    },
+  },
+  {
     name: "packing",
     check: (output) => {
       return output.includes("SIZE wide 40") && output.includes("SIZE hug 40") && output.includes("SIZE grow 100")

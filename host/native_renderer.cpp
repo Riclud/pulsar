@@ -506,9 +506,18 @@ void NativeStack::geometryChange(const QRectF &next, const QRectF &previous)
 
 void NativeStack::placeLayers()
 {
+    // Without it a stack that is not given a size is 0 by 0 and its children centre on its corner.
+    qreal hugWidth = 0;
+    qreal hugHeight = 0;
+
     for (const Kid &kid : std::as_const(ordered_)) {
         const Measured size = measure(kid);
         const Absolute &at = kid.absolute;
+
+        if (!at.enabled && kid.item->isVisible()) {
+            hugWidth = qMax(hugWidth, size.preferredWidth);
+            hugHeight = qMax(hugHeight, size.preferredHeight);
+        }
 
         if (at.enabled) {
             const qreal w = at.left.set && at.right.set ? width() - at.left.value - at.right.value : size.preferredWidth;
@@ -532,6 +541,8 @@ void NativeStack::placeLayers()
         kid.item->setPosition({ (width() - size.preferredWidth) / 2, (height() - size.preferredHeight) / 2 });
         kid.item->setSize({ size.preferredWidth, size.preferredHeight });
     }
+
+    setImplicitSize(hugWidth, hugHeight);
 }
 
 // How far a child has opened while it animates its height; its gap scales with it.
