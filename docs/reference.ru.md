@@ -1334,6 +1334,13 @@ intensity: 1.2 } })` или `Text({ neon: true })`. Компонент обор�
   `pulsarEmit(name, value)`; элемент, который ничего не отправляет, может обойтись без
   него. При удалении узла или смене `source` хост останавливает все `MediaPlayer` и
   `Video` внутри элемента и очищает их `source` до удаления элемента.
+- `createScrollController()` двигает прокрутку из кода. Передайте его как `controller` в
+  `Scroll`, `Page` или `List` верхнего уровня и вызывайте `controller.scrollTo(position,
+  { animated })` (пиксели от верха), `controller.scrollToStart()` или
+  `controller.scrollToEnd({ animated })`. Работает и для прокруток самого рендерера, и для
+  тех, что рисует QML (например, с `onScroll`), и останавливает текущий fling.
+  `scrollToEnd` дожидается строк, добавленных в том же обновлении. Один контроллер
+  обслуживает одну прокрутку.
 - `component()` перерисовывается, только когда изменился прочитанный им сигнал, ключ
   store или свойство. См. [руководство по компонентам](guide-components.ru.md).
 - `justify`, `alignItems`, `flex`, `paddingX`, `paddingY`, отступы по сторонам,

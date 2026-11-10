@@ -8,6 +8,7 @@
 #include <QQmlComponent>
 #include <QQmlEngine>
 #include <QQuickTransform>
+#include <QTimer>
 #include <QWheelEvent>
 #include <QtDebug>
 
@@ -287,6 +288,56 @@ qreal Inertia::maxY() const
     return std::max(minY(), flickReal("originY") + flickReal("contentHeight") + flickReal("bottomMargin") - flick_->height());
 }
 
+void Inertia::scrollTo(qreal y, bool animated)
+{
+    if (!flick_ || !frames_)
+        return;
+
+    QMetaObject::invokeMethod(flick_, "cancelFlick");
+    frames_->end();
+    wheeling_->end();
+    absorbing_->stop();
+
+    followEnd_ = false;
+
+    const qreal target = std::max(minY(), std::min(maxY(), y));
+
+    if (!animated) {
+        setContentY(target);
+
+        if (debugging())
+            qInfo().noquote() << QStringLiteral("PulsarView scrolled %1").arg(jsRound(target));
+
+        return;
+    }
+
+    target_ = target;
+    velocity_ = 0;
+    stiffness_ = 18;
+
+    wheeling_->begin();
+}
+
+void Inertia::scrollToEnd(bool animated)
+{
+    scrollTo(maxY(), animated);
+
+    if (!flick_)
+        return;
+
+    // The rows added just before the command have no height until the next layout pass.
+    if (animated) {
+        followEnd_ = true;
+
+        return;
+    }
+
+    QTimer::singleShot(0, this, [this]() {
+        if (flick_ && !wheeling_->running())
+            setContentY(maxY());
+    });
+}
+
 void Inertia::note(bool active)
 {
     if (!renderer_ || QCoreApplication::closingDown())
@@ -486,6 +537,7 @@ void Inertia::scrollByWheel(QWheelEvent *event)
     }
 
     frames_->end();
+    followEnd_ = false;
 
     const bool touchpad = event->pixelDelta().y() != 0;
     const qreal distance = touchpad ? -event->pixelDelta().y() : -event->angleDelta().y();
@@ -507,6 +559,10 @@ void Inertia::spring(qreal frameTime)
 {
     // The exact solution of the spring, so the result does not depend on frame length.
     const qreal elapsed = std::max<qreal>(frameTime, 0.001);
+
+    if (followEnd_)
+        target_ = maxY();
+
     const qreal offset = flickReal("contentY") - target_;
     const qreal decay = std::exp(-stiffness_ * elapsed);
     const qreal carry = (velocity_ + stiffness_ * offset) * elapsed;
@@ -517,6 +573,10 @@ void Inertia::spring(qreal frameTime)
     if (std::abs(nextOffset) < 0.5 && std::abs(velocity_) < 20) {
         setContentY(target_);
         wheeling_->end();
+        followEnd_ = false;
+
+        if (debugging())
+            qInfo().noquote() << QStringLiteral("PulsarView scrolled %1").arg(jsRound(target_));
 
         return;
     }

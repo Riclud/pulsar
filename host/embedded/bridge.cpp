@@ -585,6 +585,11 @@ void EmbeddedBridge::handleMessage(const QJsonObject &message)
         return;
     }
 
+    if (method == QLatin1String("__ui-command")) {
+        Q_EMIT uiCommand(params);
+        return;
+    }
+
     if (method == QLatin1String("__window")) {
         Q_EMIT windowCommand(params.toVariantMap());
         return;

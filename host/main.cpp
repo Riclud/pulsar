@@ -1476,6 +1476,14 @@ int main(int argc, char **argv)
     Bridge *bridge = new Bridge(&engine, store, &app);
 
     QObject::connect(bridge, &Bridge::uiMessage, &app, [](const QString &method, const QJsonObject &params) {
+        if (method == QLatin1String("__ui-command")) {
+            // A command names a node by controller, not by window, so every window gets a try.
+            for (pulsar::NativeRenderer *renderer : std::as_const(g_renderers))
+                renderer->command(params);
+
+            return;
+        }
+
         const QString target = params.value(QLatin1String("target")).toString();
         pulsar::NativeRenderer *renderer = rendererFor(target);
 

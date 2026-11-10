@@ -155,6 +155,7 @@ const QSet<QString> &scrollProps()
         QStringLiteral("flick"),
         QStringLiteral("overscroll"),
         QStringLiteral("scrollKey"),
+        QStringLiteral("scrollController"),
         QStringLiteral("itemKeys"),
     };
 
@@ -2122,6 +2123,50 @@ void NativeRenderer::discard(Node &node, QQuickItem *after)
 
     if (animating.toBool() && node.parent->stack && node.item->parentItem() == node.parent->stack)
         node.parent->stack->keepLeaving(kidFor(*node.parent, node), after);
+}
+
+bool NativeRenderer::command(const QJsonObject &params)
+{
+    if (!root_)
+        return false;
+
+    const QString name = params.value(QLatin1String("command")).toString();
+
+    if (name != QLatin1String("scrollTo") && name != QLatin1String("scrollToEnd"))
+        return false;
+
+    const int controller = params.value(QLatin1String("controller")).toInt(-1);
+    const bool toEnd = name == QLatin1String("scrollToEnd");
+    const qreal position = params.value(QLatin1String("position")).toDouble(0);
+    const bool animated = params.value(QLatin1String("animated")).toBool();
+
+    bool moved = false;
+
+    for (const auto &entry : std::as_const(index_)) {
+        const Node &node = *entry;
+
+        if (!node.item || node.props.value(QLatin1String("scrollController")).toInt(-1) != controller)
+            continue;
+
+        // A scroll that QML renders, even inside an island, is found by the QML side, below.
+        if (node.kind != Kind::Scroll)
+            continue;
+
+        QVariant done;
+
+        QMetaObject::invokeMethod(root_, "nativeScrollTo", Q_RETURN_ARG(QVariant, done), Q_ARG(QVariant, itemArg(node.item)),
+                                  Q_ARG(QVariant, toEnd), Q_ARG(QVariant, position), Q_ARG(QVariant, animated));
+
+        moved = moved || done.toBool();
+    }
+
+    QVariant inIslands;
+
+    QMetaObject::invokeMethod(root_, "nativeScrollByController", Q_RETURN_ARG(QVariant, inIslands),
+                              Q_ARG(QVariant, controller), Q_ARG(QVariant, toEnd), Q_ARG(QVariant, position),
+                              Q_ARG(QVariant, animated));
+
+    return moved || inIslands.toBool();
 }
 
 QObject *NativeRenderer::itemAt(const QString &path) const

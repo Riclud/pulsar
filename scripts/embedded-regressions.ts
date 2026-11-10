@@ -584,6 +584,48 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "scroll-to",
+    env: { AUTO_QUIT_MS: "2800" },
+    check: (output) => {
+      const moved = output.split("\n").filter((line) => line.includes("PulsarView scrolled"))
+      const offsets = output.split("\n").filter((line) => line.includes("] SCROLL "))
+
+      return (
+        moved.some((line) => line.endsWith("scrolled 200")) &&
+        moved.some((line) => line.endsWith("scrolled 250")) &&
+        moved.some((line) => line.endsWith("scrolled 300")) &&
+        moved.some((line) => line.endsWith("scrolled 310")) &&
+        // The native scroll goes to the end, 40 rows of 20 px in a 300 px window.
+        moved.some((line) => line.endsWith("scrolled 500")) &&
+        offsets.some((line) => line.endsWith("SCROLL 250")) &&
+        offsets.some((line) => line.endsWith("SCROLL 310")) &&
+        offsets.at(-1)?.endsWith("SCROLL 0") === true
+      )
+    },
+  },
+  {
+    name: "scroll-to-desktop",
+    fixture: "scroll-to",
+    desktop: true,
+    env: { AUTO_QUIT_MS: "2800" },
+    check: (output) => {
+      const moved = output.split("\n").filter((line) => line.includes("PulsarView scrolled"))
+      const offsets = output.split("\n").filter((line) => line.includes("] SCROLL "))
+
+      return (
+        moved.some((line) => line.endsWith("scrolled 200")) &&
+        moved.some((line) => line.endsWith("scrolled 250")) &&
+        moved.some((line) => line.endsWith("scrolled 300")) &&
+        moved.some((line) => line.endsWith("scrolled 310")) &&
+        // The native scroll goes to the end, 40 rows of 20 px in a 300 px window.
+        moved.some((line) => line.endsWith("scrolled 500")) &&
+        offsets.some((line) => line.endsWith("SCROLL 250")) &&
+        offsets.some((line) => line.endsWith("SCROLL 310")) &&
+        offsets.at(-1)?.endsWith("SCROLL 0") === true
+      )
+    },
+  },
+  {
     name: "packing",
     check: (output) => {
       return output.includes("SIZE wide 40") && output.includes("SIZE hug 40") && output.includes("SIZE grow 100")

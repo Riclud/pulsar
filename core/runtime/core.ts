@@ -391,6 +391,7 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
       app.onSendUi = (label, tree) => send({ jsonrpc: "2.0", method: "__ui", params: { target: label, tree } })
       app.onSendUiPatch = (label, patches) =>
         send({ jsonrpc: "2.0", method: "__ui-patch", params: { target: label, patches } })
+      app.onUiCommand = (command) => send({ jsonrpc: "2.0", method: "__ui-command", params: command })
       app.onAddRecentDocument = (path) => send({ jsonrpc: "2.0", method: "__recent", params: { action: "add", path } })
       app.onClearRecentDocuments = () => send({ jsonrpc: "2.0", method: "__recent", params: { action: "clear" } })
       app.onSetMenu = (items) => send({ jsonrpc: "2.0", method: "__menu", params: { items } })

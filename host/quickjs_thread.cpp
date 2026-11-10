@@ -23,7 +23,8 @@ bool isUiFrame(const QJsonObject &message)
 {
     const QString method = message.value(QStringLiteral("method")).toString();
 
-    return method == QLatin1String("__ui") || method == QLatin1String("__ui-patch");
+    return method == QLatin1String("__ui") || method == QLatin1String("__ui-patch")
+        || method == QLatin1String("__ui-command");
 }
 
 } // namespace

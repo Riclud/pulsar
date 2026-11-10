@@ -1327,6 +1327,13 @@ padding })` caps and centers content on large windows.
 - `onLayout({ width, height })` reports measured size, `onScroll({ offset,
   contentHeight, height })` works on `Page`, `Scroll` and `For`, and every node
   accepts `onFocus`/`onBlur`.
+- `createScrollController()` moves a scroll from code. Pass it as `controller` to
+  `Scroll`, `Page` or a top-level `List`, then call `controller.scrollTo(position,
+  { animated })` (pixels from the top), `controller.scrollToStart()` or
+  `controller.scrollToEnd({ animated })`. It works for the renderer's own scrolls and
+  for scrolls QML draws (for example one with `onScroll`), and stops a fling that is in
+  progress. `scrollToEnd` waits for rows added in the same update. One controller
+  serves one scroll.
 - `a11yRole` and `a11yChecked` add screen-reader roles and state; `a11yLabel`
   and `a11yHint` still set the accessible name and description.
 - `component()` re-renders only when a signal, store key or prop it read changes.

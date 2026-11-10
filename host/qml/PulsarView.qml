@@ -5073,6 +5073,53 @@ ApplicationWindow {
         extra.lastScrollKey = key;
     }
 
+    // Moves a Flickable through its Inertia, which stops a fling or wheel spring in progress first.
+    function scrollItem(item, toEnd, position, animated) {
+        if (!item || item.contentY === undefined)
+            return false;
+
+        for (let i = 0; i < item.children.length; i++) {
+            const child = item.children[i];
+
+            if (typeof child.scrollTo !== "function")
+                continue;
+
+            if (toEnd)
+                child.scrollToEnd(animated);
+            else
+                child.scrollTo(position, animated);
+
+            return true;
+        }
+
+        item.contentY = toEnd ? Math.max(item.originY, item.originY + item.contentHeight - item.height) : position;
+
+        return true;
+    }
+
+    function nativeScrollTo(item, toEnd, position, animated) {
+        if (!item || !item.pulsarMeta || (item.pulsarMeta.node.type !== "scroll" && item.pulsarMeta.node.type !== "list"))
+            return false;
+
+        return scrollItem(item, toEnd, position, animated);
+    }
+
+    function nativeScrollByController(controller, toEnd, position, animated) {
+        let moved = false;
+
+        for (const path in view.nodeItems) {
+            const item = view.nodeItems[path];
+            const node = item && item.pulsarMeta ? item.pulsarMeta.node : null;
+
+            if (!node || prop(node.props, "scrollController", -1) !== controller)
+                continue;
+
+            moved = scrollItem(item, toEnd, position, animated) || moved;
+        }
+
+        return moved;
+    }
+
     function nativeScroll(item, node) {
         if (item.pulsarMeta) {
             item.pulsarMeta.node = node;

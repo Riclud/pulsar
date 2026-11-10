@@ -318,6 +318,37 @@ export const copy = async (text: string): Promise<void> => {
 Icon buttons need an `a11yLabel`: screen readers use it, and so do `pulsar tap` and the MCP
 tools.
 
+## 13. Scroll from code
+
+One controller per scroll. `scrollToEnd` waits for rows added in the same update.
+
+```ts
+import { Button, Column, Page, Text, createScrollController, createState } from "pulsar"
+
+const messages = createState({ list: ["first"] })
+const scroll = createScrollController()
+
+export const Chat = (): ReturnType<typeof Page> => {
+  return Page(
+    {
+      controller: scroll,
+      footer: Button(
+        {
+          onClick: () => {
+            messages.list = [...messages.list, `message ${messages.list.length + 1}`]
+            scroll.scrollToEnd({ animated: true })
+          },
+        },
+        "Send",
+      ),
+    },
+    Column({ gap: 6, fillWidth: true }, ...messages.list.map((text) => Text({ key: text, text }))),
+  )
+}
+```
+
+`scroll.scrollTo(0, { animated: true })` goes back to the top.
+
 ## 13. Check your work
 
 ```sh

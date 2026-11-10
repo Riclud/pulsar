@@ -897,7 +897,7 @@ void Bridge::handleObject(const QJsonObject &obj)
 {
     const QString method = obj.value(QLatin1String("method")).toString();
 
-    if (method == QLatin1String("__ui") || method == QLatin1String("__ui-patch")) {
+    if (method == QLatin1String("__ui") || method == QLatin1String("__ui-patch") || method == QLatin1String("__ui-command")) {
         Q_EMIT uiMessage(method, obj.value(QLatin1String("params")).toObject());
         return;
     }

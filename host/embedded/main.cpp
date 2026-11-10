@@ -568,6 +568,11 @@ int main(int argc, char **argv)
             renderer.applyPatches(patches);
     });
 
+    QObject::connect(&bridge, &EmbeddedBridge::uiCommand, &app, [&](const QJsonObject &command) {
+        if (jsUi)
+            renderer.command(command);
+    });
+
 #ifdef Q_OS_ANDROID
     g_backBridge = &bridge;
 

@@ -277,6 +277,8 @@ export interface ScrollState {
 export interface PageOptions extends CommonOptions {
   /** Scrolls back to the top whenever this value changes, for a screen that is reused for new content. */
   scrollKey?: string | number
+  /** Moves the scroll from code: `controller.scrollTo(400)`. */
+  controller?: ScrollController
   gap?: number
   padding?: number
   header?: UiChild
@@ -299,6 +301,8 @@ export interface StackOptions extends CommonOptions, PaddingOptions, SurfaceOpti
 export interface ScrollOptions extends CommonOptions {
   /** Scrolls back to the top whenever this value changes, for a screen that is reused for new content. */
   scrollKey?: string | number
+  /** Moves the scroll from code: `controller.scrollTo(400)`. */
+  controller?: ScrollController
   gap?: number
   padding?: number
   flick?: boolean
@@ -320,6 +324,8 @@ export interface ListOptions<T> extends CommonOptions {
   memo?: boolean
   spacing?: number
   padding?: number
+  /** Moves the list from code when it is the scrolling list of a screen. */
+  controller?: ScrollController
   onScroll?: (state: ScrollState) => void
 }
 
@@ -859,6 +865,58 @@ const textOf = (children: UiChild[]): string => {
 }
 
 const handlers = new Map<number, Record<string, UiHandler>>()
+export interface ScrollToOptions {
+  /** Glide to the position instead of jumping. */
+  animated?: boolean
+}
+
+/** A command for a node of the rendered UI, delivered to the host by the runtime. */
+export interface UiCommand {
+  command: "scrollTo" | "scrollToEnd"
+  controller: number
+  position?: number
+  animated: boolean
+}
+
+export interface ScrollController {
+  readonly id: number
+  /** Scrolls to a distance from the top of the content, in pixels. */
+  scrollTo(position: number, options?: ScrollToOptions): void
+  scrollToStart(options?: ScrollToOptions): void
+  scrollToEnd(options?: ScrollToOptions): void
+}
+
+let uiCommandSink: ((command: UiCommand) => void) | null = null
+
+/** Installed by the App; sends commands for rendered nodes to the host. */
+export const setUiCommandSink = (sink: ((command: UiCommand) => void) | null): void => {
+  uiCommandSink = sink
+}
+
+let nextControllerID = 1
+
+/** Create one controller per scroll you want to move from code, and pass it as `controller`. */
+export const createScrollController = (): ScrollController => {
+  const id = nextControllerID++
+
+  const send = (command: UiCommand["command"], position: number | undefined, options?: ScrollToOptions): void => {
+    uiCommandSink?.({ command, controller: id, position, animated: options?.animated === true })
+  }
+
+  return {
+    id,
+    scrollTo: (position, options) => send("scrollTo", Math.max(0, position), options),
+    scrollToStart: (options) => send("scrollTo", 0, options),
+    scrollToEnd: (options) => send("scrollToEnd", undefined, options),
+  }
+}
+
+const withController = <P extends object>(props: P, controller: ScrollController | undefined): P => {
+  if (!controller) return props
+
+  return { ...props, scrollController: controller.id }
+}
+
 let nextId = 1
 
 const NEON_LAYOUT_KEYS = ["key", "fill", "fillWidth", "fillHeight", "expand", "align", "visible"] as const
@@ -1101,7 +1159,8 @@ export const box = (options: BoxOptions = {}, ...children: UiChild[]): UiNode =>
 }
 
 export const scroll = (options: ScrollOptions = {}, ...children: UiChild[]): UiNode => {
-  const { onScroll, ...props } = options
+  const { onScroll, controller, ...rest } = options
+  const props = withController(rest, controller)
 
   if (!onScroll) return makeNode("scroll", props, children)
 
@@ -1169,9 +1228,13 @@ const memoRows = <T>(
 }
 
 export const list = <T>(options: ListOptions<T>): UiNode => {
-  const { items, render, keyOf, memo, onScroll, ...props } = options
+  const { items, render, keyOf, memo, onScroll, controller, ...rest } = options
+  const props = withController(rest, controller)
   const itemKeys = items.map((item, index) => keyOf?.(item, index) ?? implicitItemKey(item) ?? index)
-  const children = memo && currentInstance ? memoRows(currentInstance, items, itemKeys, render) : items.map((item, index) => render(item, index))
+  const children =
+    memo && currentInstance
+      ? memoRows(currentInstance, items, itemKeys, render)
+      : items.map((item, index) => render(item, index))
 
   if (!onScroll) return makeNode("list", { ...props, itemKeys }, children)
 
@@ -1692,12 +1755,26 @@ export const container = (options: ContainerOptions = {}, ...children: UiChild[]
 }
 
 export const page = (options: PageOptions = {}, ...children: UiChild[]): UiNode => {
-  const { gap = 12, padding = 16, header, footer, flick, overscroll, onScroll, scrollKey, ...props } = options
+  const {
+    gap = 12,
+    padding = 16,
+    header,
+    footer,
+    flick,
+    overscroll,
+    onScroll,
+    scrollKey,
+    controller,
+    ...props
+  } = options
 
   return column(
     { ...props, fill: true, gap, padding },
     header ?? null,
-    scroll({ fill: true, flick, overscroll, onScroll, scrollKey }, column({ gap, fillWidth: true }, ...children)),
+    scroll(
+      { fill: true, flick, overscroll, onScroll, scrollKey, controller },
+      column({ gap, fillWidth: true }, ...children),
+    ),
     footer ?? null,
   )
 }

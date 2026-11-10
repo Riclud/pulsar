@@ -11,8 +11,10 @@ import {
   renderUiRoot,
   runPendingMounts,
   serialize,
+  setUiCommandSink,
   setWindowHandlers,
   updateUiRoot,
+  type UiCommand,
   type UiNode,
   type UiPatch,
   type UiRoot,
@@ -473,6 +475,8 @@ export class App {
   onSendUi?: (label: string, tree: unknown[]) => void
   /** Installed by the runtime; applies changed subtrees to an existing window. */
   onSendUiPatch?: (label: string, patches: UiPatch[]) => void
+  /** Installed by the runtime; moves a rendered node, such as a scroll, from code. */
+  onUiCommand?: (command: UiCommand) => void
   /** Installed by the runtime; adds a file to the OS recent list. */
   onAddRecentDocument?: (path: string) => void
   /** Installed by the runtime; clears the OS recent list. */
@@ -503,6 +507,7 @@ export class App {
     this.windowConfigs = resolveWindows(this.manifest, config)
     this.store = new Store()
     App.current = this
+    setUiCommandSink((command) => this.onUiCommand?.(command))
   }
 
   /** Quit the application. */

@@ -68,6 +68,10 @@ public:
     qreal impulse() const { return impulse_; }
     void setImpulse(qreal impulse);
 
+    /** Moves to a content offset, clamped to the content; animated glides on the wheel spring. */
+    Q_INVOKABLE void scrollTo(qreal y, bool animated);
+    Q_INVOKABLE void scrollToEnd(bool animated);
+
     /** How far the stretch pulls the content, in pixels; the transform reads it. */
     qreal pull() const;
     bool pullsTop() const;
@@ -129,6 +133,7 @@ private:
     qreal target_ = 0;
     qreal velocity_ = 0;
     qreal stiffness_ = 30;
+    bool followEnd_ = false;
     QVariantList curve_;
     FrameClock *frames_ = nullptr;
     FrameClock *wheeling_ = nullptr;

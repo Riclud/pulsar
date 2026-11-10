@@ -150,6 +150,9 @@ public:
     void setTree(const QJsonArray &tree);
     void applyPatches(const QJsonArray &patches);
 
+    /** A command from JS for a node, such as scrollTo on a scroll with a controller; true when a node took it. */
+    bool command(const QJsonObject &params);
+
     QJsonArray snapshot() const;
     QObject *window() const { return root_; }
 

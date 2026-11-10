@@ -101,6 +101,7 @@ signals:
     void themeApplied(const QVariantMap &theme);
     void uiTree(const QString &target, const QJsonArray &tree);
     void uiPatch(const QString &target, const QJsonArray &patches);
+    void uiCommand(const QJsonObject &command);
     void windowCommand(const QVariantMap &command);
     void errorReported(const QString &scope, const QString &message, const QString &stack);
     void errorText(const QString &text);
