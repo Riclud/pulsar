@@ -191,6 +191,68 @@ export interface UiTimings {
   patches: number
 }
 
+/**
+ * The node IDs the host currently shows. IDs are small increasing integers, so
+ * flags in a typed array replace a hash set: replacing the whole set costs a
+ * few array writes per ID instead of hashing every one.
+ */
+class SentIDs {
+  private live = new Uint8Array(1024)
+  private marks = new Int32Array(1024)
+  private list: number[] = []
+  private epoch = 0
+
+  private grow(id: number): void {
+    if (id < this.live.length) return
+
+    const size = Math.max(id + 1, this.live.length * 2)
+    const live = new Uint8Array(size)
+    const marks = new Int32Array(size)
+
+    live.set(this.live)
+    marks.set(this.marks)
+    this.live = live
+    this.marks = marks
+  }
+
+  add(id: number): void {
+    this.grow(id)
+
+    if (this.live[id]) return
+
+    this.live[id] = 1
+    this.list.push(id)
+  }
+
+  delete(id: number): void {
+    if (id < this.live.length) this.live[id] = 0
+  }
+
+  /** Make `next` the whole set and return the IDs that were in it before. */
+  replace(next: number[]): number[] {
+    const epoch = ++this.epoch
+    const gone: number[] = []
+
+    for (const id of next) {
+      this.grow(id)
+      this.marks[id] = epoch
+    }
+
+    for (const id of this.list) {
+      if (!this.live[id] || this.marks[id] === epoch) continue
+
+      this.live[id] = 0
+      gone.push(id)
+    }
+
+    for (const id of next) this.live[id] = 1
+
+    this.list = next
+
+    return gone
+  }
+}
+
 const clock = (): number => {
   return typeof performance === "undefined" ? Date.now() : performance.now()
 }
@@ -421,7 +483,7 @@ export class App {
   private readonly roots = new Map<string, UiRoot>()
   private readonly sentTrees = new Map<string, unknown[]>()
   private readonly sentRoutes = new Map<string, UiRoutes>()
-  private readonly sentIds = new Map<string, Set<number>>()
+  private readonly sentIds = new Map<string, SentIDs>()
   private readonly pendingRecent: Array<{ action: "add" | "clear"; path?: string }> = []
   private lastMenu: MenuItem[] | null = null
   private flushQueued = false
@@ -605,7 +667,7 @@ export class App {
     }
 
     const routes = this.sentRoutes.get(label) ?? {}
-    const ids = this.sentIds.get(label) ?? new Set<number>()
+    const ids = this.sentIds.get(label) ?? new SentIDs()
 
     // A rerendered component keeps the nodes of children that did not change, so
     // their IDs show up as both removed and current; only drop the ones now gone.
@@ -643,14 +705,14 @@ export class App {
     const serialized = report ? clock() : 0
     const { routes, ids } = collectUiHandlers(nodes)
     const collected = report ? clock() : 0
-    const next = new Set(ids)
+    const sent = this.sentIds.get(label) ?? new SentIDs()
 
-    forgetHandlers([...(this.sentIds.get(label) ?? [])].filter((id) => !next.has(id)))
+    forgetHandlers(sent.replace(ids))
     setWindowHandlers(label, routes)
 
     this.sentTrees.set(label, tree)
     this.sentRoutes.set(label, routes)
-    this.sentIds.set(label, next)
+    this.sentIds.set(label, sent)
 
     const patches = previous && this.onSendUiPatch ? diffUiTrees(previous, tree) : null
     const diffed = report ? clock() : 0

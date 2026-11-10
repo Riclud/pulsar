@@ -39,3 +39,41 @@ test("a parent rerender keeps the handlers of the children it reuses", async () 
 
   expect(taps).toEqual(["child"])
 })
+
+test("a full rerender forgets the handlers of removed nodes and keeps the rest", async () => {
+  const app = new App()
+  const names = signal(["a", "b", "c"])
+  const taps: string[] = []
+  const nodes = new Map<string, UiNode>()
+
+  app.onSendUi = () => {}
+
+  app.renderWindow("main", () => {
+    return Column(
+      { key: "root" },
+      ...names.get().map((name) => {
+        const node = Text({ key: name, text: name, onLayout: () => taps.push(name) })
+
+        nodes.set(name, node)
+
+        return node
+      }),
+    )
+  })
+
+  const before = new Map(nodes)
+
+  names.set(["a", "c", "d"])
+  await tick()
+  names.set(["a", "c"])
+  await tick()
+
+  const layout = { width: 1, height: 1, x: 0, y: 0 }
+
+  dispatchUiEvent(before.get("b")!.id, "layout", layout)
+  dispatchUiEvent(nodes.get("a")!.id, "layout", layout)
+  dispatchUiEvent(nodes.get("c")!.id, "layout", layout)
+  dispatchUiEvent(nodes.get("d")!.id, "layout", layout)
+
+  expect(taps).toEqual(["a", "c"])
+})
