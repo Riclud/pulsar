@@ -408,6 +408,37 @@ export const Feed = (posts: { id: string; text: string }[]): ReturnType<typeof P
 }
 ```
 
+## 16. Play a video
+
+`Video` plays a file or URL as a node, on the desktop and on Android. Putting `Video` in the
+app makes the build bundle the video backend.
+
+```ts
+import { Button, Column, Video, createState } from "pulsar"
+
+const player = createState({ paused: false })
+
+export const Clip = (): ReturnType<typeof Column> => {
+  return Column(
+    { gap: 8, fillWidth: true },
+    Video({
+      source: "media/intro.mp4",
+      autoplay: true,
+      loop: true,
+      muted: true,
+      fillMode: "cover",
+      fillWidth: true,
+      height: 220,
+      paused: player.paused,
+      onError: (message) => console.log(`video failed: ${message}`),
+    }),
+    Button({ onClick: () => (player.paused = !player.paused) }, player.paused ? "Play" : "Pause"),
+  )
+}
+```
+
+The player stops by itself when the node goes away; there is nothing to clean up.
+
 ## 13. Check your work
 
 ```sh

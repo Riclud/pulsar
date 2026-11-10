@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs"
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
 import { join, resolve } from "path"
 import { bundleRuntime } from "../cli/android.ts"
@@ -17,6 +17,8 @@ type Scenario = {
   fixture?: string
   /** Extra files written into the app folder, by name. */
   files?: Record<string, string>
+  /** Files copied into the app folder: name to a path under tests/embedded/regressions. */
+  copies?: Record<string, string>
   /** Run the desktop host with the bundle on its in-process QuickJS runtime. */
   quickjsDesktop?: boolean
   env?: Record<string, string>
@@ -665,6 +667,51 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "video",
+    serial: true,
+    env: { AUTO_QUIT_MS: "3600" },
+    copies: { "clip.webm": "assets/clip.webm" },
+    check: (output) => {
+      const lines = output.split("\n")
+      const last = (text: string) => lines.reduce((found, line, index) => (line.includes(text) ? index : found), -1)
+      const released = last("video released")
+
+      return (
+        output.includes("VIDEO ended") &&
+        // The looping player is stopped while it plays, when its node leaves.
+        output.includes("video released while playing") &&
+        last("video state 1") > 0 &&
+        // Nothing starts playing again after the last node is gone.
+        last("video state 1") < released
+      )
+    },
+  },
+  {
+    name: "video-paused",
+    serial: true,
+    env: { AUTO_QUIT_MS: "2800" },
+    copies: { "clip.webm": "assets/clip.webm" },
+    check: (output) => {
+      const lines = output.split("\n")
+      const at = (text: string) => lines.findIndex((line) => line.includes(text))
+      const first = at("video state 1")
+
+      // Loaded but held back while paused, and it plays once paused turns false.
+      return (
+        at("video status 2") > 0 && at("PHASE paused") > 0 && first > at("PHASE paused") && first < at("PHASE playing")
+      )
+    },
+  },
+  {
+    name: "video-desktop",
+    fixture: "video",
+    desktop: true,
+    serial: true,
+    env: { AUTO_QUIT_MS: "3600" },
+    copies: { "clip.webm": "assets/clip.webm" },
+    check: (output) => output.includes("VIDEO ended") && output.includes("video released while playing"),
+  },
+  {
     name: "packing",
     check: (output) => {
       return output.includes("SIZE wide 40") && output.includes("SIZE hug 40") && output.includes("SIZE grow 100")
@@ -796,6 +843,8 @@ const runScenario = async (scenario: Scenario): Promise<Outcome> => {
   const dir = mkdtempSync(join(tmpdir(), "pulsar-regression-"))
 
   for (const [name, text] of Object.entries(scenario.files ?? {})) writeFileSync(join(dir, name), text)
+  for (const [name, source] of Object.entries(scenario.copies ?? {}))
+    copyFileSync(join(fixtures, source), join(dir, name))
   const hostLog = join(dir, "host.log")
   const drive = scenario.drive ? startDrive(scenario.drive) : undefined
 

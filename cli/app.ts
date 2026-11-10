@@ -26,7 +26,7 @@ export const readManifest = (appDir: string): AppManifest | null => {
   return parsed as AppManifest
 }
 
-const MEDIA_USE = /\bmedia\s*\.\s*(load|play|toggle)\s*\(|\b(MediaPlayer|VideoOutput)\s*\{/
+const MEDIA_USE = /\bmedia\s*\.\s*(load|play|toggle)\s*\(|\b(MediaPlayer|VideoOutput)\s*\{|<Video\b|\bVideo\s*\(\s*\{/
 const SOURCE_FILE = /\.(m?[jt]sx?|qml)$/
 const NOT_SOURCES = new Set(["node_modules", "dist", "build", ".git", ".pulsar"])
 

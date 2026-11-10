@@ -195,7 +195,7 @@ const { os, kind, engine } = platform() // "linux" | "darwin" | "win32" | "andro
 ```
 
 Apps get the in-app video player (FFmpeg, about 20 MB) only when they use `media`,
-`MediaPlayer` or `VideoOutput`. Without it, desktop videos open in the system player and
+`MediaPlayer`, `VideoOutput` or the `Video` node. Without it, desktop videos open in the system player and
 Android apps have no video backend. Set `"video": true` or `false` in `pulsar.json` to
 decide yourself. On Android the player is the FFmpeg multimedia backend from the Qt kit;
 see Video on Android below.
@@ -240,7 +240,7 @@ tools. The result is `dist/<name>.apk` for `arm64-v8a` (minSdk 28, targetSdk
 
 #### Video on Android
 
-An app with `"video": true`, or one that uses `media`, `MediaPlayer` or `VideoOutput`,
+An app with `"video": true`, or one that uses `media`, `MediaPlayer`, `VideoOutput` or `Video`,
 gets Qt's FFmpeg multimedia backend in the APK (the plugin and the libav\* libraries,
 several MB more). Other apps do not. Without the backend Qt logs "No QtMultimedia
 backends found" and nothing plays.
@@ -1336,6 +1336,15 @@ padding })` caps and centers content on large windows.
   for scrolls QML draws (for example one with `onScroll`), and stops a fling that is in
   progress. `scrollToEnd` waits for rows added in the same update. One controller
   serves one scroll.
+- `Video({ source, muted, loop, autoplay, paused, fillMode, volume, onEnded, onError })`
+  plays a video file (a path in the app folder or a URL) as a node, on the desktop and on
+  Android, so the app needs no QML. `autoplay` starts it once loaded; `paused: true`
+  holds it and `paused: false` plays it, and a video that ended plays again when `paused`
+  goes false. `fillMode` is `contain` (the default), `cover` or `stretch`. Give it a
+  `width` and `height`, or `fillWidth` with a height. The player stops and is released
+  when the node leaves the tree, on every path: removal, a changed key, a closed screen.
+  It needs QtMultimedia: desktop builds with it have it, and on Android the app gets the
+  FFmpeg backend because it uses `Video` (see Video on Android).
 - `onVisible(visible)`, `onEnterViewport()` and `onLeaveViewport()` tell when a node
   comes into view or leaves it: inside a scroll it is measured against that scroll,
   elsewhere against the window. Use them to load an image, start a video or mark a

@@ -15,6 +15,7 @@ export type UiNodeType =
   | "grid"
   | "virtualList"
   | "virtualRows"
+  | "video"
   | "card"
   | "appBar"
   | "text"
@@ -461,6 +462,23 @@ export interface ImageOptions extends CommonOptions {
   fillMode?: string
   onClick?: () => void
   onLongPress?: () => void
+}
+
+export interface VideoOptions extends CommonOptions {
+  /** A file path (relative to the app folder or absolute) or a URL. */
+  source: string
+  muted?: boolean
+  loop?: boolean
+  /** Start playing as soon as the source is loaded. */
+  autoplay?: boolean
+  /** `true` pauses, `false` plays. Leave it out to follow `autoplay`. */
+  paused?: boolean
+  /** How the picture fits the node: `contain` keeps the whole picture, `cover` fills and crops, `stretch` distorts. */
+  fillMode?: "contain" | "cover" | "stretch"
+  /** 0 to 1. */
+  volume?: number
+  onEnded?: () => void
+  onError?: (message: string) => void
 }
 
 export interface AvatarOptions extends CommonOptions {
@@ -1432,6 +1450,24 @@ export const icon = (name: string, options: IconOptions = {}): UiNode => {
 
 export const image = (options: ImageOptions): UiNode => {
   return withLongPress("image", options)
+}
+
+export const video = (options: VideoOptions): UiNode => {
+  const { onEnded, onError, ...props } = options
+  const events: string[] = []
+  const callbacks: Record<string, UiHandler> = {}
+
+  if (onEnded) {
+    events.push("ended")
+    callbacks.ended = () => onEnded()
+  }
+
+  if (onError) {
+    events.push("error")
+    callbacks.error = (value) => onError(String(value))
+  }
+
+  return makeNode("video", props, [], events, callbacks)
 }
 
 export const avatar = (options: AvatarOptions = {}): UiNode => {
@@ -2682,6 +2718,9 @@ export const Page = (options: PageOptions = {}, ...children: UiChild[]): UiNode 
 export const Spacer = spacer
 export const Divider = divider
 export const Image = image
+
+/** Plays a video file or URL. The player stops when the node leaves the tree. */
+export const Video = (options: VideoOptions): UiNode => video(options)
 export const Avatar = (options: AvatarOptions = {}): UiNode => avatar(options)
 export const Badge = (options: BadgeOptions = {}): UiNode => badge(options)
 export const Skeleton = (options: SkeletonOptions = {}): UiNode => skeleton(options)

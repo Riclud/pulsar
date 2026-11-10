@@ -215,6 +215,7 @@ if(TARGET Qt6::Multimedia)
         PREFIX "/runtime"
         BASE "${CMAKE_CURRENT_SOURCE_DIR}/host/qml"
         FILES "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/VideoPlayer.qml"
+              "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/video/VideoNode.qml"
     )
 endif()
 
@@ -249,6 +250,19 @@ target_link_libraries(qml-host-qjs PRIVATE
 pulsar_link_websockets(qml-host-qjs)
 
 pulsar_add_view_resources(qml-host-qjs "pulsarview_qjs")
+
+# The Video node needs QtMultimedia; without it the node shows nothing.
+function(pulsar_add_video_node target resource_name)
+    qt_add_resources(${target} ${resource_name}
+        PREFIX "/runtime"
+        BASE "${CMAKE_CURRENT_SOURCE_DIR}/host/qml"
+        FILES "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/video/VideoNode.qml"
+    )
+endfunction()
+
+if(TARGET Qt6::Multimedia)
+    pulsar_add_video_node(qml-host-qjs "pulsarvideo_qjs")
+endif()
 
 # --- Android host: the same embedded QuickJS/QML engine packaged as an APK ---
 if(ANDROID)
@@ -320,6 +334,7 @@ if(ANDROID)
             INCLUDE_BY_TYPE multimedia Qt6::QFFmpegMediaPlugin
         )
         target_compile_definitions(pulsar-android PRIVATE PULSAR_ANDROID_VIDEO=1)
+        pulsar_add_video_node(pulsar-android "pulsarvideo_android")
     endif()
 
     pulsar_add_view_resources(pulsar-android "pulsarview_android")

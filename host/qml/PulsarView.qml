@@ -26,6 +26,8 @@ ApplicationWindow {
     readonly property var flingCurve: makeFlingCurve()
     readonly property bool effectsAvailable: host.GraphicsInfo.api !== GraphicsInfo.Software
     property var tappedItems: []
+    property var videoComponent: null
+    readonly property bool debugging: PulsarBridge.env("PULSAR_DEBUG") ? true : false
     property var nativeRenderer: null
     readonly property Item nativeHost: host
     readonly property Component nativeFlickable: flickableComponent
@@ -2688,6 +2690,22 @@ ApplicationWindow {
             releaseMedia(parts[i], (depth || 0) + 1);
     }
 
+    // Video needs QtMultimedia, so its file is loaded on first use and a missing module costs only the video.
+    function createVideo(parent) {
+        if (!view.videoComponent)
+            view.videoComponent = Qt.createComponent("qrc:/runtime/video/VideoNode.qml");
+
+        const component = view.videoComponent;
+
+        if (component.status !== Component.Ready) {
+            console.warn("Video is not available in this build: " + component.errorString());
+
+            return itemComponent.createObject(parent);
+        }
+
+        return component.createObject(parent, { view: viewRef });
+    }
+
     function applyQmlProps(loader, node) {
         if (!loader || !node)
             return;
@@ -3115,6 +3133,8 @@ ApplicationWindow {
             item = navBarComponent.createObject(parent);
         } else if (node.type === "zoomable") {
             item = zoomableComponent.createObject(parent);
+        } else if (node.type === "video") {
+            item = createVideo(parent);
         } else if (node.type === "qml") {
             item = qmlComponent.createObject(parent);
         } else if (node.type === "text") {
@@ -4404,6 +4424,25 @@ ApplicationWindow {
                 item.contentItem.pulsarMeta = contentMeta();
 
             reconcile(item.contentItem, node.children || [], false);
+        } else if (node.type === "video") {
+            if (item.sync === undefined)
+                return;
+
+            item.nodeData = node;
+            item.muted = prop(props, "muted", false);
+            item.loop = prop(props, "loop", false);
+            item.autoplay = prop(props, "autoplay", false);
+            item.fillMode = prop(props, "fillMode", "contain");
+            item.volume = prop(props, "volume", 1);
+            item.paused = props.paused === undefined ? undefined : props.paused === true;
+
+            const videoSource = prop(props, "source", "");
+            const videoBase = PulsarBridge.env("PULSAR_APP") || "";
+
+            item.source = videoSource.length === 0 ? ""
+                    : /^[a-z][a-z0-9+.-]*:/i.test(videoSource) ? videoSource
+                    : "file://" + (videoSource.charAt(0) === "/" ? videoSource : videoBase + "/" + videoSource);
+            item.sync();
         } else if (node.type === "qml") {
             item.nodeData = node;
 
