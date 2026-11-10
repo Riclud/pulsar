@@ -126,12 +126,63 @@ describe("ui", () => {
     expect((patches?.[0]?.node.children as unknown[]).length).toBe(3)
   })
 
-  test("sends the parent subtree when keyed children reorder", () => {
+  test("moves a keyed child instead of resending the parent", () => {
     const before = serialize([column({}, [text({ text: "a", key: "a" }), text({ text: "b", key: "b" })])])
     const after = serialize([column({}, [text({ text: "b", key: "b" }), text({ text: "a", key: "a" })])])
     const patches = diffUiTrees(before, after)
 
     expect(patches?.length).toBe(1)
+    expect(patches?.[0]).toMatchObject({ op: "move", path: "/0/b", index: 0 })
+  })
+
+  test("inserts and removes keyed children without resending the siblings", () => {
+    const keyed = (...keys: string[]) =>
+      serialize([
+        column(
+          {},
+          keys.map((key) => text({ text: key, key })),
+        ),
+      ])
+    const prepended = diffUiTrees(keyed("a", "b", "c"), keyed("x", "a", "b", "c"))
+
+    expect(prepended?.length).toBe(1)
+    expect(prepended?.[0]).toMatchObject({ op: "insert", path: "/0", index: 0 })
+    expect(prepended?.[0]?.node.path).toBe("/0/x")
+
+    const removed = diffUiTrees(keyed("a", "b", "c"), keyed("b", "c"))
+
+    expect(removed?.length).toBe(1)
+    expect(removed?.[0]).toMatchObject({ op: "remove", path: "/0/a" })
+  })
+
+  test("still patches the kept keyed children after an insert", () => {
+    const rows = (...entries: Array<[string, string]>) => {
+      return serialize([
+        column(
+          {},
+          entries.map(([key, value]) => text({ text: value, key })),
+        ),
+      ])
+    }
+
+    const patches = diffUiTrees(rows(["a", "1"], ["b", "2"]), rows(["x", "0"], ["a", "1"], ["b", "3"]))
+
+    expect(patches?.map((patch) => patch.op ?? patch.path)).toEqual(["insert", "/0/b"])
+  })
+
+  test("sends the whole parent when keyed children change too much", () => {
+    const keyed = (...keys: string[]) =>
+      serialize([
+        column(
+          {},
+          keys.map((key) => text({ text: key, key })),
+        ),
+      ])
+    const keys = Array.from({ length: 40 }, (_, index) => `k${index}`)
+    const patches = diffUiTrees(keyed(...keys), keyed(...[...keys].reverse()))
+
+    expect(patches?.length).toBe(1)
+    expect(patches?.[0]?.op).toBeUndefined()
     expect(patches?.[0]?.path).toBe("/0")
   })
 

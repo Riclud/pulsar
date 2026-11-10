@@ -864,6 +864,12 @@ void NativeRenderer::applyPatchList(const QJsonArray &patches)
     for (const QJsonValue &value : patches) {
         const QJsonObject patch = value.toObject();
 
+        if (patch.contains(QLatin1String("op"))) {
+            applyChildOp(patch);
+
+            continue;
+        }
+
         applyPatch(patch.value(QLatin1String("path")).toString(), patch.value(QLatin1String("node")).toObject(),
                    patch.value(QLatin1String("shallow")).toBool());
     }
@@ -967,6 +973,204 @@ bool NativeRenderer::patchIsland(const QString &path, const QJsonObject &json, b
         updateIsland(*island, false);
 
     return true;
+}
+
+namespace {
+
+QString parentPathOf(const QString &path)
+{
+    return path.left(qMax<qsizetype>(0, path.lastIndexOf(QLatin1Char('/'))));
+}
+
+QJsonObject jsonAt(const QJsonObject &node, const QString &path)
+{
+    const QString own = node.value(QLatin1String("path")).toString();
+
+    if (own == path)
+        return node;
+
+    if (!path.startsWith(own + QLatin1Char('/')))
+        return {};
+
+    for (const QJsonValue &child : node.value(QLatin1String("children")).toArray()) {
+        const QJsonObject found = jsonAt(child.toObject(), path);
+
+        if (!found.isEmpty())
+            return found;
+    }
+
+    return {};
+}
+
+bool editChildrenJson(QJsonArray &children, const QString &op, const QString &path, qsizetype index, const QJsonObject &json)
+{
+    if (op == QLatin1String("insert")) {
+        children.insert(qBound<qsizetype>(0, index, children.size()), json);
+
+        return true;
+    }
+
+    for (qsizetype at = 0; at < children.size(); at++) {
+        if (children.at(at).toObject().value(QLatin1String("path")).toString() != path)
+            continue;
+
+        const QJsonValue moved = children.at(at);
+
+        children.removeAt(at);
+
+        if (op == QLatin1String("move"))
+            children.insert(qBound<qsizetype>(0, index, children.size()), moved);
+
+        return true;
+    }
+
+    return false;
+}
+
+} // namespace
+
+// A scroll turns into an island when its first content child is a text field.
+bool NativeRenderer::scrollKindHolds(Node &node)
+{
+    if (node.kind != Kind::Scroll || node.children.empty())
+        return true;
+
+    const Node &content = *node.children.front();
+
+    if (content.kind == Kind::Island) {
+        const QJsonObject first = content.json.value(QLatin1String("children")).toArray().at(0).toObject();
+        const QString type = first.value(QLatin1String("type")).toString();
+
+        return type != QLatin1String("textInput") && type != QLatin1String("textArea");
+    }
+
+    if (content.children.empty())
+        return true;
+
+    const QString &type = content.children.front()->type;
+
+    return type != QLatin1String("textInput") && type != QLatin1String("textArea");
+}
+
+bool NativeRenderer::editNativeChildren(Node &parent, const QString &op, const QString &path, qsizetype index,
+                                        const QJsonObject &json)
+{
+    auto &children = parent.children;
+
+    if (op == QLatin1String("insert")) {
+        const qsizetype at = qBound<qsizetype>(0, index, qsizetype(children.size()));
+
+        children.insert(children.begin() + at, createSynced(json, &parent));
+
+        return true;
+    }
+
+    const auto slot = std::find_if(children.begin(), children.end(),
+                                   [&](const std::unique_ptr<Node> &child) { return child->path == path; });
+
+    if (slot == children.end())
+        return false;
+
+    if (op == QLatin1String("move")) {
+        std::unique_ptr<Node> moved = std::move(*slot);
+
+        children.erase(slot);
+        children.insert(children.begin() + qBound<qsizetype>(0, index, qsizetype(children.size())), std::move(moved));
+
+        stats_.reordered++;
+
+        return true;
+    }
+
+    QQuickItem *after = slot == children.begin() ? nullptr : (*std::prev(slot))->item;
+    std::unique_ptr<Node> removed = std::move(*slot);
+
+    children.erase(slot);
+
+    stats_.removed++;
+
+    dirtyStacks_.remove(removed.get());
+    discard(*removed, after);
+
+    return true;
+}
+
+// Islands and shells re-sync their whole child list, as a full node patch does.
+void NativeRenderer::editChildrenByJson(const QString &parentPath, const QString &op, const QString &path,
+                                        qsizetype index, const QJsonObject &json)
+{
+    const Node *known = index_.value(parentPath);
+    QJsonObject parent;
+
+    if (known && known->kind == Kind::Island) {
+        parent = known->json;
+    } else if (known) {
+        parent = snapshotNode(*known);
+    } else {
+        QString prefix = parentPath;
+
+        while (parent.isEmpty()) {
+            const qsizetype slash = prefix.lastIndexOf(QLatin1Char('/'));
+
+            if (slash <= 0)
+                break;
+
+            prefix.truncate(slash);
+
+            const Node *island = index_.value(prefix);
+
+            if (island && island->kind == Kind::Island)
+                parent = jsonAt(island->json, parentPath);
+        }
+    }
+
+    QJsonArray children = parent.value(QLatin1String("children")).toArray();
+
+    if (parent.isEmpty() || !editChildrenJson(children, op, path, index, json)) {
+        qWarning().noquote() << "pulsar: child patch for an unknown node" << path;
+
+        return;
+    }
+
+    parent.insert(QLatin1String("children"), children);
+
+    applyPatch(parentPath, parent, false);
+}
+
+void NativeRenderer::applyChildOp(const QJsonObject &patch)
+{
+    const QString op = patch.value(QLatin1String("op")).toString();
+    const QString path = patch.value(QLatin1String("path")).toString();
+    const QJsonObject json = patch.value(QLatin1String("node")).toObject();
+    const qsizetype index = patch.value(QLatin1String("index")).toInt();
+    const QString parentPath = op == QLatin1String("insert") ? path : parentPathOf(path);
+    Node *parent = index_.value(parentPath);
+
+    const bool native = parent && parent->stack && parent->kind != Kind::Island && parent->kind != Kind::Shell;
+
+    if (!native) {
+        editChildrenByJson(parentPath, op, path, index, json);
+
+        return;
+    }
+
+    if (!editNativeChildren(*parent, op, path, index, json)) {
+        qWarning().noquote() << "pulsar: child patch for an unknown node" << path;
+
+        return;
+    }
+
+    dirtyStacks_.insert(parent);
+
+    // A text field first in a scroll takes the whole scroll to QML.
+    Node *scroll = parent->kind == Kind::Scroll ? parent : parent->parent;
+
+    if (!scroll || scroll->kind != Kind::Scroll || scrollKindHolds(*scroll))
+        return;
+
+    QJsonObject whole = snapshotNode(*scroll);
+
+    replaceNode(*scroll, whole);
 }
 
 void NativeRenderer::replaceNode(Node &node, const QJsonObject &json)

@@ -411,6 +411,27 @@ describe("memo rows", () => {
     return null
   }
 
+  const applyChildPatch = (tree: Shown[], patch: UiPatch): void => {
+    const parentPath = patch.op === "insert" ? patch.path : patch.path.slice(0, patch.path.lastIndexOf("/"))
+    const siblings = find(tree, parentPath)?.children
+
+    if (!siblings) throw new Error(`no parent at ${parentPath}`)
+
+    if (patch.op === "insert") {
+      siblings.splice(patch.index!, 0, structuredClone(patch.node) as Shown)
+
+      return
+    }
+
+    const at = siblings.findIndex((child) => child.path === patch.path)
+
+    if (at < 0) throw new Error(`no node at ${patch.path}`)
+
+    const [kept] = siblings.splice(at, 1)
+
+    if (patch.op === "move") siblings.splice(patch.index!, 0, kept!)
+  }
+
   const mount = (memo: boolean) => {
     const { app, trees, patches } = harness()
     const shown: { tree: Shown[] } = { tree: [] }
@@ -425,6 +446,12 @@ describe("memo rows", () => {
       patches.push(sent)
 
       for (const patch of sent) {
+        if (patch.op) {
+          applyChildPatch(shown.tree, patch)
+
+          continue
+        }
+
         const target = find(shown.tree, patch.path)
 
         if (!target) throw new Error(`no node at ${patch.path}`)

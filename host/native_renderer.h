@@ -198,6 +198,10 @@ private:
     void applyPatchList(const QJsonArray &patches);
     void applyPatch(const QString &path, const QJsonObject &json, bool shallow);
     bool patchIsland(const QString &path, const QJsonObject &json, bool shallow);
+    void applyChildOp(const QJsonObject &patch);
+    bool editNativeChildren(Node &parent, const QString &op, const QString &path, qsizetype index, const QJsonObject &json);
+    void editChildrenByJson(const QString &parentPath, const QString &op, const QString &path, qsizetype index, const QJsonObject &json);
+    bool scrollKindHolds(Node &node);
     void replaceNode(Node &node, const QJsonObject &json);
 
     std::unique_ptr<Node> create(const QJsonObject &json, Node *parent);

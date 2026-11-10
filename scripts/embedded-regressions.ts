@@ -293,6 +293,31 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "keyed-patches",
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "2400" },
+    check: (output) => {
+      return (
+        output.includes("ORDER 0 list abc shell abc") &&
+        output.includes("ORDER 1 list xabc shell xabc") &&
+        output.includes("ORDER 2 list xac shell xac") &&
+        output.includes("ORDER 3 list cxa shell cxa") &&
+        output.includes("ORDER 4 list cxay shell cxay") &&
+        !output.includes("child patch for an unknown node")
+      )
+    },
+  },
+  {
+    name: "keyed-patches-large",
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "1800" },
+    check: (output) => {
+      const edits = output.split("\n").filter((line) => line.includes("PulsarView patch"))
+      const updated = edits.map((line) => Number(/ ~(\d+) /.exec(line)?.[1] ?? Infinity))
+
+      // Four edits of a 900-node list: only the edited rows and the list itself may be touched.
+      return edits.length === 4 && updated.every((count) => count <= 4)
+    },
+  },
+  {
     name: "nested-list",
     check: (output) => output.includes("LIST page 120") && output.includes("LIST column 300"),
   },

@@ -383,6 +383,7 @@ const steps: Step[] = [
     run: async () => {
       // Keyed reconcile: inserting at the front creates one row, reordering moves
       // the existing rows instead of clearing and rebuilding the list container.
+      // A patch list is the list's own props plus one insert, then one move per displaced row.
       await runHost({
         PULSAR_DEBUG: "1",
         QT_QPA_PLATFORM: "offscreen",
@@ -390,9 +391,9 @@ const steps: Step[] = [
         AUTO_QUIT_MS: "2500",
         QT_LOG_FILE: jsReconcileLog,
       })
-      check(jsReconcileLog, "PulsarView patch 1 +1")
-      check(jsReconcileLog, "PulsarView patch 1 +0")
-      check(jsReconcileLog, "reorder=4")
+      check(jsReconcileLog, "PulsarView patch 2 +1")
+      check(jsReconcileLog, "PulsarView patch 4 +0")
+      check(jsReconcileLog, "reorder=3")
       checkAbsent(jsReconcileLog, "PulsarView built 1 +4")
       checkAbsent(jsReconcileLog, "Error:")
     },

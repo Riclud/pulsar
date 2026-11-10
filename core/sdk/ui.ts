@@ -2519,10 +2519,17 @@ export const serialize = (
   return nodes.map((node, index) => serializeNode(node, `${parentPath}/${nodeSegment(node, index, keys, slots)}`))
 }
 
+/**
+ * Replaces the node at `path`. With `op` it edits the children of a keyed parent instead:
+ * "insert" puts `node` at `index` under the parent `path`, "remove" drops the child at `path`,
+ * "move" puts the child at `path` at `index`. Remove and move carry an empty `node`.
+ */
 export interface UiPatch {
   path: string
   node: Record<string, unknown>
   shallow?: boolean
+  op?: "insert" | "remove" | "move"
+  index?: number
 }
 
 type SerializedUiNode = {
@@ -2575,12 +2582,80 @@ const sameOwnProps = (a: SerializedUiNode, b: SerializedUiNode): boolean => {
   return JSON.stringify(a.props) === JSON.stringify(b.props)
 }
 
+const isKeyedChild = (parent: SerializedUiNode, child: SerializedUiNode): boolean => {
+  return child.props.key !== undefined || (parent.type === "list" && Array.isArray(parent.props.itemKeys))
+}
+
+type ChildOps = {
+  ops: UiPatch[]
+  before: Map<string, SerializedUiNode>
+}
+
+const keyedPaths = (parent: SerializedUiNode, children: SerializedUiNode[]): Map<string, SerializedUiNode> | null => {
+  const byPath = new Map<string, SerializedUiNode>()
+
+  for (const child of children) {
+    if (!isKeyedChild(parent, child) || byPath.has(child.path)) return null
+
+    byPath.set(child.path, child)
+  }
+
+  return byPath
+}
+
+/** Insert, remove and move operations that turn the keyed children of `previous` into those of `next`. */
+const keyedChildOps = (previous: SerializedUiNode, next: SerializedUiNode): ChildOps | null => {
+  const beforeChildren = previous.children ?? []
+  const afterChildren = next.children ?? []
+
+  if (beforeChildren.length === 0 || afterChildren.length === 0) return null
+
+  const before = keyedPaths(previous, beforeChildren)
+  const after = keyedPaths(next, afterChildren)
+
+  if (!before || !after) return null
+
+  // Past this many operations one full node is cheaper than the edits.
+  const limit = Math.max(16, afterChildren.length >> 1)
+  const ops: UiPatch[] = []
+  const order: string[] = []
+
+  for (const child of beforeChildren) {
+    if (after.has(child.path)) order.push(child.path)
+    else ops.push({ op: "remove", path: child.path, node: {} })
+  }
+
+  if (ops.length > limit) return null
+
+  for (let index = 0; index < afterChildren.length; index++) {
+    const child = afterChildren[index]!
+
+    if (order[index] === child.path) continue
+    if (ops.length > limit) return null
+
+    if (!before.has(child.path)) {
+      order.splice(index, 0, child.path)
+      ops.push({ op: "insert", path: next.path, index, node: child as unknown as Record<string, unknown> })
+
+      continue
+    }
+
+    order.splice(order.indexOf(child.path, index), 1)
+    order.splice(index, 0, child.path)
+    ops.push({ op: "move", path: child.path, index, node: {} })
+  }
+
+  return { ops, before }
+}
+
 const diffNode = (previous: SerializedUiNode, next: SerializedUiNode, patches: UiPatch[]): boolean => {
   if (previous === next) return true
 
   const ownChanged = !sameOwnProps(previous, next)
+  const samePaths = sameChildPaths(previous, next)
+  const edits = samePaths ? null : keyedChildOps(previous, next)
 
-  if (!sameChildPaths(previous, next)) {
+  if (!samePaths && !edits) {
     patches.push({ path: next.path, node: next as unknown as Record<string, unknown> })
 
     return true
@@ -2595,8 +2670,13 @@ const diffNode = (previous: SerializedUiNode, next: SerializedUiNode, patches: U
   const previousChildren = previous.children ?? []
   const nextChildren = next.children ?? []
 
+  if (edits) patches.push(...edits.ops)
+
   for (let index = 0; index < nextChildren.length; index++) {
-    if (!diffNode(previousChildren[index]!, nextChildren[index]!, patches)) return false
+    const child = nextChildren[index]!
+    const before = edits ? edits.before.get(child.path) : previousChildren[index]
+
+    if (before && !diffNode(before, child, patches)) return false
   }
 
   return true
