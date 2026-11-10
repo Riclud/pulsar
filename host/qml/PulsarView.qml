@@ -561,415 +561,40 @@ ApplicationWindow {
     Component {
         id: boxComponent
 
-        Rectangle {
-            id: boxShadowHost
-
-            property int pulsarColorMs: 0
-
-            Behavior on color {
-                enabled: boxShadowHost.pulsarColorMs > 0
-
-                ColorAnimation { duration: boxShadowHost.pulsarColorMs }
-            }
-
-            Behavior on border.color {
-                enabled: boxShadowHost.pulsarColorMs > 0
-
-                ColorAnimation { duration: boxShadowHost.pulsarColorMs }
-            }
-
-            property var pulsarMeta: null
-            property int pulsarElevation: 0
-            property color pulsarShadowColor: "#000000"
-            layer.enabled: view.effectsAvailable && boxShadowHost.pulsarElevation > 0
-            layer.effect: MultiEffect {
-                shadowEnabled: true
-                autoPaddingEnabled: true
-                shadowColor: boxShadowHost.pulsarShadowColor
-                shadowBlur: Math.min(1, 0.2 + boxShadowHost.pulsarElevation * 0.15)
-                shadowOpacity: Math.min(0.5, 0.12 + boxShadowHost.pulsarElevation * 0.04)
-                shadowVerticalOffset: boxShadowHost.pulsarElevation * 2
-            }
+        BoxNode {
+            view: viewRef
         }
     }
 
     Component {
         id: cardComponent
 
-        Rectangle {
-            id: cardShadowHost
-
-            property int pulsarColorMs: 0
-
-            Behavior on color {
-                enabled: cardShadowHost.pulsarColorMs > 0
-
-                ColorAnimation { duration: cardShadowHost.pulsarColorMs }
-            }
-
-            Behavior on border.color {
-                enabled: cardShadowHost.pulsarColorMs > 0
-
-                ColorAnimation { duration: cardShadowHost.pulsarColorMs }
-            }
-
-            border.width: 1
-            property var pulsarMeta: null
-            property int pulsarElevation: 0
-            property color pulsarShadowColor: "#000000"
-            layer.enabled: view.effectsAvailable && cardShadowHost.pulsarElevation > 0
-            layer.effect: MultiEffect {
-                shadowEnabled: true
-                autoPaddingEnabled: true
-                shadowColor: cardShadowHost.pulsarShadowColor
-                shadowBlur: Math.min(1, 0.2 + cardShadowHost.pulsarElevation * 0.15)
-                shadowOpacity: Math.min(0.5, 0.12 + cardShadowHost.pulsarElevation * 0.04)
-                shadowVerticalOffset: cardShadowHost.pulsarElevation * 2
-            }
+        CardNode {
+            view: viewRef
         }
     }
 
     Component {
         id: appBarComponent
 
-        Rectangle {
-            id: bar
-
-            implicitHeight: 56
-            property var pulsarMeta: null
-            property var nodeData: null
-            property alias actionsRow: actions
-            property alias titleLabel: titleText
-            property alias subtitleLabel: subtitleText
-            property alias backButton: back
-
-            color: view.themeSurface
-
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 8
-                anchors.rightMargin: 8
-                spacing: 4
-
-                ToolButton {
-                    id: back
-
-                    text: "arrow_back"
-                    visible: false
-                    font.family: view.iconFamily
-                    font.pixelSize: view.fs(24)
-
-                    contentItem: Label {
-                        text: back.text
-                        font: back.font
-                        color: back.hovered ? view.themeText : view.themeTextSecondary
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-
-                    onClicked: view.emitNodeEvent(bar.nodeData, "back")
-                }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 0
-
-                    Label {
-                        id: titleText
-
-                        Layout.fillWidth: true
-                        elide: Text.ElideRight
-                        color: view.themeText
-                        font.pixelSize: view.fs(18)
-                        font.bold: true
-                    }
-
-                    Label {
-                        id: subtitleText
-
-                        Layout.fillWidth: true
-                        visible: text.length > 0
-                        elide: Text.ElideRight
-                        color: view.themeTextSecondary
-                        font.pixelSize: view.fs(12)
-                    }
-                }
-
-                RowLayout {
-                    id: actions
-                    property var pulsarMeta: null
-                    spacing: 0
-                }
-            }
-
-            Rectangle {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                height: 1
-                color: view.themeBorder
-            }
+        AppBarNode {
+            view: viewRef
         }
     }
 
     Component {
         id: chipComponent
 
-        Rectangle {
-            id: chipRoot
-
-            implicitHeight: 32
-            property var pulsarMeta: null
-            property var nodeData: null
-            property alias labelItem: chipLabel
-            property alias removeButton: chipRemove
-            property alias contentRow: chipRow
-
-            radius: view.themeRadius
-            color: view.themeSurfaceVariant
-
-            Behavior on color {
-                ColorAnimation {
-                    duration: view.motionFast
-                    easing.type: Easing.BezierSpline
-                    easing.bezierCurve: view.motionCurve
-                }
-            }
-
-            Rectangle {
-                anchors.fill: parent
-                radius: chipRoot.radius
-                color: view.withAlpha(view.themeText, 0.06)
-                visible: chipMouse.containsMouse
-            }
-
-            MouseArea {
-                id: chipMouse
-
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: view.emitNodeEvent(chipRoot.nodeData, "click")
-            }
-
-            RowLayout {
-                id: chipRow
-
-                anchors.fill: parent
-                anchors.leftMargin: 12
-                anchors.rightMargin: chipRemove.visible ? 4 : 12
-                spacing: 2
-
-                Label {
-                    id: chipLabel
-
-                    Layout.fillWidth: true
-                    horizontalAlignment: chipRemove.visible ? Text.AlignLeft : Text.AlignHCenter
-                    color: view.themeText
-                    font.family: view.fontFamily
-                    font.pixelSize: view.fs(13)
-                }
-
-                ToolButton {
-                    id: chipRemove
-
-                    text: "close"
-                    visible: false
-                    implicitWidth: 24
-                    implicitHeight: 24
-                    padding: 0
-                    font.family: view.iconFamily
-                    font.pixelSize: view.fs(16)
-
-                    contentItem: Label {
-                        text: chipRemove.text
-                        font: chipRemove.font
-                        color: chipRemove.hovered ? view.themeText : view.themeTextSecondary
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-
-                    onClicked: view.emitNodeEvent(chipRoot.nodeData, "remove")
-                }
-            }
+        ChipNode {
+            view: viewRef
         }
     }
 
     Component {
         id: buttonComponent
 
-        Button {
-            id: buttonRoot
-
-            property var pulsarMeta: null
-            property var nodeData: null
-            property string variant: "solid"
-            property color fillColor: view.themePrimary
-            property color labelColor: view.themeOnPrimary
-            property int radius: view.themeRadius
-            property string iconName: ""
-            property string iconPosition: "left"
-            property int pulsarElevation: 0
-            property color pulsarShadowColor: view.themeShadow
-            property bool colorAnimationReady: false
-
-            Component.onCompleted: Qt.callLater(function () {
-                buttonRoot.colorAnimationReady = true;
-            })
-
-            layer.enabled: view.effectsAvailable && buttonRoot.pulsarElevation > 0
-            layer.effect: MultiEffect {
-                shadowEnabled: true
-                autoPaddingEnabled: true
-                shadowColor: buttonRoot.pulsarShadowColor
-                shadowBlur: Math.min(1, 0.2 + buttonRoot.pulsarElevation * 0.15)
-                shadowOpacity: Math.min(0.5, 0.12 + buttonRoot.pulsarElevation * 0.04)
-                shadowVerticalOffset: buttonRoot.pulsarElevation * 2
-            }
-
-            flat: true
-            leftPadding: 16
-            rightPadding: 16
-            topPadding: 8
-            bottomPadding: 8
-            implicitHeight: 40
-            opacity: enabled ? 1 : 0.45
-            scale: down ? 0.98 : 1
-
-            Behavior on scale {
-                NumberAnimation {
-                    duration: view.motionFast
-                    easing.type: Easing.BezierSpline
-                    easing.bezierCurve: view.motionCurve
-                }
-            }
-
-            HoverHandler {
-                cursorShape: Qt.PointingHandCursor
-            }
-
-            onDownChanged: {
-                if (!down)
-                    return;
-
-                ripple.x = width / 2 - ripple.width / 2;
-                ripple.y = height / 2 - ripple.height / 2;
-                rippleAnim.restart();
-            }
-
-            ParallelAnimation {
-                id: rippleAnim
-
-                NumberAnimation {
-                    target: ripple
-                    property: "scale"
-                    from: 0.2
-                    to: 1
-                    duration: view.motionNormal
-                    easing.type: Easing.BezierSpline
-                    easing.bezierCurve: view.motionCurve
-                }
-
-                SequentialAnimation {
-                    PropertyAction {
-                        target: ripple
-                        property: "opacity"
-                        value: 0.28
-                    }
-
-                    NumberAnimation {
-                        target: ripple
-                        property: "opacity"
-                        to: 0
-                        duration: view.motionSlow
-                        easing.type: Easing.BezierSpline
-                        easing.bezierCurve: view.motionCurve
-                    }
-                }
-            }
-
-            background: Rectangle {
-                id: buttonBackground
-
-                radius: buttonRoot.radius
-                clip: true
-                color: {
-                    if (!buttonRoot.enabled)
-                        return view.disabledColor(buttonRoot.fillColor);
-                    if (buttonRoot.variant === "outline" || buttonRoot.variant === "ghost")
-                        return buttonRoot.hovered ? view.withAlpha(buttonRoot.fillColor, 0.08) : "transparent";
-                    if (buttonRoot.variant === "soft")
-                        return view.withAlpha(buttonRoot.fillColor, buttonRoot.down ? 0.28 : buttonRoot.hovered ? 0.22 : 0.16);
-
-                    return buttonRoot.down ? view.activeColor(buttonRoot.fillColor)
-                            : buttonRoot.hovered ? view.hoverColor(buttonRoot.fillColor)
-                            : buttonRoot.fillColor;
-                }
-                border.width: buttonRoot.variant === "outline" ? 1 : 0
-                border.color: buttonRoot.fillColor
-
-                Behavior on color {
-                    enabled: buttonRoot.colorAnimationReady
-
-                    ColorAnimation {
-                        duration: view.motionFast
-                        easing.type: Easing.BezierSpline
-                        easing.bezierCurve: view.motionCurve
-                    }
-                }
-
-                Rectangle {
-                    id: ripple
-
-                    width: buttonRoot.height * 1.8
-                    height: width
-                    radius: width / 2
-                    color: view.withAlpha(buttonRoot.labelColor, 0.22)
-                    opacity: 0
-                    scale: 0.2
-                }
-            }
-
-            contentItem: RowLayout {
-                spacing: buttonRoot.text.length > 0 ? 6 : 0
-
-                Item {
-                    Layout.fillWidth: true
-                    visible: buttonRoot.text.length === 0
-                }
-
-                Label {
-                    visible: text.length > 0 && buttonRoot.iconPosition === "left"
-                    text: buttonRoot.iconName
-                    font.family: view.iconFamily
-                    font.pixelSize: view.fs(18)
-                    color: buttonRoot.labelColor
-                }
-
-                Label {
-                    Layout.fillWidth: buttonRoot.text.length > 0
-                    text: buttonRoot.text
-                    color: buttonRoot.labelColor
-                    font.family: view.fontFamily
-                    font.pixelSize: buttonRoot.font.pixelSize
-                    font.weight: buttonRoot.font.weight
-                    horizontalAlignment: Text.AlignHCenter
-                    elide: Text.ElideRight
-                }
-
-                Label {
-                    visible: text.length > 0 && buttonRoot.iconPosition === "right"
-                    text: buttonRoot.iconName
-                    font.family: view.iconFamily
-                    font.pixelSize: view.fs(18)
-                    color: buttonRoot.labelColor
-                }
-
-                Item {
-                    Layout.fillWidth: true
-                    visible: buttonRoot.text.length === 0
-                }
-            }
+        ButtonNode {
+            view: viewRef
         }
     }
 
@@ -1014,408 +639,48 @@ ApplicationWindow {
     Component {
         id: checkboxComponent
 
-        CheckBox {
-            id: checkboxRoot
-
-            property var pulsarMeta: null
-
-            padding: 0
-            spacing: 8
-            implicitHeight: Math.round(26 * view.density)
-
-            indicator: Rectangle {
-                implicitWidth: Math.round(20 * view.density)
-                implicitHeight: Math.round(20 * view.density)
-                radius: Math.round(6 * view.density)
-                x: checkboxRoot.text
-                        ? (checkboxRoot.mirrored ? checkboxRoot.width - width - checkboxRoot.rightPadding : checkboxRoot.leftPadding)
-                        : checkboxRoot.leftPadding + (checkboxRoot.availableWidth - width) / 2
-                y: checkboxRoot.topPadding + (checkboxRoot.availableHeight - height) / 2
-                color: checkboxRoot.checked
-                        ? view.themePrimary
-                        : checkboxRoot.hovered
-                            ? view.withAlpha(view.themePrimary, 0.16)
-                            : "transparent"
-                border.width: 1
-                border.color: checkboxRoot.checked || checkboxRoot.hovered ? view.themePrimary : view.themeBorder
-
-                Behavior on color {
-                    ColorAnimation {
-                        duration: view.motionFast
-                    }
-                }
-
-                Text {
-                    anchors.centerIn: parent
-                    text: "check"
-                    visible: checkboxRoot.checked
-                    color: view.themeOnPrimary
-                    font.family: view.iconFamily
-                    font.pixelSize: Math.round(14 * view.density)
-                    opacity: checkboxRoot.checked ? 1 : 0
-                    scale: checkboxRoot.checked ? 1 : 0.7
-
-                    Behavior on opacity {
-                        NumberAnimation {
-                            duration: view.motionFast
-                        }
-                    }
-
-                    Behavior on scale {
-                        NumberAnimation {
-                            duration: view.motionFast
-                            easing.type: Easing.BezierSpline
-                            easing.bezierCurve: view.motionCurve
-                        }
-                    }
-                }
-            }
-
-            contentItem: Label {
-                leftPadding: checkboxRoot.indicator && !checkboxRoot.mirrored
-                        ? checkboxRoot.indicator.width + checkboxRoot.spacing : 0
-                rightPadding: checkboxRoot.indicator && checkboxRoot.mirrored
-                        ? checkboxRoot.indicator.width + checkboxRoot.spacing : 0
-                text: checkboxRoot.text
-                font.family: view.fontFamily
-                font.pixelSize: view.fs(15)
-                color: view.themeText
-                verticalAlignment: Text.AlignVCenter
-            }
+        CheckboxNode {
+            view: viewRef
         }
     }
 
     Component {
         id: switchComponent
 
-        Switch {
-            id: switchRoot
-
-            property var pulsarMeta: null
-
-            padding: 0
-            implicitHeight: 30
-
-            indicator: Item {
-                implicitWidth: 52
-                implicitHeight: 28
-                x: switchRoot.text
-                        ? (switchRoot.mirrored ? switchRoot.width - width - switchRoot.rightPadding : switchRoot.leftPadding)
-                        : switchRoot.leftPadding + (switchRoot.availableWidth - width) / 2
-                y: switchRoot.topPadding + (switchRoot.availableHeight - height) / 2
-
-                Rectangle {
-                    id: switchTrack
-
-                    anchors.fill: parent
-                    radius: height / 2
-                    color: switchRoot.checked ? view.themePrimary : view.themeSurfaceVariant
-                    border.width: 1
-                    border.color: switchRoot.checked ? view.themePrimary : view.themeBorder
-
-                    Behavior on color {
-                        ColorAnimation {
-                            duration: view.motionFast
-                            easing.type: Easing.BezierSpline
-                            easing.bezierCurve: view.motionCurve
-                        }
-                    }
-                }
-
-                Rectangle {
-                    id: switchThumb
-
-                    y: (parent.height - height) / 2
-                    width: switchRoot.pressed ? 24 : switchRoot.checked ? 20 : 14
-                    height: width
-                    radius: width / 2
-                    x: switchRoot.checked ? parent.width - 24 : 4
-                    color: switchRoot.checked ? view.themeOnPrimary : view.themeTextSecondary
-
-                    Behavior on x {
-                        NumberAnimation {
-                            duration: view.motionFast
-                            easing.type: Easing.BezierSpline
-                            easing.bezierCurve: view.motionCurve
-                        }
-                    }
-
-                    Behavior on width {
-                        NumberAnimation {
-                            duration: view.motionFast
-                            easing.type: Easing.BezierSpline
-                            easing.bezierCurve: view.motionCurve
-                        }
-                    }
-
-                    Behavior on color {
-                        ColorAnimation {
-                            duration: view.motionFast
-                        }
-                    }
-                }
-            }
-
-            contentItem: Label {
-                leftPadding: switchRoot.indicator && !switchRoot.mirrored
-                        ? switchRoot.indicator.width + switchRoot.spacing : 0
-                rightPadding: switchRoot.indicator && switchRoot.mirrored
-                        ? switchRoot.indicator.width + switchRoot.spacing : 0
-                text: switchRoot.text
-                font.family: view.fontFamily
-                font.pixelSize: view.fs(15)
-                color: view.themeText
-                verticalAlignment: Text.AlignVCenter
-            }
+        SwitchNode {
+            view: viewRef
         }
     }
 
     Component {
         id: avatarComponent
 
-        Item {
-            id: avatarRoot
-
-            property var pulsarMeta: null
-            property string src: ""
-            property string initials: "?"
-            property int avatarSize: 40
-            property int avatarRadius: 9999
-            property color fallbackColor: view.themeSurfaceVariant
-            property color fallbackTextColor: view.themeText
-            property string status: ""
-            property color statusColor: view.themePrimary
-
-            width: avatarSize
-            height: avatarSize
-            implicitWidth: avatarSize
-            implicitHeight: avatarSize
-
-            onAvatarRadiusChanged: avatarCanvas.requestPaint()
-            onSrcChanged: avatarCanvas.requestPaint()
-            onAvatarSizeChanged: avatarCanvas.requestPaint()
-
-            Rectangle {
-                id: avatarFallback
-
-                anchors.fill: parent
-                radius: avatarRoot.avatarRadius
-                color: avatarRoot.fallbackColor
-                visible: avatarRoot.src.length === 0 || avatarImage.status === Image.Error
-
-                Label {
-                    anchors.centerIn: parent
-                    text: avatarRoot.initials
-                    color: avatarRoot.fallbackTextColor
-                    font.family: view.fontFamily
-                    font.pixelSize: view.fs(Math.max(10, avatarRoot.avatarSize * 0.36))
-                    font.weight: 600
-                }
-            }
-
-            Image {
-                id: avatarImage
-
-                anchors.fill: parent
-                source: avatarRoot.src
-                fillMode: Image.PreserveAspectCrop
-                visible: false
-
-                onStatusChanged: avatarCanvas.requestPaint()
-            }
-
-            Canvas {
-                id: avatarCanvas
-
-                anchors.fill: parent
-                visible: avatarImage.status === Image.Ready
-
-                onImageLoaded: requestPaint()
-                onWidthChanged: requestPaint()
-                onHeightChanged: requestPaint()
-
-                onPaint: {
-                    const ctx = getContext("2d");
-
-                    if (avatarImage.status !== Image.Ready)
-                        return;
-
-                    const w = width;
-                    const h = height;
-                    const r = Math.min(avatarRoot.avatarRadius, Math.min(w, h) / 2);
-                    const iw = avatarImage.sourceSize.width || avatarImage.implicitWidth || w;
-                    const ih = avatarImage.sourceSize.height || avatarImage.implicitHeight || h;
-                    const scale = Math.max(w / iw, h / ih);
-                    const dw = iw * scale;
-                    const dh = ih * scale;
-
-                    ctx.clearRect(0, 0, w, h);
-                    ctx.save();
-                    avatarRoot.roundedPath(ctx, 0, 0, w, h, r);
-                    ctx.clip();
-                    ctx.drawImage(avatarRoot.src, (w - dw) / 2, (h - dh) / 2, dw, dh);
-                    ctx.restore();
-                }
-            }
-
-            function roundedPath(ctx, x, y, w, h, r) {
-                ctx.beginPath();
-                ctx.moveTo(x + r, y);
-                ctx.lineTo(x + w - r, y);
-                ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-                ctx.lineTo(x + w, y + h - r);
-                ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-                ctx.lineTo(x + r, y + h);
-                ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-                ctx.lineTo(x, y + r);
-                ctx.quadraticCurveTo(x, y, x + r, y);
-                ctx.closePath();
-            }
-
-            Rectangle {
-                visible: avatarRoot.status.length > 0
-                width: Math.max(8, avatarRoot.avatarSize * 0.28)
-                height: width
-                radius: width / 2
-                color: avatarRoot.statusColor
-                border.width: 2
-                border.color: view.themeBackground
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                anchors.rightMargin: -1
-                anchors.bottomMargin: -1
-            }
+        AvatarNode {
+            view: viewRef
         }
     }
 
     Component {
         id: badgeComponent
 
-        Rectangle {
-            id: badgeRoot
-
-            property var pulsarMeta: null
-            property string label: ""
-            property bool dot: false
-            property color badgeColor: view.themePrimary
-            property color badgeTextColor: view.themeOnPrimary
-
-            implicitHeight: dot ? 8 : 18
-            implicitWidth: dot ? 8 : Math.max(18, badgeLabel.implicitWidth + 10)
-            height: implicitHeight
-            width: implicitWidth
-            radius: height / 2
-            color: badgeColor
-
-            Label {
-                id: badgeLabel
-
-                anchors.centerIn: parent
-                text: badgeRoot.dot ? "" : badgeRoot.label
-                visible: !badgeRoot.dot
-                color: badgeRoot.badgeTextColor
-                font.family: view.fontFamily
-                font.pixelSize: view.fs(10)
-                font.weight: 600
-            }
+        BadgeNode {
+            view: viewRef
         }
     }
 
     Component {
         id: skeletonComponent
 
-        Rectangle {
-            id: skeletonRoot
-
-            property var pulsarMeta: null
-            property string variant: "rect"
-            property bool animated: true
-            property int baseRadius: 8
-
-            color: view.themeSurfaceVariant
-            radius: variant === "circle" ? height / 2 : baseRadius
-
-            SequentialAnimation on opacity {
-                running: skeletonRoot.animated
-                loops: Animation.Infinite
-
-                NumberAnimation {
-                    to: 0.45
-                    duration: view.motionSlow
-                    easing.type: Easing.InOutSine
-                }
-
-                NumberAnimation {
-                    to: 1
-                    duration: view.motionSlow
-                    easing.type: Easing.InOutSine
-                }
-            }
+        SkeletonNode {
+            view: viewRef
         }
     }
 
     Component {
         id: spinnerComponent
 
-        Item {
-            id: spinnerRoot
-
-            property var pulsarMeta: null
-            property color spinnerColor: view.themePrimary
-            property real spinnerValue: -1
-            property real thickness: Math.max(2, width * 0.1)
-            property int spinnerSize: 24
-
-            width: spinnerSize
-            height: spinnerSize
-            implicitWidth: spinnerSize
-            implicitHeight: spinnerSize
-
-            Canvas {
-                id: spinnerCanvas
-
-                anchors.fill: parent
-                rotation: 0
-                onPaint: {
-                    const ctx = getContext("2d");
-                    const w = width;
-                    const h = height;
-                    const line = Math.min(Math.max(1, spinnerRoot.thickness), Math.min(w, h) / 2);
-                    const cx = w / 2;
-                    const cy = h / 2;
-                    const radius = Math.max(1, Math.min(w, h) / 2 - line);
-                    const start = -Math.PI / 2;
-                    const sweep = spinnerRoot.spinnerValue < 0
-                            ? Math.PI * 1.5
-                            : Math.PI * 2 * Math.max(0, Math.min(1, spinnerRoot.spinnerValue));
-
-                    ctx.clearRect(0, 0, w, h);
-                    ctx.beginPath();
-                    ctx.strokeStyle = spinnerRoot.spinnerColor;
-                    ctx.lineWidth = line;
-                    ctx.lineCap = "round";
-                    ctx.arc(cx, cy, radius, start, start + sweep);
-                    ctx.stroke();
-                }
-
-                onWidthChanged: requestPaint()
-                onHeightChanged: requestPaint()
-
-                RotationAnimation on rotation {
-                    running: spinnerRoot.spinnerValue < 0
-                    from: 0
-                    to: 360
-                    duration: 900
-                    loops: Animation.Infinite
-                }
-            }
-
-            onSpinnerValueChanged: spinnerCanvas.requestPaint()
-            onSpinnerColorChanged: spinnerCanvas.requestPaint()
-            onThicknessChanged: spinnerCanvas.requestPaint()
-            onSpinnerSizeChanged: spinnerCanvas.requestPaint()
-
-            Component.onCompleted: spinnerCanvas.requestPaint()
+        SpinnerNode {
+            view: viewRef
         }
     }
 
@@ -1877,170 +1142,16 @@ ApplicationWindow {
     Component {
         id: radioComponent
 
-        RadioButton {
-            id: radioRoot
-
-            property var pulsarMeta: null
-            property var nodeData: null
-            property color accent: view.themePrimary
-
-            autoExclusive: false
-            spacing: 10
-            leftPadding: 0
-            rightPadding: 0
-            topPadding: 4
-            bottomPadding: 4
-            font.family: view.fontFamily
-            font.pixelSize: view.fs(15)
-
-            indicator: Item {
-                implicitWidth: 22
-                implicitHeight: 22
-
-                Rectangle {
-                    anchors.fill: parent
-                    radius: width / 2
-                    color: "transparent"
-                    border.width: radioRoot.checked ? 0 : 1.5
-                    border.color: radioRoot.checked ? radioRoot.accent
-                            : radioRoot.hovered ? radioRoot.accent : view.themeBorder
-
-                    Behavior on border.color {
-                        ColorAnimation { duration: view.motionFast }
-                    }
-                }
-
-                Rectangle {
-                    anchors.centerIn: parent
-                    width: radioRoot.checked ? 14 : 0
-                    height: width
-                    radius: width / 2
-                    color: radioRoot.accent
-
-                    Behavior on width {
-                        NumberAnimation {
-                            duration: view.motionFast
-                            easing.type: Easing.OutCubic
-                        }
-                    }
-                }
-            }
-
-            contentItem: Label {
-                text: radioRoot.text
-                color: radioRoot.enabled ? view.themeText : view.themeTextSecondary
-                font: radioRoot.font
-                verticalAlignment: Text.AlignVCenter
-                leftPadding: radioRoot.indicator.width + radioRoot.spacing
-            }
+        RadioNode {
+            view: viewRef
         }
     }
 
     Component {
         id: radioGroupComponent
 
-        GridLayout {
-            id: groupRoot
-
-            property var pulsarMeta: null
-            property var nodeData: null
-            property var options: []
-            property var value: undefined
-            property bool horizontal: false
-            property color accent: view.themePrimary
-
-            columns: horizontal ? -1 : 1
-            columnSpacing: 16
-            rowSpacing: 4
-            flow: GridLayout.LeftToRight
-
-            function syncChecked() {
-                for (let i = 0; i < groupRepeater.count; i++) {
-                    const button = groupRepeater.itemAt(i);
-
-                    if (button)
-                        button.checked = groupRoot.value === button.modelData.value;
-                }
-            }
-
-            onValueChanged: syncChecked()
-            onOptionsChanged: syncChecked()
-            Component.onCompleted: syncChecked()
-
-            Repeater {
-                id: groupRepeater
-
-                model: groupRoot.options
-
-                delegate: RadioButton {
-                    id: optionRoot
-
-                    required property var modelData
-                    required property int index
-
-                    autoExclusive: false
-                    checked: false
-                    text: modelData.label
-                    spacing: 10
-                    leftPadding: 0
-                    rightPadding: 0
-                    topPadding: 4
-                    bottomPadding: 4
-                    font.family: view.fontFamily
-                    font.pixelSize: view.fs(15)
-                    Layout.fillWidth: groupRoot.horizontal
-
-                    onClicked: {
-                        if (groupRoot.value === modelData.value)
-                            return;
-
-                        groupRoot.value = modelData.value;
-                        groupRoot.syncChecked();
-                        view.emitNodeEvent(groupRoot.nodeData, "change", modelData.value);
-                    }
-
-                    indicator: Item {
-                        implicitWidth: 22
-                        implicitHeight: 22
-
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: width / 2
-                            color: "transparent"
-                            border.width: optionRoot.checked ? 0 : 1.5
-                            border.color: optionRoot.checked ? groupRoot.accent
-                                    : optionRoot.hovered ? groupRoot.accent : view.themeBorder
-
-                            Behavior on border.color {
-                                ColorAnimation { duration: view.motionFast }
-                            }
-                        }
-
-                        Rectangle {
-                            anchors.centerIn: parent
-                            width: optionRoot.checked ? 14 : 0
-                            height: width
-                            radius: width / 2
-                            color: groupRoot.accent
-
-                            Behavior on width {
-                                NumberAnimation {
-                                    duration: view.motionFast
-                                    easing.type: Easing.OutCubic
-                                }
-                            }
-                        }
-                    }
-
-                    contentItem: Label {
-                        text: optionRoot.text
-                        color: optionRoot.enabled ? view.themeText : view.themeTextSecondary
-                        font: optionRoot.font
-                        verticalAlignment: Text.AlignVCenter
-                        leftPadding: optionRoot.indicator.width + optionRoot.spacing
-                    }
-                }
-            }
+        RadioGroupNode {
+            view: viewRef
         }
     }
 
@@ -2419,264 +1530,24 @@ ApplicationWindow {
     Component {
         id: fabComponent
 
-        Item {
-            id: fabRoot
-
-            property var pulsarMeta: null
-            property var nodeData: null
-            property string iconName: ""
-            property int fabSize: 56
-            property bool floating: true
-            property bool fabEnabled: true
-            property color fabColor: view.themePrimary
-            property color fabTextColor: view.themeOnPrimary
-            property int pulsarElevation: 0
-            property color pulsarShadowColor: view.themeShadow
-
-            implicitWidth: fabSize
-            implicitHeight: fabSize
-            width: fabSize
-            height: fabSize
-            opacity: fabEnabled ? 1 : 0.45
-            layer.enabled: view.effectsAvailable && pulsarElevation > 0
-
-            layer.effect: MultiEffect {
-                shadowEnabled: true
-                autoPaddingEnabled: true
-                shadowColor: fabRoot.pulsarShadowColor
-                shadowBlur: Math.min(1, 0.2 + fabRoot.pulsarElevation * 0.15)
-                shadowOpacity: Math.min(0.5, 0.12 + fabRoot.pulsarElevation * 0.04)
-                shadowVerticalOffset: fabRoot.pulsarElevation * 2
-            }
-
-            onFloatingChanged: updateAnchors()
-
-            function updateAnchors() {
-                if (floating) {
-                    anchors.right = parent.right;
-                    anchors.bottom = parent.bottom;
-                    anchors.rightMargin = 24;
-                    anchors.bottomMargin = 24;
-                    return;
-                }
-
-                anchors.right = undefined;
-                anchors.bottom = undefined;
-            }
-
-            Rectangle {
-                id: fabCircle
-
-                anchors.fill: parent
-                radius: width / 2
-                color: fabRoot.fabEnabled
-                        ? (fabMouse.pressed ? view.activeColor(fabRoot.fabColor)
-                           : fabMouse.containsMouse ? view.hoverColor(fabRoot.fabColor) : fabRoot.fabColor)
-                        : view.disabledColor(fabRoot.fabColor)
-                scale: fabMouse.pressed ? 0.94 : 1
-
-                Behavior on color {
-                    ColorAnimation {
-                        duration: view.motionFast
-                        easing.type: Easing.BezierSpline
-                        easing.bezierCurve: view.motionCurve
-                    }
-                }
-
-                Behavior on scale {
-                    NumberAnimation {
-                        duration: view.motionFast
-                        easing.type: Easing.BezierSpline
-                        easing.bezierCurve: view.motionCurve
-                    }
-                }
-
-                Label {
-                    anchors.centerIn: parent
-                    text: fabRoot.iconName
-                    font.family: view.iconFamily
-                    font.pixelSize: view.fs(Math.round(fabRoot.fabSize * 0.43))
-                    color: fabRoot.fabTextColor
-                }
-
-                MouseArea {
-                    id: fabMouse
-
-                    anchors.fill: parent
-                    enabled: fabRoot.fabEnabled
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: view.emitNodeEvent(fabRoot.nodeData, "click")
-                }
-            }
+        FabNode {
+            view: viewRef
         }
     }
 
     Component {
         id: searchFieldComponent
 
-        TextField {
-            id: searchRoot
-
-            property var pulsarMeta: null
-            property var nodeData: null
-            property bool outlined: false
-            property color fieldColor: view.themeSurfaceVariant
-            property color fieldBorderColor: view.themeBorder
-            property int fieldRadius: 8
-            property int debounce: 0
-            property string hint: ""
-            property alias clearButton: searchClear
-            property alias inputTimer: debounceTimer
-
-            color: view.themeText
-            placeholderText: ""
-            placeholderTextColor: view.themeTextSecondary
-            font.family: view.fontFamily
-            font.pixelSize: view.fs(15)
-            inputMethodHints: Qt.ImhNoPredictiveText
-            leftPadding: 40
-            rightPadding: searchClear.visible ? 40 : 12
-            implicitHeight: 40
-
-            background: Rectangle {
-                color: searchRoot.fieldColor
-                radius: searchRoot.fieldRadius
-                border.width: searchRoot.activeFocus ? 2 : searchRoot.outlined ? 1 : 0
-                border.color: searchRoot.activeFocus ? view.themePrimary : searchRoot.fieldBorderColor
-
-                Behavior on border.width {
-                    NumberAnimation { duration: view.motionFast }
-                }
-            }
-
-            Label {
-                anchors.left: parent.left
-                anchors.leftMargin: 12
-                anchors.verticalCenter: parent.verticalCenter
-                text: "search"
-                font.family: view.iconFamily
-                font.pixelSize: view.fs(20)
-                color: searchRoot.activeFocus ? view.themePrimary : view.themeTextSecondary
-            }
-
-            Label {
-                anchors.left: parent.left
-                anchors.leftMargin: 40
-                anchors.verticalCenter: parent.verticalCenter
-                width: Math.max(0, searchRoot.width - 52)
-                text: searchRoot.hint
-                visible: searchRoot.text.length === 0 && searchRoot.preeditText.length === 0
-                elide: Text.ElideRight
-                color: view.themeTextSecondary
-                font.family: view.fontFamily
-                font.pixelSize: view.fs(15)
-            }
-
-            ToolButton {
-                id: searchClear
-
-                anchors.right: parent.right
-                anchors.rightMargin: 4
-                anchors.verticalCenter: parent.verticalCenter
-                width: 32
-                height: 32
-                visible: searchRoot.text.length > 0
-                hoverEnabled: true
-
-                HoverHandler {
-                    cursorShape: Qt.PointingHandCursor
-                }
-
-                background: Rectangle {
-                    radius: 16
-                    color: searchClear.hovered ? view.withAlpha(view.themeText, 0.08) : "transparent"
-                }
-
-                contentItem: Label {
-                    text: "close"
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    font.family: view.iconFamily
-                    font.pixelSize: view.fs(18)
-                    color: view.themeTextSecondary
-                }
-
-                onClicked: {
-                    searchRoot.text = "";
-                    view.emitNodeEvent(searchRoot.nodeData, "clear");
-                    view.emitNodeEvent(searchRoot.nodeData, "input", "");
-                }
-            }
-
-            Timer {
-                id: debounceTimer
-
-                interval: Math.max(0, searchRoot.debounce)
-
-                onTriggered: view.emitNodeEvent(searchRoot.nodeData, "input", searchRoot.displayText)
-            }
+        SearchFieldNode {
+            view: viewRef
         }
     }
 
     Component {
         id: rangeSliderComponent
 
-        RangeSlider {
-            id: rangeRoot
-
-            property var pulsarMeta: null
-            property var nodeData: null
-            property bool expand: false
-
-            implicitWidth: 200
-            implicitHeight: 40
-            snapMode: Slider.NoSnap
-
-            palette.highlight: view.themePrimary
-            palette.accent: view.themePrimary
-            palette.windowText: view.themeText
-            palette.text: view.themeText
-
-            first.handle: Rectangle {
-                x: rangeRoot.leftPadding + rangeRoot.first.visualPosition * (rangeRoot.availableWidth - width)
-                y: rangeRoot.topPadding + (rangeRoot.availableHeight - height) / 2
-                implicitWidth: 20
-                implicitHeight: 20
-                radius: 10
-                color: view.themeSurface
-                border.width: 2
-                border.color: view.themePrimary
-            }
-
-            second.handle: Rectangle {
-                x: rangeRoot.leftPadding + rangeRoot.second.visualPosition * (rangeRoot.availableWidth - width)
-                y: rangeRoot.topPadding + (rangeRoot.availableHeight - height) / 2
-                implicitWidth: 20
-                implicitHeight: 20
-                radius: 10
-                color: view.themeSurface
-                border.width: 2
-                border.color: view.themePrimary
-            }
-
-            background: Rectangle {
-                x: rangeRoot.leftPadding
-                y: rangeRoot.topPadding + (rangeRoot.availableHeight - height) / 2
-                implicitWidth: 200
-                implicitHeight: 4
-                width: rangeRoot.availableWidth
-                height: implicitHeight
-                radius: 2
-                color: view.themeSurfaceVariant
-
-                Rectangle {
-                    x: rangeRoot.first.position * parent.width
-                    width: rangeRoot.second.position * parent.width - rangeRoot.first.position * parent.width
-                    height: parent.height
-                    color: view.themePrimary
-                }
-            }
+        RangeSliderNode {
+            view: viewRef
         }
     }
 
