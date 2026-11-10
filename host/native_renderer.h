@@ -156,11 +156,14 @@ public:
     Q_INVOKABLE QObject *itemAt(const QString &path) const;
     Q_INVOKABLE void commit();
 
+    /** A pointer handler of a state box changed: hover or press. */
+    Q_INVOKABLE void stateInput(const QString &path);
+
 private slots:
     void refreshTheme();
 
 private:
-    enum class Kind { Island, Shell, Stack, Scroll, Box, ClickableBox, Text, Spacer };
+    enum class Kind { Island, Shell, Stack, Scroll, Box, ClickableBox, StateBox, Text, Spacer };
 
     struct Node {
         QString path;
@@ -172,6 +175,8 @@ private:
         NativeStack *stack = nullptr;
         Node *parent = nullptr;
         bool insideScroll = false;
+        bool styled = false;
+        QString lastState;
         std::shared_ptr<NativeStack::QmlHints> hints;
         std::vector<std::unique_ptr<Node>> children;
     };
@@ -180,6 +185,8 @@ private:
         QVariantMap colors;
         QVariant text;
         QVariant border;
+        QVariant surface;
+        int radius = 0;
         QString fontFamily;
         QString iconFamily;
         qreal fontScale = 1;
@@ -224,6 +231,8 @@ private:
     void refreshKids(Node &node);
     void bindScroll(Node &node);
     void bindBox(Node &node);
+    void refreshState(Node &node);
+    void applyPointer(Node &node);
 
     NativeStack::Kid kidFor(const Node &parent, Node &child) const;
     std::shared_ptr<NativeStack::QmlHints> makeHints(QQuickItem *item) const;
@@ -243,6 +252,7 @@ private:
     std::unique_ptr<QQmlComponent> text_;
     QQmlComponent *flickable_ = nullptr;
     QQmlComponent *clickableBox_ = nullptr;
+    QQmlComponent *stateBox_ = nullptr;
     std::unique_ptr<Node> tree_;
     QHash<QString, Node *> index_;
     QSet<Node *> dirtyStacks_;

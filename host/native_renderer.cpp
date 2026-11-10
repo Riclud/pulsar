@@ -97,6 +97,25 @@ const QSet<QString> &iconProps()
     return props;
 }
 
+const QSet<QString> &stateProps()
+{
+    static const QSet<QString> props = {
+        QStringLiteral("hover"),
+        QStringLiteral("hoverColor"),
+        QStringLiteral("pressed"),
+        QStringLiteral("disabled"),
+    };
+
+    return props;
+}
+
+const QSet<QString> &transitionProp()
+{
+    static const QSet<QString> props = { QStringLiteral("transition") };
+
+    return props;
+}
+
 const QSet<QString> &boxProps()
 {
     static const QSet<QString> props = {
@@ -157,6 +176,65 @@ bool propsAllowed(const QJsonObject &props, std::initializer_list<const QSet<QSt
     return true;
 }
 
+// Same truthiness as the JS the QML state code runs.
+bool truthy(const QJsonValue &value)
+{
+    if (value.isBool())
+        return value.toBool();
+
+    if (value.isDouble())
+        return value.toDouble() != 0;
+
+    if (value.isString())
+        return !value.toString().isEmpty();
+
+    return value.isObject() || value.isArray();
+}
+
+// Only colours are native; scale, opacity and the rest of a state style are motion and stay in QML.
+bool statesPortable(const QJsonObject &props)
+{
+    for (const char *name : { "hover", "pressed", "disabled" }) {
+        const QJsonValue style = props.value(QLatin1String(name));
+
+        if (!style.isObject() && !style.isBool() && !style.isNull() && !style.isUndefined())
+            return false;
+
+        const QJsonObject object = style.toObject();
+
+        for (auto it = object.begin(); it != object.end(); ++it) {
+            const bool colour = it.key() == QLatin1String("color") || it.key() == QLatin1String("borderColor");
+
+            if (!colour || !it.value().isString())
+                return false;
+        }
+    }
+
+    const QJsonValue hoverColor = props.value(QLatin1String("hoverColor"));
+
+    if (props.contains(QLatin1String("hoverColor")) && !hoverColor.isString())
+        return false;
+
+    const QJsonValue transition = props.value(QLatin1String("transition"));
+
+    if (!props.contains(QLatin1String("transition")))
+        return true;
+
+    if (!transition.isObject())
+        return false;
+
+    const QJsonObject object = transition.toObject();
+
+    for (auto it = object.begin(); it != object.end(); ++it) {
+        const bool known = it.key() == QLatin1String("duration") || it.key() == QLatin1String("curve");
+
+        if (!known || (it.key() == QLatin1String("duration") && !it.value().isDouble()))
+            return false;
+    }
+
+    return true;
+}
+
 qreal number(const QJsonObject &props, QLatin1String key, qreal fallback)
 {
     const QJsonValue value = props.value(key);
@@ -164,9 +242,9 @@ qreal number(const QJsonObject &props, QLatin1String key, qreal fallback)
     return value.isDouble() ? value.toDouble() : fallback;
 }
 
-NativeStack::Edges paddingEdges(const QJsonObject &props)
+NativeStack::Edges paddingEdges(const QJsonObject &props, qreal fallback = 0)
 {
-    const qreal all = number(props, QLatin1String("padding"), 0);
+    const qreal all = number(props, QLatin1String("padding"), fallback);
     const qreal x = number(props, QLatin1String("paddingX"), all);
     const qreal y = number(props, QLatin1String("paddingY"), all);
 
@@ -660,6 +738,7 @@ void NativeRenderer::attach(QObject *root)
     host_ = host.value<QQuickItem *>();
     flickable_ = root->property("nativeFlickable").value<QQmlComponent *>();
     clickableBox_ = root->property("nativeClickableBox").value<QQmlComponent *>();
+    stateBox_ = root->property("nativeStateBox").value<QQmlComponent *>();
 
     QQmlEngine *engine = qmlEngine(root);
 
@@ -721,6 +800,8 @@ void NativeRenderer::loadTheme()
     theme_.colors = asMap(root_->property("themeColors"));
     theme_.text = root_->property("themeText");
     theme_.border = root_->property("themeBorder");
+    theme_.surface = root_->property("themeSurface");
+    theme_.radius = root_->property("themeRadius").toInt();
     theme_.fontFamily = root_->property("fontFamily").toString();
     theme_.iconFamily = root_->property("iconFamily").toString();
     theme_.fontScale = root_->property("fontScale").toReal();
@@ -1208,18 +1289,28 @@ NativeRenderer::Kind NativeRenderer::kindFor(const QJsonObject &json, bool insid
     const QJsonObject props = json.value(QLatin1String("props")).toObject();
     const QJsonArray events = json.value(QLatin1String("events")).toArray();
 
-    if (type == QLatin1String("card"))
-        return Kind::Shell;
-
-    if (type == QLatin1String("box")) {
+    if (type == QLatin1String("card") || type == QLatin1String("box")) {
         const bool plainEvents = std::all_of(events.begin(), events.end(), [](const QJsonValue &event) {
             return event.toString() == QLatin1String("click") || event.toString() == QLatin1String("longPress");
         });
 
-        if (!plainEvents || !propsAllowed(props, { &commonProps(), &paddingProps(), &boxProps() }))
+        if (!plainEvents)
             return Kind::Shell;
 
-        return events.isEmpty() ? Kind::Box : Kind::ClickableBox;
+        const bool stateful = std::any_of(stateProps().begin(), stateProps().end(), [&](const QString &key) {
+            return props.contains(key);
+        });
+
+        if (!stateful) {
+            if (!propsAllowed(props, { &commonProps(), &paddingProps(), &boxProps() }))
+                return Kind::Shell;
+
+            return events.isEmpty() ? Kind::Box : Kind::ClickableBox;
+        }
+
+        const bool known = propsAllowed(props, { &commonProps(), &paddingProps(), &boxProps(), &stateProps(), &transitionProp() });
+
+        return known && statesPortable(props) ? Kind::StateBox : Kind::Shell;
     }
 
     if (!events.isEmpty())
@@ -1313,13 +1404,15 @@ std::unique_ptr<NativeRenderer::Node> NativeRenderer::create(const QJsonObject &
         node->item = instantiate(rectangle_.get());
     } else if (node->kind == Kind::ClickableBox) {
         node->item = instantiate(clickableBox_);
+    } else if (node->kind == Kind::StateBox) {
+        node->item = instantiate(stateBox_);
     } else {
         node->item = instantiate(flickable_);
     }
 
     adopt(node->item, parentItem);
 
-    if (node->kind == Kind::Box || node->kind == Kind::ClickableBox)
+    if (node->kind == Kind::Box || node->kind == Kind::ClickableBox || node->kind == Kind::StateBox)
         bindBox(*node);
 
     if (node->kind == Kind::Scroll)
@@ -1484,7 +1577,7 @@ void NativeRenderer::sync(Node &node, const QJsonObject &json, bool withChildren
     if (changed)
         applyProps(node);
 
-    if (node.kind == Kind::ClickableBox && (fresh || identityChanged)) {
+    if ((node.kind == Kind::ClickableBox || node.kind == Kind::StateBox) && (fresh || identityChanged)) {
         const QVariantMap own = {
             { QStringLiteral("path"), node.path },
             { QStringLiteral("type"), node.type },
@@ -1493,6 +1586,9 @@ void NativeRenderer::sync(Node &node, const QJsonObject &json, bool withChildren
         };
 
         node.item->setProperty("pulsarMeta", QVariantMap{ { QStringLiteral("node"), own } });
+
+        if (node.kind == Kind::StateBox)
+            applyPointer(node);
     }
 
     if (withChildren)
@@ -1546,7 +1642,7 @@ void NativeRenderer::applyProps(Node &node)
         return;
     }
 
-    if (node.kind == Kind::Box || node.kind == Kind::ClickableBox) {
+    if (node.kind == Kind::Box || node.kind == Kind::ClickableBox || node.kind == Kind::StateBox) {
         applyBox(node);
         return;
     }
@@ -1570,16 +1666,118 @@ void NativeRenderer::applyBox(Node &node)
 {
     QQuickItem *item = node.item;
     const QJsonObject &props = node.props;
+    const bool card = node.type == QLatin1String("card");
 
-    item->setProperty("color", resolveColor(props.value(QLatin1String("color")), QStringLiteral("transparent")));
-    item->setProperty("radius", number(props, QLatin1String("radius"), 0));
+    item->setProperty("color", resolveColor(props.value(QLatin1String("color")), card ? theme_.surface : QVariant(QStringLiteral("transparent"))));
+    item->setProperty("radius", number(props, QLatin1String("radius"), card ? theme_.radius : 0));
 
     if (QObject *border = item->property("border").value<QObject *>()) {
-        border->setProperty("width", number(props, QLatin1String("borderWidth"), 0));
+        border->setProperty("width", number(props, QLatin1String("borderWidth"), card ? 1 : 0));
         border->setProperty("color", resolveColor(props.value(QLatin1String("borderColor")), theme_.border));
     }
 
-    node.stack->configure(NativeStack::Mode::Column, 0, paddingEdges(props));
+    node.stack->configure(NativeStack::Mode::Column, card ? theme_.spacing : 0, paddingEdges(props, card ? 16 : 0));
+
+    if (card && debugging())
+        qInfo().noquote() << "PulsarView card" << node.path
+                          << "color=" + item->property("color").value<QColor>().name(QColor::HexArgb)
+                          << "radius=" + QString::number(item->property("radius").toReal())
+                          << "padding=" + QString::number(paddingEdges(props, 16).left);
+
+    if (node.kind == Kind::StateBox) {
+        refreshState(node);
+        applyPointer(node);
+    }
+}
+
+void NativeRenderer::stateInput(const QString &path)
+{
+    if (Node *node = index_.value(path); node && node->kind == Kind::StateBox)
+        refreshState(*node);
+}
+
+// The pointing hand shows over anything that reacts to the pointer, and stays once it has.
+void NativeRenderer::applyPointer(Node &node)
+{
+    const bool clicks = !node.json.value(QLatin1String("events")).toArray().isEmpty();
+    const bool reacts = node.props.contains(QLatin1String("hover")) || node.props.contains(QLatin1String("hoverColor"));
+
+    if (QObject *tap = node.item->property("tapHandler").value<QObject *>())
+        tap->setProperty("enabled", clicks);
+
+    if (debugging())
+        qInfo().noquote() << "PulsarView pointer" << node.path << "tap=" + QString::number(clicks)
+                          << "hand=" + QString::number(clicks || reacts);
+
+    if (!clicks && !reacts)
+        return;
+
+    if (QObject *hover = node.item->property("hoverHandler").value<QObject *>())
+        hover->setProperty("cursorShape", int(Qt::PointingHandCursor));
+}
+
+// Which of normal, hover, pressed and disabled applies, and the colours that go with it.
+void NativeRenderer::refreshState(Node &node)
+{
+    const QJsonObject &props = node.props;
+    const bool styled = truthy(props.value(QLatin1String("hover"))) || truthy(props.value(QLatin1String("pressed")))
+        || truthy(props.value(QLatin1String("disabled"))) || props.contains(QLatin1String("hoverColor"));
+
+    if (!styled && !node.styled)
+        return;
+
+    node.styled = styled;
+
+    const QJsonValue enabled = props.value(QLatin1String("enabled"));
+    const bool hovered = node.item->property("hoverHandler").value<QObject *>()->property("hovered").toBool();
+    const bool holding = node.item->property("pressHandler").value<QObject *>()->property("holding").toBool();
+    const bool hoverStyled = truthy(props.value(QLatin1String("hover"))) || props.contains(QLatin1String("hoverColor"));
+
+    QString state = QStringLiteral("normal");
+
+    if (enabled.isBool() && !enabled.toBool())
+        state = QStringLiteral("disabled");
+    else if (holding && truthy(props.value(QLatin1String("pressed"))))
+        state = QStringLiteral("pressed");
+    else if (hovered && hoverStyled)
+        state = QStringLiteral("hover");
+
+    const QJsonValue styleValue = state == QLatin1String("normal") ? QJsonValue() : props.value(state);
+    const QJsonObject style = truthy(styleValue) ? styleValue.toObject() : QJsonObject();
+    const QJsonValue transition = props.value(QLatin1String("transition"));
+    const QJsonValue duration = transition.toObject().value(QLatin1String("duration"));
+
+    const bool card = node.type == QLatin1String("card");
+    const QVariant fallback = card ? theme_.surface : QVariant(QStringLiteral("transparent"));
+    const bool hoverTint = state == QLatin1String("hover") && !style.contains(QLatin1String("color"));
+
+    QJsonValue color = props.value(QLatin1String("color"));
+
+    if (style.contains(QLatin1String("color")))
+        color = style.value(QLatin1String("color"));
+    else if (hoverTint && props.contains(QLatin1String("hoverColor")))
+        color = props.value(QLatin1String("hoverColor"));
+
+    const QJsonValue borderColor = style.contains(QLatin1String("borderColor")) ? style.value(QLatin1String("borderColor"))
+                                                                                  : props.value(QLatin1String("borderColor"));
+
+    const int ms = duration.isDouble() ? int(duration.toDouble()) : 120;
+    const QString fill = resolveColor(color, fallback);
+    const QString edge = resolveColor(borderColor, theme_.border);
+
+    if (node.lastState != state) {
+        node.lastState = state;
+
+        if (debugging())
+            qInfo().noquote() << "PulsarView state" << state << node.path << "color=" + fill << "border=" + edge
+                              << "ms=" + QString::number(ms);
+    }
+
+    node.item->setProperty("pulsarColorMs", ms);
+    node.item->setProperty("color", fill);
+
+    if (QObject *border = node.item->property("border").value<QObject *>())
+        border->setProperty("color", edge);
 }
 
 void NativeRenderer::applyScroll(Node &node)

@@ -344,12 +344,45 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "box-states",
+    quickjsDesktop: true,
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "2800" },
+    drive: [
+      { at: 700, cmd: { cmd: "pointer", action: "hover", x: 50, y: 20 } },
+      { at: 1000, cmd: { cmd: "pointer", action: "hover", x: 50, y: 70 } },
+      { at: 1300, cmd: { cmd: "pointer", action: "press", x: 50, y: 70 } },
+      { at: 1600, cmd: { cmd: "pointer", action: "release", x: 50, y: 70 } },
+      { at: 1900, cmd: { cmd: "pointer", action: "leave" } },
+    ],
+    check: (output) => {
+      const states = (path: string) => {
+        return output
+          .split("\n")
+          .filter((line) => line.includes(`PulsarView state `) && line.includes(` ${path} `))
+          .map((line) => line.replace(/^.*PulsarView state /, ""))
+      }
+
+      return (
+        states("/root/a").join("|") ===
+          "normal /root/a color=#222222 border=#ffacb0be ms=40|hover /root/a color=#333333 border=#ffacb0be ms=40|normal /root/a color=#222222 border=#ffacb0be ms=40" &&
+        states("/root/b").join("|") ===
+          "normal /root/b color=#444444 border=#ffacb0be ms=120|hover /root/b color=#555555 border=#ffacb0be ms=120|pressed /root/b color=#666666 border=#777777 ms=120|hover /root/b color=#555555 border=#ffacb0be ms=120|normal /root/b color=#444444 border=#ffacb0be ms=120" &&
+        states("/root/c").join("|") ===
+          "disabled /root/c color=#888888 border=#aaaaaa ms=120|normal /root/c color=#999999 border=#ffacb0be ms=120" &&
+        output.includes("PulsarView pointer /root/b tap=1 hand=1") &&
+        output.includes("PulsarView pointer /root/a tap=0 hand=1") &&
+        output.includes("PulsarView pointer /root/c tap=0 hand=0") &&
+        output.includes("CLICK b")
+      )
+    },
+  },
+  {
     name: "box-scroll-hover",
     quickjsDesktop: true,
     env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "3000" },
     drive: [
       { at: 600, cmd: { cmd: "pointer", action: "hover", x: 50, y: 20 } },
-            { at: 900, cmd: { cmd: "wheel", dy: 120, x: 50, y: 20 } },
+      { at: 900, cmd: { cmd: "wheel", dy: 120, x: 50, y: 20 } },
       { at: 950, cmd: { cmd: "wheel", dy: 120, x: 50, y: 20 } },
       { at: 1000, cmd: { cmd: "wheel", dy: 120, x: 50, y: 20 } },
     ],
@@ -358,7 +391,44 @@ const scenarios: Scenario[] = [
 
       // Hover is off while the list scrolls: the first row loses it once, and the row that ends up
       // under the pointer gets it back after the scroll. Without that every row passing by flashes.
-      return hovers.length === 2 && /\/root\/list\/r0( |$)/.test(hovers[0]!) && !/\/root\/list\/r0( |$)/.test(hovers[1]!)
+      return (
+        hovers.length === 2 && /\/root\/list\/r0( |$)/.test(hovers[0]!) && !/\/root\/list\/r0( |$)/.test(hovers[1]!)
+      )
+    },
+  },
+  {
+    name: "box-scroll-hover-native",
+    quickjsDesktop: true,
+    fixture: "box-scroll-hover-native",
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "3000" },
+    drive: [
+      { at: 600, cmd: { cmd: "pointer", action: "hover", x: 50, y: 20 } },
+      { at: 900, cmd: { cmd: "wheel", dy: 120, x: 50, y: 20 } },
+      { at: 950, cmd: { cmd: "wheel", dy: 120, x: 50, y: 20 } },
+      { at: 1000, cmd: { cmd: "wheel", dy: 120, x: 50, y: 20 } },
+    ],
+    check: (output) => {
+      const hovers = output.split("\n").filter((line) => line.includes("PulsarView state hover "))
+
+      // Hover is off while the list scrolls: the first row loses it once, and the row that ends up
+      // under the pointer gets it back after the scroll. Without that every row passing by flashes.
+      return (
+        hovers.length === 2 && /\/root\/list\/r0( |$)/.test(hovers[0]!) && !/\/root\/list\/r0( |$)/.test(hovers[1]!)
+      )
+    },
+  },
+  {
+    name: "card-native",
+    quickjsDesktop: true,
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "1500" },
+    check: (output) => {
+      // Default padding 16 and the theme radius, then explicit padding, radius and colour.
+      return (
+        output.includes("SIZE plain 288 18") &&
+        output.includes("SIZE tight 312 18") &&
+        output.includes("PulsarView card /root/plain color=#ffccd0da radius=17 padding=16") &&
+        output.includes("PulsarView card /root/tight color=#ff123456 radius=3 padding=4")
+      )
     },
   },
   {

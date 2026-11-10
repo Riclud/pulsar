@@ -30,6 +30,7 @@ ApplicationWindow {
     readonly property Item nativeHost: host
     readonly property Component nativeFlickable: flickableComponent
     readonly property Component nativeClickableBox: clickableBoxComponent
+    readonly property Component nativeStateBox: stateBoxComponent
     property var gapLayouts: []
     property var madeComponents: ({})
     property bool reordering: false
@@ -546,6 +547,14 @@ ApplicationWindow {
         id: clickableBoxComponent
 
         ClickableBoxNode {
+            view: viewRef
+        }
+    }
+
+    Component {
+        id: stateBoxComponent
+
+        StateBoxNode {
             view: viewRef
         }
     }
