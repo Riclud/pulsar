@@ -290,6 +290,8 @@ void PerfRecorder::planWheel(const QJsonObject &step)
     const int ticks = step.value(QLatin1String("ticks")).toInt(1);
     const int every = step.value(QLatin1String("every")).toInt(40);
     const int dy = step.value(QLatin1String("dy")).toInt(120);
+    // A touchpad reports pixels as well as the angle; the scroll spring is stiffer for it.
+    const bool pixel = step.value(QLatin1String("pixel")).toBool(false);
     auto point = std::make_shared<QPointF>();
 
     at(0, [this, step, point]() {
@@ -301,8 +303,8 @@ void PerfRecorder::planWheel(const QJsonObject &step)
     });
 
     for (int tick = 0; tick < ticks; tick++) {
-        at(tick == 0 ? 0 : every, [this, point, dy]() {
-            QWheelEvent event(*point, window_->mapToGlobal(*point), QPoint(), QPoint(0, -dy), buttons_, Qt::NoModifier,
+        at(tick == 0 ? 0 : every, [this, point, dy, pixel]() {
+            QWheelEvent event(*point, window_->mapToGlobal(*point), pixel ? QPoint(0, -dy) : QPoint(), QPoint(0, -dy), buttons_, Qt::NoModifier,
                               Qt::NoScrollPhase, false);
 
             note(QStringLiteral("wheel"));

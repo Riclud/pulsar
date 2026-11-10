@@ -4,6 +4,7 @@ import { tmpdir } from "os"
 import { join, resolve } from "path"
 import { bundleRuntime } from "../cli/android.ts"
 import { startDrive, type DriveStep } from "./lib/devdrive.ts"
+import { edgeProblem, inertiaProblem } from "./lib/inertia-checks.ts"
 import { prebuilt, runPool, testJobs } from "./lib/pool.ts"
 
 type Scenario = {
@@ -429,6 +430,68 @@ const scenarios: Scenario[] = [
         output.includes("PulsarView card /root/plain color=#ffccd0da radius=17 padding=16") &&
         output.includes("PulsarView card /root/tight color=#ff123456 radius=3 padding=4")
       )
+    },
+  },
+  {
+    name: "inertia",
+    serial: true,
+    quickjsDesktop: true,
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "9000" },
+    drive: [
+      {
+        at: 1200,
+        cmd: {
+          cmd: "perf",
+          steps: [
+            { do: "hover", x: 100, y: 120 },
+            { do: "wheel", x: 100, y: 120, ticks: 1, dy: 120 },
+            { do: "wait", ms: 700 },
+            { do: "wheel", x: 100, y: 120, ticks: 1, dy: 120, pixel: true },
+            { do: "wait", ms: 700 },
+            { do: "drag", x: 100, y: 200, dx: 0, dy: -150, ms: 120 },
+            { do: "wait", ms: 1500 },
+            { do: "wheel", x: 100, y: 120, ticks: 6, every: 30, dy: 120 },
+            { do: "wait", ms: 40 },
+            { do: "tap", x: 100, y: 120, hold: 60 },
+            { do: "wait", ms: 500 },
+          ],
+        },
+      },
+    ],
+    check: (output) => {
+      const problem = inertiaProblem(output)
+
+      if (problem) console.error(`inertia: ${problem}`)
+
+      return problem === undefined
+    },
+  },
+  {
+    name: "inertia-edge",
+    serial: true,
+    quickjsDesktop: true,
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "7000" },
+    drive: [
+      {
+        at: 1200,
+        cmd: {
+          cmd: "perf",
+          steps: [
+            { do: "hover", x: 100, y: 120 },
+            { do: "wheel", x: 100, y: 120, ticks: 1, dy: 120 },
+            { do: "wait", ms: 700 },
+            { do: "drag", x: 100, y: 220, dx: 0, dy: -150, ms: 100 },
+            { do: "wait", ms: 1500 },
+          ],
+        },
+      },
+    ],
+    check: (output) => {
+      const problem = edgeProblem(output)
+
+      if (problem) console.error(`inertia-edge: ${problem}`)
+
+      return problem === undefined
     },
   },
   {

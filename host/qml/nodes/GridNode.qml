@@ -1,4 +1,5 @@
 import QtQuick
+import Pulsar.Native
 import QtQuick.Layouts
 
 Flickable {
