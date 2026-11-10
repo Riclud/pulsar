@@ -1,5 +1,5 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "fs"
-import { join, relative, resolve } from "path"
+import { basename, join, relative, resolve } from "path"
 import { cliVersion, flag, installDependencies, linkSdk, pulsarRoot } from "./core.ts"
 import { ui } from "./ui.ts"
 
@@ -49,6 +49,30 @@ const listTemplates = (dir: string): string[] => {
   }
 }
 
+export interface AppIdentity {
+  target: string
+  name: string
+  id: string
+  title: string
+}
+
+/** Names the app after its folder, so `create .` and `create ../app` do not write "." as the name. */
+export const identityFor = (name: string, dir: string): AppIdentity => {
+  const target = resolve(dir, name)
+  const folder = basename(target)
+  const slug = folder
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase()
+
+  return {
+    target,
+    name: folder,
+    id: `com.example.${slug || "app"}`,
+    title: folder.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+  }
+}
+
 export const create = (args: string[]): void => {
   const name = args.find((a) => !a.startsWith("-"))
 
@@ -69,7 +93,8 @@ export const create = (args: string[]): void => {
     process.exit(1)
   }
 
-  const target = resolve(flag(args, "--dir") ?? ".", name)
+  const identity = identityFor(name, flag(args, "--dir") ?? ".")
+  const { target } = identity
 
   if (existsSync(target) && readdirSync(target).length > 0 && !args.includes("--force")) {
     ui.error(`${target} already exists (use --force)`)
@@ -78,14 +103,7 @@ export const create = (args: string[]): void => {
 
   mkdirSync(target, { recursive: true })
 
-  const slug = name
-    .replace(/[^a-zA-Z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .toLowerCase()
-  const id = `com.example.${slug || "app"}`
-  const title = name.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
-
-  copyTemplate(templateDir, target, { "{{name}}": name, "{{id}}": id, "{{title}}": title })
+  copyTemplate(templateDir, target, { "{{name}}": identity.name, "{{id}}": identity.id, "{{title}}": identity.title })
 
   // Install, then link the local SDK. Order matters: an install may prune node_modules.
   installDependencies(target, true)
