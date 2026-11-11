@@ -532,6 +532,11 @@ const scenarios: Scenario[] = [
       const switches = output.split("\n").filter((line) => line.includes("TOGGLE sw "))
 
       return (
+        output.includes("PulsarView checkbox /root/box label=Accept checked=0 enabled=1") &&
+        output.includes("PulsarView checkbox /root/off label=Off checked=1 enabled=0") &&
+        output.includes("PulsarView switch /root/sw label=Wifi checked=0 enabled=1") &&
+        // The app's own change is applied to the switch without a toggle event.
+        output.includes("PulsarView switch /root/sw label=Wifi checked=1 enabled=1") &&
         output.includes("TOGGLE box true") &&
         !output.includes("TOGGLE off") &&
         switches.length === 1 &&
