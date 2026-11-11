@@ -29,74 +29,80 @@ Item {
         radius: fieldBackground.cornerRadius
     }
 
-    Shape {
+    // The outline is only drawn for an outlined or focused field; building it is the costly part.
+    Loader {
         anchors.fill: parent
-        visible: fieldBackground.showBorder
-        antialiasing: true
+        active: fieldBackground.showBorder
+        sourceComponent: Component {
+            Shape {
+                anchors.fill: parent
+                antialiasing: true
 
-        ShapePath {
-            fillColor: "transparent"
-            strokeColor: fieldBackground.control && fieldBackground.control.activeFocus
-                    ? fieldBackground.focusColor
-                    : fieldBackground.borderColor
-            strokeWidth: fieldBackground.strokeWidth
-            capStyle: ShapePath.FlatCap
-            joinStyle: ShapePath.RoundJoin
+                ShapePath {
+                    fillColor: "transparent"
+                    strokeColor: fieldBackground.control && fieldBackground.control.activeFocus
+                            ? fieldBackground.focusColor
+                            : fieldBackground.borderColor
+                    strokeWidth: fieldBackground.strokeWidth
+                    capStyle: ShapePath.FlatCap
+                    joinStyle: ShapePath.RoundJoin
 
-            startX: fieldBackground.gapEnd
-            startY: fieldBackground.inset
+                    startX: fieldBackground.gapEnd
+                    startY: fieldBackground.inset
 
-            PathLine {
-                x: fieldBackground.width - fieldBackground.inset - fieldBackground.corner
-                y: fieldBackground.inset
-            }
-            PathAngleArc {
-                centerX: fieldBackground.width - fieldBackground.inset - fieldBackground.corner
-                centerY: fieldBackground.inset + fieldBackground.corner
-                radiusX: fieldBackground.corner
-                radiusY: fieldBackground.corner
-                startAngle: -90
-                sweepAngle: 90
-            }
-            PathLine {
-                x: fieldBackground.width - fieldBackground.inset
-                y: fieldBackground.height - fieldBackground.inset - fieldBackground.corner
-            }
-            PathAngleArc {
-                centerX: fieldBackground.width - fieldBackground.inset - fieldBackground.corner
-                centerY: fieldBackground.height - fieldBackground.inset - fieldBackground.corner
-                radiusX: fieldBackground.corner
-                radiusY: fieldBackground.corner
-                startAngle: 0
-                sweepAngle: 90
-            }
-            PathLine {
-                x: fieldBackground.inset + fieldBackground.corner
-                y: fieldBackground.height - fieldBackground.inset
-            }
-            PathAngleArc {
-                centerX: fieldBackground.inset + fieldBackground.corner
-                centerY: fieldBackground.height - fieldBackground.inset - fieldBackground.corner
-                radiusX: fieldBackground.corner
-                radiusY: fieldBackground.corner
-                startAngle: 90
-                sweepAngle: 90
-            }
-            PathLine {
-                x: fieldBackground.inset
-                y: fieldBackground.inset + fieldBackground.corner
-            }
-            PathAngleArc {
-                centerX: fieldBackground.inset + fieldBackground.corner
-                centerY: fieldBackground.inset + fieldBackground.corner
-                radiusX: fieldBackground.corner
-                radiusY: fieldBackground.corner
-                startAngle: 180
-                sweepAngle: 90
-            }
-            PathLine {
-                x: fieldBackground.gapStart
-                y: fieldBackground.inset
+                    PathLine {
+                        x: fieldBackground.width - fieldBackground.inset - fieldBackground.corner
+                        y: fieldBackground.inset
+                    }
+                    PathAngleArc {
+                        centerX: fieldBackground.width - fieldBackground.inset - fieldBackground.corner
+                        centerY: fieldBackground.inset + fieldBackground.corner
+                        radiusX: fieldBackground.corner
+                        radiusY: fieldBackground.corner
+                        startAngle: -90
+                        sweepAngle: 90
+                    }
+                    PathLine {
+                        x: fieldBackground.width - fieldBackground.inset
+                        y: fieldBackground.height - fieldBackground.inset - fieldBackground.corner
+                    }
+                    PathAngleArc {
+                        centerX: fieldBackground.width - fieldBackground.inset - fieldBackground.corner
+                        centerY: fieldBackground.height - fieldBackground.inset - fieldBackground.corner
+                        radiusX: fieldBackground.corner
+                        radiusY: fieldBackground.corner
+                        startAngle: 0
+                        sweepAngle: 90
+                    }
+                    PathLine {
+                        x: fieldBackground.inset + fieldBackground.corner
+                        y: fieldBackground.height - fieldBackground.inset
+                    }
+                    PathAngleArc {
+                        centerX: fieldBackground.inset + fieldBackground.corner
+                        centerY: fieldBackground.height - fieldBackground.inset - fieldBackground.corner
+                        radiusX: fieldBackground.corner
+                        radiusY: fieldBackground.corner
+                        startAngle: 90
+                        sweepAngle: 90
+                    }
+                    PathLine {
+                        x: fieldBackground.inset
+                        y: fieldBackground.inset + fieldBackground.corner
+                    }
+                    PathAngleArc {
+                        centerX: fieldBackground.inset + fieldBackground.corner
+                        centerY: fieldBackground.inset + fieldBackground.corner
+                        radiusX: fieldBackground.corner
+                        radiusY: fieldBackground.corner
+                        startAngle: 180
+                        sweepAngle: 90
+                    }
+                    PathLine {
+                        x: fieldBackground.gapStart
+                        y: fieldBackground.inset
+                    }
+                }
             }
         }
     }
