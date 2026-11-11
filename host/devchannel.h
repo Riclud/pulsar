@@ -67,6 +67,7 @@ private:
     void handlePerf(const QJsonValue &request, const QJsonObject &command);
     void handleKey(const QJsonValue &request, const QJsonObject &command);
     void handleKeys(const QJsonValue &request, const QJsonObject &command);
+    void handleDrop(const QJsonValue &request, const QJsonObject &command);
     void sendMouse(QQuickWindow *window, QEvent::Type type, const QPointF &point, Qt::MouseButton button);
 
     DevHooks hooks_;

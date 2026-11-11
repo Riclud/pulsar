@@ -168,7 +168,8 @@ const QSet<QString> &scrollProps()
 bool passiveEvent(const QString &event)
 {
     return event == QLatin1String("visible") || event == QLatin1String("enterViewport")
-        || event == QLatin1String("leaveViewport") || event == QLatin1String("contextMenu");
+        || event == QLatin1String("leaveViewport") || event == QLatin1String("contextMenu")
+        || event == QLatin1String("dropFiles");
 }
 
 bool hasActiveEvents(const QJsonArray &events)
@@ -2149,7 +2150,9 @@ void NativeRenderer::discard(Node &node, QQuickItem *after)
 bool wantsVisibility(const QJsonArray &events)
 {
     return std::any_of(events.begin(), events.end(), [](const QJsonValue &event) {
-        return passiveEvent(event.toString()) && event.toString() != QLatin1String("contextMenu");
+        const QString name = event.toString();
+
+        return name == QLatin1String("visible") || name == QLatin1String("enterViewport") || name == QLatin1String("leaveViewport");
     });
 }
 
@@ -2158,7 +2161,7 @@ void NativeRenderer::refreshContext(Node &node)
 {
     const QJsonArray events = node.json.value(QLatin1String("events")).toArray();
     const bool wants = std::any_of(events.begin(), events.end(), [](const QJsonValue &event) {
-        return event.toString() == QLatin1String("contextMenu");
+        return event.toString() == QLatin1String("contextMenu") || event.toString() == QLatin1String("dropFiles");
     });
 
     if (!wants || node.context || !node.item || !root_)
@@ -2170,6 +2173,7 @@ void NativeRenderer::refreshContext(Node &node)
             "import QtQuick; Item { id: overlay; width: parent ? parent.width : 0; height: parent ? parent.height : 0; z: 1000;"
             " property var renderer: null; property string path: \"\";"
             " TapHandler { acceptedButtons: Qt.RightButton; onTapped: (point) => overlay.renderer.contextRequested(overlay.path, point.scenePosition.x, point.scenePosition.y) }"
+            " DropArea { anchors.fill: parent; onDropped: (drop) => { if (drop.hasUrls) overlay.renderer.filesDropped(overlay.path, drop.urls.map(String), drop.x, drop.y) } }"
             " TapHandler { acceptedDevices: PointerDevice.TouchScreen; longPressThreshold: 0.5; gesturePolicy: TapHandler.WithinBounds;"
             " onLongPressed: overlay.renderer.contextRequested(overlay.path, point.scenePosition.x, point.scenePosition.y) } }",
             QUrl());
@@ -2192,6 +2196,39 @@ void NativeRenderer::refreshContext(Node &node)
 
     if (debugging())
         qInfo().noquote() << "PulsarView context overlay" << node.path << overlay->size();
+}
+
+void NativeRenderer::filesDropped(const QString &path, const QStringList &urls, qreal x, qreal y)
+{
+    const Node *node = index_.value(path);
+
+    if (!node || !root_ || !node->json.value(QLatin1String("events")).toArray().contains(QStringLiteral("dropFiles")))
+        return;
+
+    QVariantList files;
+
+    for (const QString &url : urls) {
+        const QUrl parsed(url);
+
+        if (parsed.isLocalFile())
+            files.append(parsed.toLocalFile());
+    }
+
+    if (files.isEmpty())
+        return;
+
+    const QVariantMap own = { { QStringLiteral("path"), node->path },
+                              { QStringLiteral("id"), node->json.value(QLatin1String("id")).toVariant() },
+                              { QStringLiteral("events"), node->json.value(QLatin1String("events")).toVariant() } };
+
+    QVariantMap value;
+
+    value.insert(QStringLiteral("files"), files);
+    value.insert(QStringLiteral("x"), x);
+    value.insert(QStringLiteral("y"), y);
+
+    QMetaObject::invokeMethod(root_, "emitEvent", Q_ARG(QVariant, own), Q_ARG(QVariant, QStringLiteral("dropFiles")),
+                              Q_ARG(QVariant, value));
 }
 
 void NativeRenderer::contextRequested(const QString &path, qreal x, qreal y)

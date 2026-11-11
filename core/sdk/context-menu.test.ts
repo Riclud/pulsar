@@ -13,3 +13,16 @@ describe("onContextMenu", () => {
     expect(seen).toEqual([{ x: 12, y: 34 }])
   })
 })
+
+describe("onDropFiles", () => {
+  test("passes the paths and the position", () => {
+    const seen: unknown[] = []
+    const node = Box({ onDropFiles: (files, at) => seen.push([files, at]) })
+
+    expect(node.events).toEqual(["dropFiles"])
+
+    dispatchUiEvent(node.id, "dropFiles", { files: ["/a.txt"], x: 1, y: 2 })
+
+    expect(seen).toEqual([[["/a.txt"], { x: 1, y: 2 }]])
+  })
+})

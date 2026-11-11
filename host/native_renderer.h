@@ -164,6 +164,7 @@ public:
 
     /** A right click or long press on a node that listens for contextMenu; x and y are in window space. */
     Q_INVOKABLE void contextRequested(const QString &path, qreal x, qreal y);
+    Q_INVOKABLE void filesDropped(const QString &path, const QStringList &urls, qreal x, qreal y);
 
 private slots:
     void refreshTheme();

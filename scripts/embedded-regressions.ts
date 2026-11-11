@@ -757,6 +757,16 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "drop-files",
+    fixture: "drag-drop",
+    quickjsDesktop: true,
+    serial: true,
+    env: { AUTO_QUIT_MS: "1800" },
+    drive: [{ at: 600, cmd: { cmd: "drop", x: 30, y: 20, files: ["/tmp/one.txt", "/tmp/two.png"] } }],
+    check: (output) =>
+      output.split("\n").filter((line) => line.includes("DROP /tmp/one.txt,/tmp/two.png 30 20")).length === 1,
+  },
+  {
     name: "packing",
     check: (output) => {
       return output.includes("SIZE wide 40") && output.includes("SIZE hug 40") && output.includes("SIZE grow 100")

@@ -11,6 +11,10 @@
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <QDateTime>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QMimeData>
+#include <QUrl>
 #include <QGuiApplication>
 #include <QImage>
 #include <QJsonDocument>
@@ -282,6 +286,11 @@ void DevChannel::handle(const QJsonObject &command)
 
     if (name == QLatin1String("keys")) {
         handleKeys(request, command);
+        return;
+    }
+
+    if (name == QLatin1String("drop")) {
+        handleDrop(request, command);
         return;
     }
 
@@ -787,6 +796,37 @@ void DevChannel::handleKey(const QJsonValue &request, const QJsonObject &command
 
     sendKey(view, key, modifiers, text);
     reply(request, true, true);
+}
+
+// Drops files on the window the way a file manager would: a drag enters, then it is released.
+void DevChannel::handleDrop(const QJsonValue &request, const QJsonObject &command)
+{
+    QQuickWindow *view = findView();
+
+    if (!view) {
+        reply(request, false, QStringLiteral("no window"));
+        return;
+    }
+
+    QList<QUrl> urls;
+
+    for (const QJsonValue &file : command.value(QStringLiteral("files")).toArray())
+        urls.append(QUrl::fromLocalFile(file.toString()));
+
+    QMimeData data;
+
+    data.setUrls(urls);
+
+    const QPointF point(command.value(QStringLiteral("x")).toDouble(), command.value(QStringLiteral("y")).toDouble());
+
+    QDragEnterEvent enter(point.toPoint(), Qt::CopyAction, &data, Qt::LeftButton, Qt::NoModifier);
+
+    QCoreApplication::sendEvent(view, &enter);
+
+    QDropEvent drop(point, Qt::CopyAction, &data, Qt::LeftButton, Qt::NoModifier);
+
+    QCoreApplication::sendEvent(view, &drop);
+    reply(request, true, drop.isAccepted());
 }
 
 void DevChannel::handleKeys(const QJsonValue &request, const QJsonObject &command)

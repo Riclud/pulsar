@@ -227,6 +227,11 @@ interface CommonOptions {
    * coordinates. Open a `Menu` there: `Menu({ open, x, y, items, onSelect, onClose })`.
    */
   onContextMenu?: (position: { x: number; y: number }) => void
+  /**
+   * Called when files are dropped on the node from the file manager (desktop), with their paths
+   * and the drop position inside the node.
+   */
+  onDropFiles?: (files: string[], position: { x: number; y: number }) => void
   /** Called when the node comes into view (see `onVisible`). */
   onEnterViewport?: () => void
   /** Called when the node leaves the view (see `onVisible`). */
@@ -996,18 +1001,30 @@ const makeNode = <P extends object>(
   events: string[] = [],
   callbacks?: Record<string, UiHandler>,
 ): UiNode => {
-  const { neon, onLayout, onFocus, onBlur, onVisible, onEnterViewport, onLeaveViewport, onContextMenu, drag, ...rest } =
-    props as P & {
-      neon?: boolean | NeonOptions
-      onLayout?: (box: { width: number; height: number; x: number; y: number }) => void
-      onFocus?: () => void
-      onBlur?: () => void
-      onVisible?: (visible: boolean) => void
-      onEnterViewport?: () => void
-      onLeaveViewport?: () => void
-      onContextMenu?: (position: { x: number; y: number }) => void
-      drag?: DragOptions
-    }
+  const {
+    neon,
+    onLayout,
+    onFocus,
+    onBlur,
+    onVisible,
+    onEnterViewport,
+    onLeaveViewport,
+    onContextMenu,
+    onDropFiles,
+    drag,
+    ...rest
+  } = props as P & {
+    neon?: boolean | NeonOptions
+    onLayout?: (box: { width: number; height: number; x: number; y: number }) => void
+    onFocus?: () => void
+    onBlur?: () => void
+    onVisible?: (visible: boolean) => void
+    onEnterViewport?: () => void
+    onLeaveViewport?: () => void
+    onContextMenu?: (position: { x: number; y: number }) => void
+    onDropFiles?: (files: string[], position: { x: number; y: number }) => void
+    drag?: DragOptions
+  }
   const id = nextId++
   const layout = typeof onLayout === "function" ? onLayout : null
   const focus = typeof onFocus === "function" ? onFocus : null
@@ -1055,6 +1072,15 @@ const makeNode = <P extends object>(
       const at = value as { x: number; y: number }
 
       onContextMenu({ x: at.x, y: at.y })
+    }
+  }
+
+  if (typeof onDropFiles === "function") {
+    eventList.push("dropFiles")
+    callbackMap.dropFiles = (value) => {
+      const drop = value as { files: string[]; x: number; y: number }
+
+      onDropFiles(drop.files, { x: drop.x, y: drop.y })
     }
   }
 

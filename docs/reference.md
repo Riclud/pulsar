@@ -1341,6 +1341,10 @@ padding })` caps and centers content on large windows.
   `Menu` there: keep `{ x, y }` in state, pass `open`, `x`, `y`, `items`, `onSelect` and
   `onClose` to `Menu`. Only nodes the renderer draws and QML nodes that are not inside
   another QML node support it.
+- `onDropFiles(files, { x, y })` on any node fires when files are dragged onto it from the
+  file manager (desktop): `files` are absolute paths. Reordering rows by dragging is
+  available for `VirtualList` with `reorderable` and `onReorder`; a drag-to-reorder for
+  rows drawn with `For` is not built yet.
 - `shortcuts.register(keys, handler, { window, repeat })` adds a window-level keyboard
   shortcut on the desktop and returns a function that removes it. Keys read like
   `Ctrl+K`, `Ctrl+Shift+P`, `Alt+Left`, `F5` or `Escape` (`Mod` and `Cmd` mean Ctrl, which
