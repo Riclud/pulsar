@@ -33,6 +33,15 @@ ApplicationWindow {
     readonly property Component nativeFlickable: flickableComponent
     readonly property Component nativeClickableBox: clickableBoxComponent
     readonly property Component nativeStateBox: stateBoxComponent
+    readonly property Component nativeButton: buttonComponent
+    readonly property Component nativeIconButton: nativeIconButtonComponent
+    readonly property Component nativeCheckbox: checkboxComponent
+    readonly property Component nativeSwitch: switchComponent
+    readonly property Component nativeChip: chipComponent
+    readonly property Component nativeProgress: progressBarComponent
+    readonly property Component nativeSpinner: spinnerComponent
+    readonly property Component nativeBadge: badgeComponent
+    readonly property Component nativeAvatar: avatarComponent
     property var gapLayouts: []
     property var madeComponents: ({})
     property bool reordering: false
@@ -502,6 +511,14 @@ ApplicationWindow {
 
         ToolButton {
             property var pulsarMeta: null
+        }
+    }
+
+    Component {
+        id: nativeIconButtonComponent
+
+        IconButtonNode {
+            view: viewRef
         }
     }
 

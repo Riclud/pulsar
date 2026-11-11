@@ -176,9 +176,11 @@ public:
 private slots:
     void refreshTheme();
     void scheduleVisibilitySlot();
+    void controlClicked();
+    void controlToggled();
 
 private:
-    enum class Kind { Island, Shell, Stack, Scroll, Box, ClickableBox, StateBox, Text, Spacer };
+    enum class Kind { Island, Shell, Stack, Scroll, Box, ClickableBox, StateBox, Text, Spacer, Control };
 
     struct Node {
         QString path;
@@ -205,6 +207,10 @@ private:
         QVariant text;
         QVariant border;
         QVariant surface;
+        QVariant primary;
+        QVariant onPrimary;
+        QVariant surfaceVariant;
+        QVariant textSecondary;
         int radius = 0;
         QString fontFamily;
         QString iconFamily;
@@ -246,6 +252,10 @@ private:
     void applyBox(Node &node);
     void applyText(Node &node);
     void applyIcon(Node &node);
+    void applyControl(Node &node);
+    void bindControl(Node &node);
+    void emitControl(const Node &node, const QString &event, const QVariant &value = QVariant());
+    Node *controlNode(QObject *item) const;
     void applyScroll(Node &node);
     bool narrowsToFit(const Node &node) const;
     void refreshKids(Node &node);
@@ -280,6 +290,7 @@ private:
     QQmlComponent *flickable_ = nullptr;
     QQmlComponent *clickableBox_ = nullptr;
     QQmlComponent *stateBox_ = nullptr;
+    QHash<QString, QQmlComponent *> controls_;
     std::unique_ptr<Node> tree_;
     QHash<QString, Node *> index_;
     QSet<Node *> dirtyStacks_;

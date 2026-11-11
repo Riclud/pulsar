@@ -8,6 +8,7 @@
 #include <QQmlContext>
 #include <QQmlEngine>
 #include <QQuickWindow>
+#include <QRegularExpression>
 #include <QScopeGuard>
 #include <QSet>
 #include <QTimer>
@@ -403,6 +404,69 @@ bool debugging()
     static const bool enabled = qEnvironmentVariableIsSet("PULSAR_DEBUG");
 
     return enabled;
+}
+
+
+// Leaf nodes drawn by Qt Quick Controls items that C++ creates and drives; QML runs no JS for them.
+struct ControlSpec {
+    QSet<QString> props;
+    QSet<QString> events;
+};
+
+const ControlSpec *controlSpec(const QString &type)
+{
+    static const auto set = [](std::initializer_list<const char *> names) {
+        QSet<QString> out;
+
+        for (const char *name : names)
+            out.insert(QLatin1String(name));
+
+        return out;
+    };
+
+    static const QHash<QString, ControlSpec> specs = {
+        { QStringLiteral("button"),
+          { set({ "label", "variant", "size", "color", "textColor", "radius", "icon", "iconPosition" }), set({ "click" }) } },
+        //@ { QStringLiteral("iconButton"), { set({ "name", "color", "size" }), set({ "click" }) } },
+        //@ { QStringLiteral("checkbox"), { set({ "label", "checked" }), set({ "toggle" }) } },
+        //@ { QStringLiteral("switch"), { set({ "label", "checked" }), set({ "toggle" }) } },
+        //@ { QStringLiteral("chip"),
+          //@ { set({ "label", "variant", "color", "textColor", "selected", "selectedColor" }), set({ "click", "remove" }) } },
+        //@ { QStringLiteral("divider"), { set({ "color" }), {} } },
+        //@ { QStringLiteral("progress"), { set({ "indeterminate", "value", "color" }), {} } },
+        //@ { QStringLiteral("spinner"), { set({ "size", "color", "thickness", "value" }), {} } },
+        //@ { QStringLiteral("badge"), { set({ "label", "count", "dot", "color", "textColor" }), {} } },
+        //@ { QStringLiteral("avatar"), { set({ "src", "name", "size", "radius", "status", "statusColor" }), {} } },
+    };
+
+    const auto found = specs.constFind(type);
+
+    return found == specs.constEnd() ? nullptr : &*found;
+}
+
+bool controlPortable(const ControlSpec &spec, const QJsonObject &json)
+{
+    const QJsonObject props = json.value(QLatin1String("props")).toObject();
+    const QJsonArray events = json.value(QLatin1String("events")).toArray();
+
+    if (!propsAllowed(props, { &commonProps(), &spec.props }))
+        return false;
+
+    // An elevated button casts a shadow, which only the QML path draws.
+    if (json.value(QLatin1String("type")).toString() == QLatin1String("button")
+        && props.value(QLatin1String("variant")).toString() == QLatin1String("elevated"))
+        return false;
+
+    return std::all_of(events.begin(), events.end(), [&](const QJsonValue &event) {
+        return spec.events.contains(event.toString()) || passiveEvent(event.toString());
+    });
+}
+
+QString textOf(const QJsonObject &props, const char *key, const QString &fallback = QString())
+{
+    const QJsonValue value = props.value(QLatin1String(key));
+
+    return value.isString() ? value.toString() : fallback;
 }
 
 } // namespace
@@ -841,6 +905,17 @@ void NativeRenderer::attach(QObject *root)
     clickableBox_ = root->property("nativeClickableBox").value<QQmlComponent *>();
     stateBox_ = root->property("nativeStateBox").value<QQmlComponent *>();
 
+    const QList<std::pair<const char *, const char *>> controls = {
+        { "button", "nativeButton" },   { "iconButton", "nativeIconButton" }, { "checkbox", "nativeCheckbox" },
+        { "switch", "nativeSwitch" },   { "chip", "nativeChip" },             { "progress", "nativeProgress" },
+        { "spinner", "nativeSpinner" }, { "badge", "nativeBadge" },           { "avatar", "nativeAvatar" },
+    };
+
+    controls_.clear();
+
+    for (const auto &[type, property] : controls)
+        controls_.insert(QLatin1String(type), root->property(property).value<QQmlComponent *>());
+
     QQmlEngine *engine = qmlEngine(root);
 
     rectangle_ = std::make_unique<QQmlComponent>(engine);
@@ -905,6 +980,10 @@ void NativeRenderer::loadTheme()
     theme_.text = root_->property("themeText");
     theme_.border = root_->property("themeBorder");
     theme_.surface = root_->property("themeSurface");
+    theme_.primary = root_->property("themePrimary");
+    theme_.onPrimary = root_->property("themeOnPrimary");
+    theme_.surfaceVariant = root_->property("themeSurfaceVariant");
+    theme_.textSecondary = root_->property("themeTextSecondary");
     theme_.radius = root_->property("themeRadius").toInt();
     theme_.fontFamily = root_->property("fontFamily").toString();
     theme_.iconFamily = root_->property("iconFamily").toString();
@@ -1418,6 +1497,9 @@ NativeRenderer::Kind NativeRenderer::kindFor(const QJsonObject &json, bool insid
         return known && statesPortable(props) ? Kind::StateBox : Kind::Shell;
     }
 
+    if (const ControlSpec *spec = controlSpec(type))
+        return controlPortable(*spec, json) ? Kind::Control : Kind::Island;
+
     if (hasActiveEvents(events))
         return Kind::Island;
 
@@ -1503,6 +1585,8 @@ std::unique_ptr<NativeRenderer::Node> NativeRenderer::create(const QJsonObject &
     } else if (node->kind == Kind::Stack) {
         node->stack = new NativeStack();
         node->item = node->stack;
+    } else if (node->kind == Kind::Control) {
+        node->item = instantiate(node->type == QLatin1String("divider") ? rectangle_.get() : controls_.value(node->type));
     } else if (node->kind == Kind::Text) {
         node->item = instantiate(text_.get());
     } else if (node->kind == Kind::Box) {
@@ -1522,6 +1606,9 @@ std::unique_ptr<NativeRenderer::Node> NativeRenderer::create(const QJsonObject &
 
     if (node->kind == Kind::Scroll)
         bindScroll(*node);
+
+    if (node->kind == Kind::Control)
+        bindControl(*node);
 
     return node;
 }
@@ -1684,7 +1771,10 @@ void NativeRenderer::sync(Node &node, const QJsonObject &json, bool withChildren
     if (changed)
         applyProps(node);
 
-    if ((node.kind == Kind::ClickableBox || node.kind == Kind::StateBox) && (fresh || identityChanged)) {
+    const bool hasMeta = node.kind == Kind::ClickableBox || node.kind == Kind::StateBox
+        || (node.kind == Kind::Control && !node.json.value(QLatin1String("events")).toArray().isEmpty());
+
+    if (hasMeta && (fresh || identityChanged)) {
         const QVariantMap own = {
             { QStringLiteral("path"), node.path },
             { QStringLiteral("type"), node.type },
@@ -1693,6 +1783,10 @@ void NativeRenderer::sync(Node &node, const QJsonObject &json, bool withChildren
         };
 
         node.item->setProperty("pulsarMeta", QVariantMap{ { QStringLiteral("node"), own } });
+
+        // The chip's own handlers read the node from here.
+        if (node.type == QLatin1String("chip"))
+            node.item->setProperty("nodeData", own);
 
         if (node.kind == Kind::StateBox)
             applyPointer(node);
@@ -1723,7 +1817,11 @@ void NativeRenderer::applyCommon(Node &node)
 
     item->setVisible(props.value(QLatin1String("visible")).toBool(true));
     item->setEnabled(props.value(QLatin1String("enabled")).toBool(true));
-    item->setOpacity(number(props, QLatin1String("opacity"), 1));
+
+    // A control's own dimming while disabled is a binding that an explicit 1 would replace.
+    if (node.kind != Kind::Control || props.contains(QLatin1String("opacity")))
+        item->setOpacity(number(props, QLatin1String("opacity"), 1));
+
     item->setRotation(number(props, QLatin1String("rotation"), 0));
     item->setZ(number(props, QLatin1String("zIndex"), 0));
 
@@ -1741,6 +1839,11 @@ void NativeRenderer::applyProps(Node &node)
         else
             applyText(node);
 
+        return;
+    }
+
+    if (node.kind == Kind::Control) {
+        applyControl(node);
         return;
     }
 
@@ -1928,6 +2031,274 @@ void NativeRenderer::applyIcon(Node &node)
     if (debugging())
         qInfo().noquote() << "PulsarView icon" << node.path << "family=" + font.family()
                           << "px=" + QString::number(font.pixelSize()) << "color=" + color;
+}
+
+void NativeRenderer::bindControl(Node &node)
+{
+    QQuickItem *item = node.item;
+
+    item->setProperty("pulsarPath", node.path);
+
+    if (node.type == QLatin1String("button") || node.type == QLatin1String("iconButton"))
+        connect(item, SIGNAL(clicked()), this, SLOT(controlClicked()));
+
+    if (node.type == QLatin1String("checkbox") || node.type == QLatin1String("switch"))
+        connect(item, SIGNAL(toggled()), this, SLOT(controlToggled()));
+}
+
+NativeRenderer::Node *NativeRenderer::controlNode(QObject *item) const
+{
+    return item ? index_.value(item->property("pulsarPath").toString()) : nullptr;
+}
+
+void NativeRenderer::emitControl(const Node &node, const QString &event, const QVariant &value)
+{
+    const bool listens = node.json.value(QLatin1String("events")).toArray().contains(event);
+
+    if (!listens)
+        return;
+
+    const QVariantMap own = {
+        { QStringLiteral("path"), node.path },
+        { QStringLiteral("type"), node.type },
+        { QStringLiteral("id"), node.json.value(QLatin1String("id")).toVariant() },
+        { QStringLiteral("events"), node.json.value(QLatin1String("events")).toVariant() },
+    };
+
+    QMetaObject::invokeMethod(root_, "emitEvent", Q_ARG(QVariant, own), Q_ARG(QVariant, event), Q_ARG(QVariant, value));
+}
+
+void NativeRenderer::controlClicked()
+{
+    if (const Node *node = controlNode(sender()))
+        emitControl(*node, QStringLiteral("click"));
+}
+
+void NativeRenderer::controlToggled()
+{
+    if (const Node *node = controlNode(sender()))
+        emitControl(*node, QStringLiteral("toggle"), sender()->property("checked"));
+}
+
+// The same values the QML branch of each type assigns, so the look stays the same.
+void NativeRenderer::applyControl(Node &node)
+{
+    QQuickItem *item = node.item;
+    const QJsonObject &props = node.props;
+    const QString &type = node.type;
+
+    const auto color = [&](const char *key, const QVariant &fallback) {
+        return resolveColor(props.value(QLatin1String(key)), fallback);
+    };
+
+    const auto sized = [&](qreal px) {
+        return int(std::round(px * theme_.fontScale));
+    };
+
+    if (type == QLatin1String("button")) {
+        const QString variant = textOf(props, "variant", QStringLiteral("solid"));
+        const QString size = textOf(props, "size", QStringLiteral("md"));
+        const QString fill = color("color", theme_.primary);
+        const bool tinted = variant == QLatin1String("soft") || variant == QLatin1String("outline") || variant == QLatin1String("ghost");
+        const int sideInset = size == QLatin1String("sm") ? 12 : size == QLatin1String("lg") ? 20 : 16;
+        const int topInset = size == QLatin1String("sm") ? 4 : size == QLatin1String("lg") ? 12 : 8;
+
+        QFont font;
+
+        font.setPixelSize(sized(size == QLatin1String("sm") ? 13 : size == QLatin1String("lg") ? 17 : 15));
+        font.setWeight(QFont::Weight(500));
+        font.setBold(false);
+
+        const QString label = props.contains(QLatin1String("textColor"))
+            ? color("textColor", item->property("labelColor"))
+            : tinted ? fill : resolveColor(QJsonValue(), theme_.onPrimary);
+
+        item->setProperty("text", textOf(props, "label"));
+        item->setProperty("variant", variant);
+        item->setProperty("fillColor", fill);
+        item->setProperty("radius", int(number(props, QLatin1String("radius"), theme_.radius)));
+        item->setProperty("iconName", textOf(props, "icon"));
+        item->setProperty("iconPosition", textOf(props, "iconPosition", QStringLiteral("left")));
+        item->setProperty("font", font);
+        item->setProperty("leftPadding", sideInset);
+        item->setProperty("rightPadding", sideInset);
+        item->setProperty("topPadding", topInset);
+        item->setProperty("bottomPadding", topInset);
+        item->setProperty("implicitHeight", size == QLatin1String("sm") ? 32 : size == QLatin1String("lg") ? 48 : 40);
+        item->setProperty("labelColor", label);
+
+        if (debugging())
+            qInfo().noquote() << "PulsarView button" << node.path << "variant=" + variant << "size=" + size
+                              << "px=" + QString::number(font.pixelSize()) << "fill=" + fill << "label=" + label
+                              << "radius=" + QString::number(item->property("radius").toInt())
+                              << "icon=" + textOf(props, "icon") << "enabled=" + QString::number(item->isEnabled());
+
+        return;
+    }
+
+    if (type == QLatin1String("iconButton")) {
+        const QString tint = color("color", theme_.text);
+
+        QFont font(theme_.iconFamily);
+
+        font.setPixelSize(sized(number(props, QLatin1String("size"), 24)));
+
+        item->setProperty("text", textOf(props, "name"));
+        item->setProperty("font", font);
+        item->setProperty("iconColor", tint);
+
+        if (debugging())
+            qInfo().noquote() << "PulsarView iconButton" << node.path << "name=" + textOf(props, "name")
+                              << "px=" + QString::number(font.pixelSize()) << "color=" + tint
+                              << "enabled=" + QString::number(item->isEnabled());
+
+        return;
+    }
+
+    if (type == QLatin1String("checkbox") || type == QLatin1String("switch")) {
+        item->setProperty("text", textOf(props, "label"));
+        item->setProperty("checked", props.value(QLatin1String("checked")).toBool(false));
+
+        if (debugging())
+            qInfo().noquote() << "PulsarView" << type << node.path << "label=" + textOf(props, "label")
+                              << "checked=" + QString::number(item->property("checked").toBool())
+                              << "enabled=" + QString::number(item->isEnabled());
+
+        return;
+    }
+
+    if (type == QLatin1String("chip")) {
+        const QString variant = textOf(props, "variant", QStringLiteral("solid"));
+        const bool selected = props.value(QLatin1String("selected")).toBool(false);
+        const QString base = color("color", theme_.surfaceVariant);
+        const QString fill = selected ? resolveColor(props.value(QLatin1String("selectedColor")), base) : base;
+        const bool outline = variant == QLatin1String("outline");
+        const QString labelColor = props.contains(QLatin1String("textColor")) ? color("textColor", theme_.text)
+            : outline                                                          ? fill
+                                                                               : resolveColor(QJsonValue(), theme_.text);
+
+        QColor tint(fill);
+
+        tint.setAlphaF(0.22);
+
+        auto *label = item->property("labelItem").value<QObject *>();
+        auto *border = item->property("border").value<QObject *>();
+        auto *remove = item->property("removeButton").value<QObject *>();
+
+        label->setProperty("text", textOf(props, "label"));
+        label->setProperty("color", labelColor);
+
+        QFont font = label->property("font").value<QFont>();
+
+        font.setBold(selected);
+        label->setProperty("font", font);
+
+        item->setProperty("color", outline ? (selected ? tint.name(QColor::HexArgb) : QStringLiteral("transparent")) : fill);
+        border->setProperty("width", outline ? (selected ? 2 : 1) : 0);
+        border->setProperty("color", fill);
+        remove->setProperty("visible", node.json.value(QLatin1String("events")).toArray().contains(QStringLiteral("remove")));
+
+        if (debugging())
+            qInfo().noquote() << "PulsarView chip" << node.path << "variant=" + variant << "fill=" + fill
+                              << "label=" + labelColor << "selected=" + QString::number(selected)
+                              << "border=" + QString::number(border->property("width").toInt());
+
+        return;
+    }
+
+    if (type == QLatin1String("divider")) {
+        item->setProperty("color", color("color", theme_.border));
+        item->setProperty("implicitHeight", 1);
+
+        return;
+    }
+
+    if (type == QLatin1String("progress")) {
+        item->setProperty("indeterminate", props.value(QLatin1String("indeterminate")).toBool(false));
+        item->setProperty("value", std::clamp(number(props, QLatin1String("value"), 0), 0.0, 1.0));
+
+        if (props.contains(QLatin1String("color"))) {
+            const QString tint = color("color", theme_.primary);
+
+            QQmlContext *context = qmlContext(root_);
+
+            QQmlProperty(item, QStringLiteral("palette.highlight"), context).write(tint);
+            QQmlProperty(item, QStringLiteral("palette.accent"), context).write(tint);
+        }
+
+        return;
+    }
+
+    if (type == QLatin1String("spinner")) {
+        const qreal size = number(props, QLatin1String("size"), 24);
+
+        item->setProperty("spinnerSize", int(size));
+        item->setProperty("spinnerColor", color("color", theme_.primary));
+        item->setProperty("spinnerValue", number(props, QLatin1String("value"), -1));
+        item->setProperty("thickness", number(props, QLatin1String("thickness"), std::max<qreal>(2, size * 0.1)));
+
+        return;
+    }
+
+    if (type == QLatin1String("badge")) {
+        const QJsonValue count = props.value(QLatin1String("count"));
+
+        QString label = textOf(props, "label");
+
+        if (!props.contains(QLatin1String("label")) && !count.isUndefined()) {
+            const QString text = count.isString() ? count.toString() : QString::number(count.toDouble(), 'g', 15);
+            bool numeric = false;
+            const double amount = text.toDouble(&numeric);
+
+            label = numeric && amount > 99 ? QStringLiteral("99+") : text;
+        }
+
+        item->setProperty("dot", props.value(QLatin1String("dot")).toBool(false));
+        item->setProperty("label", label);
+        item->setProperty("badgeColor", color("color", theme_.primary));
+        item->setProperty("badgeTextColor", color("textColor", theme_.onPrimary));
+
+        return;
+    }
+
+    if (type == QLatin1String("avatar")) {
+        static const QHash<QString, QString> statusColors = {
+            { QStringLiteral("online"), QStringLiteral("green") },
+            { QStringLiteral("away"), QStringLiteral("yellow") },
+            { QStringLiteral("busy"), QStringLiteral("red") },
+            { QStringLiteral("offline"), QStringLiteral("overlay") },
+        };
+        static const QStringList accents = { QStringLiteral("mauve"), QStringLiteral("blue"),  QStringLiteral("teal"),
+                                             QStringLiteral("peach"), QStringLiteral("green"), QStringLiteral("lavender") };
+
+        const QString name = textOf(props, "name");
+        const QString status = textOf(props, "status");
+        const qreal size = number(props, QLatin1String("size"), 40);
+        const QStringList parts = name.trimmed().isEmpty() ? QStringList() : name.trimmed().split(QRegularExpression(QStringLiteral("\\s+")));
+
+        int hash = 0;
+
+        for (const QChar letter : name)
+            hash = (hash * 31 + letter.unicode()) % 100000;
+
+        QString initials = QStringLiteral("?");
+
+        if (!parts.isEmpty())
+            initials = (parts.at(0).left(1) + (parts.size() > 1 ? parts.at(1).left(1) : QString())).toUpper();
+
+        const QString statusTint = props.contains(QLatin1String("statusColor"))
+            ? color("statusColor", theme_.primary)
+            : resolveColor(statusColors.contains(status) ? QJsonValue(statusColors.value(status)) : QJsonValue(), theme_.primary);
+
+        item->setProperty("src", textOf(props, "src"));
+        item->setProperty("initials", initials);
+        item->setProperty("avatarSize", int(size));
+        item->setProperty("avatarRadius", int(number(props, QLatin1String("radius"), size / 2)));
+        item->setProperty("fallbackColor", resolveColor(QJsonValue(accents.at(hash % accents.size())), theme_.surfaceVariant));
+        item->setProperty("fallbackTextColor", resolveColor(QJsonValue(), theme_.onPrimary));
+        item->setProperty("status", status);
+        item->setProperty("statusColor", statusTint);
+    }
 }
 
 // Text wraps at word boundaries unless the app says otherwise. An elided text without an explicit wrap
@@ -2137,6 +2508,14 @@ NativeStack::Kid NativeRenderer::kidFor(const Node &parent, Node &child) const
 
     kid.preferredWidth = number(props, QLatin1String("width"), fallbackSize);
     kid.preferredHeight = number(props, QLatin1String("height"), fallbackSize);
+
+    if (child.type == QLatin1String("progress"))
+        kid.preferredWidth = props.value(QLatin1String("expand")).toBool(false) ? -1 : number(props, QLatin1String("width"), 160);
+
+    if (child.type == QLatin1String("spinner")) {
+        kid.preferredWidth = number(props, QLatin1String("size"), 24);
+        kid.preferredHeight = kid.preferredWidth;
+    }
     kid.minWidth = number(props, QLatin1String("minWidth"), 0);
     kid.minHeight = number(props, QLatin1String("minHeight"), 0);
     kid.maxWidth = number(props, QLatin1String("maxWidth"), kid.maxWidth);

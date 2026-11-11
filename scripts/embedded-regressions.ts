@@ -464,6 +464,40 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "button-native",
+    quickjsDesktop: true,
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "2500" },
+    drive: [
+      // The last row of each button decides its height: 39 is inside 0..40, 81 inside 50..82, 139 inside 92..140.
+      { at: 600, cmd: { cmd: "pointer", action: "click", button: "left", x: 20, y: 39 } },
+      { at: 800, cmd: { cmd: "pointer", action: "click", button: "left", x: 20, y: 81 } },
+      { at: 1000, cmd: { cmd: "pointer", action: "click", button: "left", x: 20, y: 139 } },
+      { at: 1200, cmd: { cmd: "pointer", action: "click", button: "left", x: 20, y: 170 } },
+      // The gap between the buttons is not part of any of them.
+      { at: 1400, cmd: { cmd: "pointer", action: "click", button: "left", x: 20, y: 45 } },
+    ],
+    check: (output) => {
+      const clicks = output.split("\n").filter((line) => line.includes("CLICK "))
+
+      // Size sets the height, padding and font; the variant and colours set the fill and label.
+      return (
+        output.includes(
+          "PulsarView button /root/md variant=solid size=md px=15 fill=#ff8839ef label=#ffffffff radius=12",
+        ) &&
+        output.includes("PulsarView button /root/sm variant=soft size=sm px=13 fill=#336699 label=#336699 radius=12") &&
+        output.includes(
+          "PulsarView button /root/lg variant=outline size=lg px=17 fill=#ff8839ef label=#112233 radius=4 icon=add",
+        ) &&
+        output.includes("PulsarView button /root/off") &&
+        // Real clicks reach the app once each; the disabled button and the gap stay silent.
+        clicks.length === 3 &&
+        clicks[0]!.endsWith("CLICK md") &&
+        clicks[1]!.endsWith("CLICK sm") &&
+        clicks[2]!.endsWith("CLICK lg")
+      )
+    },
+  },
+  {
     name: "checkbox-native",
     quickjsDesktop: true,
     env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "3000" },
