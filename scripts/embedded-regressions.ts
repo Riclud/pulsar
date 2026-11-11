@@ -498,6 +498,27 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "icon-button-native",
+    quickjsDesktop: true,
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "2200" },
+    drive: [
+      // 39 x 39 is the last pixel of a 40 x 40 button; 41 is outside it.
+      { at: 600, cmd: { cmd: "pointer", action: "click", button: "left", x: 39, y: 39 } },
+      { at: 800, cmd: { cmd: "pointer", action: "click", button: "left", x: 20, y: 70 } },
+      { at: 1000, cmd: { cmd: "pointer", action: "click", button: "left", x: 41, y: 20 } },
+    ],
+    check: (output) => {
+      const clicks = output.split("\n").filter((line) => line.includes("CLICK "))
+
+      return (
+        output.includes("PulsarView iconButton /root/add name=add px=32 color=#aa3300 enabled=1") &&
+        output.includes("PulsarView iconButton /root/off name=close px=24 color=#ff4c4f69 enabled=0") &&
+        clicks.length === 1 &&
+        clicks[0]!.endsWith("CLICK add")
+      )
+    },
+  },
+  {
     name: "checkbox-native",
     quickjsDesktop: true,
     env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "3000" },

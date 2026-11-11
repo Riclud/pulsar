@@ -427,7 +427,7 @@ const ControlSpec *controlSpec(const QString &type)
     static const QHash<QString, ControlSpec> specs = {
         { QStringLiteral("button"),
           { set({ "label", "variant", "size", "color", "textColor", "radius", "icon", "iconPosition" }), set({ "click" }) } },
-        //@ { QStringLiteral("iconButton"), { set({ "name", "color", "size" }), set({ "click" }) } },
+        { QStringLiteral("iconButton"), { set({ "name", "color", "size" }), set({ "click" }) } },
         //@ { QStringLiteral("checkbox"), { set({ "label", "checked" }), set({ "toggle" }) } },
         //@ { QStringLiteral("switch"), { set({ "label", "checked" }), set({ "toggle" }) } },
         //@ { QStringLiteral("chip"),
