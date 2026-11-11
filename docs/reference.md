@@ -1336,6 +1336,11 @@ padding })` caps and centers content on large windows.
   for scrolls QML draws (for example one with `onScroll`), and stops a fling that is in
   progress. `scrollToEnd` waits for rows added in the same update. One controller
   serves one scroll.
+- `onContextMenu({ x, y })` on any node fires on a right click (desktop) or a long press
+  (touch screens), with the position in window coordinates. The app shows the existing
+  `Menu` there: keep `{ x, y }` in state, pass `open`, `x`, `y`, `items`, `onSelect` and
+  `onClose` to `Menu`. Only nodes the renderer draws and QML nodes that are not inside
+  another QML node support it.
 - `shortcuts.register(keys, handler, { window, repeat })` adds a window-level keyboard
   shortcut on the desktop and returns a function that removes it. Keys read like
   `Ctrl+K`, `Ctrl+Shift+P`, `Alt+Left`, `F5` or `Escape` (`Mod` and `Cmd` mean Ctrl, which

@@ -168,7 +168,7 @@ const QSet<QString> &scrollProps()
 bool passiveEvent(const QString &event)
 {
     return event == QLatin1String("visible") || event == QLatin1String("enterViewport")
-        || event == QLatin1String("leaveViewport");
+        || event == QLatin1String("leaveViewport") || event == QLatin1String("contextMenu");
 }
 
 bool hasActiveEvents(const QJsonArray &events)
@@ -2148,11 +2148,79 @@ void NativeRenderer::discard(Node &node, QQuickItem *after)
 
 bool wantsVisibility(const QJsonArray &events)
 {
-    return std::any_of(events.begin(), events.end(), [](const QJsonValue &event) { return passiveEvent(event.toString()); });
+    return std::any_of(events.begin(), events.end(), [](const QJsonValue &event) {
+        return passiveEvent(event.toString()) && event.toString() != QLatin1String("contextMenu");
+    });
+}
+
+// A right click, or a long press on a touch screen, asks the app for its context menu.
+void NativeRenderer::refreshContext(Node &node)
+{
+    const QJsonArray events = node.json.value(QLatin1String("events")).toArray();
+    const bool wants = std::any_of(events.begin(), events.end(), [](const QJsonValue &event) {
+        return event.toString() == QLatin1String("contextMenu");
+    });
+
+    if (!wants || node.context || !node.item || !root_)
+        return;
+
+    if (!contextTap_) {
+        contextTap_ = std::make_unique<QQmlComponent>(qmlEngine(root_));
+        contextTap_->setData(
+            "import QtQuick; Item { id: overlay; width: parent ? parent.width : 0; height: parent ? parent.height : 0; z: 1000;"
+            " property var renderer: null; property string path: \"\";"
+            " TapHandler { acceptedButtons: Qt.RightButton; onTapped: (point) => overlay.renderer.contextRequested(overlay.path, point.scenePosition.x, point.scenePosition.y) }"
+            " TapHandler { acceptedDevices: PointerDevice.TouchScreen; longPressThreshold: 0.5; gesturePolicy: TapHandler.WithinBounds;"
+            " onLongPressed: overlay.renderer.contextRequested(overlay.path, point.scenePosition.x, point.scenePosition.y) } }",
+            QUrl());
+    }
+
+    QObject *object = contextTap_->createWithInitialProperties({ { QStringLiteral("renderer"), QVariant::fromValue(static_cast<QObject *>(this)) },
+                                                                 { QStringLiteral("path"), node.path } },
+                                                               qmlContext(root_));
+    auto *overlay = qobject_cast<QQuickItem *>(object);
+
+    if (!overlay) {
+        qWarning().noquote() << "pulsar: context menu overlay:" << contextTap_->errorString();
+        delete object;
+
+        return;
+    }
+
+    overlay->setParentItem(node.item);
+    node.context = overlay;
+
+    if (debugging())
+        qInfo().noquote() << "PulsarView context overlay" << node.path << overlay->size();
+}
+
+void NativeRenderer::contextRequested(const QString &path, qreal x, qreal y)
+{
+    if (debugging())
+        qInfo().noquote() << "PulsarView context" << path << x << y;
+
+    const Node *node = index_.value(path);
+
+    if (!node || !root_)
+        return;
+
+    const QVariantMap own = { { QStringLiteral("path"), node->path },
+                              { QStringLiteral("id"), node->json.value(QLatin1String("id")).toVariant() },
+                              { QStringLiteral("events"), node->json.value(QLatin1String("events")).toVariant() } };
+
+    QVariantMap position;
+
+    position.insert(QStringLiteral("x"), x);
+    position.insert(QStringLiteral("y"), y);
+
+    QMetaObject::invokeMethod(root_, "emitEvent", Q_ARG(QVariant, own), Q_ARG(QVariant, QStringLiteral("contextMenu")),
+                              Q_ARG(QVariant, position));
 }
 
 void NativeRenderer::refreshWatch(Node &node)
 {
+    refreshContext(node);
+
     if (!node.item || !node.parent)
         return;
 

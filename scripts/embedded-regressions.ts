@@ -741,6 +741,22 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "context-menu",
+    quickjsDesktop: true,
+    serial: true,
+    env: { AUTO_QUIT_MS: "2200" },
+    drive: [
+      { at: 700, cmd: { cmd: "pointer", action: "click", button: "right", x: 40, y: 30 } },
+      { at: 1000, cmd: { cmd: "pointer", action: "click", button: "left", x: 40, y: 30 } },
+    ],
+    check: (output) => {
+      const count = (text: string) => output.split("\n").filter((line) => line.endsWith(text)).length
+
+      // Only the right button asks for the menu; the left click does not.
+      return count("CONTEXT 40 30") === 1 && output.split("\n").filter((line) => line.includes("CONTEXT")).length === 1
+    },
+  },
+  {
     name: "packing",
     check: (output) => {
       return output.includes("SIZE wide 40") && output.includes("SIZE hug 40") && output.includes("SIZE grow 100")

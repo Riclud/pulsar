@@ -462,6 +462,31 @@ export const Editor = component<{ save: () => void; close: () => void }>((props)
 A bare letter is ignored while a text field has the focus, so `shortcuts.register("J", ...)`
 cannot break typing.
 
+## 18. A context menu
+
+`onContextMenu` fires on a right click and on a long press; show the `Menu` at that point.
+
+```ts
+import { Box, Column, Menu, Text, createState } from "pulsar"
+
+const ui = createState({ menu: null as { x: number; y: number } | null })
+
+export const Row = (name: string, remove: () => void): ReturnType<typeof Column> => {
+  return Column(
+    {},
+    Box({ onContextMenu: (at) => (ui.menu = at) }, Text({ text: name })),
+    Menu({
+      open: ui.menu !== null,
+      x: ui.menu?.x ?? 0,
+      y: ui.menu?.y ?? 0,
+      items: [{ id: "delete", label: "Delete", danger: true }],
+      onSelect: (id) => id === "delete" && remove(),
+      onClose: () => (ui.menu = null),
+    }),
+  )
+}
+```
+
 ## 13. Check your work
 
 ```sh

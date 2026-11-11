@@ -222,6 +222,11 @@ interface CommonOptions {
    * Works for nodes the renderer draws itself and for QML nodes, but not for nodes inside a QML node.
    */
   onVisible?: (visible: boolean) => void
+  /**
+   * Called on a right click (desktop) or a long press (touch screens) with the position in window
+   * coordinates. Open a `Menu` there: `Menu({ open, x, y, items, onSelect, onClose })`.
+   */
+  onContextMenu?: (position: { x: number; y: number }) => void
   /** Called when the node comes into view (see `onVisible`). */
   onEnterViewport?: () => void
   /** Called when the node leaves the view (see `onVisible`). */
@@ -991,16 +996,18 @@ const makeNode = <P extends object>(
   events: string[] = [],
   callbacks?: Record<string, UiHandler>,
 ): UiNode => {
-  const { neon, onLayout, onFocus, onBlur, onVisible, onEnterViewport, onLeaveViewport, drag, ...rest } = props as P & {
-    neon?: boolean | NeonOptions
-    onLayout?: (box: { width: number; height: number; x: number; y: number }) => void
-    onFocus?: () => void
-    onBlur?: () => void
-    onVisible?: (visible: boolean) => void
-    onEnterViewport?: () => void
-    onLeaveViewport?: () => void
-    drag?: DragOptions
-  }
+  const { neon, onLayout, onFocus, onBlur, onVisible, onEnterViewport, onLeaveViewport, onContextMenu, drag, ...rest } =
+    props as P & {
+      neon?: boolean | NeonOptions
+      onLayout?: (box: { width: number; height: number; x: number; y: number }) => void
+      onFocus?: () => void
+      onBlur?: () => void
+      onVisible?: (visible: boolean) => void
+      onEnterViewport?: () => void
+      onLeaveViewport?: () => void
+      onContextMenu?: (position: { x: number; y: number }) => void
+      drag?: DragOptions
+    }
   const id = nextId++
   const layout = typeof onLayout === "function" ? onLayout : null
   const focus = typeof onFocus === "function" ? onFocus : null
@@ -1040,6 +1047,15 @@ const makeNode = <P extends object>(
   if (typeof onLeaveViewport === "function") {
     eventList.push("leaveViewport")
     callbackMap.leaveViewport = () => onLeaveViewport()
+  }
+
+  if (typeof onContextMenu === "function") {
+    eventList.push("contextMenu")
+    callbackMap.contextMenu = (value) => {
+      const at = value as { x: number; y: number }
+
+      onContextMenu({ x: at.x, y: at.y })
+    }
   }
 
   const release = drag?.onRelease

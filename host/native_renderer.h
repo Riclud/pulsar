@@ -162,6 +162,9 @@ public:
     /** A pointer handler of a state box changed: hover or press. */
     Q_INVOKABLE void stateInput(const QString &path);
 
+    /** A right click or long press on a node that listens for contextMenu; x and y are in window space. */
+    Q_INVOKABLE void contextRequested(const QString &path, qreal x, qreal y);
+
 private slots:
     void refreshTheme();
     void scheduleVisibilitySlot();
@@ -182,6 +185,7 @@ private:
         bool styled = false;
         // The scroll (or the window) a node's visibility is measured in; null while it is not watched.
         QQuickItem *viewport = nullptr;
+        QPointer<QQuickItem> context;
         int visibleState = -1;
         QString lastState;
         std::shared_ptr<NativeStack::QmlHints> hints;
@@ -241,6 +245,7 @@ private:
     void refreshState(Node &node);
     void applyPointer(Node &node);
     void refreshWatch(Node &node);
+    void refreshContext(Node &node);
     void unwatch(Node &node);
     void hookViewport(QQuickItem *viewport);
     void scheduleVisibility(QQuickItem *viewport);
@@ -262,6 +267,7 @@ private:
     QQuickItem *host_ = nullptr;
     std::unique_ptr<QQmlComponent> rectangle_;
     std::unique_ptr<QQmlComponent> text_;
+    std::unique_ptr<QQmlComponent> contextTap_;
     QQmlComponent *flickable_ = nullptr;
     QQmlComponent *clickableBox_ = nullptr;
     QQmlComponent *stateBox_ = nullptr;
