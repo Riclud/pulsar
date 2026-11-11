@@ -8,6 +8,7 @@ Rectangle {
     required property Window view
 
     implicitHeight: 32
+    implicitWidth: chipLabel.implicitWidth + (chipRemove.visible ? chipRemove.implicitWidth + 18 : 24)
     property var pulsarMeta: null
     property var nodeData: null
     property alias labelItem: chipLabel

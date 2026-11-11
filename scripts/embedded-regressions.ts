@@ -519,6 +519,38 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "chip-native",
+    quickjsDesktop: true,
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "2400" },
+    drive: [
+      { at: 600, cmd: { cmd: "pointer", action: "click", button: "left", x: 20, y: 16 } },
+      // The label of the second chip, then its remove button at the right edge.
+      { at: 800, cmd: { cmd: "pointer", action: "click", button: "left", x: 20, y: 58 } },
+      ...[60, 66, 72, 78, 84].map((x, index) => ({
+        at: 1000 + index * 40,
+        cmd: { cmd: "pointer", action: "click", button: "left", x, y: 58 },
+      })),
+      { at: 1200, cmd: { cmd: "pointer", action: "click", button: "left", x: 20, y: 100 } },
+    ],
+    check: (output) => {
+      const events = output.split("\n").filter((line) => /CLICK |REMOVE /.test(line))
+
+      return (
+        output.includes(
+          "PulsarView chip /root/plain variant=solid fill=#ffbcc0cc label=#ff4c4f69 selected=0 border=0",
+        ) &&
+        output.includes(
+          "PulsarView chip /root/picked variant=outline fill=#336699 label=#336699 selected=1 border=2",
+        ) &&
+        output.includes("PulsarView chip /root/quiet variant=solid fill=#ffbcc0cc label=#aa3300") &&
+        events.length >= 3 &&
+        events[0]!.endsWith("CLICK plain") &&
+        events[1]!.endsWith("CLICK picked") &&
+        events.some((line) => line.endsWith("REMOVE picked"))
+      )
+    },
+  },
+  {
     name: "checkbox-native",
     quickjsDesktop: true,
     env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "3000" },
