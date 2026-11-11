@@ -175,7 +175,18 @@ ApplicationWindow {
     }
 
     function withAlpha(c, alpha) {
-        return Qt.rgba(c.r, c.g, c.b, alpha);
+        let base = c;
+
+        // A colour from the app is a string, which has no r, g and b of its own.
+        if (typeof c === "string") {
+            try {
+                base = Qt.color(c);
+            } catch (error) {
+                base = Qt.rgba(0, 0, 0, 1);
+            }
+        }
+
+        return Qt.rgba(base.r, base.g, base.b, alpha);
     }
 
     function hoverColor(base) {
