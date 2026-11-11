@@ -1437,12 +1437,13 @@ int main(int argc, char **argv)
     QApplication app(argc, argv);
     app.setOrganizationName(QStringLiteral("Pulsar"));
 
+    QFontDatabase::addApplicationFont(QStringLiteral(":/runtime/fonts/NotoSans-Variable.ttf"));
     QFontDatabase::addApplicationFont(QStringLiteral(":/runtime/fonts/PaperMono-Regular.ttf"));
     QFontDatabase::addApplicationFont(QStringLiteral(":/runtime/fonts/PaperMono-Medium.ttf"));
     QFontDatabase::addApplicationFont(QStringLiteral(":/runtime/fonts/PaperMono-Bold.ttf"));
 
     QFont appFont = QApplication::font();
-    appFont.setFamily(QStringLiteral("sans-serif"));
+    appFont.setFamily(QStringLiteral("Noto Sans"));
     appFont.setStyleHint(QFont::SansSerif);
     QApplication::setFont(appFont);
 

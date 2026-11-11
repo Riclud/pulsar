@@ -1038,7 +1038,7 @@ await theme.set(catppuccinTheme("latte")) // "frappe" is the default
 `textSecondary`, `border`, `layer3`, `layer4`, `radius` and `spacing`. Colors
 accept named CSS colors, hex and `rgb()`/`hsl()` strings. Catppuccin presets
 are exported as `catppuccin.frappe`, `catppuccin.latte` and
-`catppuccinTheme(flavor)`. The default UI font is the system sans-serif (Paper Mono is bundled for code, set it with `family`); the default corner radius is 12; icons default to
+`catppuccinTheme(flavor)`. The default UI font is the bundled Noto Sans (Paper Mono is bundled for code, set it with `family`); the default corner radius is 12; icons default to
 Material Symbols Rounded when installed.
 
 Notification action buttons use the freedesktop notification daemon on Linux;

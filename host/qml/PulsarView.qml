@@ -79,7 +79,7 @@ ApplicationWindow {
     readonly property string iconFamily: themeData && themeData.iconFamily !== undefined
             ? themeData.iconFamily
             : iconFont.name
-    readonly property string fontFamily: themeData && themeData.fontFamily !== undefined ? themeData.fontFamily : "sans-serif"
+    readonly property string fontFamily: themeData && themeData.fontFamily !== undefined ? themeData.fontFamily : "Noto Sans"
     readonly property bool embeddedHost: typeof PulsarEmbedded !== "undefined" && PulsarEmbedded
     // Node files in nodes/ get the window as `view: viewRef`; `view: view` would bind
     // their own property to itself.

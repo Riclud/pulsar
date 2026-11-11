@@ -391,12 +391,13 @@ int main(int argc, char **argv)
 
     QGuiApplication app(argc, argv);
 
+    QFontDatabase::addApplicationFont(QStringLiteral(":/runtime/fonts/NotoSans-Variable.ttf"));
     QFontDatabase::addApplicationFont(QStringLiteral(":/runtime/fonts/PaperMono-Regular.ttf"));
     QFontDatabase::addApplicationFont(QStringLiteral(":/runtime/fonts/PaperMono-Medium.ttf"));
     QFontDatabase::addApplicationFont(QStringLiteral(":/runtime/fonts/PaperMono-Bold.ttf"));
 
     QFont appFont = QGuiApplication::font();
-    appFont.setFamily(QStringLiteral("sans-serif"));
+    appFont.setFamily(QStringLiteral("Noto Sans"));
     appFont.setStyleHint(QFont::SansSerif);
     QGuiApplication::setFont(appFont);
 

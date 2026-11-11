@@ -86,6 +86,7 @@ function(pulsar_add_view_resources target resource_name)
             "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/shaders/aurora.frag.qsb"
             "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/shaders/glass.raw.frag.qsb"
             "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/fonts/MaterialIcons.ttf"
+            "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/fonts/NotoSans-Variable.ttf"
             "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/fonts/PaperMono-Regular.ttf"
             "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/fonts/PaperMono-Medium.ttf"
             "${CMAKE_CURRENT_SOURCE_DIR}/host/qml/fonts/PaperMono-Bold.ttf"
