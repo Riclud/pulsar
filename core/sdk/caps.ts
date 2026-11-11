@@ -379,7 +379,7 @@ export interface ThemeOptions {
   density?: number
   /** Icon font family; defaults to the bundled Material Icons font. */
   iconFamily?: string
-  /** UI font family; defaults to the bundled Paper Mono. */
+  /** UI font family; defaults to the system sans-serif. Paper Mono is bundled for code: `Text({ family: "Paper Mono" })`. */
   fontFamily?: string
   /** Motion durations in milliseconds. */
   motion?: { fast?: number; normal?: number; slow?: number }

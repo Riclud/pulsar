@@ -1442,7 +1442,8 @@ int main(int argc, char **argv)
     QFontDatabase::addApplicationFont(QStringLiteral(":/runtime/fonts/PaperMono-Bold.ttf"));
 
     QFont appFont = QApplication::font();
-    appFont.setFamily(QStringLiteral("Paper Mono"));
+    appFont.setFamily(QStringLiteral("sans-serif"));
+    appFont.setStyleHint(QFont::SansSerif);
     QApplication::setFont(appFont);
 
     const QString controlsStyle = qEnvironmentVariable("PULSAR_CONTROLS_STYLE");

@@ -1045,7 +1045,7 @@ await theme.set(catppuccinTheme("latte")) // по умолчанию "frappe"
 `textSecondary`, `border`, `layer3`, `layer4`, `radius` и `spacing`. Цвета
 принимают именованные CSS-цвета, hex и строки `rgb()`/`hsl()`. Пресеты
 Catppuccin экспортируются как `catppuccin.frappe`, `catppuccin.latte` и
-`catppuccinTheme(flavor)`. Встроенный UI-шрифт — Paper Mono; иконки по
+`catppuccinTheme(flavor)`. UI-шрифт по умолчанию — системный sans-serif (Paper Mono встроен для кода, задаётся через `family`); радиус скругления по умолчанию 12; иконки по
 умолчанию используют Material Symbols Rounded, если шрифт установлен.
 
 Кнопки в уведомлениях работают через freedesktop-демон уведомлений на Linux;

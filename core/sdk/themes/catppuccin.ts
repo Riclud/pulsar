@@ -110,7 +110,7 @@ export const catppuccinTheme = (flavor: CatppuccinFlavor = "frappe"): ThemeOptio
       text: palette.text,
       textSecondary: palette.subtext0,
       border: palette.surface2,
-      radius: 17,
+      radius: 12,
       spacing: 8,
     },
     colors: {

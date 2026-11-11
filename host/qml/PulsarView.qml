@@ -68,7 +68,7 @@ ApplicationWindow {
     readonly property color themeBorder: themePalette.border !== undefined ? themePalette.border : (darkMode ? "#626880" : "#acb0be")
     readonly property color themeOnPrimary: darkMode ? "#232634" : "#ffffff"
     readonly property color themeShadow: "#000000"
-    readonly property int themeRadius: Math.round((themePalette.radius !== undefined ? themePalette.radius : 17) * density)
+    readonly property int themeRadius: Math.round((themePalette.radius !== undefined ? themePalette.radius : 12) * density)
     readonly property int themeWindowRadius: 18
     readonly property int themeSpacing: Math.round((themePalette.spacing !== undefined ? themePalette.spacing : 8) * density)
     readonly property int motionFast: themeData && themeData.motion && themeData.motion.fast !== undefined ? themeData.motion.fast : 300
@@ -79,7 +79,7 @@ ApplicationWindow {
     readonly property string iconFamily: themeData && themeData.iconFamily !== undefined
             ? themeData.iconFamily
             : iconFont.name
-    readonly property string fontFamily: themeData && themeData.fontFamily !== undefined ? themeData.fontFamily : "Paper Mono"
+    readonly property string fontFamily: themeData && themeData.fontFamily !== undefined ? themeData.fontFamily : "sans-serif"
     readonly property bool embeddedHost: typeof PulsarEmbedded !== "undefined" && PulsarEmbedded
     // Node files in nodes/ get the window as `view: viewRef`; `view: view` would bind
     // their own property to itself.

@@ -470,9 +470,9 @@ const scenarios: Scenario[] = [
     check: (output) => {
       // Default padding 16 and the theme radius, then explicit padding, radius and colour.
       return (
-        output.includes("SIZE plain 288 18") &&
-        output.includes("SIZE tight 312 18") &&
-        output.includes("PulsarView card /root/plain color=#ffccd0da radius=17 padding=16") &&
+        /SIZE plain 288 \d+/.test(output) &&
+        /SIZE tight 312 \d+/.test(output) &&
+        output.includes("PulsarView card /root/plain color=#ffccd0da radius=12 padding=16") &&
         output.includes("PulsarView card /root/tight color=#ff123456 radius=3 padding=4")
       )
     },
