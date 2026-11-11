@@ -464,6 +464,27 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "checkbox-native",
+    quickjsDesktop: true,
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "3000" },
+    drive: [
+      { at: 600, cmd: { cmd: "pointer", action: "click", button: "left", x: 10, y: 13 } },
+      { at: 1000, cmd: { cmd: "pointer", action: "click", button: "left", x: 10, y: 90 } },
+      // The app turns the switch on at 1500 ms without a toggle event; the click then turns it off.
+      { at: 2000, cmd: { cmd: "pointer", action: "click", button: "left", x: 20, y: 51 } },
+    ],
+    check: (output) => {
+      const switches = output.split("\n").filter((line) => line.includes("TOGGLE sw "))
+
+      return (
+        output.includes("TOGGLE box true") &&
+        !output.includes("TOGGLE off") &&
+        switches.length === 1 &&
+        switches[0]!.includes("TOGGLE sw false")
+      )
+    },
+  },
+  {
     name: "card-native",
     quickjsDesktop: true,
     env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "1500" },

@@ -3271,11 +3271,11 @@ ApplicationWindow {
                 });
             }
         } else if (node.type === "checkbox" || node.type === "switch") {
-            item.toggled.connect(function (value) {
+            item.toggled.connect(function () {
                 if (item.pulsarMeta.syncing === true)
                     return;
                 if (hasEvent(item.pulsarMeta.node, "toggle"))
-                    emitEvent(item.pulsarMeta.node, "toggle", value);
+                    emitEvent(item.pulsarMeta.node, "toggle", item.checked);
             });
 
         } else if (node.type === "slider") {
