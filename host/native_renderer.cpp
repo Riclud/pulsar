@@ -432,11 +432,11 @@ const ControlSpec *controlSpec(const QString &type)
         { QStringLiteral("switch"), { set({ "label", "checked" }), set({ "toggle" }) } },
         { QStringLiteral("chip"),
           { set({ "label", "variant", "color", "textColor", "selected", "selectedColor" }), set({ "click", "remove" }) } },
-        //@ { QStringLiteral("divider"), { set({ "color" }), {} } },
-        //@ { QStringLiteral("progress"), { set({ "indeterminate", "value", "color" }), {} } },
-        //@ { QStringLiteral("spinner"), { set({ "size", "color", "thickness", "value" }), {} } },
-        //@ { QStringLiteral("badge"), { set({ "label", "count", "dot", "color", "textColor" }), {} } },
-        //@ { QStringLiteral("avatar"), { set({ "src", "name", "size", "radius", "status", "statusColor" }), {} } },
+        { QStringLiteral("divider"), { set({ "color" }), {} } },
+        { QStringLiteral("progress"), { set({ "indeterminate", "value", "color" }), {} } },
+        { QStringLiteral("spinner"), { set({ "size", "color", "thickness", "value" }), {} } },
+        { QStringLiteral("badge"), { set({ "label", "count", "dot", "color", "textColor" }), {} } },
+        { QStringLiteral("avatar"), { set({ "src", "name", "size", "radius", "status", "statusColor" }), {} } },
     };
 
     const auto found = specs.constFind(type);
@@ -2091,6 +2091,13 @@ void NativeRenderer::applyControl(Node &node)
         return resolveColor(props.value(QLatin1String(key)), fallback);
     };
 
+    // A name the theme does not know is no colour; QML paints that black, so it is passed on as invalid.
+    const auto paint = [](const QString &name) {
+        const QColor parsed(name);
+
+        return QVariant::fromValue(parsed.isValid() ? parsed : QColor());
+    };
+
     const auto sized = [&](qreal px) {
         return int(std::round(px * theme_.fontScale));
     };
@@ -2115,7 +2122,7 @@ void NativeRenderer::applyControl(Node &node)
 
         item->setProperty("text", textOf(props, "label"));
         item->setProperty("variant", variant);
-        item->setProperty("fillColor", fill);
+        item->setProperty("fillColor", paint(fill));
         item->setProperty("radius", int(number(props, QLatin1String("radius"), theme_.radius)));
         item->setProperty("iconName", textOf(props, "icon"));
         item->setProperty("iconPosition", textOf(props, "iconPosition", QStringLiteral("left")));
@@ -2125,7 +2132,7 @@ void NativeRenderer::applyControl(Node &node)
         item->setProperty("topPadding", topInset);
         item->setProperty("bottomPadding", topInset);
         item->setProperty("implicitHeight", size == QLatin1String("sm") ? 32 : size == QLatin1String("lg") ? 48 : 40);
-        item->setProperty("labelColor", label);
+        item->setProperty("labelColor", paint(label));
 
         if (debugging())
             qInfo().noquote() << "PulsarView button" << node.path << "variant=" + variant << "size=" + size
@@ -2145,7 +2152,7 @@ void NativeRenderer::applyControl(Node &node)
 
         item->setProperty("text", textOf(props, "name"));
         item->setProperty("font", font);
-        item->setProperty("iconColor", tint);
+        item->setProperty("iconColor", paint(tint));
 
         if (debugging())
             qInfo().noquote() << "PulsarView iconButton" << node.path << "name=" + textOf(props, "name")
@@ -2177,7 +2184,7 @@ void NativeRenderer::applyControl(Node &node)
             : outline                                                          ? fill
                                                                                : resolveColor(QJsonValue(), theme_.text);
 
-        QColor tint(fill);
+        QColor tint(fill.isEmpty() || !QColor::isValidColorName(fill) ? QColor(Qt::black) : QColor(fill));
 
         tint.setAlphaF(0.22);
 
@@ -2186,16 +2193,16 @@ void NativeRenderer::applyControl(Node &node)
         auto *remove = item->property("removeButton").value<QObject *>();
 
         label->setProperty("text", textOf(props, "label"));
-        label->setProperty("color", labelColor);
+        label->setProperty("color", paint(labelColor));
 
         QFont font = label->property("font").value<QFont>();
 
         font.setBold(selected);
         label->setProperty("font", font);
 
-        item->setProperty("color", outline ? (selected ? tint.name(QColor::HexArgb) : QStringLiteral("transparent")) : fill);
+        item->setProperty("color", paint(outline ? (selected ? tint.name(QColor::HexArgb) : QStringLiteral("transparent")) : fill));
         border->setProperty("width", outline ? (selected ? 2 : 1) : 0);
-        border->setProperty("color", fill);
+        border->setProperty("color", paint(fill));
         remove->setProperty("visible", node.json.value(QLatin1String("events")).toArray().contains(QStringLiteral("remove")));
 
         if (debugging())
@@ -2207,8 +2214,11 @@ void NativeRenderer::applyControl(Node &node)
     }
 
     if (type == QLatin1String("divider")) {
-        item->setProperty("color", color("color", theme_.border));
+        item->setProperty("color", paint(color("color", theme_.border)));
         item->setProperty("implicitHeight", 1);
+
+        if (debugging())
+            qInfo().noquote() << "PulsarView divider" << node.path << "color=" + color("color", theme_.border);
 
         return;
     }
@@ -2226,6 +2236,11 @@ void NativeRenderer::applyControl(Node &node)
             QQmlProperty(item, QStringLiteral("palette.accent"), context).write(tint);
         }
 
+        if (debugging())
+            qInfo().noquote() << "PulsarView progress" << node.path
+                              << "value=" + QString::number(item->property("value").toReal())
+                              << "indeterminate=" + QString::number(item->property("indeterminate").toBool());
+
         return;
     }
 
@@ -2233,9 +2248,15 @@ void NativeRenderer::applyControl(Node &node)
         const qreal size = number(props, QLatin1String("size"), 24);
 
         item->setProperty("spinnerSize", int(size));
-        item->setProperty("spinnerColor", color("color", theme_.primary));
+        item->setProperty("spinnerColor", paint(color("color", theme_.primary)));
         item->setProperty("spinnerValue", number(props, QLatin1String("value"), -1));
         item->setProperty("thickness", number(props, QLatin1String("thickness"), std::max<qreal>(2, size * 0.1)));
+
+        if (debugging())
+            qInfo().noquote() << "PulsarView spinner" << node.path << "size=" + QString::number(size)
+                              << "color=" + color("color", theme_.primary)
+                              << "value=" + QString::number(item->property("spinnerValue").toReal())
+                              << "thickness=" + QString::number(item->property("thickness").toReal());
 
         return;
     }
@@ -2255,8 +2276,14 @@ void NativeRenderer::applyControl(Node &node)
 
         item->setProperty("dot", props.value(QLatin1String("dot")).toBool(false));
         item->setProperty("label", label);
-        item->setProperty("badgeColor", color("color", theme_.primary));
-        item->setProperty("badgeTextColor", color("textColor", theme_.onPrimary));
+        item->setProperty("badgeColor", paint(color("color", theme_.primary)));
+        item->setProperty("badgeTextColor", paint(color("textColor", theme_.onPrimary)));
+
+        if (debugging())
+            qInfo().noquote() << "PulsarView badge" << node.path << "label=" + label
+                              << "dot=" + QString::number(item->property("dot").toBool())
+                              << "color=" + color("color", theme_.primary)
+                              << "text=" + color("textColor", theme_.onPrimary);
 
         return;
     }
@@ -2294,10 +2321,16 @@ void NativeRenderer::applyControl(Node &node)
         item->setProperty("initials", initials);
         item->setProperty("avatarSize", int(size));
         item->setProperty("avatarRadius", int(number(props, QLatin1String("radius"), size / 2)));
-        item->setProperty("fallbackColor", resolveColor(QJsonValue(accents.at(hash % accents.size())), theme_.surfaceVariant));
-        item->setProperty("fallbackTextColor", resolveColor(QJsonValue(), theme_.onPrimary));
+        item->setProperty("fallbackColor", paint(resolveColor(QJsonValue(accents.at(hash % accents.size())), theme_.surfaceVariant)));
+        item->setProperty("fallbackTextColor", paint(resolveColor(QJsonValue(), theme_.onPrimary)));
         item->setProperty("status", status);
-        item->setProperty("statusColor", statusTint);
+        item->setProperty("statusColor", paint(statusTint));
+
+        if (debugging())
+            qInfo().noquote() << "PulsarView avatar" << node.path << "initials=" + initials
+                              << "size=" + QString::number(int(size))
+                              << "fallback=" + item->property("fallbackColor").value<QColor>().name(QColor::HexArgb)
+                              << "status=" + status << "statusColor=" + statusTint;
     }
 }
 

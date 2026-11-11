@@ -551,6 +551,28 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "display-native",
+    quickjsDesktop: true,
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "2000" },
+    check: (output) => {
+      return (
+        output.includes("PulsarView divider /root/rule color=#445566") &&
+        output.includes("PulsarView divider /root/plain color=#ffacb0be") &&
+        output.includes("PulsarView progress /root/bar value=0.25 indeterminate=0") &&
+        // A later change of the value reaches the bar.
+        output.includes("PulsarView progress /root/bar value=0.75 indeterminate=0") &&
+        output.includes("PulsarView progress /root/busy value=0 indeterminate=1") &&
+        output.includes("PulsarView spinner /root/spin size=30 color=#aa3300 value=-1 thickness=4") &&
+        output.includes("PulsarView spinner /root/ring size=24 color=#ff8839ef value=0.5 thickness=2.4") &&
+        output.includes("PulsarView badge /root/count label=99+ dot=0 color=#ff8839ef") &&
+        output.includes("PulsarView badge /root/label label=new dot=0 color=#336699 text=#ffffff") &&
+        output.includes("PulsarView badge /root/dot label= dot=1") &&
+        output.includes("PulsarView avatar /root/ana initials=AM size=48") &&
+        output.includes("PulsarView avatar /root/anon initials=? size=40")
+      )
+    },
+  },
+  {
     name: "checkbox-native",
     quickjsDesktop: true,
     env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "3000" },
