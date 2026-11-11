@@ -7,10 +7,10 @@ app.store.set("value", 0.25)
 app.window("main").render(() => {
   return Column(
     { key: "root", gap: 6 },
-    Divider({ key: "rule", color: "#445566" }),
-    Divider({ key: "plain" }),
+    Divider({ color: "#445566" }),
+    Divider(),
     Progress({ key: "bar", value: app.store.get("value") as number }),
-    Progress({ key: "busy", indeterminate: true, color: "#336699", width: 100 }),
+    Progress({ key: "busy", value: 2, color: "#336699", width: 100 }),
     Spinner({ key: "spin", size: 30, color: "#aa3300", thickness: 4 }),
     Spinner({ key: "ring", value: 0.5 }),
     Badge({ key: "count", count: 120 }),
