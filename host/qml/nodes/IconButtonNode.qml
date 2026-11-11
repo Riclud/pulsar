@@ -1,5 +1,7 @@
 import QtQuick
 import QtQuick.Controls
+// Like PulsarView, which gets its ToolButton from the Material style.
+import QtQuick.Controls.Material
 
 ToolButton {
     id: iconRoot
