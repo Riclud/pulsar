@@ -915,13 +915,27 @@ export interface ScrollToOptions {
   animated?: boolean
 }
 
-/** A command for a node of the rendered UI, delivered to the host by the runtime. */
-export interface UiCommand {
+export interface ScrollCommand {
   command: "scrollTo" | "scrollToEnd"
   controller: number
   position?: number
   animated: boolean
 }
+
+export interface ShortcutSpec {
+  id: number
+  keys: string
+  window?: string
+  repeat?: boolean
+}
+
+export interface ShortcutsCommand {
+  command: "shortcuts"
+  shortcuts: ShortcutSpec[]
+}
+
+/** A command for the host's UI layer, delivered by the runtime. */
+export type UiCommand = ScrollCommand | ShortcutsCommand
 
 export interface ScrollController {
   readonly id: number
@@ -938,13 +952,17 @@ export const setUiCommandSink = (sink: ((command: UiCommand) => void) | null): v
   uiCommandSink = sink
 }
 
+export const sendUiCommand = (command: UiCommand): void => {
+  uiCommandSink?.(command)
+}
+
 let nextControllerID = 1
 
 /** Create one controller per scroll you want to move from code, and pass it as `controller`. */
 export const createScrollController = (): ScrollController => {
   const id = nextControllerID++
 
-  const send = (command: UiCommand["command"], position: number | undefined, options?: ScrollToOptions): void => {
+  const send = (command: ScrollCommand["command"], position: number | undefined, options?: ScrollToOptions): void => {
     uiCommandSink?.({ command, controller: id, position, animated: options?.animated === true })
   }
 

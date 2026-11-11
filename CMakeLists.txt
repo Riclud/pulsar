@@ -101,6 +101,7 @@ if(IOS)
         host/quickjs_thread.cpp
         host/native_renderer.cpp
         host/inertia.cpp
+        host/shortcuts.cpp
         host/net.cpp
         host/manifest_env.cpp
         host/embedded/bridge.h
@@ -152,6 +153,7 @@ add_executable(qml-host
     host/quickjs_thread.cpp
     host/native_renderer.cpp
     host/inertia.cpp
+    host/shortcuts.cpp
     host/quickjs_runtime.h
     host/quickjs_thread.h
     host/native_renderer.h
@@ -227,6 +229,7 @@ add_executable(qml-host-qjs
     host/quickjs_thread.cpp
     host/native_renderer.cpp
     host/inertia.cpp
+    host/shortcuts.cpp
     host/net.cpp
     host/manifest_env.cpp
     host/embedded/bridge.h
@@ -294,6 +297,7 @@ if(ANDROID)
         host/quickjs_thread.cpp
         host/native_renderer.cpp
         host/inertia.cpp
+        host/shortcuts.cpp
         host/net.cpp
         host/manifest_env.cpp
         host/embedded/bridge.h

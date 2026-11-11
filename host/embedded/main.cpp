@@ -2,6 +2,7 @@
 #include "manifest_env.h"
 #include "net.h"
 #include "native_renderer.h"
+#include "shortcuts.h"
 #include "quickjs_thread.h"
 
 #include <QDir>
@@ -568,7 +569,20 @@ int main(int argc, char **argv)
             renderer.applyPatches(patches);
     });
 
+    pulsar::Shortcuts shortcuts(&app);
+
+    shortcuts.setWindowLabel([](QWindow *) { return QStringLiteral("main"); });
+    QObject::connect(&shortcuts, &pulsar::Shortcuts::triggered, &bridge, [&bridge](int id) {
+        bridge.notify(QStringLiteral("shortcut"), QJsonObject{ { QStringLiteral("id"), id } });
+    });
+
     QObject::connect(&bridge, &EmbeddedBridge::uiCommand, &app, [&](const QJsonObject &command) {
+        if (command.value(QStringLiteral("command")).toString() == QLatin1String("shortcuts")) {
+            shortcuts.set(command.value(QStringLiteral("shortcuts")).toArray());
+
+            return;
+        }
+
         if (jsUi)
             renderer.command(command);
     });

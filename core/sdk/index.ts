@@ -255,6 +255,8 @@ export {
   setPermissionGate,
 } from "./caps.ts"
 export { net, NetError } from "./net.ts"
+export { shortcuts } from "./shortcuts.ts"
+export type { ShortcutOptions } from "./shortcuts.ts"
 export { MediaManager, media } from "./media.ts"
 export type { MediaState, MediaTrack, MediaSnapshot } from "./media.ts"
 export type {

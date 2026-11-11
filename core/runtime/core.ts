@@ -16,6 +16,7 @@ import {
   setPermissionGate,
   type AppManifest,
 } from "../sdk/index.ts"
+import { shortcutInternals } from "../sdk/shortcuts.ts"
 import { net, netInternals } from "../sdk/net.ts"
 import type { Platform } from "../platform.ts"
 import { buildHello, type RuntimeInfo, type Transport } from "./framing.ts"
@@ -392,6 +393,7 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
       app.onSendUiPatch = (label, patches) =>
         send({ jsonrpc: "2.0", method: "__ui-patch", params: { target: label, patches } })
       app.onUiCommand = (command) => send({ jsonrpc: "2.0", method: "__ui-command", params: command })
+      shortcutInternals.flush()
       app.onAddRecentDocument = (path) => send({ jsonrpc: "2.0", method: "__recent", params: { action: "add", path } })
       app.onClearRecentDocuments = () => send({ jsonrpc: "2.0", method: "__recent", params: { action: "clear" } })
       app.onSetMenu = (items) => send({ jsonrpc: "2.0", method: "__menu", params: { items } })

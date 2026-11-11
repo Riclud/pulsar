@@ -1336,6 +1336,14 @@ padding })` caps and centers content on large windows.
   for scrolls QML draws (for example one with `onScroll`), and stops a fling that is in
   progress. `scrollToEnd` waits for rows added in the same update. One controller
   serves one scroll.
+- `shortcuts.register(keys, handler, { window, repeat })` adds a window-level keyboard
+  shortcut on the desktop and returns a function that removes it. Keys read like
+  `Ctrl+K`, `Ctrl+Shift+P`, `Alt+Left`, `F5` or `Escape` (`Mod` and `Cmd` mean Ctrl, which
+  Qt maps to the Command key on macOS). It works wherever the focus is. A shortcut with
+  no Ctrl, Alt or Meta (a bare letter, Delete, Enter) is skipped while a text field has
+  the focus, so typing is not stolen; function keys and Escape always work. `window`
+  limits it to one window by its label, and held keys fire once unless `repeat` is set.
+  Several keys in a row (`Ctrl+K Ctrl+S`) are not supported.
 - `Video({ source, muted, loop, autoplay, paused, fillMode, volume, onEnded, onError })`
   plays a video file (a path in the app folder or a URL) as a node, on the desktop and on
   Android, so the app needs no QML. `autoplay` starts it once loaded; `paused: true`

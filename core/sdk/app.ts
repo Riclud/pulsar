@@ -1,6 +1,7 @@
 import { callCapability } from "./caps.ts"
 import { loadManifest, resolveWindows, type AppManifest } from "./manifest.ts"
 import { Source } from "./reactive.ts"
+import { shortcutInternals } from "./shortcuts.ts"
 import {
   collectUiHandlers,
   createUiRoot,
@@ -508,6 +509,7 @@ export class App {
     this.store = new Store()
     App.current = this
     setUiCommandSink((command) => this.onUiCommand?.(command))
+    this.on("shortcut", (data) => shortcutInternals.run(Number((data as { id?: number }).id)))
   }
 
   /** Quit the application. */

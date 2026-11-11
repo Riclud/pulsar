@@ -439,6 +439,29 @@ export const Clip = (): ReturnType<typeof Column> => {
 
 The player stops by itself when the node goes away; there is nothing to clean up.
 
+## 17. Keyboard shortcuts
+
+Window-level shortcuts for the desktop. Register them where the screen is built and remove
+them when it goes away.
+
+```ts
+import { component, onCleanup, shortcuts, Text } from "pulsar"
+
+export const Editor = component<{ save: () => void; close: () => void }>((props) => {
+  const removers = [
+    shortcuts.register("Ctrl+S", () => props.save()),
+    shortcuts.register("Escape", () => props.close()),
+  ]
+
+  onCleanup(() => removers.forEach((remove) => remove()))
+
+  return () => Text({ text: "Ctrl+S saves, Escape closes" })
+})
+```
+
+A bare letter is ignored while a text field has the focus, so `shortcuts.register("J", ...)`
+cannot break typing.
+
 ## 13. Check your work
 
 ```sh

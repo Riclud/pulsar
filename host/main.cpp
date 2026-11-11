@@ -52,6 +52,7 @@
 #include <utility>
 
 #include "native_renderer.h"
+#include "shortcuts.h"
 #include "assoc.h"
 #include "bridge.h"
 #include "embedded.h"
@@ -1475,7 +1476,34 @@ int main(int argc, char **argv)
     QQmlPropertyMap *store = new QQmlPropertyMap(&app);
     Bridge *bridge = new Bridge(&engine, store, &app);
 
-    QObject::connect(bridge, &Bridge::uiMessage, &app, [](const QString &method, const QJsonObject &params) {
+    auto *shortcuts = new pulsar::Shortcuts(&app);
+
+    shortcuts->setWindowLabel([](QWindow *window) {
+        for (auto it = g_roots.constBegin(); it != g_roots.constEnd(); ++it) {
+            if (it.value() == window)
+                return it.key();
+        }
+
+        return QString();
+    });
+    QObject::connect(shortcuts, &pulsar::Shortcuts::triggered, &app, [bridge](int id) {
+        QJsonObject data;
+        data.insert(QStringLiteral("id"), id);
+
+        QJsonObject params;
+        params.insert(QStringLiteral("name"), QStringLiteral("shortcut"));
+        params.insert(QStringLiteral("data"), data);
+
+        bridge->notify(QStringLiteral("__event"), params);
+    });
+
+    QObject::connect(bridge, &Bridge::uiMessage, &app, [shortcuts](const QString &method, const QJsonObject &params) {
+        if (method == QLatin1String("__ui-command") && params.value(QLatin1String("command")).toString() == QLatin1String("shortcuts")) {
+            shortcuts->set(params.value(QLatin1String("shortcuts")).toArray());
+
+            return;
+        }
+
         if (method == QLatin1String("__ui-command")) {
             // A command names a node by controller, not by window, so every window gets a try.
             for (pulsar::NativeRenderer *renderer : std::as_const(g_renderers))

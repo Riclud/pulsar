@@ -712,6 +712,35 @@ const scenarios: Scenario[] = [
     check: (output) => output.includes("VIDEO ended") && output.includes("video released while playing"),
   },
   {
+    name: "shortcuts",
+    quickjsDesktop: true,
+    serial: true,
+    env: { AUTO_QUIT_MS: "2600" },
+    drive: [
+      { at: 700, cmd: { cmd: "key", key: "k", modifiers: ["ctrl"] } },
+      { at: 800, cmd: { cmd: "key", key: "p", modifiers: ["ctrl", "shift"] } },
+      { at: 900, cmd: { cmd: "key", key: "j" } },
+      { at: 1000, cmd: { cmd: "key", key: "escape" } },
+      { at: 1100, cmd: { cmd: "key", key: "left", modifiers: ["alt"] } },
+      { at: 1200, cmd: { cmd: "key", key: "k" } },
+      { at: 2000, cmd: { cmd: "key", key: "k", modifiers: ["ctrl"] } },
+    ],
+    check: (output) => {
+      const count = (text: string) => output.split("\n").filter((line) => line.endsWith(text)).length
+
+      return (
+        count("SHORTCUT k") === 1 &&
+        count("SHORTCUT palette") === 1 &&
+        count("SHORTCUT escape") === 1 &&
+        // A bare letter goes to the text field that has the focus, and Alt+Left is for another window.
+        count("SHORTCUT j") === 0 &&
+        count("SHORTCUT back") === 0 &&
+        // After the shortcut is removed, Ctrl+K does nothing.
+        output.includes("PHASE removed")
+      )
+    },
+  },
+  {
     name: "packing",
     check: (output) => {
       return output.includes("SIZE wide 40") && output.includes("SIZE hug 40") && output.includes("SIZE grow 100")
