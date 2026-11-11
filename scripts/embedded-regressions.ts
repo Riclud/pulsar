@@ -585,6 +585,110 @@ const scenarios: Scenario[] = [
       )
     },
   },
+  ...(["native", "qml"] as const).map((renderer): Scenario => ({
+    name: `text-wrap-${renderer}`,
+    fixture: "text-wrap",
+    desktop: true,
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "1500" },
+    check: (output) => {
+      const last = new Map<string, number[]>()
+
+      for (const line of output.split("\n")) {
+        const match = line.match(/TW (\S+) (\d+) (\d+) (-?\d+) (-?\d+)/)
+
+        if (match) last.set(match[1]!, match.slice(2).map(Number))
+      }
+
+      const get = (name: string) => last.get(name) ?? [NaN, NaN, NaN, NaN]
+      const [W, H, X, Y] = [0, 1, 2, 3]
+      const oneLine = 30
+
+      // The window is 320 wide and a line is about 20 px, so two lines are under 50 and three are over 60.
+      const native = () => {
+        const probe = (name: string) => get(`n-${name}-probe`)
+
+        return (
+          // Long text takes the column width and grows in height, in either script.
+          probe("en")[W]! <= 320 &&
+          probe("en")[Y]! >= 60 &&
+          probe("ru")[W]! <= 320 &&
+          probe("ru")[Y]! >= 60 &&
+          // wrap:false stays one line at its natural width; elide and maxLines still limit.
+          probe("nowrap")[Y]! < oneLine &&
+          probe("nowrap")[W]! > 320 &&
+          probe("elide")[W]! <= 320 &&
+          probe("elide")[Y]! < oneLine &&
+          probe("lines")[W]! <= 320 &&
+          probe("lines")[Y]! >= oneLine &&
+          probe("lines")[Y]! < 50 &&
+          probe("short")[W]! < 100 &&
+          probe("short")[Y]! < oneLine &&
+          probe("centerLong")[W]! <= 320 &&
+          probe("centerLong")[Y]! >= 60 &&
+          // In a row the text takes what the boxes leave, and the last box stays inside the window.
+          probe("row")[W]! <= 320 &&
+          probe("row")[Y]! >= 60 &&
+          get("n-end")[X]! + 40 <= 320 &&
+          probe("pair")[W]! <= 320 &&
+          probe("pair")[Y]! >= 40 &&
+          // A hugging parent and a card hand the text the window's width.
+          probe("hug")[W]! <= 320 &&
+          probe("hug")[Y]! >= 76 &&
+          probe("card")[W]! <= 320 &&
+          probe("card")[Y]! >= 60 + 32
+        )
+      }
+
+      const qml = () => {
+        const [en, ru, nowrap, elide, lines, short, centre, right, inRow, end, a, b, inHug, inCard] = [
+          "en",
+          "ru",
+          "nowrap",
+          "elide",
+          "lines",
+          "short",
+          "center",
+          "right",
+          "inRow",
+          "end",
+          "a",
+          "b",
+          "inHug",
+          "inCard",
+        ].map((name) => get(`q-${name}`))
+
+        return (
+          en![W]! <= 320 &&
+          en![H]! >= 60 &&
+          ru![W]! <= 320 &&
+          ru![H]! >= 60 &&
+          nowrap![H]! < oneLine &&
+          nowrap![W]! > 320 &&
+          elide![W]! <= 320 &&
+          elide![H]! < oneLine &&
+          lines![W]! <= 320 &&
+          lines![H]! >= oneLine &&
+          lines![H]! < 50 &&
+          short![W]! < 100 &&
+          // Centred and right-aligned short text still sit where they are told to.
+          centre![X]! > 100 &&
+          right![X]! > 200 &&
+          inRow![W]! === 320 - 80 - 16 &&
+          inRow![H]! >= 60 &&
+          end![X]! + 40 <= 320 &&
+          a![W]! + b![W]! + 8 <= 320 &&
+          a![H]! >= 40 &&
+          b![H]! >= 40 &&
+          inHug![W]! + 16 <= 320 &&
+          inHug![H]! >= 60 &&
+          inCard![W]! <= 320 - 32 &&
+          inCard![H]! >= 60
+        )
+      }
+
+      return renderer === "native" ? native() : qml()
+    },
+  })),
   {
     name: "scroll-to",
     serial: true,

@@ -3727,6 +3727,28 @@ ApplicationWindow {
         return false;
     }
 
+    // Whether a node narrows to the width it is given and no further than its content: wrapping or eliding
+    // text, and a row, column, card or box that holds one and has no width of its own.
+    function shrinksToFit(node) {
+        const props = node.props || {};
+
+        if (props.width !== undefined)
+            return false;
+
+        if (node.type === "text" || node.type === "selectableText") {
+            const elides = props.elide !== undefined && props.elide !== false && props.elide !== "";
+
+            return elides || prop(props, "wrap", true) !== false;
+        }
+
+        if (node.type !== "row" && node.type !== "column" && node.type !== "card" && node.type !== "box")
+            return false;
+
+        return (node.children || []).some(function (child) {
+            return shrinksToFit(child);
+        });
+    }
+
     function applyCommon(item, node, isRoot) {
         watchLayout(item, node);
         watchFocus(item, node);
@@ -3764,6 +3786,13 @@ ApplicationWindow {
             fillWidth = props.fillWidth;
         if (props.fillHeight !== undefined)
             fillHeight = props.fillHeight;
+
+        // Filling up to the content's own width: it narrows when the space is short, and never stretches.
+        const capped = !fillWidth && props.fillWidth === undefined && props.expand === undefined
+                && fill === undefined && shrinksToFit(node);
+
+        if (capped)
+            fillWidth = true;
 
         if (node.type === "sheet" || node.type === "snackbar" || node.type === "popover" || node.type === "menu")
             return;
@@ -3845,6 +3874,12 @@ ApplicationWindow {
         const flexedDown = flexed && item.pulsarMeta.extra.flexHorizontal === false;
 
         item.Layout.fillWidth = fillWidth || flexedAcross;
+
+        if (capped && props.maxWidth === undefined) {
+            item.Layout.maximumWidth = Qt.binding(function () {
+                return item.implicitWidth;
+            });
+        }
         item.Layout.fillHeight = fillHeight || flexedDown;
 
         if ((node.type === "column" || node.type === "row") && fillWidth && props.maxWidth === undefined)
@@ -4465,7 +4500,10 @@ ApplicationWindow {
 
             applyQmlProps(item, node);
         } else if (node.type === "text" || node.type === "selectableText") {
-            const wrap = prop(props, "wrap", false);
+            // Text wraps at word boundaries unless the app says otherwise. An elided text with no explicit
+            // wrap stays on one line, and with maxLines it wraps up to that many.
+            const elides = props.elide !== undefined && props.elide !== false && props.elide !== "";
+            const wrap = prop(props, "wrap", !elides || props.maxLines !== undefined);
             const align = prop(props, "align", "left");
             const weight = prop(props, "weight", undefined);
 

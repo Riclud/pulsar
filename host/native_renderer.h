@@ -70,6 +70,8 @@ public:
         Absolute absolute;
         bool fillWidth = false;
         bool fillHeight = false;
+        /** Text that wraps or elides, or a container of it: it narrows to the space it is given. */
+        bool shrinks = false;
         qreal flex = 0;
         qreal preferredWidth = -1;
         qreal preferredHeight = -1;
@@ -107,6 +109,8 @@ private:
         const Kid *kid = nullptr;
         bool fillWidth = false;
         bool fillHeight = false;
+        bool shrinks = false;
+        bool heightIsContent = false;
         qreal preferredWidth = 0;
         qreal preferredHeight = 0;
         qreal minWidth = 0;
@@ -118,6 +122,9 @@ private:
     };
 
     Measured measure(const Kid &kid) const;
+    static void narrowTo(Measured &kid, qreal width);
+    void shrinkInColumn(QList<Measured> &shown, qreal crossSpace) const;
+    void shrinkAlongRow(QList<Measured> &shown, qreal mainSpace) const;
     void watch(const Kid &kid);
     void placeOverlapping();
     void placeLayers();
@@ -240,6 +247,7 @@ private:
     void applyText(Node &node);
     void applyIcon(Node &node);
     void applyScroll(Node &node);
+    bool narrowsToFit(const Node &node) const;
     void refreshKids(Node &node);
     void bindScroll(Node &node);
     void bindBox(Node &node);

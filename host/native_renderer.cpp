@@ -580,6 +580,7 @@ NativeStack::Measured NativeStack::measure(const Kid &kid) const
     out.kid = &kid;
     out.fillWidth = kid.fillWidth;
     out.fillHeight = kid.fillHeight;
+    out.shrinks = kid.shrinks;
     out.preferredWidth = kid.preferredWidth;
     out.preferredHeight = kid.preferredHeight;
     out.minWidth = kid.minWidth;
@@ -604,6 +605,8 @@ NativeStack::Measured NativeStack::measure(const Kid &kid) const
     if (out.preferredWidth < 0)
         out.preferredWidth = kid.item->implicitWidth();
 
+    out.heightIsContent = out.preferredHeight < 0;
+
     if (out.preferredHeight < 0)
         out.preferredHeight = kid.item->implicitHeight();
 
@@ -617,6 +620,60 @@ NativeStack::Measured NativeStack::measure(const Kid &kid) const
     out.preferredHeight = qBound(out.minHeight, out.preferredHeight, qMax(out.minHeight, out.maxHeight));
 
     return out;
+}
+
+// A kid that narrows takes its height from the width it ends up with, which a wrapping text only
+// knows once it has that width.
+void NativeStack::narrowTo(Measured &kid, qreal width)
+{
+    width = qBound(kid.minWidth, width, qMax(kid.minWidth, kid.maxWidth));
+
+    if (width == kid.preferredWidth)
+        return;
+
+    kid.preferredWidth = width;
+    kid.kid->item->setWidth(width);
+    kid.kid->item->ensurePolished();
+
+    if (kid.heightIsContent)
+        kid.preferredHeight = qBound(kid.minHeight, kid.kid->item->implicitHeight(), qMax(kid.minHeight, kid.maxHeight));
+}
+
+void NativeStack::shrinkInColumn(QList<Measured> &shown, qreal crossSpace) const
+{
+    for (Measured &kid : shown) {
+        if (!kid.shrinks || kid.kid->flex > 0)
+            continue;
+
+        if (kid.fillWidth || kid.preferredWidth > crossSpace)
+            narrowTo(kid, crossSpace);
+    }
+}
+
+void NativeStack::shrinkAlongRow(QList<Measured> &shown, qreal mainSpace) const
+{
+    qreal total = 0;
+    qreal narrowable = 0;
+
+    for (const Measured &kid : std::as_const(shown)) {
+        total += kid.preferredWidth;
+
+        if (kid.shrinks && !kid.fillWidth && kid.kid->flex <= 0)
+            narrowable += kid.preferredWidth;
+    }
+
+    const qreal overflow = total - mainSpace;
+
+    if (overflow <= 0 || narrowable <= 0)
+        return;
+
+    // Each one gives up the same share of its width, so a long text does not squeeze a short one.
+    const qreal keep = qMax(0.0, narrowable - overflow) / narrowable;
+
+    for (Measured &kid : shown) {
+        if (kid.shrinks && !kid.fillWidth && kid.kid->flex <= 0)
+            narrowTo(kid, kid.preferredWidth * keep);
+    }
 }
 
 void NativeStack::placeOverlapping()
@@ -669,6 +726,18 @@ void NativeStack::updatePolish()
     const qreal mainSpace = (row ? width() : height()) - mainEdges - gaps;
     const qreal crossSpace = qMax(0.0, (row ? height() : width()) - crossEdges);
 
+    // The widths the content wants, taken before anything narrows to fit: a hugging parent reports
+    // these and not the width it has now, so it can grow back when the window does.
+    qreal wantedWidth = 0;
+
+    for (const Measured &kid : std::as_const(shown))
+        wantedWidth = row ? wantedWidth + kid.preferredWidth : qMax(wantedWidth, kid.preferredWidth);
+
+    if (row)
+        shrinkAlongRow(shown, mainSpace);
+    else
+        shrinkInColumn(shown, crossSpace);
+
     qreal fixedMain = 0;
     qreal implicitMain = 0;
     qreal implicitCross = 0;
@@ -697,6 +766,11 @@ void NativeStack::updatePolish()
         cursor += kid.gapBefore;
         cursor += place(kid, perWeight, crossSpace, cursor);
     }
+
+    if (row)
+        implicitMain = wantedWidth;
+    else
+        implicitCross = wantedWidth;
 
     const qreal contentMain = implicitMain + gaps + mainEdges;
     const qreal contentCross = implicitCross + crossEdges;
@@ -1856,6 +1930,26 @@ void NativeRenderer::applyIcon(Node &node)
                           << "px=" + QString::number(font.pixelSize()) << "color=" + color;
 }
 
+// Text wraps at word boundaries unless the app says otherwise. An elided text without an explicit wrap
+// stays on one line, and with maxLines it wraps up to that many.
+static bool textWraps(const QJsonObject &props)
+{
+    if (props.contains(QLatin1String("wrap")))
+        return props.value(QLatin1String("wrap")).toBool(false);
+
+    const QJsonValue elide = props.value(QLatin1String("elide"));
+    const bool elides = elide.isString() ? !elide.toString().isEmpty() : elide.toBool(false);
+
+    return !elides || props.contains(QLatin1String("maxLines"));
+}
+
+static bool textElides(const QJsonObject &props)
+{
+    const QJsonValue elide = props.value(QLatin1String("elide"));
+
+    return elide.isString() ? !elide.toString().isEmpty() : elide.toBool(false);
+}
+
 void NativeRenderer::applyText(Node &node)
 {
     QQuickItem *item = node.item;
@@ -1881,7 +1975,7 @@ void NativeRenderer::applyText(Node &node)
     if (props.contains(QLatin1String("letterSpacing")))
         font.setLetterSpacing(QFont::AbsoluteSpacing, number(props, QLatin1String("letterSpacing"), 0));
 
-    const bool wraps = props.value(QLatin1String("wrap")).toBool(false);
+    const bool wraps = textWraps(props);
 
     item->setProperty("font", font);
     item->setProperty("textFormat", int(Qt::PlainText));
@@ -1925,6 +2019,48 @@ QString NativeRenderer::resolveColor(const QJsonValue &value, const QVariant &fa
     return themed != theme_.colors.constEnd() ? text(*themed) : name;
 }
 
+// Wrapping or eliding text narrows to the width it is given, and so does a row, column or box that
+// holds one and has no width of its own.
+static bool jsonNarrows(const QJsonObject &json)
+{
+    const QJsonObject props = json.value(QLatin1String("props")).toObject();
+    const QString type = json.value(QLatin1String("type")).toString();
+
+    if (props.contains(QLatin1String("width")))
+        return false;
+
+    if (type == QLatin1String("text"))
+        return textWraps(props) || textElides(props);
+
+    if (type != QLatin1String("row") && type != QLatin1String("column") && type != QLatin1String("card") && type != QLatin1String("box"))
+        return false;
+
+    const QJsonArray children = json.value(QLatin1String("children")).toArray();
+
+    return std::any_of(children.begin(), children.end(), [](const QJsonValue &child) { return jsonNarrows(child.toObject()); });
+}
+
+bool NativeRenderer::narrowsToFit(const Node &node) const
+{
+    if (node.kind == Kind::Island)
+        return jsonNarrows(node.json);
+
+    if (node.props.contains(QLatin1String("width")))
+        return false;
+
+    if (node.kind == Kind::Text)
+        return node.type == QLatin1String("text") && (textWraps(node.props) || textElides(node.props));
+
+    const bool container = node.kind == Kind::Box || node.type == QLatin1String("row") || node.type == QLatin1String("column");
+
+    if (!container)
+        return false;
+
+    return std::any_of(node.children.begin(), node.children.end(), [&](const std::unique_ptr<Node> &child) {
+        return narrowsToFit(*child);
+    });
+}
+
 NativeStack::Kid NativeRenderer::kidFor(const Node &parent, Node &child) const
 {
     const QJsonObject &props = child.props;
@@ -1966,6 +2102,7 @@ NativeStack::Kid NativeRenderer::kidFor(const Node &parent, Node &child) const
             child.hints = makeHints(child.item);
 
         kid.qml = child.hints;
+        kid.shrinks = narrowsToFit(child);
 
         return kid;
     }
@@ -1973,6 +2110,7 @@ NativeStack::Kid NativeRenderer::kidFor(const Node &parent, Node &child) const
     const bool flowsInScroll = child.kind == Kind::Stack && child.type == QLatin1String("list");
 
     // A size given by the app wins over the fill a type has by default.
+    kid.shrinks = narrowsToFit(child);
     kid.fillWidth = typesFillingWidth().contains(child.type) && !props.contains(QLatin1String("width"));
     kid.fillHeight = typesFillingHeight().contains(child.type) && !flowsInScroll && !props.contains(QLatin1String("height"));
 
