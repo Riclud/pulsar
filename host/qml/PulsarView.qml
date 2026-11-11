@@ -42,6 +42,8 @@ ApplicationWindow {
     readonly property Component nativeSpinner: spinnerComponent
     readonly property Component nativeBadge: badgeComponent
     readonly property Component nativeAvatar: avatarComponent
+    readonly property Component nativeTextField: textFieldComponent
+    readonly property Component nativeTextArea: textAreaComponent
     property var gapLayouts: []
     property var madeComponents: ({})
     property bool reordering: false
@@ -5352,6 +5354,19 @@ ApplicationWindow {
         revealMotion.target = flick;
         revealMotion.to = Math.min(maxY, Math.max(0, target));
         revealMotion.restart();
+    }
+
+    // The keyboard may cover a field that has just been focused.
+    function nativeFieldFocus(item, focused) {
+        if (focused) {
+            view.revealTarget = item;
+            view.revealTicks = 4;
+            keyboardRevealTimer.restart();
+            return;
+        }
+
+        if (view.revealTarget === item)
+            view.revealTarget = null;
     }
 
     function revealFocusedInput() {

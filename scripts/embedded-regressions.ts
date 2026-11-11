@@ -519,6 +519,80 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "input-native",
+    quickjsDesktop: true,
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "4400" },
+    drive: [
+      // Five keys arrive before the first echo does.
+      { at: 800, cmd: { cmd: "keys", text: "hello" } },
+      { at: 1300, cmd: { cmd: "key", key: "enter" } },
+      // a now sits under b: the focus must survive the move.
+      { at: 1800, cmd: { cmd: "keys", text: "!" } },
+      { at: 2000, cmd: { cmd: "key", key: "enter" } },
+      // b is first now; clicking it blurs a. Its value prop stays stale while it is typed in.
+      { at: 2200, cmd: { cmd: "pointer", action: "click", button: "left", x: 100, y: 20 } },
+      { at: 2300, cmd: { cmd: "key", key: "enter" } },
+      { at: 2400, cmd: { cmd: "keys", text: "x" } },
+      { at: 2700, cmd: { cmd: "key", key: "enter" } },
+      { at: 3000, cmd: { cmd: "key", key: "enter" } },
+    ],
+    check: (output) => {
+      const seen = output
+        .split("\n")
+        .map((line) => line.match(/(INPUT|SUBMIT|FOCUS|BLUR) .*$/)?.[0])
+        .filter((line) => line !== undefined)
+
+      return (
+        output.includes("PulsarView textInput /root/a ") &&
+        output.includes("PulsarView textInput /root/b ") &&
+        // Typing and echo: the five keys arrive one by one and the text is never rewound.
+        seen.filter((line) => line.startsWith("INPUT a ")).join("|") ===
+          "INPUT a h|INPUT a he|INPUT a hel|INPUT a hell|INPUT a hello|INPUT a hello!" &&
+        seen.includes("SUBMIT a hello") &&
+        seen.includes("SUBMIT a hello!") &&
+        // The focus stayed on a through the rerender and the move; one focus, then a blur by the click.
+        seen.filter((line) => line === "FOCUS a").length === 1 &&
+        seen.indexOf("BLUR a") > seen.indexOf("SUBMIT a hello!") &&
+        seen.includes("FOCUS b") &&
+        // An app-set value reaches the field; typing is kept through a rerender with the old value.
+        seen.includes("SUBMIT b from-app") &&
+        seen.includes("INPUT b from-appx") &&
+        seen.includes("SUBMIT b from-appx") &&
+        seen.includes("SUBMIT b late")
+      )
+    },
+  },
+  {
+    name: "input-props",
+    quickjsDesktop: true,
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "3400" },
+    drive: [
+      { at: 700, cmd: { cmd: "keys", text: "12345" } },
+      { at: 1000, cmd: { cmd: "pointer", action: "click", button: "left", x: 100, y: 70 } },
+      { at: 1200, cmd: { cmd: "keys", text: "a" } },
+      ...[1300, 1400, 1500, 1600, 1700].flatMap((at) => [
+        { at, cmd: { cmd: "key", key: "enter" } },
+        { at: at + 50, cmd: { cmd: "keys", text: "b" } },
+      ]),
+    ],
+    check: (output) => {
+      const inputs = output.split("\n").filter((line) => line.includes("INPUT pin "))
+      const sizes = [...output.matchAll(/SIZE after (\d+)/g)].map((match) => Number(match[1]))
+
+      return (
+        output.includes("PulsarView textInput /root/pin variant=filled keyboard=number password=1 max=3") &&
+        output.includes("PulsarView textArea /root/notes ") &&
+        // maxLength cuts the fifth key down to three, and the field stays at three.
+        inputs.length === 3 &&
+        inputs.at(-1)!.endsWith("INPUT pin 123") &&
+        // Three lines to begin with (50 + 72 + the gap), then the area grows with its text.
+        sizes[0] === 132 &&
+        sizes.at(-1)! > 132 &&
+        output.includes('INPUT notes "a\\nb\\nb\\nb\\nb\\nb"')
+      )
+    },
+  },
+  {
     name: "chip-native",
     quickjsDesktop: true,
     env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "2400" },

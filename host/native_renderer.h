@@ -178,6 +178,11 @@ private slots:
     void scheduleVisibilitySlot();
     void controlClicked();
     void controlToggled();
+    void fieldTextChanged();
+    void fieldFocusChanged();
+    void fieldAccepted();
+    void fieldCursorMoved();
+    void fieldTapped();
 
 private:
     enum class Kind { Island, Shell, Stack, Scroll, Box, ClickableBox, StateBox, Text, Spacer, Control };
@@ -199,6 +204,16 @@ private:
         int visibleState = -1;
         QString lastState;
         std::shared_ptr<NativeStack::QmlHints> hints;
+        // What a text field remembers between updates.
+        struct Field {
+            // Texts the user typed that the app has not echoed back yet.
+            QStringList typed;
+            QString lastValue;
+            bool hasLastValue = false;
+            bool syncing = false;
+            bool autoFocused = false;
+            bool focusRequested = false;
+        } field;
         std::vector<std::unique_ptr<Node>> children;
     };
 
@@ -254,6 +269,8 @@ private:
     void applyIcon(Node &node);
     void applyControl(Node &node);
     void bindControl(Node &node);
+    void applyField(Node &node);
+    void syncFieldText(Node &node);
     void emitControl(const Node &node, const QString &event, const QVariant &value = QVariant());
     Node *controlNode(QObject *item) const;
     void applyScroll(Node &node);
@@ -287,6 +304,7 @@ private:
     std::unique_ptr<QQmlComponent> rectangle_;
     std::unique_ptr<QQmlComponent> text_;
     std::unique_ptr<QQmlComponent> contextTap_;
+    std::unique_ptr<QQmlComponent> fieldTap_;
     QQmlComponent *flickable_ = nullptr;
     QQmlComponent *clickableBox_ = nullptr;
     QQmlComponent *stateBox_ = nullptr;

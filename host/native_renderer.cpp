@@ -3,10 +3,13 @@
 #include <QColor>
 #include <QElapsedTimer>
 #include <QFont>
+#include <QGuiApplication>
+#include <QInputMethod>
 #include <QJSValue>
 #include <QJsonValue>
 #include <QQmlContext>
 #include <QQmlEngine>
+#include <QQmlListReference>
 #include <QQuickWindow>
 #include <QRegularExpression>
 #include <QScopeGuard>
@@ -424,6 +427,11 @@ const ControlSpec *controlSpec(const QString &type)
         return out;
     };
 
+    static const QSet<QString> fieldProps = set({ "value", "placeholder", "variant", "color", "textColor", "borderColor",
+                                                   "focusBorderColor", "radius", "password", "strike", "keyboardType",
+                                                   "autoFocus", "focus", "maxLength", "readOnly", "selectable", "lines", "multiline" });
+    static const QSet<QString> fieldEvents = set({ "input", "submit", "focus", "blur" });
+
     static const QHash<QString, ControlSpec> specs = {
         { QStringLiteral("button"),
           { set({ "label", "variant", "size", "color", "textColor", "radius", "icon", "iconPosition" }), set({ "click" }) } },
@@ -437,6 +445,8 @@ const ControlSpec *controlSpec(const QString &type)
         { QStringLiteral("spinner"), { set({ "size", "color", "thickness", "value" }), {} } },
         { QStringLiteral("badge"), { set({ "label", "count", "dot", "color", "textColor" }), {} } },
         { QStringLiteral("avatar"), { set({ "src", "name", "size", "radius", "status", "statusColor" }), {} } },
+        { QStringLiteral("textInput"), { fieldProps, fieldEvents } },
+        { QStringLiteral("textArea"), { fieldProps, fieldEvents } },
     };
 
     const auto found = specs.constFind(type);
@@ -909,6 +919,7 @@ void NativeRenderer::attach(QObject *root)
         { "button", "nativeButton" },   { "iconButton", "nativeIconButton" }, { "checkbox", "nativeCheckbox" },
         { "switch", "nativeSwitch" },   { "chip", "nativeChip" },             { "progress", "nativeProgress" },
         { "spinner", "nativeSpinner" }, { "badge", "nativeBadge" },           { "avatar", "nativeAvatar" },
+        { "textInput", "nativeTextField" }, { "textArea", "nativeTextArea" },
     };
 
     controls_.clear();
@@ -922,6 +933,8 @@ void NativeRenderer::attach(QObject *root)
     rectangle_->setData("import QtQuick; Rectangle {}", QUrl());
     text_ = std::make_unique<QQmlComponent>(engine);
     text_->setData("import QtQuick; Text {}", QUrl());
+    fieldTap_ = std::make_unique<QQmlComponent>(engine);
+    fieldTap_->setData("import QtQuick; TapHandler {}", QUrl());
 
     root->setProperty("nativeRenderer", QVariant::fromValue(static_cast<QObject *>(this)));
 
@@ -1770,6 +1783,8 @@ void NativeRenderer::sync(Node &node, const QJsonObject &json, bool withChildren
 
     if (changed)
         applyProps(node);
+    else if (node.kind == Kind::Control && (node.type == QLatin1String("textInput") || node.type == QLatin1String("textArea")))
+        syncFieldText(node);
 
     const bool hasMeta = node.kind == Kind::ClickableBox || node.kind == Kind::StateBox
         || (node.kind == Kind::Control && !node.json.value(QLatin1String("events")).toArray().isEmpty());
@@ -2044,6 +2059,85 @@ void NativeRenderer::bindControl(Node &node)
 
     if (node.type == QLatin1String("checkbox") || node.type == QLatin1String("switch"))
         connect(item, SIGNAL(toggled()), this, SLOT(controlToggled()));
+
+    if (node.type != QLatin1String("textInput") && node.type != QLatin1String("textArea"))
+        return;
+
+    connect(item, SIGNAL(textChanged()), this, SLOT(fieldTextChanged()));
+    connect(item, SIGNAL(activeFocusChanged(bool)), this, SLOT(fieldFocusChanged()));
+
+    if (node.type == QLatin1String("textInput"))
+        connect(item, SIGNAL(accepted()), this, SLOT(fieldAccepted()));
+    else
+        connect(item, SIGNAL(cursorRectangleChanged()), this, SLOT(fieldCursorMoved()));
+
+#ifdef Q_OS_ANDROID
+    // A tap alone does not always give the field the focus or raise the keyboard on a phone.
+    QObject *tap = fieldTap_->create(qmlContext(root_));
+
+    if (!tap)
+        return;
+
+    tap->setProperty("pulsarPath", node.path);
+    QQmlListReference(item, "data", qmlEngine(root_)).append(tap);
+    connect(tap, SIGNAL(tapped(QEventPoint, Qt::MouseButton)), this, SLOT(fieldTapped()));
+#endif
+}
+
+void NativeRenderer::fieldTextChanged()
+{
+    Node *node = controlNode(sender());
+
+    if (!node || node->field.syncing)
+        return;
+
+    const QString text = node->item->property("text").toString();
+
+    node->field.typed.append(text);
+
+    while (node->field.typed.size() > 64)
+        node->field.typed.removeFirst();
+
+    emitControl(*node, QStringLiteral("input"), text);
+}
+
+void NativeRenderer::fieldFocusChanged()
+{
+    Node *node = controlNode(sender());
+
+    if (!node)
+        return;
+
+    const bool focused = node->item->hasActiveFocus();
+
+    emitControl(*node, focused ? QStringLiteral("focus") : QStringLiteral("blur"));
+    QMetaObject::invokeMethod(root_, "nativeFieldFocus", Q_ARG(QVariant, itemArg(node->item)), Q_ARG(QVariant, focused));
+}
+
+void NativeRenderer::fieldAccepted()
+{
+    if (const Node *node = controlNode(sender()))
+        emitControl(*node, QStringLiteral("submit"), node->item->property("text"));
+}
+
+// A growing text area can push its cursor below the visible part of the page.
+void NativeRenderer::fieldCursorMoved()
+{
+    const Node *node = controlNode(sender());
+
+    if (node && node->item->hasActiveFocus())
+        QMetaObject::invokeMethod(root_, "revealCursor", Q_ARG(QVariant, itemArg(node->item)));
+}
+
+void NativeRenderer::fieldTapped()
+{
+    const Node *node = controlNode(sender());
+
+    if (!node)
+        return;
+
+    node->item->forceActiveFocus();
+    QGuiApplication::inputMethod()->show();
 }
 
 NativeRenderer::Node *NativeRenderer::controlNode(QObject *item) const
@@ -2078,6 +2172,119 @@ void NativeRenderer::controlToggled()
 {
     if (const Node *node = controlNode(sender()))
         emitControl(*node, QStringLiteral("toggle"), sender()->property("checked"));
+}
+
+// The same values the QML branch of textInput and textArea assigns.
+void NativeRenderer::applyField(Node &node)
+{
+    QQuickItem *item = node.item;
+    const QJsonObject &props = node.props;
+    const bool area = node.type == QLatin1String("textArea");
+    const bool outlined = textOf(props, "variant", QStringLiteral("filled")) == QLatin1String("outline");
+
+    const auto color = [&](const char *key, const QVariant &fallback) {
+        return resolveColor(props.value(QLatin1String(key)), fallback);
+    };
+
+    const auto paint = [](const QString &name) {
+        const QColor parsed(name);
+
+        return QVariant::fromValue(parsed.isValid() ? parsed : QColor());
+    };
+
+    const QString keyboard = textOf(props, "keyboardType", QStringLiteral("text"));
+
+    static const QHash<QString, int> hints = {
+        { QStringLiteral("email"), Qt::ImhEmailCharactersOnly },
+        { QStringLiteral("number"), Qt::ImhDigitsOnly },
+        { QStringLiteral("decimal"), Qt::ImhFormattedNumbersOnly },
+        { QStringLiteral("phone"), Qt::ImhDialableCharactersOnly },
+        { QStringLiteral("url"), Qt::ImhUrlCharactersOnly },
+        { QStringLiteral("search"), Qt::ImhNoPredictiveText },
+    };
+
+    item->setProperty("placeholderText", textOf(props, "placeholder"));
+    item->setProperty("readOnly", props.value(QLatin1String("readOnly")).toBool(false));
+    item->setProperty("outlined", outlined);
+    item->setProperty("fieldColor", outlined ? QVariant(QStringLiteral("transparent")) : QVariant(color("color", theme_.surfaceVariant)));
+    item->setProperty("fieldRadius", int(number(props, QLatin1String("radius"), 8)));
+    item->setProperty("fieldBorderColor", paint(color("borderColor", theme_.border)));
+    item->setProperty("fieldFocusColor", paint(color("focusBorderColor", theme_.primary)));
+    item->setProperty("color", paint(color("textColor", theme_.text)));
+    item->setProperty("maximumLength", props.contains(QLatin1String("maxLength")) ? props.value(QLatin1String("maxLength")).toInt() : 32767);
+
+    QFont font = item->property("font").value<QFont>();
+
+    font.setStrikeOut(props.value(QLatin1String("strike")).toBool(false));
+    item->setProperty("font", font);
+
+    if (props.contains(QLatin1String("selectable")))
+        item->setProperty("selectByMouse", props.value(QLatin1String("selectable")).toBool());
+
+    if (!area) {
+        const bool password = props.value(QLatin1String("password")).toBool(false);
+        const bool submits = node.json.value(QLatin1String("events")).toArray().contains(QStringLiteral("submit"));
+
+        item->setProperty("echoMode", password ? 2 : 0);
+        item->setProperty("inputMethodHints", hints.value(keyboard, int(Qt::ImhNone)));
+
+        // The attached EnterKey type has no public C++ class.
+        QQmlProperty(item, QStringLiteral("EnterKey.type"), qmlContext(root_)).write(submits ? int(Qt::EnterKeyDone) : int(Qt::EnterKeyDefault));
+    }
+
+    syncFieldText(node);
+
+    const bool focusWanted = props.value(QLatin1String("focus")).toBool(false);
+    const bool autoFocus = props.value(QLatin1String("autoFocus")).toBool(false);
+
+    // Both wait a turn: the field has no window to take the focus in until it is placed.
+    if (autoFocus && !node.field.autoFocused) {
+        node.field.autoFocused = true;
+
+        QTimer::singleShot(0, item, [item]() { item->forceActiveFocus(); });
+    }
+
+    if (focusWanted && !node.field.focusRequested) {
+        node.field.focusRequested = true;
+
+        QTimer::singleShot(0, item, [item]() {
+            item->forceActiveFocus();
+            QGuiApplication::inputMethod()->show();
+        });
+    }
+
+    if (!focusWanted)
+        node.field.focusRequested = false;
+
+    if (debugging())
+        qInfo().noquote() << "PulsarView" << node.type << node.path << "variant=" + QString(outlined ? "outline" : "filled")
+                          << "keyboard=" + keyboard << "password=" + QString::number(props.value(QLatin1String("password")).toBool(false))
+                          << "max=" + QString::number(item->property("maximumLength").toInt());
+}
+
+// A value the app echoes back while the user types does not replace the text; one it sets on its own does.
+void NativeRenderer::syncFieldText(Node &node)
+{
+    Node::Field &field = node.field;
+    const QString value = textOf(node.props, "value");
+    const qsizetype echo = field.typed.lastIndexOf(value);
+    const bool changed = !field.hasLastValue || value != field.lastValue;
+
+    field.lastValue = value;
+    field.hasLastValue = true;
+
+    if (echo >= 0)
+        field.typed = field.typed.mid(echo + 1);
+
+    if (node.item->hasActiveFocus() && (echo >= 0 || !changed))
+        return;
+
+    if (node.item->property("text").toString() == value)
+        return;
+
+    field.syncing = true;
+    node.item->setProperty("text", value);
+    field.syncing = false;
 }
 
 // The same values the QML branch of each type assigns, so the look stays the same.
@@ -2257,6 +2464,12 @@ void NativeRenderer::applyControl(Node &node)
                               << "color=" + color("color", theme_.primary)
                               << "value=" + QString::number(item->property("spinnerValue").toReal())
                               << "thickness=" + QString::number(item->property("thickness").toReal());
+
+        return;
+    }
+
+    if (type == QLatin1String("textInput") || type == QLatin1String("textArea")) {
+        applyField(node);
 
         return;
     }
@@ -2542,6 +2755,10 @@ NativeStack::Kid NativeRenderer::kidFor(const Node &parent, Node &child) const
     kid.preferredWidth = number(props, QLatin1String("width"), fallbackSize);
     kid.preferredHeight = number(props, QLatin1String("height"), fallbackSize);
 
+    // `lines` is the starting height; the area grows with its text so the cursor never drops below it.
+    if (child.type == QLatin1String("textArea") && props.contains(QLatin1String("lines")) && !props.contains(QLatin1String("height")))
+        kid.minHeight = number(props, QLatin1String("lines"), 0) * 24;
+
     if (child.type == QLatin1String("progress"))
         kid.preferredWidth = props.value(QLatin1String("expand")).toBool(false) ? -1 : number(props, QLatin1String("width"), 160);
 
@@ -2550,7 +2767,7 @@ NativeStack::Kid NativeRenderer::kidFor(const Node &parent, Node &child) const
         kid.preferredHeight = kid.preferredWidth;
     }
     kid.minWidth = number(props, QLatin1String("minWidth"), 0);
-    kid.minHeight = number(props, QLatin1String("minHeight"), 0);
+    kid.minHeight = number(props, QLatin1String("minHeight"), kid.minHeight);
     kid.maxWidth = number(props, QLatin1String("maxWidth"), kid.maxWidth);
     kid.maxHeight = number(props, QLatin1String("maxHeight"), kid.maxHeight);
 
