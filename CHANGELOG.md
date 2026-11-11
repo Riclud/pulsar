@@ -8,6 +8,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Noto Sans (a variable font with Latin, Cyrillic and Greek) is bundled and is the default UI
+  font, so apps look the same on every machine. Paper Mono stays bundled for code, and a theme's
+  `fontFamily` still overrides the default.
 - `pulsar dev` on the desktop answers the device commands too: `ui`, `state`, `tap`, `type`,
   `key`, `eval`, `shot` and the new `hover`, `scroll` and `keys`. Taps, hovers, wheel turns
   and keys reach the window as real input, so hover and press states behave as with a mouse.
@@ -40,6 +43,12 @@ All notable changes to this project are documented here. The format follows
   so QuickJS apps can derive keys from a password without a multi-second pause.
 - `biometric.seal` and `biometric.open` keep a secret behind the fingerprint on Android,
   in a Keystore key that a new enrolled fingerprint invalidates.
+
+### Changed
+
+- `Text` wraps at word boundaries by default, so a long text in a column no longer runs past the
+  window edge. `wrap: false` keeps one line, and `elide` alone also keeps one line (add `maxLines`
+  to wrap first).
 
 ### Fixed
 

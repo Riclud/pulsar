@@ -267,7 +267,10 @@ Text({
   `bold` or a number.
 - `markdown: true` renders Markdown instead of plain text.
 - `elide` cuts overflow at `left`, `right`, `middle` or `true` (right).
-- `wrap: false` keeps a single line; `maxLines` limits wrapped lines.
+- Text wraps at word boundaries by default. In a column it gets at most the width it is
+  given and grows in height; in a row it shares the width the other children leave. `wrap: false`
+  keeps a single line. `elide` without `wrap` also keeps one line; add `maxLines` to wrap up to
+  that many lines before the cut. `maxLines` limits wrapped lines.
 - `selectable` lets the user copy the text.
 
 ### Image and Icon
