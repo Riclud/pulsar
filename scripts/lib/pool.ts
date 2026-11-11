@@ -1,12 +1,18 @@
 import { availableParallelism } from "os"
+import { TEST_BYTES_PER_JOB, availableMemory, jobCount } from "../../cli/jobs.ts"
 
-/** Worker count for parallel test steps: PULSAR_TEST_JOBS, else half the cores. 1 means strictly serial. */
+/**
+ * Worker count for parallel test steps: PULSAR_TEST_JOBS, else half the cores, and at most one job per
+ * 2.5 GB of available RAM. 1 means strictly serial.
+ */
 export const testJobs = (): number => {
-  const fromEnv = Number(process.env.PULSAR_TEST_JOBS)
-
-  if (Number.isInteger(fromEnv) && fromEnv >= 1) return fromEnv
-
-  return Math.max(1, Math.floor(availableParallelism() / 2))
+  return jobCount({
+    cores: availableParallelism(),
+    coreShare: 0.5,
+    memory: availableMemory(),
+    bytesPerJob: TEST_BYTES_PER_JOB,
+    override: process.env.PULSAR_TEST_JOBS,
+  })
 }
 
 /** Runs the tasks with at most `limit` in flight. Results keep the input order. */

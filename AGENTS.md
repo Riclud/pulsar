@@ -7,6 +7,7 @@ Pulsar builds native desktop and Android apps from TypeScript, drawn by Qt. Code
 - First time: `bun install`, then `bun run setup` (cmake configure into `build/`, Unix Makefiles; do not change that generator).
 - Rebuild: `bun run build` (Release). Tests rebuild what they need on their own.
 - ccache is used automatically when installed (CMakeLists.txt); nothing to configure.
+- Parallel compile jobs (`bun run build`, the test runner, `pulsar build --target android`) follow the cores and the available memory, about 1.5 GB per job (`cli/jobs.ts`). `PULSAR_BUILD_JOBS=n` overrides it. A machine without swap can freeze under heavy parallel builds: enable swap (zram is enough) or lower the count.
 
 ## Quick check after each step
 
@@ -30,7 +31,7 @@ Type and style: `bun run typecheck`, `bun run lint`, `bun run fmt:check`.
 
 `bun run test` builds once, then runs unit, portable, embedded, embedded-qml, regressions, error-overlay and smoke concurrently and prints a summary. Run it once at the end of a batch of changes and before every push, not after each edit.
 
-- `PULSAR_TEST_JOBS=n` sets the parallelism of the runner, regressions and smoke (default: half the cores). `PULSAR_TEST_JOBS=1` is the old strictly serial run; use it to tell a real failure from a load-related one.
+- `PULSAR_TEST_JOBS=n` sets the parallelism of the runner, regressions and smoke (default: half the cores, and at most one job per 2.5 GB of available RAM). `PULSAR_TEST_JOBS=1` is the old strictly serial run; use it to tell a real failure from a load-related one.
 - Timing-sensitive regression scenarios (`serial: true` in `scripts/embedded-regressions.ts`) run one at a time in their own lane.
 - `PULSAR_TEST_PREBUILT=1` makes the scripts skip their own cmake build (the runner sets it).
 

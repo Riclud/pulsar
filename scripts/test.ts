@@ -5,6 +5,7 @@
 import { resolve } from "path"
 import { runPool, testJobs } from "./lib/pool.ts"
 import { suites, type Suite } from "./lib/suites.ts"
+import { cmakeParallel } from "../cli/jobs.ts"
 
 type Result = {
   name: string
@@ -17,7 +18,7 @@ const root = resolve(import.meta.dir, "..")
 const buildNative = async (): Promise<boolean> => {
   const steps = [
     ["cmake", "-S", ".", "-B", "build", "-DCMAKE_BUILD_TYPE=Release"],
-    ["cmake", "--build", "build", "--target", "all", "qjs-runtime", "qml-host-qjs", "qml-host", "bridge"],
+    ["cmake", "--build", "build", "--target", "all", "qjs-runtime", "qml-host-qjs", "qml-host", "bridge", ...cmakeParallel()],
   ]
 
   for (const cmd of steps) {

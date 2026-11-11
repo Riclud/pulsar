@@ -6,6 +6,7 @@ import { tmpdir } from "os"
 import { AsyncLocalStorage } from "async_hooks"
 import { basename, join, resolve } from "path"
 import { prebuilt, runPool, testJobs } from "./lib/pool.ts"
+import { cmakeParallel } from "../cli/jobs.ts"
 
 const root = resolve(import.meta.dir, "..")
 const host = join(root, "build", "bin", process.platform === "win32" ? "qml-host.exe" : "qml-host")
@@ -23,7 +24,7 @@ if (!prebuilt()) {
   }
 
   const build = Bun.spawnSync({
-    cmd: ["cmake", "--build", "build"],
+    cmd: ["cmake", "--build", "build", ...cmakeParallel()],
     cwd: root,
     stdio: ["inherit", "inherit", "inherit"],
   })

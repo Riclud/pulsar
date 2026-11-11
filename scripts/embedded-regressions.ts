@@ -6,6 +6,7 @@ import { bundleRuntime } from "../cli/android.ts"
 import { startDrive, type DriveStep } from "./lib/devdrive.ts"
 import { edgeProblem, inertiaProblem } from "./lib/inertia-checks.ts"
 import { prebuilt, runPool, testJobs } from "./lib/pool.ts"
+import { cmakeParallel } from "../cli/jobs.ts"
 
 type Scenario = {
   name: string
@@ -1154,7 +1155,7 @@ const buildHost = () => {
   if (prebuilt()) return existsSync(binary)
 
   const build = Bun.spawnSync({
-    cmd: ["cmake", "--build", "build", "--target", "qml-host-qjs", "qml-host", "bridge"],
+    cmd: ["cmake", "--build", "build", "--target", "qml-host-qjs", "qml-host", "bridge", ...cmakeParallel()],
     cwd: root,
     stdio: ["ignore", "ignore", "inherit"],
   })

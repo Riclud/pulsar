@@ -5,6 +5,7 @@ import { tmpdir } from "os"
 import { join, resolve } from "path"
 import { prebuilt } from "./lib/pool.ts"
 import { parseInlineSourceMap } from "../cli/sourcemap.ts"
+import { cmakeParallel } from "../cli/jobs.ts"
 
 const root = resolve(import.meta.dir, "..")
 const binary = join(root, "build", "bin", process.platform === "win32" ? "qml-host-qjs.exe" : "qml-host-qjs")
@@ -12,7 +13,7 @@ const binary = join(root, "build", "bin", process.platform === "win32" ? "qml-ho
 const build = prebuilt()
   ? { exitCode: 0 }
   : Bun.spawnSync({
-      cmd: ["cmake", "--build", "build", "--target", "qml-host-qjs"],
+      cmd: ["cmake", "--build", "build", "--target", "qml-host-qjs", ...cmakeParallel()],
       cwd: root,
       stdio: ["ignore", "ignore", "inherit"],
     })

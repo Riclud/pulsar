@@ -1521,6 +1521,17 @@ configure, compile, package). The tools' own output is kept quiet; when a stage 
 the last lines of it are shown. Add `--verbose` (or set `PULSAR_VERBOSE=1`) to stream
 everything. `pulsar help` lists the environment variables the CLI reads.
 
+### Memory and parallel builds
+
+C++ compile jobs need about 1.5 GB of RAM each. The Android build and the builds started by
+`bun run build` and the test runner pick their job count from the cores and the memory that
+is available, one job per 1.5 GB at most. Set `PULSAR_BUILD_JOBS=n` to choose it yourself.
+The test runner runs at most one parallel job per 2.5 GB of available RAM (and half the
+cores); `PULSAR_TEST_JOBS=n` overrides it.
+
+A machine with little RAM and no swap can freeze, not just slow down, under a heavy
+parallel build. Enable swap (zram is enough) or lower the job count.
+
 Qt is located with CMake's `find_package(Qt6)`, so pass `-DCMAKE_PREFIX_PATH=<qt>`
 if it is not in a standard location. `PULSAR_QMAKE` still selects the `qmake`
 used when packaging (`pulsar build` bundles Qt).

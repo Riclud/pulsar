@@ -7,7 +7,7 @@
   "private": true,
   "scripts": {
     "cli": "bun cli/index.ts",
-    "build": "cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build",
+    "build": "bun scripts/build.ts",
     "run": "cmake --build build && ./build/bin/qml-host",
     "start": "bun --filter hello start",
     "editor-config": "cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && ln -sf build/compile_commands.json compile_commands.json",

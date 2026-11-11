@@ -10,6 +10,7 @@ import { cliVersion, platformId, pulsarHome, pulsarRoot, releaseUrl } from "./co
 import { createIgnoreFilter } from "./ignore.ts"
 import { runStage } from "./stage.ts"
 import { ui } from "./ui.ts"
+import { cmakeParallel } from "./jobs.ts"
 
 export const ANDROID_QT_VERSION = "6.9.3"
 export const ANDROID_ABI = "arm64-v8a"
@@ -834,7 +835,7 @@ export const buildAndroid = async (options: AndroidBuildOptions): Promise<string
   const compile = await runStage(
     "compile and package the APK",
     "cmake",
-    ["--build", buildDir, "--target", "pulsar-android_make_apk", "--parallel", "6"],
+    ["--build", buildDir, "--target", "pulsar-android_make_apk", ...cmakeParallel()],
     { env },
   )
 
