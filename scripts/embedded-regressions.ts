@@ -1029,6 +1029,25 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "scroll-hidden-wheel",
+    fixture: "scroll-hidden-wheel",
+    serial: true,
+    quickjsDesktop: true,
+    env: { AUTO_QUIT_MS: "2600" },
+    // The wheel moves the scroll through the host's inertia, as a mouse does.
+    drive: [
+      ...[400, 450, 500, 550, 600].map((at) => ({ at, cmd: { cmd: "wheel", dy: 120, x: 50, y: 120 } })),
+      { at: 1900, cmd: { cmd: "pointer", action: "click", x: 50, y: 120 } },
+    ],
+    check: (output) => {
+      const clicked = output.match(/CLICK (\d+)/)
+
+      // A screen hidden for a while (a kept-alive one under another) comes back scrolled as it was, so the
+      // row under the pointer is far from the top; a view clamped to the top would hit row 2.
+      return clicked !== null && Number(clicked[1]) >= 5
+    },
+  },
+  {
     name: "virtual-rows",
     serial: true,
     env: { AUTO_QUIT_MS: "2200" },
