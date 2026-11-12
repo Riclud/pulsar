@@ -176,6 +176,19 @@ const Editor = component(() => {
   - navigation: `createRouter`;
   - forms: `validate`, `required` and the other rules.
 
+## Design
+
+Screens written straight from primitives look raw. For anything people will look at, add the UI kit (`bun add @pulsar-workshop/ui-kit`, README at https://github.com/pulsar-workshop/ui-kit) and compose screens from it: `Screen`, `Section`, `Panel`, `ListGroup` and `ListRow`, `SettingsRow`, `ActionButton`, `IconTile`, `Tabs` or `Segmented`, `Chip`, `SearchField`, `EmptyState`, `BottomSheet`, `ConfirmDialog`, `createToaster`, `TextField`. Where a name also exists in `pulsar`, import the kit's. Call `applyTheme({ mode })` once, read colours with `colors()` inside render, and use the kit's `space` and `type` tokens instead of raw numbers and hex.
+
+- One primary button per screen; the accent marks the primary action and the selected item only.
+- Selection is a soft fill, never a bright border. Tabs are an underline, a segmented control is a pill, never both.
+- Spacing is 4, 8, 12, 16, 24 or 32: a 16 px gutter, 24 px between sections.
+- Icons use the text colour (muted inside rows), never faint grey. Text keeps 4.5:1 contrast in both themes.
+- Flat look: hairline borders, no gradients, glow or heavy shadows.
+- Label icon-only buttons, name the action on confirm buttons ("Delete"), and give row titles `maxLines: 1`.
+
+After each screen, take `pulsar shot` at about 400x860 and 1100x750 (window size in `pulsar.json`), in dark and light, and check margins, accent use, icon visibility, overflow, and the empty, error and long-text states.
+
 ## See and test the app
 
 If a `pulsar` MCP server is connected, use it:
