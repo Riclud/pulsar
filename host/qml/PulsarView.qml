@@ -2582,6 +2582,32 @@ ApplicationWindow {
         });
     }
 
+    // The view moved to the end of content that got shorter than the position kept for it.
+    function isScrollClamp(item) {
+        const saved = view.scrollPositions[item.pulsarMeta.extra.scrollKey];
+        const maxY = Math.max(0, item.contentHeight - item.height);
+
+        return saved !== undefined && saved > maxY + 1 && Math.abs(item.contentY - maxY) < 1;
+    }
+
+    // Just after the screen is shown its content is laid out again; moves before it has the old height are not the user's.
+    function isScrollSettling(item) {
+        const extra = item.pulsarMeta.extra;
+
+        return extra.pendingScroll !== undefined && Date.now() < (extra.settleUntil || 0)
+                && Math.abs(item.contentY - extra.pendingScroll) > 1 && !item.moving && !item.dragging;
+    }
+
+    function logScroll(label, item) {
+        if (!view.debugging)
+            return;
+
+        const extra = item.pulsarMeta.extra;
+
+        console.log("PulsarView scroll " + label + " " + extra.scrollKey + " saved=" + Math.round(view.scrollPositions[extra.scrollKey] || 0)
+                    + " y=" + Math.round(item.contentY) + " content=" + Math.round(item.contentHeight));
+    }
+
     function applyPendingScroll(list) {
         const extra = list.pulsarMeta.extra;
         const pending = extra.pendingScroll;
@@ -2592,6 +2618,8 @@ ApplicationWindow {
         extra.restoringScroll = true;
         list.contentY = Math.min(pending, Math.max(0, list.contentHeight - list.height));
         extra.restoringScroll = false;
+
+        view.logScroll("restored", list);
     }
 
     function setupScrollMemory(item, node) {
@@ -2608,15 +2636,24 @@ ApplicationWindow {
             if (!item.visible)
                 return;
 
+            // The same clamp can land after the screen is shown again, while its content is still being laid out.
+            if (view.isScrollClamp(item) || view.isScrollSettling(item))
+                return;
+
             extra.pendingScroll = undefined;
             view.scrollPositions[extra.scrollKey] = item.contentY;
         });
 
         item.visibleChanged.connect(function () {
-            if (!item.visible)
+            if (!item.visible) {
+                view.logScroll("hidden", item);
+
                 return;
+            }
 
             extra.pendingScroll = view.scrollPositions[extra.scrollKey];
+            extra.settleUntil = Date.now() + 1500;
+            view.logScroll("shown", item);
             view.applyPendingScroll(item);
         });
 
