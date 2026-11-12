@@ -439,6 +439,23 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "mouse-back",
+    quickjsDesktop: true,
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "2200" },
+    drive: [
+      { at: 800, cmd: { cmd: "pointer", action: "press", button: "back", x: 50, y: 20 } },
+      { at: 1000, cmd: { cmd: "pointer", action: "release", button: "back", x: 50, y: 20 } },
+      { at: 1200, cmd: { cmd: "pointer", action: "click", button: "back", x: 50, y: 20 } },
+      { at: 1600, cmd: { cmd: "pointer", action: "click", x: 50, y: 20 } },
+    ],
+    check: (output) => {
+      const backs = output.split("\n").filter((line) => line.includes("BACK pressed"))
+
+      // Each back press raises the event once, and the button never clicks the card under it.
+      return backs.length === 2 && output.split("\n").filter((line) => line.includes("CLICK b")).length === 1
+    },
+  },
+  {
     name: "box-scroll-hover",
     quickjsDesktop: true,
     env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "3000" },

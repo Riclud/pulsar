@@ -52,6 +52,7 @@
 #include <utility>
 #include <thread>
 
+#include "mouseback.h"
 #include "native_renderer.h"
 #include "startup_trace.h"
 #include "shortcuts.h"
@@ -1595,6 +1596,16 @@ int main(int argc, char **argv)
 
     gWatch = watchMode();
     gBridge = bridge;
+
+    new pulsar::MouseBackFilter(
+        [bridge]() {
+            QJsonObject params;
+
+            params.insert(QStringLiteral("name"), QStringLiteral("back-pressed"));
+            params.insert(QStringLiteral("data"), QJsonObject());
+            bridge->notify(QStringLiteral("__event"), params);
+        },
+        &app);
 
     // `pulsar dev` passes a control URL so `pulsar ui`, `tap`, `hover` and the MCP
     // server can drive the window with real input.

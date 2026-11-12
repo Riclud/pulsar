@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- On the desktop the mouse back side button raises `back-pressed`, as Android Back does, and
+  does not click anything. The dev channel `pointer` command takes `button: "back"`.
+- `back-pressed` with no listener quits only on Android; the desktop ignores it.
+
 ## [2.2.0] - 2026-11-12
 
 ### Added

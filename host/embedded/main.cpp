@@ -1,5 +1,6 @@
 #include "bridge.h"
 #include "manifest_env.h"
+#include "mouseback.h"
 #include "net.h"
 #include "native_renderer.h"
 #include "shortcuts.h"
@@ -758,6 +759,8 @@ int main(int argc, char **argv)
     });
 
     qInfo().noquote() << "pulsar: app dir" << dir;
+
+    new pulsar::MouseBackFilter([&bridge] { bridge.notify(QStringLiteral("back-pressed"), QJsonObject()); }, &app);
 
 #ifdef Q_OS_ANDROID
     auto *backHandler = new BackHandler(&bridge);

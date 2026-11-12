@@ -616,9 +616,10 @@ void DevChannel::handlePointer(const QJsonValue &request, const QJsonObject &com
 
     QQuickWindow *window = view;
     const QString action = command.value(QStringLiteral("action")).toString(QStringLiteral("click"));
-    const Qt::MouseButton button = command.value(QStringLiteral("button")).toString() == QLatin1String("right")
-                                       ? Qt::RightButton
-                                       : Qt::LeftButton;
+    const QString buttonName = command.value(QStringLiteral("button")).toString();
+    const Qt::MouseButton button = buttonName == QLatin1String("right")  ? Qt::RightButton
+                                   : buttonName == QLatin1String("back") ? Qt::BackButton
+                                                                         : Qt::LeftButton;
 
     if (action == QLatin1String("leave")) {
         QEvent leave(QEvent::Leave);

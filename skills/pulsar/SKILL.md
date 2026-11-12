@@ -158,7 +158,7 @@ const Editor = component(() => {
   - events: `app.on(event, fn)`;
   - also `app.setMenu` (macOS menu bar), `app.quit()` and `app.run()`.
 - **Events:**
-  - lifecycle: `back-pressed`, `app-pause`, `app-resume`;
+  - lifecycle: `back-pressed` (Android Back and the mouse back side button on the desktop), `app-pause`, `app-resume`;
   - system: `theme-changed`, `power-resume`, `open-file`, `open-url`;
   - notifications: `notification-click`, `notification-action`;
   - windows: `window-resize`, `window-close` and others.
