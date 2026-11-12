@@ -1437,6 +1437,9 @@ void NativeRenderer::replaceNode(Node &node, const QJsonObject &json)
     refreshKids(*parent);
 }
 
+// wrap and image stay islands. A native wrap needs a flow mode in NativeStack that measures its kids the way
+// QML's Flow does (implicit sizes, caps, spacing on both axes), and a native image has to reproduce the
+// async sized loading, the source size and the click surface of the QML one; neither is exact yet.
 NativeRenderer::Kind NativeRenderer::kindFor(const QJsonObject &json, bool insideScroll) const
 {
     const QString type = json.value(QLatin1String("type")).toString();
