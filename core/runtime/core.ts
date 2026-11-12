@@ -447,7 +447,8 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
       if (params.name === "fs-change") fsWatchInternals.notify(String(params.data?.path ?? ""))
 
       if (params.name === "back-pressed" && !App.current?.hasEvent("back-pressed")) {
-        send({ jsonrpc: "2.0", method: "__quit" })
+        // A stray mouse back button must not close a desktop app.
+        if (platform.kind === "mobile") send({ jsonrpc: "2.0", method: "__quit" })
 
         return
       }

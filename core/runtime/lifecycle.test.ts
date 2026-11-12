@@ -12,10 +12,10 @@ const paths = (): AppPaths => ({
   home: "/tmp",
 })
 
-const testPlatform = (): Platform => ({
+const testPlatform = (kind: Platform["kind"] = "desktop"): Platform => ({
   name: "test",
-  kind: "desktop",
-  os: "linux",
+  kind,
+  os: kind === "mobile" ? "android" : "linux",
 
   env: () => undefined,
   cwd: () => "/tmp",
@@ -39,7 +39,7 @@ const testPlatform = (): Platform => ({
   openUrl: () => Promise.resolve(true),
 })
 
-const harness = () => {
+const harness = (kind: Platform["kind"] = "desktop") => {
   const sent: { method?: string }[] = []
   let deliver: ((message: unknown) => void) | null = null
 
@@ -60,7 +60,7 @@ const harness = () => {
 
   const runtime = createRuntime({
     transport,
-    platform: testPlatform(),
+    platform: testPlatform(kind),
     manifest: { id: "test", windows: [] },
     info: { name: "test", version: "1.0.0" },
   })
@@ -146,8 +146,8 @@ describe("fs.watch", () => {
 })
 
 describe("lifecycle events", () => {
-  test("back without a handler quits the app", async () => {
-    const app = harness()
+  test("back without a handler quits a mobile app", async () => {
+    const app = harness("mobile")
 
     new App()
 
@@ -155,6 +155,17 @@ describe("lifecycle events", () => {
     await flush()
 
     expect(app.sent.some((message) => message.method === "__quit")).toBe(true)
+  })
+
+  test("back without a handler does nothing on the desktop", async () => {
+    const app = harness()
+
+    new App()
+
+    app.deliver(event("back-pressed"))
+    await flush()
+
+    expect(app.sent.some((message) => message.method === "__quit")).toBe(false)
   })
 
   test("back with a handler is delivered instead of quitting", async () => {

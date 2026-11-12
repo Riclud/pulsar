@@ -653,7 +653,7 @@ app.on("window-all-closed", () => app.quit())
 app.on("app-pause", (params) => saveDraft(params.state)) // "inactive" | "suspended"
 app.on("app-resume", () => refresh())
 app.on("app-stop", () => {}) // ушли в фон; Android может убить процесс
-app.on("back-pressed", () => closeDialog()) // без слушателя back закрывает приложение
+app.on("back-pressed", () => closeDialog()) // Back на Android или боковая кнопка мыши; без слушателя Android закрывает приложение, desktop игнорирует
 ```
 
 `app-pause` со `state: "inactive"` приходит и на диалоги и шторку уведомлений,

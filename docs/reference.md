@@ -650,7 +650,7 @@ On Android the app also receives foreground and back-button events:
 app.on("app-pause", (params) => saveDraft(params.state)) // "inactive" | "suspended"
 app.on("app-resume", () => refresh())
 app.on("app-stop", () => {}) // went to background; Android may kill the process
-app.on("back-pressed", () => closeDialog()) // no listener: back quits the app
+app.on("back-pressed", () => closeDialog()) // Android Back or the mouse back button; no listener: Android quits, the desktop ignores it
 ```
 
 `app-pause` with `state: "inactive"` also fires for dialogs and the notification
