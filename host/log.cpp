@@ -2,6 +2,8 @@
 
 #include <QFile>
 #include <QIODevice>
+#include <QMutex>
+#include <QMutexLocker>
 #include <QByteArray>
 
 #include <cstdio>
@@ -21,6 +23,8 @@ namespace pulsar {
 namespace {
 
 QFile *gLogFile = nullptr;
+// The JS runtime thread logs next to the GUI thread; QFile and its buffer are not safe for that.
+QMutex gLogMutex;
 bool gColor = true;
 pulsar::LogSink gSink;
 
@@ -57,8 +61,9 @@ void messageHandler(QtMsgType type, const QMessageLogContext &ctx, const QString
         gSink(levelName(type), message, file, ctx.line);
 
     if (gLogFile) {
-        gLogFile->write(message.toUtf8());
-        gLogFile->write("\n");
+        const QMutexLocker lock(&gLogMutex);
+
+        gLogFile->write(message.toUtf8() + "\n");
         gLogFile->flush();
         return;
     }
