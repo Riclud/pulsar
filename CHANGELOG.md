@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.2.0] - Unreleased
 
 ### Added
 
@@ -30,6 +30,67 @@ All notable changes to this project are documented here. The format follows
 - `env` in `pulsar.json` sets environment variables in every host before Qt reads them; a
   variable already set in the environment wins. `pulsar.json` is checked for a bad `env` or
   `video`.
+- A C++ renderer draws JS-built trees on every host. `Column`, `Row`, `Scroll`, `For`, `Box`,
+  `Card`, `Stack`, `Spacer`, `Text`, `Icon`, `Button`, `IconButton`, `Checkbox`, `Switch`, `Chip`,
+  `Divider`, `Progress`, `Spinner`, `Badge`, `Avatar`, `Input` and `TextArea` become Qt Quick items
+  directly; nodes with props or events it does not know, and `Wrap` and `Image`, are drawn by QML
+  as islands inside the native tree. The app's script runs on its own thread (QuickJS).
+  `PULSAR_FRAME_TRACE=1` logs GUI-thread stalls, and `pulsar perf` records frame pacing under timed
+  input.
+- `For({ memo: true })` reuses a row's node while its item is unchanged, and keyed lists send
+  insert, remove and move patches instead of the whole list.
+- `scrollTo`, `scrollToStart` and `scrollToEnd` on a controller from `createScrollController()`,
+  and `scrollKey` to send a reused screen back to the top.
+- `VirtualList({ items, render, rowHeight })` draws your own rows and builds only the ones near
+  the viewport.
+- `onVisible`, `onEnterViewport` and `onLeaveViewport` on any node.
+- `Video`, a native video node for the desktop (`source`, `muted`, `loop`, `autoplay`, `paused`,
+  `fillMode`).
+- `shortcuts` registers window-level keyboard shortcuts on the desktop.
+- `onContextMenu` fires on a right click or a long press, and `onDropFiles` on files dragged onto
+  a node from the file manager.
+- In `pulsar dev` a component warns once about a prop it does not know, and the dev bundle is
+  marked so release builds stay quiet. On Android `pulsar dev` shows the app's console output.
+- `net.download` can be cancelled, and `net` errors say what failed.
+- `pulsar build` shows its stages and the tail of a failing tool's output; `pulsar create .`
+  names the app after its folder; the CLI help lists the environment variables, `PULSAR_SOURCE`
+  among them.
+- Android APKs carry OpenSSL 3 (3.1.8 from KDAB's android_openssl, pinned by SHA-256), so
+  `net.fetch` and `net.websocket` can open HTTPS. See `THIRD_PARTY_NOTICES.md`.
+- Build jobs follow the cores and the available memory (about 1.5 GB per job) for
+  `bun run build`, the test runner and the Android build; `PULSAR_BUILD_JOBS=n` overrides it.
+- A test runner: `bun run test` builds once and runs every suite concurrently, `bun run
+  test:changed` runs only the suites the changed files affect, and `PULSAR_TEST_JOBS=n` sets the
+  parallelism. `AGENTS.md` describes the workflow for coding agents.
+
+### Changed
+
+- `Text` wraps at word boundaries by default, so a long text in a column no longer runs past the
+  window edge. `wrap: false` keeps one line, and `elide` alone also keeps one line (add `maxLines`
+  to wrap first).
+- The default UI font is Noto Sans (see above) and the default corner radius is 12 px, so apps
+  that relied on the system font or the old radius look different.
+- An explicit `width` or `height` beats the default fill of a type, and `Tabs` sizes to its
+  content instead of filling the column.
+- Wheel and touchpad scrolling run in C++ (a critically damped spring) and switch hover off while
+  a list scrolls.
+- Sized images load off the GUI thread at their display size.
+- A list update touches only the rows that changed: with 1000 keyed rows on QuickJS, changing one
+  row in a component costs about 4.5 ms instead of 22 ms. Startup builds the system font
+  database on a thread, which brings the first frame about 15 ms sooner.
+
+### Fixed
+
+- `Checkbox` and `Switch` toggles always reported `false`; they now carry the new state, and a
+  selected outline `Chip` keeps the colour the app gave it.
+- A column or row in a scroll that holds wrapping text takes the scroll's width, and a form that
+  starts with a text field no longer forces the whole scroll to QML.
+- On Android a focused field stays above the keyboard.
+- Native rows and columns mirror in right-to-left layouts, and a column's gap follows a child's
+  enter and exit height.
+- A `Qml` node no longer reloads on every update, `pulsarEmit` is optional in it, and players of
+  removed `Qml` items stop.
+- The host's log file is locked, so lines from the script and GUI threads no longer garble.
 
 ## [2.1.0] - 2026-11-07
 
@@ -43,12 +104,6 @@ All notable changes to this project are documented here. The format follows
   so QuickJS apps can derive keys from a password without a multi-second pause.
 - `biometric.seal` and `biometric.open` keep a secret behind the fingerprint on Android,
   in a Keystore key that a new enrolled fingerprint invalidates.
-
-### Changed
-
-- `Text` wraps at word boundaries by default, so a long text in a column no longer runs past the
-  window edge. `wrap: false` keeps one line, and `elide` alone also keeps one line (add `maxLines`
-  to wrap first).
 
 ### Fixed
 

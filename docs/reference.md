@@ -238,6 +238,13 @@ tools. The result is `dist/<name>.apk` for `arm64-v8a` (minSdk 28, targetSdk
 35). `pulsar install --android` performs the same setup without building, and
 `pulsar check --target android` rejects `node:`/`bun:` imports before packaging.
 
+#### HTTPS on Android
+
+Qt's TLS backend on Android needs OpenSSL 3, so every APK carries `libssl_3.so` and
+`libcrypto_3.so` (OpenSSL 3.1.8 from KDAB's android_openssl, pinned by commit and SHA-256 in
+the CLI). Without them `net.fetch` and `net.websocket` cannot open HTTPS. The notice is in
+[`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).
+
 #### Video on Android
 
 An app with `"video": true`, or one that uses `media`, `MediaPlayer`, `VideoOutput` or `Video`,
@@ -1254,6 +1261,18 @@ scroll and input state survive a re-render.
 - `For({ each, keyOf, render })` builds a scrollable list and keeps rows stable by key.
   It scrolls by itself and fills the free height. Inside `Page` or `Scroll` it grows
   with its rows instead, and the outer area scrolls.
+- `For({ ..., memo: true })` keeps a row's node while its item is the same object (and, if
+  `render` reads the index, its index), so a change to one row in a long list does not
+  rebuild the others. Give `keyOf`, or an `ID`/`id` field, so rows keep their identity.
+  The host receives patches for what changed: a keyed list that gains, loses or reorders
+  rows sends insert, remove and move operations instead of the whole list.
+- `Page`, `Scroll` and a top-level `For` take `scrollKey`: when the value changes, the scroll
+  returns to the top, for a screen that is reused for new content.
+- `Text` wraps at word boundaries by default; `wrap: false` keeps one line, and `elide` alone
+  also keeps one line (add `maxLines` to wrap first). The UI font is the bundled Noto Sans,
+  and a theme's `fontFamily` overrides it.
+- In `pulsar dev` a component that gets a prop it does not know logs one warning per type and
+  prop (for example `Badge` takes `label` or `count`, not `text`). Release builds stay quiet.
 - `Sheet` is an in-tree overlay, so it behaves the same on desktop and
   Android. It fades in and out (opacity only, `duration` in ms), swallows taps
   inside the panel, and does not close from the gesture that opened it. Pass
@@ -1610,10 +1629,32 @@ install.sh, install.ps1   bootstrap installers
 ## Testing
 
 ```sh
-bun run test        # unit tests + headless smoke test
+bun run test:changed   # only the suites the changed files affect (--dry-run shows them)
+bun run test           # builds once, then runs every suite concurrently and prints a summary
 bun run typecheck
+bun run lint
 bun run fmt:check
 ```
+
+`bun run test` runs unit, portable, embedded, embedded-qml, regressions, error-overlay and
+smoke. `PULSAR_TEST_JOBS=n` sets the parallelism (default: half the cores, at most one job
+per 2.5 GB of available RAM); `PULSAR_TEST_JOBS=1` runs strictly serially, which tells a
+real failure from a load-related one. `bun scripts/test.ts regressions smoke` runs chosen
+suites and `bun scripts/embedded-regressions.ts <scenario>` one scenario. The hosts run
+offscreen with `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software`.
+
+## How the window is drawn
+
+A JS-built tree is drawn by a C++ renderer (`host/native_renderer.cpp`), the only path for
+trees on every host. It creates and updates Qt Quick items directly for `Column`, `Row`,
+`Scroll`, `For`, `Box`, `Card`, `Stack`, `Spacer`, `Text`, `Icon`, `Button`, `IconButton`,
+`Checkbox`, `Switch`, `Chip`, `Divider`, `Progress`, `Spinner`, `Badge`, `Avatar`, `Input`
+and `TextArea`, with padding, flex, alignment and keyed child edits. A node with a prop or an
+event the C++ side does not know (for example `tooltip`, `a11y*`, `elevation`, `motion`), and
+types such as `Wrap` and `Image`, are drawn by QML (`PulsarView.qml`) as an island inside the
+native tree, so output does not depend on which path drew a node. The app's script runs on its
+own thread (QuickJS), and `PULSAR_FRAME_TRACE=1` logs GUI-thread stalls. `pulsar perf`
+records frame pacing under timed input.
 
 ## License
 
