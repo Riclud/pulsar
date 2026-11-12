@@ -5093,8 +5093,6 @@ ApplicationWindow {
 
         const visibleHeight = flick.height - view.keyboardCovered(flick);
 
-        console.log("DBGREV span top=" + top + " bottom=" + bottom + " vis=" + visibleHeight + " cy=" + flick.contentY + " fh=" + flick.height + " ch=" + flick.contentHeight + " bm=" + flick.bottomMargin + " kt=" + view.keyboardTop() + " vh=" + view.height);
-
         if (top >= margin && bottom + margin <= visibleHeight)
             return;
 
@@ -5130,7 +5128,6 @@ ApplicationWindow {
     }
 
     function releaseKeyboardInset() {
-        console.log("DBGREV release");
         for (const key in view.keyboardFlicks) {
             const flick = view.keyboardFlicks[key];
 
@@ -5493,7 +5490,6 @@ ApplicationWindow {
         target: Qt.inputMethod
 
         function onKeyboardRectangleChanged() {
-            console.log("DBGREV rect " + Qt.inputMethod.keyboardRectangle + " vis=" + Qt.inputMethod.visible);
             const flick = view.scrollAncestor(view.revealTarget);
 
             if (flick)
@@ -5501,7 +5497,6 @@ ApplicationWindow {
         }
 
         function onVisibleChanged() {
-            console.log("DBGREV visible " + Qt.inputMethod.visible);
             if (Qt.platform.os !== "android")
                 return;
 
