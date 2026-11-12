@@ -305,6 +305,11 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
     }
   }
 
+  // A stray mouse back button must not close a desktop app.
+  const quitOnUnhandledBack = () => {
+    if (platform.kind === "mobile") send({ jsonrpc: "2.0", method: "__quit" })
+  }
+
   const restore = (state: Record<string, unknown>): void => {
     const store = App.current?.store
 
@@ -447,8 +452,7 @@ export const createRuntime = (options: RuntimeOptions): RuntimeApi => {
       if (params.name === "fs-change") fsWatchInternals.notify(String(params.data?.path ?? ""))
 
       if (params.name === "back-pressed" && !App.current?.hasEvent("back-pressed")) {
-        // A stray mouse back button must not close a desktop app.
-        if (platform.kind === "mobile") send({ jsonrpc: "2.0", method: "__quit" })
+        quitOnUnhandledBack()
 
         return
       }
