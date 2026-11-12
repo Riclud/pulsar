@@ -276,15 +276,6 @@ NativeStack::Edges paddingEdges(const QJsonObject &props, qreal fallback = 0)
     };
 }
 
-bool startsScrollWithField(const QJsonObject &json)
-{
-    const QJsonObject content = json.value(QLatin1String("children")).toArray().at(0).toObject();
-    const QJsonObject first = content.value(QLatin1String("children")).toArray().at(0).toObject();
-    const QString type = first.value(QLatin1String("type")).toString();
-
-    return type == QLatin1String("textInput") || type == QLatin1String("textArea");
-}
-
 int fontWeight(const QJsonValue &value)
 {
     static const QHash<QString, int> names = {
@@ -1318,29 +1309,6 @@ bool editChildrenJson(QJsonArray &children, const QString &op, const QString &pa
 
 } // namespace
 
-// A scroll turns into an island when its first content child is a text field.
-bool NativeRenderer::scrollKindHolds(Node &node)
-{
-    if (node.kind != Kind::Scroll || node.children.empty())
-        return true;
-
-    const Node &content = *node.children.front();
-
-    if (content.kind == Kind::Island) {
-        const QJsonObject first = content.json.value(QLatin1String("children")).toArray().at(0).toObject();
-        const QString type = first.value(QLatin1String("type")).toString();
-
-        return type != QLatin1String("textInput") && type != QLatin1String("textArea");
-    }
-
-    if (content.children.empty())
-        return true;
-
-    const QString &type = content.children.front()->type;
-
-    return type != QLatin1String("textInput") && type != QLatin1String("textArea");
-}
-
 bool NativeRenderer::editNativeChildren(Node &parent, const QString &op, const QString &path, qsizetype index,
                                         const QJsonObject &json)
 {
@@ -1450,16 +1418,6 @@ void NativeRenderer::applyChildOp(const QJsonObject &patch)
     }
 
     dirtyStacks_.insert(parent);
-
-    // A text field first in a scroll takes the whole scroll to QML.
-    Node *scroll = parent->kind == Kind::Scroll ? parent : parent->parent;
-
-    if (!scroll || scroll->kind != Kind::Scroll || scrollKindHolds(*scroll))
-        return;
-
-    QJsonObject whole = snapshotNode(*scroll);
-
-    replaceNode(*scroll, whole);
 }
 
 void NativeRenderer::replaceNode(Node &node, const QJsonObject &json)
@@ -1535,7 +1493,7 @@ NativeRenderer::Kind NativeRenderer::kindFor(const QJsonObject &json, bool insid
 
     const bool viewport = type == QLatin1String("scroll") || type == QLatin1String("list");
 
-    if (!viewport || insideScroll || startsScrollWithField(json))
+    if (!viewport || insideScroll)
         return Kind::Island;
 
     return propsAllowed(props, { &commonProps(), &paddingProps(), &scrollProps() }) ? Kind::Scroll : Kind::Island;
@@ -2005,13 +1963,40 @@ void NativeRenderer::refreshState(Node &node)
         border->setProperty("color", edge);
 }
 
-void NativeRenderer::applyScroll(Node &node)
+// QML leaves a little room above a form that starts with a text field, so the field's outline is not cut.
+qreal NativeRenderer::scrollTopInset(const Node &node) const
+{
+    if (node.children.empty())
+        return 0;
+
+    const Node &content = *node.children.front();
+    QString first;
+
+    if (content.kind == Kind::Island)
+        first = content.json.value(QLatin1String("children")).toArray().at(0).toObject().value(QLatin1String("type")).toString();
+    else if (!content.children.empty())
+        first = content.children.front()->type;
+
+    if (first != QLatin1String("textInput") && first != QLatin1String("textArea"))
+        return 0;
+
+    return std::round(8 * theme_.fontScale);
+}
+
+void NativeRenderer::configureScroll(Node &node)
 {
     const bool list = node.type == QLatin1String("list");
     const qreal gap = list ? number(node.props, QLatin1String("spacing"), 0)
                            : number(node.props, QLatin1String("gap"), theme_.spacing);
+    NativeStack::Edges edges = paddingEdges(node.props);
 
-    node.stack->configure(NativeStack::Mode::Column, gap, paddingEdges(node.props));
+    edges.top += scrollTopInset(node);
+    node.stack->configure(NativeStack::Mode::Column, gap, edges);
+}
+
+void NativeRenderer::applyScroll(Node &node)
+{
+    configureScroll(node);
 
     // Only the node's own fields: the scroll's children are not QML's to walk.
     const QVariantMap own = {
@@ -2745,6 +2730,13 @@ NativeStack::Kid NativeRenderer::kidFor(const Node &parent, Node &child) const
     if (props.contains(QLatin1String("fillHeight")))
         kid.fillHeight = props.value(QLatin1String("fillHeight")).toBool();
 
+    // QML gives a scroll's content that holds wrapping text the whole width, not the width of its text.
+    const bool stackType = child.type == QLatin1String("column") || child.type == QLatin1String("row");
+
+    if (parent.kind == Kind::Scroll && kid.shrinks && stackType && !props.contains(QLatin1String("fillWidth"))
+        && !props.contains(QLatin1String("expand")) && !props.contains(QLatin1String("fill")))
+        kid.fillWidth = true;
+
     if (alignItems == QLatin1String("stretch")) {
         kid.fillWidth = kid.fillWidth || !row;
         kid.fillHeight = kid.fillHeight || row;
@@ -2810,6 +2802,12 @@ void NativeRenderer::refreshKids(Node &node)
     }
 
     node.stack->setKids(kids);
+
+    // The inset depends on the first child of the scroll's first child, so either may have changed.
+    if (node.kind == Kind::Scroll)
+        configureScroll(node);
+    else if (node.parent && node.parent->kind == Kind::Scroll && node.parent->stack)
+        configureScroll(*node.parent);
 }
 
 void NativeRenderer::syncChildren(Node &node, const QJsonArray &children)

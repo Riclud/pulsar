@@ -249,7 +249,8 @@ private:
     void applyChildOp(const QJsonObject &patch);
     bool editNativeChildren(Node &parent, const QString &op, const QString &path, qsizetype index, const QJsonObject &json);
     void editChildrenByJson(const QString &parentPath, const QString &op, const QString &path, qsizetype index, const QJsonObject &json);
-    bool scrollKindHolds(Node &node);
+    qreal scrollTopInset(const Node &node) const;
+    void configureScroll(Node &node);
     void replaceNode(Node &node, const QJsonObject &json);
 
     std::unique_ptr<Node> create(const QJsonObject &json, Node *parent);

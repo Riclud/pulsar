@@ -779,6 +779,45 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "scroll-width",
+    quickjsDesktop: true,
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "1500" },
+    check: (output) => {
+      const last = new Map<string, number>()
+
+      for (const line of output.split("\n")) {
+        const match = line.match(/SW (\S+) (\d+) (\d+)/)
+
+        if (match) last.set(match[1]!, Number(match[2]))
+      }
+
+      const near = (name: string, other: string) => Math.abs((last.get(name) ?? NaN) - (last.get(other) ?? NaN)) <= 2
+
+      // A column with wrapping text, and a row with it, take the scroll's width like QML; a column that
+      // holds nothing of the kind and a column with a width keep theirs.
+      return (
+        (last.get("native-text") ?? 0) >= 300 &&
+        near("native-text", "qml-text") &&
+        near("native-row-probe", "qml-row-probe") &&
+        near("native-plain-probe", "qml-plain-probe") &&
+        near("native-sized-probe", "qml-sized-probe") &&
+        last.get("native-sized-probe") === 100
+      )
+    },
+  },
+  {
+    name: "scroll-field",
+    quickjsDesktop: true,
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "1500" },
+    check: (output) => {
+      const height = (name: string) => Number(output.match(new RegExp(`SF ${name} (\\d+) `))?.[1])
+      const native = height("native")
+
+      // 12 px of padding and the 8 px inset above the field, on top of the form itself.
+      return native === height("qml") && native >= 220 && output.includes("SF native focus")
+    },
+  },
+  {
     name: "tabs-column",
     check: (output) => {
       const tabs = output
