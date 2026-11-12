@@ -385,11 +385,23 @@ int main(int argc, char **argv)
     applyEarlyManifestEnv();
 
 #if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
-    if (!qEnvironmentVariableIsSet("QSG_RENDER_LOOP"))
+    const bool loopChosen = qEnvironmentVariableIsSet("QSG_RENDER_LOOP");
+
+    if (!loopChosen)
         qputenv("QSG_RENDER_LOOP", "threaded");
 #endif
 
     QGuiApplication app(argc, argv);
+
+#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
+    // The software backend has its own threaded loop, and its window destructor can wait forever
+    // for a render thread that waits for the GUI thread. Headless runs always land on it.
+    const bool software = QGuiApplication::platformName() == QLatin1String("offscreen")
+        || qgetenv("QT_QUICK_BACKEND") == "software";
+
+    if (!loopChosen && software)
+        qputenv("QSG_RENDER_LOOP", "basic");
+#endif
 
     QFontDatabase::addApplicationFont(QStringLiteral(":/runtime/fonts/NotoSans-Variable.ttf"));
     QFontDatabase::addApplicationFont(QStringLiteral(":/runtime/fonts/PaperMono-Regular.ttf"));
@@ -931,5 +943,17 @@ int main(int argc, char **argv)
     if (quitMs > 0)
         QTimer::singleShot(quitMs, &app, &QGuiApplication::quit);
 
-    return app.exec();
+    const int code = app.exec();
+
+    // Locals die in reverse order, so the bridge would go before the items bound to it. Hiding
+    // first lets the threaded render loop stop its thread; a window destroyed mid-start can
+    // leave ~QQuickWindow waiting for a render thread that waits for the GUI thread.
+    for (QWindow *window : QGuiApplication::allWindows())
+        window->hide();
+
+    QCoreApplication::processEvents();
+
+    qDeleteAll(engine.rootObjects());
+
+    return code;
 }
