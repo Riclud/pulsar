@@ -2604,8 +2604,20 @@ ApplicationWindow {
             if (extra.restoringScroll)
                 return;
 
+            // A hidden screen collapses its content and the view clamps to the top; that is not the user's scroll.
+            if (!item.visible)
+                return;
+
             extra.pendingScroll = undefined;
             view.scrollPositions[extra.scrollKey] = item.contentY;
+        });
+
+        item.visibleChanged.connect(function () {
+            if (!item.visible)
+                return;
+
+            extra.pendingScroll = view.scrollPositions[extra.scrollKey];
+            view.applyPendingScroll(item);
         });
 
         item.heightChanged.connect(function () {
