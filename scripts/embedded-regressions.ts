@@ -1017,7 +1017,7 @@ const scenarios: Scenario[] = [
   {
     name: "scroll-hidden",
     serial: true,
-    desktop: true,
+    quickjsDesktop: true,
     env: { AUTO_QUIT_MS: "2600" },
     drive: [{ at: 1900, cmd: { cmd: "pointer", action: "click", x: 50, y: 120 } }],
     check: (output) => {
