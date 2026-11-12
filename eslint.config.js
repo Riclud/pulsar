@@ -2,7 +2,7 @@ import tseslint from "typescript-eslint"
 
 export default tseslint.config(
   {
-    ignores: ["**/node_modules/**", "**/dist/**", "**/build/**", "site/dist/**", "cli/templates/**", "edge/**", "**/*.qml"],
+    ignores: ["**/node_modules/**", ".opencode/**", ".entire/**", ".claude/**", "**/dist/**", "**/build/**", "site/dist/**", "cli/templates/**", "edge/**", "**/*.qml"],
   },
   {
     files: ["**/*.ts", "**/*.tsx"],
