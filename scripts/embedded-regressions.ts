@@ -214,6 +214,21 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "reveal-field",
+    quickjsDesktop: true,
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "2500" },
+    check: (output) => {
+      const offsets = output
+        .split("\n")
+        .map((line) => line.match(/REVEAL offset (\d+) height (\d+)/))
+        .filter((match) => match !== null)
+        .map((match) => Number(match[1]))
+
+      // A field focused below the visible part of a scroll view is scrolled into view.
+      return output.includes("REVEAL focus low") && offsets.length > 0 && offsets.at(-1)! >= 400
+    },
+  },
+  {
     name: "flex-patch",
     check: (output) => {
       const lines = output.split("\n")

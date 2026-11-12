@@ -98,6 +98,7 @@ ApplicationWindow {
     readonly property alias revealMotion: revealMotion
     readonly property alias textCursorComponent: textCursorComponent
     property var revealTarget: null
+    property var keyboardFlicks: ({})
     property string inspectText: ""
 
     function reportWindowSize() {
@@ -2607,6 +2608,15 @@ ApplicationWindow {
             view.scrollPositions[extra.scrollKey] = item.contentY;
         });
 
+        item.heightChanged.connect(function () {
+            view.syncKeyboardInset(item);
+
+            if (view.revealTarget && view.keyboardTop() < Infinity) {
+                view.revealTicks = 2;
+                keyboardRevealTimer.restart();
+            }
+        });
+
         item.contentHeightChanged.connect(function () {
             if (extra.pendingScroll !== undefined)
                 view.applyPendingScroll(item);
@@ -5042,6 +5052,79 @@ ApplicationWindow {
     }
 
 
+    // Where the keyboard starts in window coordinates; Infinity while it is hidden.
+    function keyboardTop() {
+        const rect = Qt.inputMethod.keyboardRectangle;
+
+        if (!Qt.inputMethod.visible || rect.height <= 0)
+            return Infinity;
+
+        // Android reports this rectangle in device pixels, the window is in logical ones.
+        const scale = rect.y + rect.height > view.height + 1 ? view.screen.devicePixelRatio : 1;
+
+        return rect.y / scale;
+    }
+
+    // How much of the bottom of a scroll view is under the keyboard.
+    function keyboardCovered(flick) {
+        if (flick.height <= 0)
+            return 0;
+
+        const covered = flick.mapToItem(null, 0, flick.height).y - view.keyboardTop();
+
+        return covered > 0 ? Math.round(covered) : 0;
+    }
+
+    // Brings the span top..bottom (in scroll view coordinates) above the keyboard and inside the view.
+    function revealSpan(flick, top, bottom, margin) {
+        view.syncKeyboardInset(flick);
+
+        const visibleHeight = flick.height - view.keyboardCovered(flick);
+
+        if (top >= margin && bottom + margin <= visibleHeight)
+            return;
+
+        const maxY = Math.max(0, flick.contentHeight + flick.bottomMargin - flick.height);
+        const target = top < margin
+                ? flick.contentY + top - margin
+                : flick.contentY + bottom + margin - visibleHeight;
+
+        revealMotion.target = flick;
+        revealMotion.to = Math.min(maxY, Math.max(0, target));
+        revealMotion.restart();
+    }
+
+    // While the keyboard is up the page may be taller than the space above it: the window can grow
+    // back for a moment when focus moves between fields. The part of a scroll view under the keyboard
+    // becomes extra scroll room, so the content is neither clamped nor stuck below the keyboard.
+    function syncKeyboardInset(flick) {
+        const extra = flick.pulsarMeta ? flick.pulsarMeta.extra : null;
+
+        if (!extra)
+            return;
+
+        if (extra.baseMargin === undefined)
+            extra.baseMargin = flick.bottomMargin;
+
+        const margin = extra.baseMargin + view.keyboardCovered(flick);
+
+        if (flick.bottomMargin === margin)
+            return;
+
+        flick.bottomMargin = margin;
+        view.keyboardFlicks[extra.scrollKey] = flick;
+    }
+
+    function releaseKeyboardInset() {
+        for (const key in view.keyboardFlicks) {
+            const flick = view.keyboardFlicks[key];
+
+            flick.bottomMargin = flick.pulsarMeta.extra.baseMargin;
+        }
+
+        view.keyboardFlicks = ({});
+    }
+
     function scrollAncestor(item) {
         let node = item ? item.parent : null;
 
@@ -5065,20 +5148,8 @@ ApplicationWindow {
             return;
 
         const top = item.mapToItem(flick, 0, 0).y;
-        const bottom = top + item.height;
-        const margin = 16;
 
-        if (top >= margin && bottom + margin <= flick.height)
-            return;
-
-        const maxY = Math.max(0, flick.contentHeight - flick.height);
-        const target = top < margin
-                ? flick.contentY + top - margin
-                : flick.contentY + bottom + margin - flick.height;
-
-        revealMotion.target = flick;
-        revealMotion.to = Math.min(maxY, Math.max(0, target));
-        revealMotion.restart();
+        view.revealSpan(flick, top, top + item.height, 16);
     }
 
     // Dev control: where a node is on screen, so `pulsar hover` and `click` aim real input at it.
@@ -5340,20 +5411,8 @@ ApplicationWindow {
 
         const rect = item.cursorRectangle;
         const top = item.mapToItem(flick, rect.x, rect.y).y;
-        const bottom = top + rect.height;
-        const margin = 24;
 
-        if (top >= margin && bottom + margin <= flick.height)
-            return;
-
-        const maxY = Math.max(0, flick.contentHeight - flick.height);
-        const target = top < margin
-                ? flick.contentY + top - margin
-                : flick.contentY + bottom + margin - flick.height;
-
-        revealMotion.target = flick;
-        revealMotion.to = Math.min(maxY, Math.max(0, target));
-        revealMotion.restart();
+        view.revealSpan(flick, top, top + rect.height, 24);
     }
 
     // The keyboard may cover a field that has just been focused.
@@ -5418,6 +5477,13 @@ ApplicationWindow {
     Connections {
         target: Qt.inputMethod
 
+        function onKeyboardRectangleChanged() {
+            const flick = view.scrollAncestor(view.revealTarget);
+
+            if (flick)
+                view.syncKeyboardInset(flick);
+        }
+
         function onVisibleChanged() {
             if (Qt.platform.os !== "android")
                 return;
@@ -5428,6 +5494,7 @@ ApplicationWindow {
                 return;
             }
 
+            view.releaseKeyboardInset();
             keyboardHideTimer.restart();
         }
     }
