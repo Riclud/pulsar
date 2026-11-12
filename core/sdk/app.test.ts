@@ -228,3 +228,80 @@ describe("ui timings", () => {
     expect(timings[0]?.send).toBeGreaterThanOrEqual(0)
   })
 })
+
+describe("App multi-window flush", () => {
+  const countKey = (counts: Record<string, number>, label: string): number => counts[label] ?? 0
+
+  test("a store change re-renders only the window that reads the key", async () => {
+    const app = new App()
+    const renders: Record<string, number> = {}
+    const patchSends: Record<string, number> = {}
+
+    app.onSendUi = () => {}
+    app.onSendUiPatch = (label) => {
+      patchSends[label] = (patchSends[label] ?? 0) + 1
+    }
+
+    app.renderWindow("main", () => {
+      renders.main = (renders.main ?? 0) + 1
+
+      return Column({}, Text({ text: String(app.store.get("count") ?? 0) }))
+    })
+    app.renderWindow("second", () => {
+      renders.second = (renders.second ?? 0) + 1
+
+      return Column({}, Text({ text: String(app.store.get("other") ?? 0) }))
+    })
+
+    const mainBefore = countKey(renders, "main")
+    const secondBefore = countKey(renders, "second")
+
+    app.store.set("count", 1)
+
+    await Promise.resolve()
+
+    expect(renders.main).toBe(mainBefore + 1)
+    expect(renders.second).toBe(secondBefore)
+    expect(countKey(patchSends, "second")).toBe(0)
+    expect(countKey(patchSends, "main")).toBe(1)
+  })
+
+  test("flushAllUi does no work when no window has pending changes", async () => {
+    const app = new App()
+    const renders: Record<string, number> = {}
+    const sends: Record<string, number> = {}
+    const patchSends: Record<string, number> = {}
+
+    app.onSendUi = (label) => {
+      sends[label] = (sends[label] ?? 0) + 1
+    }
+    app.onSendUiPatch = (label) => {
+      patchSends[label] = (patchSends[label] ?? 0) + 1
+    }
+
+    app.renderWindow("main", () => {
+      renders.main = (renders.main ?? 0) + 1
+
+      return Column({}, Text({ text: String(app.store.get("count") ?? 0) }))
+    })
+    app.renderWindow("second", () => {
+      renders.second = (renders.second ?? 0) + 1
+
+      return Column({}, Text({ text: "static" }))
+    })
+
+    app.store.set("count", 1)
+
+    await Promise.resolve()
+
+    const rendersIdle = { ...renders }
+    const sendsIdle = { ...sends }
+    const patchSendsIdle = { ...patchSends }
+
+    app.flushAllUi()
+
+    expect(renders).toEqual(rendersIdle)
+    expect(sends).toEqual(sendsIdle)
+    expect(patchSends).toEqual(patchSendsIdle)
+  })
+})
