@@ -9,6 +9,7 @@ import {
   androidPermissions,
   androidQtComplete,
   appFiles,
+  bundleRuntime,
   clearStaleBuildDir,
   devManifest,
   download,
@@ -270,5 +271,27 @@ describe("OpenSSL libraries", () => {
     expect(opensslComplete(dir)).toBe(false)
     expect(existsSync(join(dir, OPENSSL_LIBS[0].name))).toBe(false)
     rmSync(dir, { recursive: true })
+  })
+})
+
+describe("bundleRuntime dev flag", () => {
+  const bundleText = async (sourcemap: boolean): Promise<string> => {
+    const dir = mkdtempSync(join(tmpdir(), "pulsar-devflag-"))
+
+    try {
+      writeFileSync(join(dir, "app.ts"), "export {}\n")
+
+      const { result } = bundleRuntime(join(dir, "app.ts"), dir, sourcemap)
+      const bundle = await result
+
+      return await bundle.outputs[0]!.text()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }
+
+  test("only the dev bundle tells the SDK to warn about unknown props", async () => {
+    expect(await bundleText(true)).toContain("__PULSAR_DEV = true")
+    expect(await bundleText(false)).not.toContain("__PULSAR_DEV = true")
   })
 })

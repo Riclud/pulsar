@@ -1,7 +1,17 @@
 import type { BuildOutput, BunPlugin } from "bun"
 import { spawnSync } from "child_process"
 import { createHash } from "crypto"
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "fs"
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "fs"
 import { homedir } from "os"
 import { basename, dirname, join, resolve } from "path"
 import type { AppManifest } from "../core/sdk/manifest.ts"
@@ -393,7 +403,11 @@ const SCANNER_ACTIVITY =
  * its Gradle dependencies and its manifest entry when the app asked for "scanner".
  * Returns undefined when the stock sources are enough.
  */
-export const preparePackageSources = (buildDir: string, qtDir: string, manifest: AppManifest | null): string | undefined => {
+export const preparePackageSources = (
+  buildDir: string,
+  qtDir: string,
+  manifest: AppManifest | null,
+): string | undefined => {
   if (!usesScanner(manifest)) return undefined
 
   const root = pulsarRoot()
@@ -512,6 +526,8 @@ export const bundleRuntime = (
     runtimeEntry,
     [
       `globalThis.__PULSAR_SDK_VERSION = ${JSON.stringify(cliVersion())};`,
+      // The dev bundles (the ones with a source map) tell the SDK to warn about unknown props.
+      ...(sourcemap ? [`globalThis.__PULSAR_DEV = true;`] : []),
       `import { createRuntime } from ${spec(join(root, "core", "runtime", "core.ts"))};`,
       `import { createEmbeddedTransport } from ${spec(join(root, "core", "runtime", "quickjs_transport.ts"))};`,
       `import { createQuickJsPlatform } from ${spec(join(root, "core", "platform", "quickjs.ts"))};`,
