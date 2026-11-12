@@ -82,7 +82,8 @@ describe("unknown props", () => {
   })
 
   test("the table of known props matches the option types", () => {
-    const file = readFileSync(join(import.meta.dir, "known-props.ts"), "utf8")
+    // Windows checkouts may turn line endings into CRLF.
+    const file = readFileSync(join(import.meta.dir, "known-props.ts"), "utf8").replaceAll("\r\n", "\n")
 
     expect(file).toBe(renderKnownProps(collectKnownProps()))
   })
