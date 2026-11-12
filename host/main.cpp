@@ -50,6 +50,7 @@
 #endif
 
 #include <utility>
+#include <thread>
 
 #include "native_renderer.h"
 #include "shortcuts.h"
@@ -66,6 +67,8 @@
 #include "crypto.h"
 #include "devchannel.h"
 #include "system_locale.h"
+
+static void registerFonts();
 
 static bool gErrorShown = false;
 static bool gWatch = false;
@@ -602,6 +605,8 @@ static void logWindowConfig(const WindowConfig &c)
 // silently.
 static void showErrorView(QQmlApplicationEngine &engine, const QString &detail)
 {
+    registerFonts();
+
     if (gErrorShown)
         return;
 
@@ -720,6 +725,8 @@ static void applyUiTree(const QString &label)
 
 static void showWindow(QQmlApplicationEngine &engine, const WindowConfig &cfg)
 {
+    registerFonts();
+
     const QUrl url = resolveUi(cfg.ui);
 
     g_requested.insert(cfg.label);
@@ -1422,6 +1429,43 @@ static void applyEarlyManifestEnv(const char *argv0)
     pulsar::applyManifestEnv(json);
 }
 
+// The first font call builds the system font database (about 13 ms), so a thread does
+// that while the runtime starts and registerFonts() joins it before the first window.
+struct FontWarmup {
+    std::thread thread;
+
+    ~FontWarmup()
+    {
+        if (thread.joinable())
+            thread.join();
+    }
+};
+
+static FontWarmup gFontWarmup;
+
+static void registerFonts()
+{
+    static bool done = false;
+
+    if (done)
+        return;
+
+    done = true;
+
+    if (gFontWarmup.thread.joinable())
+        gFontWarmup.thread.join();
+
+    QFontDatabase::addApplicationFont(QStringLiteral(":/runtime/fonts/NotoSans-Variable.ttf"));
+    QFontDatabase::addApplicationFont(QStringLiteral(":/runtime/fonts/PaperMono-Regular.ttf"));
+    QFontDatabase::addApplicationFont(QStringLiteral(":/runtime/fonts/PaperMono-Medium.ttf"));
+    QFontDatabase::addApplicationFont(QStringLiteral(":/runtime/fonts/PaperMono-Bold.ttf"));
+
+    QFont appFont = QApplication::font();
+    appFont.setFamily(QStringLiteral("Noto Sans"));
+    appFont.setStyleHint(QFont::SansSerif);
+    QApplication::setFont(appFont);
+}
+
 int main(int argc, char **argv)
 {
     pulsar::initLogs();
@@ -1437,15 +1481,7 @@ int main(int argc, char **argv)
     QApplication app(argc, argv);
     app.setOrganizationName(QStringLiteral("Pulsar"));
 
-    QFontDatabase::addApplicationFont(QStringLiteral(":/runtime/fonts/NotoSans-Variable.ttf"));
-    QFontDatabase::addApplicationFont(QStringLiteral(":/runtime/fonts/PaperMono-Regular.ttf"));
-    QFontDatabase::addApplicationFont(QStringLiteral(":/runtime/fonts/PaperMono-Medium.ttf"));
-    QFontDatabase::addApplicationFont(QStringLiteral(":/runtime/fonts/PaperMono-Bold.ttf"));
-
-    QFont appFont = QApplication::font();
-    appFont.setFamily(QStringLiteral("Noto Sans"));
-    appFont.setStyleHint(QFont::SansSerif);
-    QApplication::setFont(appFont);
+    gFontWarmup.thread = std::thread([] { QFontDatabase::families(); });
 
     const QString controlsStyle = qEnvironmentVariable("PULSAR_CONTROLS_STYLE");
     QQuickStyle::setStyle(controlsStyle.isEmpty() ? QStringLiteral("Basic") : controlsStyle);
@@ -1800,6 +1836,7 @@ int main(int argc, char **argv)
     QObject::connect(bridge, &Bridge::notification, &app,
                      [&engine, bridge](const QString &method, const QJSValue &params) {
                          if (method == QLatin1String("__config")) {
+                             registerFonts();
                              const QVariantMap m = params.toVariant().toMap();
                              const QVariantList wins = m.value(QStringLiteral("windows")).toList();
 
