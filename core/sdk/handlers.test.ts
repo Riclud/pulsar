@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test"
 import { App } from "./app.ts"
 import { signal } from "./reactive.ts"
-import { Column, Text, component, dispatchUiEvent, type UiNode } from "./ui.ts"
+import { Box, Column, For, Text, component, dispatchUiEvent, type UiNode } from "./ui.ts"
 
 const tick = async () => {
   await Promise.resolve()
@@ -77,3 +77,100 @@ test("a full rerender forgets the handlers of removed nodes and keeps the rest",
 
   expect(taps).toEqual(["a", "c"])
 })
+
+type Row = { ID: string; label: string }
+
+type Routes = Record<string, Record<string, (value: unknown) => void>>
+
+const routesOf = (app: App): Routes => {
+  return (app as unknown as { sentRoutes: Map<string, Routes> }).sentRoutes.get("main") ?? {}
+}
+
+const clickAll = (routes: Routes, log: string[]): void => {
+  for (const path of Object.keys(routes).sort()) routes[path]!.click?.(null)
+
+  log.push("done")
+}
+
+const buildRows = (rows: Row[], hits: string[], inComponent: boolean): UiNode => {
+  const render = (row: Row) => {
+    const onClick = () => hits.push(`${row.ID}:${row.label}`)
+
+    return Column({ key: row.ID }, Box({ onClick }, Text({ text: row.label })))
+  }
+  const list = () => For({ each: rows, keyOf: (row: Row) => row.ID, memo: true, render })
+
+  return inComponent ? component(() => list)({}) : Column({}, list())
+}
+
+const settle = async (rows: Row[], inComponent: boolean) => {
+  const app = new App()
+  const hits: string[] = []
+
+  app.onSendUi = () => {}
+  app.onSendUiPatch = () => {}
+  app.renderWindow("main", () => buildRows(rows, hits, inComponent))
+
+  await tick()
+
+  return { routes: routesOf(app), hits }
+}
+
+for (const inComponent of [false, true]) {
+  test(`handler tables after keyed list edits match a fresh render (${inComponent ? "component" : "root"})`, async () => {
+    const app = new App()
+    const rows = signal<Row[]>(Array.from({ length: 12 }, (_, i) => ({ ID: `r${i}`, label: `t${i}` })))
+    const hits: string[] = []
+    let seed = 7
+
+    const next = () => {
+      seed = (seed * 1103515245 + 12345) % 2147483648
+
+      return seed
+    }
+
+    app.onSendUi = () => {}
+    app.onSendUiPatch = () => {}
+    app.renderWindow("main", () => {
+      return inComponent
+        ? Column({}, component(() => () => buildRows(rows.get(), hits, false))({}))
+        : buildRows(rows.get(), hits, false)
+    })
+
+    await tick()
+
+    for (let step = 0; step < 40; step++) {
+      const list = [...rows.peek()]
+      const at = next() % list.length
+      const kind = next() % 5
+
+      if (kind === 0) list[at] = { ...list[at]!, label: `c${step}` }
+      if (kind === 1) list.splice(at, 1)
+      if (kind === 2) list.splice(at, 0, { ID: `n${step}`, label: `n${step}` })
+      if (kind === 3) list.reverse()
+      if (kind === 4) list.push(list.shift()!)
+
+      if (list.length === 0) list.push({ ID: "last", label: "last" })
+
+      rows.set(list)
+      await tick()
+
+      const fresh = await settle(list, false)
+      const have = routesOf(app)
+
+      // The component variant nests the list one level deeper than the fresh render.
+      const tails = (routes: Routes) =>
+        Object.keys(routes)
+          .map((path) => path.split("/").slice(-2).join("/"))
+          .sort()
+
+      expect(tails(have)).toEqual(tails(fresh.routes))
+
+      hits.length = 0
+      clickAll(have, [])
+      clickAll(fresh.routes, [])
+
+      expect(hits.sort()).toEqual(fresh.hits.sort())
+    }
+  })
+}

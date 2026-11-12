@@ -9,13 +9,16 @@ import {
   disposeUiRoot,
   forgetHandlers,
   invalidateUiRoot,
+  reconcileUiRoot,
   renderUiRoot,
   runPendingMounts,
   serialize,
   setUiCommandSink,
   setWindowHandlers,
+  uiRootNodes,
   updateUiRoot,
   type UiCommand,
+  type UiHandlerChange,
   type UiNode,
   type UiPatch,
   type UiRoot,
@@ -673,21 +676,7 @@ export class App {
       return
     }
 
-    const routes = this.sentRoutes.get(label) ?? {}
-    const ids = this.sentIds.get(label) ?? new SentIDs()
-
-    // A rerendered component keeps the nodes of children that did not change, so
-    // their IDs show up as both removed and current; only drop the ones now gone.
-    const current = new Set(update.ids)
-    const gone = update.removedIDs.filter((id) => !current.has(id))
-
-    for (const path of update.removedRoutes) delete routes[path]
-    for (const id of gone) ids.delete(id)
-
-    forgetHandlers(gone)
-    Object.assign(routes, update.routes)
-
-    for (const id of update.ids) ids.add(id)
+    this.applyHandlerChange(label, update)
 
     const rendered = this.onUiTimings ? clock() : 0
 
@@ -704,22 +693,50 @@ export class App {
     })
   }
 
+  private applyHandlerChange(label: string, update: UiHandlerChange): void {
+    const routes = this.sentRoutes.get(label) ?? {}
+    const ids = this.sentIds.get(label) ?? new SentIDs()
+
+    // A rerendered component keeps the nodes of children that did not change, so
+    // their IDs show up as both removed and current; only drop the ones now gone.
+    const current = new Set(update.ids)
+    const gone = update.removedIDs.filter((id) => !current.has(id))
+
+    for (const path of update.removedRoutes) delete routes[path]
+    for (const id of gone) ids.delete(id)
+
+    forgetHandlers(gone)
+    Object.assign(routes, update.routes)
+
+    for (const id of update.ids) ids.add(id)
+  }
+
   private flushRoot(label: string, root: UiRoot, previous: unknown[] | undefined, started: number): void {
     const report = this.onUiTimings
+    const before = previous && this.onSendUiPatch ? uiRootNodes(root) : null
     const nodes = renderUiRoot(root)
     const built = report ? clock() : 0
     const tree = serialize(nodes)
     const serialized = report ? clock() : 0
-    const { routes, ids } = collectUiHandlers(nodes)
-    const collected = report ? clock() : 0
-    const sent = this.sentIds.get(label) ?? new SentIDs()
+    const knownRoutes = this.sentRoutes.get(label)
+    const knownIDs = this.sentIds.get(label)
 
-    forgetHandlers(sent.replace(ids))
-    setWindowHandlers(label, routes)
+    if (before && knownRoutes && knownIDs) {
+      this.applyHandlerChange(label, reconcileUiRoot(before, nodes))
+    } else {
+      const { routes, ids } = collectUiHandlers(nodes)
+      const sent = knownIDs ?? new SentIDs()
+
+      forgetHandlers(sent.replace(ids))
+      setWindowHandlers(label, routes)
+
+      this.sentRoutes.set(label, routes)
+      this.sentIds.set(label, sent)
+    }
+
+    const collected = report ? clock() : 0
 
     this.sentTrees.set(label, tree)
-    this.sentRoutes.set(label, routes)
-    this.sentIds.set(label, sent)
 
     const patches = previous && this.onSendUiPatch ? diffUiTrees(previous, tree) : null
     const diffed = report ? clock() : 0

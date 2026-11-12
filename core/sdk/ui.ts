@@ -2603,12 +2603,23 @@ export const invalidateUiRoot = (root: UiRoot): void => {
   invalidateInstance(root.instance)
 }
 
-export interface UiRootUpdate {
-  patches: UiPatch[]
+export interface UiHandlerChange {
   removedRoutes: string[]
   routes: UiRoutes
   removedIDs: number[]
   ids: number[]
+}
+
+export interface UiRootUpdate extends UiHandlerChange {
+  patches: UiPatch[]
+}
+
+const forgetAncestorCollections = (instance: ComponentInstance): void => {
+  for (let parent = instance.parent; parent; parent = parent.parent) {
+    const node = parent.node
+
+    if (node && !Array.isArray(node)) node.collected = undefined
+  }
 }
 
 /** Rerender the dirty components in place; null means the root must rerender. */
@@ -2637,9 +2648,8 @@ export const updateUiRoot = (root: UiRoot): UiRootUpdate | null => {
     if (next === previous) continue
 
     const out = serializeNode(next, before.path)
-    const old = previous.collected
-    const collected = collectNode(next, before.path)
 
+    reconcileNode(previous, next, before.path, update)
     diffNode(before.out as unknown as SerializedUiNode, out as unknown as SerializedUiNode, update.patches)
 
     for (const key of Object.keys(before.out)) delete before.out[key]
@@ -2647,16 +2657,26 @@ export const updateUiRoot = (root: UiRoot): UiRootUpdate | null => {
     Object.assign(before.out, out)
     next.serialized = { path: before.path, out: before.out }
 
-    if (old) {
-      update.removedRoutes.push(...Object.keys(old.routes))
-      update.removedIDs.push(...old.ids)
-    }
-
-    Object.assign(update.routes, collected.routes)
-    update.ids.push(...collected.ids)
+    forgetAncestorCollections(instance)
   }
 
   return update
+}
+
+/** The nodes the root rendered last, before the next render replaces them. */
+export const uiRootNodes = (root: UiRoot): UiNode[] | null => {
+  const nodes = root.instance.node
+
+  return Array.isArray(nodes) ? nodes : null
+}
+
+/** What changed in the handler tables between two renders of a root. */
+export const reconcileUiRoot = (before: UiNode[], after: UiNode[]): UiHandlerChange => {
+  const change: UiHandlerChange = { removedRoutes: [], routes: {}, removedIDs: [], ids: [] }
+
+  reconcileChildren(before, undefined, undefined, after, undefined, undefined, "", change)
+
+  return change
 }
 
 export const Column = (options: LayoutOptions = {}, ...children: UiChild[]): UiNode => column(options, ...children)
@@ -3022,6 +3042,140 @@ export const setWindowHandlers = (target: string, routes: UiRoutes): void => {
 
 export const dispatchWindowEvent = (target: string, path: string, event: string, value: unknown): void => {
   windowHandlers.get(target)?.[path]?.[event]?.(value)
+}
+
+const dropSubtree = (node: UiNode, path: string, change: UiHandlerChange): void => {
+  const collected = collectNode(node, path)
+
+  for (const route in collected.routes) change.removedRoutes.push(route)
+  for (const id of collected.ids) change.removedIDs.push(id)
+}
+
+const addSubtree = (node: UiNode, path: string, change: UiHandlerChange): void => {
+  const collected = collectNode(node, path)
+
+  Object.assign(change.routes, collected.routes)
+
+  for (const id of collected.ids) change.ids.push(id)
+}
+
+const itemKeysOf = (node: UiNode): Array<string | number> | undefined => {
+  return keyedByItems(node.type) ? (node.props.itemKeys as Array<string | number> | undefined) : undefined
+}
+
+/** Records the handler routes and node IDs that differ between two nodes at the same path. */
+const reconcileNode = (before: UiNode, after: UiNode, path: string, change: UiHandlerChange): void => {
+  if (before === after) return
+
+  if (before.callbacks ?? handlers.get(before.id)) change.removedRoutes.push(path)
+
+  const callbacks = after.callbacks ?? handlers.get(after.id)
+
+  if (callbacks) change.routes[path] = callbacks
+
+  if (before.id !== after.id) {
+    change.removedIDs.push(before.id)
+    change.ids.push(after.id)
+  }
+
+  const beforeChildren = before.children ?? []
+  const afterChildren = after.children ?? []
+
+  if (beforeChildren.length === 0 && afterChildren.length === 0) return
+
+  reconcileChildren(
+    beforeChildren,
+    itemKeysOf(before),
+    before.slots,
+    afterChildren,
+    itemKeysOf(after),
+    after.slots,
+    path,
+    change,
+  )
+}
+
+const reconcileAligned = (
+  before: UiNode[],
+  after: UiNode[],
+  keys: Array<string | number> | undefined,
+  slots: string[] | undefined,
+  path: string,
+  change: UiHandlerChange,
+): void => {
+  for (let index = 0; index < after.length; index++) {
+    const was = before[index]!
+    const now = after[index]!
+
+    if (was !== now) reconcileNode(was, now, `${path}/${nodeSegment(now, index, keys, slots)}`, change)
+  }
+}
+
+const reconcileChildren = (
+  before: UiNode[],
+  beforeKeys: Array<string | number> | undefined,
+  beforeSlots: string[] | undefined,
+  after: UiNode[],
+  afterKeys: Array<string | number> | undefined,
+  afterSlots: string[] | undefined,
+  path: string,
+  change: UiHandlerChange,
+): void => {
+  let aligned = before.length === after.length
+
+  // Same child at the same place needs no work, so only the ones that changed are visited.
+  for (let index = 0; aligned && index < after.length; index++) {
+    const was = before[index]!
+    const now = after[index]!
+
+    if (was === now) {
+      aligned = beforeKeys?.[index] === afterKeys?.[index] && beforeSlots?.[index] === afterSlots?.[index]
+
+      continue
+    }
+
+    aligned = nodeSegment(was, index, beforeKeys, beforeSlots) === nodeSegment(now, index, afterKeys, afterSlots)
+  }
+
+  if (aligned) {
+    reconcileAligned(before, after, afterKeys, afterSlots, path, change)
+
+    return
+  }
+
+  const old = new Map<string, UiNode>()
+
+  before.forEach((node, index) => {
+    old.set(`${path}/${nodeSegment(node, index, beforeKeys, beforeSlots)}`, node)
+  })
+
+  // Two children on one path cannot be told apart, so replace them all.
+  if (old.size !== before.length) {
+    before.forEach((node, index) => {
+      dropSubtree(node, `${path}/${nodeSegment(node, index, beforeKeys, beforeSlots)}`, change)
+    })
+    after.forEach((node, index) => {
+      addSubtree(node, `${path}/${nodeSegment(node, index, afterKeys, afterSlots)}`, change)
+    })
+
+    return
+  }
+
+  after.forEach((node, index) => {
+    const childPath = `${path}/${nodeSegment(node, index, afterKeys, afterSlots)}`
+    const was = old.get(childPath)
+
+    if (!was) {
+      addSubtree(node, childPath, change)
+
+      return
+    }
+
+    old.delete(childPath)
+    reconcileNode(was, node, childPath, change)
+  })
+
+  for (const [childPath, node] of old) dropSubtree(node, childPath, change)
 }
 
 const collectNode = (node: UiNode, path: string): { routes: UiRoutes; ids: number[] } => {
