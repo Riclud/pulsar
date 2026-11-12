@@ -64,6 +64,10 @@ void QuickJsThread::run()
         post([this, text]() { Q_EMIT failed(text); }, false);
     }, Qt::DirectConnection);
 
+    connect(&runtime, &QuickJsRuntime::logged, &runtime, [this](const QString &level, const QString &text) {
+        post([this, level, text]() { Q_EMIT logged(level, text); }, false);
+    }, Qt::DirectConnection);
+
     runtime_ = &runtime;
     created_.release();
 

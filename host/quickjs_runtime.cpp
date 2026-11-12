@@ -767,6 +767,8 @@ JSValue jsPulsarLog(JSContext *ctx, JSValueConst, int argc, JSValueConst *argv)
 
     qInfo().noquote() << QStringLiteral("[js:%1]").arg(level) << message;
 
+    Q_EMIT self(ctx)->logged(level, message);
+
     return JS_UNDEFINED;
 }
 

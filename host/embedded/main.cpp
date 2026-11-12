@@ -716,6 +716,13 @@ int main(int argc, char **argv)
             devChannel->sendLog(QStringLiteral("error"), message, QStringLiteral("runtime"));
 #endif
     });
+#ifdef PULSAR_DEV
+    // `console` output of the app reaches the `pulsar dev` terminal, not only logcat.
+    QObject::connect(&runtime, &pulsar::QuickJsThread::logged, [&](const QString &level, const QString &message) {
+        if (devChannel)
+            devChannel->sendLog(level, message, QStringLiteral("js"));
+    });
+#endif
     QObject::connect(&bridge, &EmbeddedBridge::log, [&](const QString &level, const QString &message,
                                                         const QString &source) {
         qInfo().noquote() << QStringLiteral("LOG[%1/%2]").arg(source, level) << message;

@@ -72,6 +72,8 @@ signals:
     void message(const QJsonObject &message);
     void binary(quint32 id, const QByteArray &data);
     void failed(const QString &message);
+    /** A `console` call of the app. */
+    void logged(const QString &level, const QString &message);
 
 private:
     struct TimerEntry {

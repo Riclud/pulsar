@@ -37,6 +37,7 @@ signals:
     void message(const QJsonObject &message);
     void binary(quint32 id, const QByteArray &data);
     void failed(const QString &message);
+    void logged(const QString &level, const QString &message);
 
 protected:
     void run() override;
