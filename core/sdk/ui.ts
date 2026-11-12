@@ -1,5 +1,6 @@
 import { Computation, signal } from "./reactive.ts"
 import type { ColorValue } from "./theme.ts"
+import { warnUnknownProps } from "./unknown-props.ts"
 
 export type UiNodeType =
   | "canvas"
@@ -1025,6 +1026,9 @@ const makeNode = <P extends object>(
     onDropFiles?: (files: string[], position: { x: number; y: number }) => void
     drag?: DragOptions
   }
+
+  warnUnknownProps(type, rest)
+
   const id = nextId++
   const layout = typeof onLayout === "function" ? onLayout : null
   const focus = typeof onFocus === "function" ? onFocus : null
