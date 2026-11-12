@@ -1,4 +1,5 @@
 #include "native_renderer.h"
+#include "startup_trace.h"
 
 #include <QColor>
 #include <QElapsedTimer>
@@ -1109,6 +1110,8 @@ void NativeRenderer::commit()
     syncChildren(*tree_, tree);
 
     const qint64 elapsed = timer.elapsed();
+
+    pulsar::startupMark("ui-built");
 
     if (debugging())
         qInfo().noquote().nospace() << "PulsarView built " << tree.size() << " +" << stats_.created << " ~"

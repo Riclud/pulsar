@@ -53,6 +53,7 @@
 #include <thread>
 
 #include "native_renderer.h"
+#include "startup_trace.h"
 #include "shortcuts.h"
 #include "assoc.h"
 #include "bridge.h"
@@ -733,7 +734,11 @@ static void showWindow(QQmlApplicationEngine &engine, const WindowConfig &cfg)
     gShownAny = true;
     watchQmlFile(url);
 
+    pulsar::startupMark("qml-load");
+
     QQmlComponent component(&engine, url, QQmlComponent::PreferSynchronous);
+
+    pulsar::startupMark("qml-compiled");
 
     if (component.isError()) {
         QStringList errors;
@@ -750,6 +755,8 @@ static void showWindow(QQmlApplicationEngine &engine, const WindowConfig &cfg)
     context->setContextProperty(QStringLiteral("PulsarWindowLabel"), cfg.label);
 
     QObject *root = component.create(context);
+
+    pulsar::startupMark("qml-created");
 
     if (!root) {
         QStringList errors;
@@ -854,6 +861,9 @@ static void wireWindowEvents(QObject *root, const QString &label)
 
     if (!window)
         return;
+
+    QObject::connect(window, &QQuickWindow::frameSwapped, window, []() { pulsar::startupMark("first-frame"); },
+                     Qt::SingleShotConnection);
 
     auto *sizeTimer = new QTimer(window);
 
@@ -1469,6 +1479,7 @@ static void registerFonts()
 int main(int argc, char **argv)
 {
     pulsar::initLogs();
+    pulsar::startupMark("main");
     applyEarlyManifestEnv(argc > 0 ? argv[0] : "");
 
     // QApplication (Widgets) so native dialogs and the tray work; QQml works
@@ -1480,6 +1491,7 @@ int main(int argc, char **argv)
 
     QApplication app(argc, argv);
     app.setOrganizationName(QStringLiteral("Pulsar"));
+    pulsar::startupMark("app");
 
     gFontWarmup.thread = std::thread([] { QFontDatabase::families(); });
 
@@ -1513,6 +1525,8 @@ int main(int argc, char **argv)
     // Types are owned by `app` so they outlive the engine.
     QQmlPropertyMap *store = new QQmlPropertyMap(&app);
     Bridge *bridge = new Bridge(&engine, store, &app);
+
+    pulsar::startupMark("engine");
 
     auto *shortcuts = new pulsar::Shortcuts(&app);
 
@@ -1836,6 +1850,7 @@ int main(int argc, char **argv)
     QObject::connect(bridge, &Bridge::notification, &app,
                      [&engine, bridge](const QString &method, const QJSValue &params) {
                          if (method == QLatin1String("__config")) {
+                             pulsar::startupMark("config");
                              registerFonts();
                              const QVariantMap m = params.toVariant().toMap();
                              const QVariantList wins = m.value(QStringLiteral("windows")).toList();

@@ -1,6 +1,7 @@
 #include "bridge.h"
 #include "log.h"
 #include "quickjs_thread.h"
+#include "startup_trace.h"
 
 #include <QAction>
 #include <QClipboard>
@@ -247,6 +248,7 @@ void Bridge::startQuickJs(const QString &bundle)
         });
     }
 
+    pulsar::startupMark("js-start");
     quickjsStarted_ = quickjs_->reload(bundle, manifest, appDir);
 
     if (!quickjsStarted_)
