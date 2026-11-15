@@ -470,7 +470,8 @@ export interface TextOptions extends CommonOptions {
 
 export interface ImageOptions extends CommonOptions {
   src: string
-  fillMode?: string
+  /** `contain` keeps the whole picture, `cover` fills and crops, `stretch` (the default) distorts. */
+  fillMode?: "contain" | "cover" | "stretch" | "PreserveAspectFit" | "PreserveAspectCrop" | "Stretch" | "Tile" | "Pad"
   onClick?: () => void
   onLongPress?: () => void
 }

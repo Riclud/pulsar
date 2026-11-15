@@ -1947,6 +1947,25 @@ ApplicationWindow {
         testClick.restart();
     }
 
+    // QML refuses a string for the enum, so map the SDK names (and Qt's own) to Image.FillMode.
+    function imageFillMode(value) {
+        if (typeof value === "number")
+            return value;
+
+        const modes = {
+            contain: Image.PreserveAspectFit,
+            cover: Image.PreserveAspectCrop,
+            stretch: Image.Stretch,
+            Stretch: Image.Stretch,
+            PreserveAspectFit: Image.PreserveAspectFit,
+            PreserveAspectCrop: Image.PreserveAspectCrop,
+            Tile: Image.Tile,
+            Pad: Image.Pad
+        };
+
+        return modes[value] !== undefined ? modes[value] : Image.Stretch;
+    }
+
     function prop(obj, key, fallback) {
         return obj[key] !== undefined ? obj[key] : fallback;
     }
@@ -4872,7 +4891,7 @@ ApplicationWindow {
             item.source = prop(props, "src", "");
 
             if (props.fillMode !== undefined)
-                item.fillMode = props.fillMode;
+                item.fillMode = imageFillMode(props.fillMode);
         } else if (node.type === "avatar") {
             const name = prop(props, "name", "");
             const parts = name.trim().length > 0 ? name.trim().split(/\s+/) : [];
