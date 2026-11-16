@@ -3130,20 +3130,18 @@ const sameOwnProps = (a: SerializedUiNode, b: SerializedUiNode): boolean => {
   return JSON.stringify(a.props) === JSON.stringify(b.props)
 }
 
-const isKeyedChild = (parent: SerializedUiNode, child: SerializedUiNode): boolean => {
-  return child.props.key !== undefined || (keyedByItems(parent.type) && Array.isArray(parent.props.itemKeys))
-}
-
 type ChildOps = {
   ops: UiPatch[]
   before: Map<string, SerializedUiNode>
 }
 
-const keyedPaths = (parent: SerializedUiNode, children: SerializedUiNode[]): Map<string, SerializedUiNode> | null => {
+// A path names a child whether it comes from a key, a slot or an index, so every child can be
+// inserted, removed or moved by it; only two children on one path cannot be told apart.
+const childrenByPath = (children: SerializedUiNode[]): Map<string, SerializedUiNode> | null => {
   const byPath = new Map<string, SerializedUiNode>()
 
   for (const child of children) {
-    if (!isKeyedChild(parent, child) || byPath.has(child.path)) return null
+    if (byPath.has(child.path)) return null
 
     byPath.set(child.path, child)
   }
@@ -3151,15 +3149,15 @@ const keyedPaths = (parent: SerializedUiNode, children: SerializedUiNode[]): Map
   return byPath
 }
 
-/** Insert, remove and move operations that turn the keyed children of `previous` into those of `next`. */
+/** Insert, remove and move operations that turn the children of `previous` into those of `next`. */
 const keyedChildOps = (previous: SerializedUiNode, next: SerializedUiNode): ChildOps | null => {
   const beforeChildren = previous.children ?? []
   const afterChildren = next.children ?? []
 
   if (beforeChildren.length === 0 || afterChildren.length === 0) return null
 
-  const before = keyedPaths(previous, beforeChildren)
-  const after = keyedPaths(next, afterChildren)
+  const before = childrenByPath(beforeChildren)
+  const after = childrenByPath(afterChildren)
 
   if (!before || !after) return null
 

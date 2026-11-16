@@ -116,14 +116,38 @@ describe("ui", () => {
     expect((patches?.[0]?.node.props as { text: string }).text).toBe("c")
   })
 
-  test("sends the parent subtree when a child is inserted", () => {
+  test("inserts a child without a key instead of resending the parent", () => {
     const before = serialize([column({}, [text("a"), text("b")])])
     const after = serialize([column({}, [text("a"), text("b"), text("c")])])
     const patches = diffUiTrees(before, after)
 
     expect(patches?.length).toBe(1)
-    expect(patches?.[0]?.path).toBe("/0")
-    expect((patches?.[0]?.node.children as unknown[]).length).toBe(3)
+    expect(patches?.[0]).toMatchObject({ op: "insert", path: "/0", index: 2 })
+    expect(patches?.[0]?.node.path).toBe("/0/2")
+  })
+
+  test("a child without a key put in front shifts the others by their paths", () => {
+    const before = serialize([column({}, [text("a"), text("b")])])
+    const after = serialize([column({}, [text("x"), text("a"), text("b")])])
+    const patches = diffUiTrees(before, after)
+
+    // /0 and /1 now hold other texts, and /2 is new: the tree by path is the new one.
+    expect(patches?.map((patch) => [patch.op ?? "node", patch.op === "insert" ? patch.node.path : patch.path])).toEqual(
+      [
+        ["insert", "/0/2"],
+        ["node", "/0/0"],
+        ["node", "/0/1"],
+      ],
+    )
+  })
+
+  test("removes a conditional child and keeps the slots of the others", () => {
+    const before = serialize([column({}, text("a"), text("gone"), text("c"))])
+    const after = serialize([column({}, text("a"), null, text("c"))])
+    const patches = diffUiTrees(before, after)
+
+    expect(patches?.length).toBe(1)
+    expect(patches?.[0]).toMatchObject({ op: "remove", path: "/0/1" })
   })
 
   test("moves a keyed child instead of resending the parent", () => {
@@ -609,7 +633,12 @@ describe("qml-like components", () => {
   })
 
   test("Canvas sends its draw function as source", () => {
-    const node = Canvas({ width: 10, height: 10, params: { n: 1 }, draw: (ctx, { params }) => ctx.fillRect(0, 0, params.n, 1) })
+    const node = Canvas({
+      width: 10,
+      height: 10,
+      params: { n: 1 },
+      draw: (ctx, { params }) => ctx.fillRect(0, 0, params.n, 1),
+    })
 
     expect(node.type).toBe("canvas")
     expect(String(node.props.drawSource)).toContain("fillRect")
@@ -627,7 +656,10 @@ describe("qml-like components", () => {
   })
 
   test("Arrange sends its function as source and keeps children", () => {
-    const node = Arrange({ params: { n: 1 }, arrange: (index, _count, { params }) => ({ x: index * params.n }) }, Text({}, "a"))
+    const node = Arrange(
+      { params: { n: 1 }, arrange: (index, _count, { params }) => ({ x: index * params.n }) },
+      Text({}, "a"),
+    )
 
     expect(node.type).toBe("arrange")
     expect(String(node.props.arrangeSource)).toContain("params.n")
@@ -930,7 +962,17 @@ describe("diffUiTrees props comparison", () => {
       return serialize([box({ color: "red", shadow, onTap } as never)])
     }
 
-    expect(diffUiTrees(tree(() => {}, { x: 1 }), tree(() => {}, { x: 1 }))).toEqual([])
-    expect(diffUiTrees(tree(() => {}, { x: 1 }), tree(() => {}, { x: 2 }))?.length).toBe(1)
+    expect(
+      diffUiTrees(
+        tree(() => {}, { x: 1 }),
+        tree(() => {}, { x: 1 }),
+      ),
+    ).toEqual([])
+    expect(
+      diffUiTrees(
+        tree(() => {}, { x: 1 }),
+        tree(() => {}, { x: 2 }),
+      )?.length,
+    ).toBe(1)
   })
 })

@@ -816,6 +816,36 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "child-ops",
+    quickjsDesktop: true,
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "3600" },
+    drive: [
+      // Rows are 30 px under a 20 px title.
+      { at: 800, cmd: { cmd: "pointer", action: "click", x: 100, y: 35 } },
+      { at: 1000, cmd: { cmd: "pointer", action: "click", x: 100, y: 65 } },
+      { at: 1200, cmd: { cmd: "pointer", action: "click", x: 100, y: 95 } },
+      { at: 1900, cmd: { cmd: "pointer", action: "click", x: 100, y: 35 } },
+      { at: 2100, cmd: { cmd: "pointer", action: "click", x: 100, y: 65 } },
+      // Under the two rows left is the foot, which has no click.
+      { at: 2300, cmd: { cmd: "pointer", action: "click", x: 100, y: 95 } },
+      { at: 2800, cmd: { cmd: "pointer", action: "click", x: 100, y: 95 } },
+    ],
+    check: (output) => {
+      const lines = output.split("\n")
+      const clicks = lines.filter((line) => line.includes("CLICK ")).map((line) => line.replace(/^.*CLICK /, ""))
+      const patches = lines.filter((line) => line.includes("PulsarView patch"))
+
+      // Children without keys are inserted and removed by path: the list is never sent whole, and
+      // each row answers with the name and the step of its last render.
+      return (
+        clicks.join(" ") === "x@1 a@1 b@1 a@2 b@2 tail@3" &&
+        patches.length === 3 &&
+        patches.every((line) => / \+[02] /.test(line)) &&
+        !output.includes("for an unknown node")
+      )
+    },
+  },
+  {
     name: "rows-rerender",
     quickjsDesktop: true,
     // The basic loop: with the threaded one the software renderer of Qt Quick Shapes (the text field
