@@ -996,11 +996,104 @@ let nextId = 1
 
 const NEON_LAYOUT_KEYS = ["key", "fill", "fillWidth", "fillHeight", "expand", "align", "visible"] as const
 
+// Props that makeNode turns into events or a wrapper; a node without any of them skips that work.
+const hasNodeHooks = (props: Record<string, unknown>): boolean => {
+  return (
+    props.neon !== undefined ||
+    props.onLayout !== undefined ||
+    props.onFocus !== undefined ||
+    props.onBlur !== undefined ||
+    props.onVisible !== undefined ||
+    props.onEnterViewport !== undefined ||
+    props.onLeaveViewport !== undefined ||
+    props.onContextMenu !== undefined ||
+    props.onDropFiles !== undefined ||
+    props.drag !== undefined
+  )
+}
+
+const isPlainChild = (child: UiChild): child is UiNode => {
+  return typeof child === "object" && child !== null && !Array.isArray(child)
+}
+
+// The common case, every child a node: the list is used as it is and its slots are its indexes.
+const allPlain = (children: UiChild[]): children is UiNode[] => {
+  for (let index = 0; index < children.length; index++) {
+    if (!isPlainChild(children[index])) return false
+  }
+
+  return true
+}
+
+const NO_CHILDREN: UiChild[] = []
+
+const hasOwnKeys = (value: object): boolean => {
+  for (const _key in value) return true
+
+  return false
+}
+
+/** `owned` says `props` is a fresh object made by the SDK, so the node may keep it instead of a copy. */
+const plainNode = (
+  type: UiNodeType,
+  props: Record<string, unknown>,
+  children: UiChild[],
+  events: string[] | undefined,
+  callbacks: Record<string, UiHandler> | undefined,
+  owned: boolean,
+): UiNode => {
+  warnUnknownProps(type, props)
+
+  const id = nextId++
+  const node: UiNode = { id, type, props: owned ? props : { ...props } }
+
+  if (callbacks && hasOwnKeys(callbacks)) {
+    handlers.set(id, callbacks)
+    node.callbacks = callbacks
+  }
+
+  if (events && events.length > 0) node.events = events
+  if (children.length === 0) return node
+
+  if (allPlain(children)) {
+    node.children = children
+
+    return node
+  }
+
+  const nodes = flatten(children)
+  const slots = childSlots(children)
+
+  if (nodes.length > 0) node.children = nodes
+  if (slots.some((slot, index) => slot !== String(index))) node.slots = slots
+
+  return node
+}
+
 const makeNode = <P extends object>(
   type: UiNodeType,
   props: P,
-  children: UiChild[] = [],
-  events: string[] = [],
+  children: UiChild[] = NO_CHILDREN,
+  events?: string[],
+  callbacks?: Record<string, UiHandler>,
+  owned = false,
+): UiNode => {
+  if (!hasNodeHooks(props as Record<string, unknown>)) {
+    return plainNode(type, props as Record<string, unknown>, children, events, callbacks, owned)
+  }
+
+  return hookedNode(type, props, children, events ?? [], callbacks)
+}
+
+// The same call under a name the known-props generator does not read: these props were already
+// narrowed by the caller, and their static type still lists what the caller took out.
+const forwardNode = makeNode
+
+const hookedNode = <P extends object>(
+  type: UiNodeType,
+  props: P,
+  children: UiChild[],
+  events: string[],
   callbacks?: Record<string, UiHandler>,
 ): UiNode => {
   const {
@@ -1129,6 +1222,8 @@ const withLongPress = <P extends { onClick?: () => void; onLongPress?: () => voi
   options: P,
   children: UiChild[] = [],
 ): UiNode => {
+  if (!("onClick" in options) && !("onLongPress" in options)) return forwardNode(type, options, children)
+
   const { onClick, onLongPress, ...props } = options
   const events: string[] = []
   const callbacks: Record<string, UiHandler> = {}
@@ -1143,12 +1238,12 @@ const withLongPress = <P extends { onClick?: () => void; onLongPress?: () => voi
     callbacks.longPress = () => onLongPress()
   }
 
-  if (events.length === 0) return makeNode(type, props, children)
+  if (events.length === 0) return makeNode(type, props, children, undefined, undefined, true)
 
-  return makeNode(type, props, children, events, callbacks)
+  return makeNode(type, props, children, events, callbacks, true)
 }
 
-const SURFACE_KEYS = [
+const SURFACE_KEYS: readonly string[] = [
   "color",
   "hoverColor",
   "radius",
@@ -1162,29 +1257,32 @@ const SURFACE_KEYS = [
   "onLongPress",
 ]
 
-const INNER_KEYS = ["gap", "justify", "alignItems"]
-
-const STATE_KEYS = ["hover", "pressed", "disabled"]
+const STATE_KEYS: readonly string[] = ["hover", "pressed", "disabled"]
 
 const hasSurface = (options: object): boolean => {
   const own = options as Record<string, unknown>
 
-  if (SURFACE_KEYS.some((key) => own[key] !== undefined)) return true
+  for (const key of SURFACE_KEYS) {
+    if (own[key] !== undefined) return true
+  }
 
-  return STATE_KEYS.some((key) => {
+  for (const key of STATE_KEYS) {
     const style = own[key] as StateStyle | undefined
 
-    return style?.color !== undefined || style?.borderColor !== undefined
-  })
+    if (style?.color !== undefined || style?.borderColor !== undefined) return true
+  }
+
+  return false
 }
 
 const splitSurface = (options: object) => {
+  const own = options as Record<string, unknown>
   const outer: Record<string, unknown> = {}
   const inner: Record<string, unknown> = { fillWidth: true, fillHeight: true }
 
-  for (const [key, value] of Object.entries(options)) {
-    if (INNER_KEYS.includes(key)) inner[key] = value
-    else outer[key] = value
+  for (const key of Object.keys(own)) {
+    if (key === "gap" || key === "justify" || key === "alignItems") inner[key] = own[key]
+    else outer[key] = own[key]
   }
 
   return { outer, inner }
@@ -1236,12 +1334,14 @@ const justifiedDefaults = (axis: "row" | "column", options: LayoutOptions): Layo
 }
 
 const layoutNode = (axis: "row" | "column", options: LayoutOptions, children: UiChild[]): UiNode => {
+  if (!("justify" in options)) return forwardNode(axis, options, children)
+
   const { justify, ...props } = options
 
-  if (!justify || justify === "start") return makeNode(axis, props, children)
+  if (!justify || justify === "start") return makeNode(axis, props, children, undefined, undefined, true)
 
   const arranged = justifyChildren(axis, justify, children)
-  const node = makeNode(axis, props, arranged.nodes)
+  const node = makeNode(axis, props, arranged.nodes, undefined, undefined, true)
 
   node.slots = arranged.slots
 

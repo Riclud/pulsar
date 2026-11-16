@@ -80,7 +80,28 @@ const suggest = (prop: string, known: readonly string[]): string | undefined => 
   return best
 }
 
-const isHandler = (prop: string): boolean => /^on[A-Z]/.test(prop)
+// `on` and a capital letter: the same test as /^on[A-Z]/, without running a regular expression per prop.
+const isHandler = (prop: string): boolean => {
+  if (prop.charCodeAt(0) !== 111 || prop.charCodeAt(1) !== 110) return false
+
+  const third = prop.charCodeAt(2)
+
+  return third >= 65 && third <= 90
+}
+
+const knownSets = new Map<string, Set<string>>()
+
+const knownSet = (type: string, known: readonly string[]): Set<string> => {
+  const cached = knownSets.get(type)
+
+  if (cached) return cached
+
+  const made = new Set(known)
+
+  knownSets.set(type, made)
+
+  return made
+}
 
 /** Dev builds only: says once per component and prop that a prop is not one the component reads. */
 export const warnUnknownProps = (type: string, props: object): void => {
@@ -90,8 +111,10 @@ export const warnUnknownProps = (type: string, props: object): void => {
 
   if (!known) return
 
-  for (const prop of Object.keys(props)) {
-    if (prop === "children" || isHandler(prop) || known.includes(prop)) continue
+  const names = knownSet(type, known)
+
+  for (const prop in props) {
+    if (names.has(prop) || prop === "children" || isHandler(prop)) continue
 
     const id = `${type}.${prop}`
 
