@@ -816,6 +816,50 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "rows-rerender",
+    quickjsDesktop: true,
+    // The basic loop: with the threaded one the software renderer of Qt Quick Shapes (the text field
+    // background) now and then crashes on the render thread when hidden fields are shown again.
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "4400", QSG_RENDER_LOOP: "basic" },
+    drive: [
+      { at: 700, cmd: { cmd: "keys", text: "a" } },
+      { at: 1000, cmd: { cmd: "pointer", action: "click", text: "+alpha" } },
+      // Back into the search field: the click on the button took the focus.
+      { at: 1200, cmd: { cmd: "pointer", action: "click", x: 100, y: 18 } },
+      { at: 1400, cmd: { cmd: "keys", text: "l" } },
+      { at: 1600, cmd: { cmd: "pointer", action: "click", text: "+alpha" } },
+      // The note field of the first row, then a letter into it.
+      { at: 1900, cmd: { cmd: "pointer", action: "click", x: 200, y: 60 } },
+      { at: 2100, cmd: { cmd: "keys", text: "x" } },
+      { at: 2400, cmd: { cmd: "pointer", action: "click", text: "clear" } },
+      { at: 2700, cmd: { cmd: "pointer", action: "click", text: "+gamma" } },
+      { at: 3000, cmd: { cmd: "pointer", action: "click", text: "+alpha" } },
+      // gamma is the third row again once the search is empty.
+      { at: 3300, cmd: { cmd: "pointer", action: "click", x: 200, y: 140 } },
+      { at: 3500, cmd: { cmd: "keys", text: "y" } },
+    ],
+    check: (output) => {
+      const said = output
+        .split("\n")
+        .filter((line) => /(PLUS|NOTE) /.test(line))
+        .map((line) => line.replace(/^.*(PLUS|NOTE) /, "$1 "))
+
+      // Each line shows the row's own state (n, the note) and the search its closure was made with:
+      // rows that were rendered again, hidden and shown must answer with the newest of both.
+      return (
+        said.join("|") ===
+        [
+          "PLUS alpha n=1 q=a",
+          "PLUS alpha n=2 q=al",
+          "NOTE alpha x q=al",
+          "PLUS gamma n=1 q=",
+          "PLUS alpha n=3 q=",
+          "NOTE gamma y q=",
+        ].join("|")
+      )
+    },
+  },
+  {
     name: "inertia",
     serial: true,
     quickjsDesktop: true,
