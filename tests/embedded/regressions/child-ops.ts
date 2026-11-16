@@ -31,5 +31,5 @@ app.window("main").render(() => {
 })
 
 setTimeout(() => app.store.set("step", 1), 500)
-setTimeout(() => app.store.set("step", 2), 1700)
-setTimeout(() => app.store.set("step", 3), 2500)
+setTimeout(() => app.store.set("step", 2), 2000)
+setTimeout(() => app.store.set("step", 3), 3600)

@@ -818,17 +818,18 @@ const scenarios: Scenario[] = [
   {
     name: "child-ops",
     quickjsDesktop: true,
-    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "3600" },
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "5000" },
+    // The drive clock starts a little after the app's, so each group of clicks ends well before the next step.
     drive: [
       // Rows are 30 px under a 20 px title.
       { at: 800, cmd: { cmd: "pointer", action: "click", x: 100, y: 35 } },
       { at: 1000, cmd: { cmd: "pointer", action: "click", x: 100, y: 65 } },
       { at: 1200, cmd: { cmd: "pointer", action: "click", x: 100, y: 95 } },
-      { at: 1900, cmd: { cmd: "pointer", action: "click", x: 100, y: 35 } },
-      { at: 2100, cmd: { cmd: "pointer", action: "click", x: 100, y: 65 } },
+      { at: 2300, cmd: { cmd: "pointer", action: "click", x: 100, y: 35 } },
+      { at: 2500, cmd: { cmd: "pointer", action: "click", x: 100, y: 65 } },
       // Under the two rows left is the foot, which has no click.
-      { at: 2300, cmd: { cmd: "pointer", action: "click", x: 100, y: 95 } },
-      { at: 2800, cmd: { cmd: "pointer", action: "click", x: 100, y: 95 } },
+      { at: 2700, cmd: { cmd: "pointer", action: "click", x: 100, y: 95 } },
+      { at: 4000, cmd: { cmd: "pointer", action: "click", x: 100, y: 95 } },
     ],
     check: (output) => {
       const lines = output.split("\n")
