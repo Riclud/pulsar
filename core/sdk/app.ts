@@ -230,6 +230,26 @@ class SentIDs {
     this.list.push(id)
   }
 
+  addAll(ids: readonly number[]): void {
+    let highest = 0
+
+    for (const id of ids) {
+      if (id > highest) highest = id
+    }
+
+    this.grow(highest)
+
+    const live = this.live
+    const list = this.list
+
+    for (const id of ids) {
+      if (live[id]) continue
+
+      live[id] = 1
+      list.push(id)
+    }
+  }
+
   delete(id: number): void {
     if (id < this.live.length) this.live[id] = 0
   }
@@ -699,16 +719,19 @@ export class App {
 
     // A rerendered component keeps the nodes of children that did not change, so
     // their IDs show up as both removed and current; only drop the ones now gone.
-    const current = update.removedIDs.length > 0 ? new Set(update.ids) : null
-    const gone = current ? update.removedIDs.filter((id) => !current.has(id)) : []
+    // The removed ones are the short list, so the current IDs are struck from it, not the reverse.
+    const removed = new Set(update.removedIDs)
+
+    for (let index = 0; removed.size > 0 && index < update.ids.length; index++) removed.delete(update.ids[index]!)
+
+    const gone = [...removed]
 
     for (const path of update.removedRoutes) delete routes[path]
     for (const id of gone) ids.delete(id)
 
     forgetHandlers(gone)
     Object.assign(routes, update.routes)
-
-    for (const id of update.ids) ids.add(id)
+    ids.addAll(update.ids)
   }
 
   private flushRoot(label: string, root: UiRoot, previous: unknown[] | undefined, started: number): void {
