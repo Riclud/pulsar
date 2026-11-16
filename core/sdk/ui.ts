@@ -71,7 +71,6 @@ export interface UiNode {
   /** Set on nodes that are reused between renders, so their serialized form can be too. */
   cacheable?: boolean
   serialized?: { path: string; out: Record<string, unknown> }
-  collected?: { path: string; routes: UiRoutes; ids: number[] }
 }
 
 export type UiRoutes = Record<string, Record<string, (value: unknown) => void>>
@@ -1289,12 +1288,15 @@ const splitSurface = (options: object) => {
 }
 
 const justifySpacer = (axis: "row" | "column", key: string, flex: number) => {
-  return spacer({ key, flex, ...(axis === "row" ? { fillWidth: true } : { fillHeight: true }) })
+  const props = axis === "row" ? { key, flex, fillWidth: true } : { key, flex, fillHeight: true }
+
+  return makeNode("spacer", props, NO_CHILDREN, undefined, undefined, true)
 }
 
 const justifyChildren = (axis: "row" | "column", justify: Justify, children: UiChild[]) => {
-  const nodes = flatten(children)
-  const slots = childSlots(children)
+  const plain = allPlain(children)
+  const nodes = plain ? children : flatten(children)
+  const slots = plain ? children.map((_child, index) => String(index)) : childSlots(children)
   const out: UiNode[] = []
   const outSlots: string[] = []
   const edge = 1
@@ -2223,13 +2225,138 @@ const withInstance = <T>(instance: ComponentInstance, fn: () => T): T => {
   }
 }
 
+const sameItems = (a: readonly unknown[], b: readonly unknown[]): boolean => {
+  if (a.length !== b.length) return false
+
+  for (let index = 0; index < a.length; index++) {
+    if (!sameValue(a[index], b[index])) return false
+  }
+
+  return true
+}
+
+/** Deep equality of what props hold: plain objects, arrays and primitives. Anything else must be the same value. */
+const sameValue = (a: unknown, b: unknown): boolean => {
+  if (Object.is(a, b)) return true
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false
+
+  if (Array.isArray(a)) return Array.isArray(b) && sameItems(a, b)
+
+  if (
+    Array.isArray(b) ||
+    Object.getPrototypeOf(a) !== Object.prototype ||
+    Object.getPrototypeOf(b) !== Object.prototype
+  )
+    return false
+
+  return sameRecord(a as Record<string, unknown>, b as Record<string, unknown>)
+}
+
+// Written for the usual outcome, equal props: one pass, and no key lists to allocate.
+const sameRecord = (left: Record<string, unknown>, right: Record<string, unknown>): boolean => {
+  let count = 0
+
+  for (const key in left) {
+    const was = left[key]
+    const now = right[key]
+
+    if (was !== now && !sameValue(was, now)) return false
+    if (now === undefined && !(key in right)) return false
+
+    count++
+  }
+
+  for (const _key in right) count--
+
+  return count === 0
+}
+
+const sameList = (a: readonly string[] | undefined, b: readonly string[] | undefined): boolean => {
+  if (a === b) return true
+  if (!a || !b || a.length !== b.length) return false
+
+  for (let index = 0; index < a.length; index++) {
+    if (a[index] !== b[index]) return false
+  }
+
+  return true
+}
+
+const sameCallbackNames = (
+  a: Record<string, UiHandler> | undefined,
+  b: Record<string, UiHandler> | undefined,
+): boolean => {
+  if (!a || !b) return a === b
+
+  let count = 0
+
+  for (const name in a) {
+    if (!(name in b)) return false
+
+    count++
+  }
+
+  for (const _name in b) count--
+
+  return count === 0
+}
+
+/**
+ * A rerender builds every node again, and most come out the same as before. Where a new subtree
+ * equals the old one, the old nodes stay in the tree: they keep their ID and what was cached for
+ * them, so nothing below is serialized, compared or sent again. Their callbacks are replaced in
+ * place with the ones this render made, so an event always runs the newest closure.
+ */
+const adoptNode = (previous: UiNode, next: UiNode): UiNode => {
+  if (previous === next) return previous
+
+  // A component's own node was compared when that component rendered.
+  if (next.cacheable) return next
+
+  return adoptInto(previous, next)
+}
+
+const adoptInto = (previous: UiNode, next: UiNode): UiNode => {
+  const before = previous.children
+  const after = next.children
+  const shared = before && after ? Math.min(before.length, after.length) : 0
+  let same = (before?.length ?? 0) === (after?.length ?? 0)
+
+  for (let index = 0; index < shared; index++) {
+    const kept = adoptNode(before![index]!, after![index]!)
+
+    if (kept === before![index]) after![index] = kept
+    else same = false
+  }
+
+  same =
+    same &&
+    previous.type === next.type &&
+    sameList(previous.events, next.events) &&
+    sameList(previous.slots, next.slots) &&
+    sameCallbackNames(previous.callbacks, next.callbacks) &&
+    sameRecord(previous.props, next.props)
+
+  if (!same) return next
+
+  if (previous.callbacks && next.callbacks) Object.assign(previous.callbacks, next.callbacks)
+
+  // The new node is dropped, so its ID never reaches the host.
+  handlers.delete(next.id)
+  previous.cacheable = true
+
+  return previous
+}
+
 const renderInstance = (instance: ComponentInstance): void => {
-  const node = withInstance(instance, instance.render)
+  const previous = instance.node
+  let node = withInstance(instance, instance.render)
 
   if (node && !Array.isArray(node)) {
-    node.cacheable = true
-
     if (instance.props.key !== undefined && node.props.key === undefined) node.props.key = instance.props.key
+    if (previous && !Array.isArray(previous)) node = adoptInto(previous, node)
+
+    node.cacheable = true
   }
 
   instance.node = node
@@ -2715,14 +2842,6 @@ export interface UiRootUpdate extends UiHandlerChange {
   patches: UiPatch[]
 }
 
-const forgetAncestorCollections = (instance: ComponentInstance): void => {
-  for (let parent = instance.parent; parent; parent = parent.parent) {
-    const node = parent.node
-
-    if (node && !Array.isArray(node)) node.collected = undefined
-  }
-}
-
 /** Rerender the dirty components in place; null means the root must rerender. */
 export const updateUiRoot = (root: UiRoot): UiRootUpdate | null => {
   if (root.instance.dirty) return null
@@ -2757,8 +2876,6 @@ export const updateUiRoot = (root: UiRoot): UiRootUpdate | null => {
 
     Object.assign(before.out, out)
     next.serialized = { path: before.path, out: before.out }
-
-    forgetAncestorCollections(instance)
   }
 
   return update
@@ -2933,7 +3050,10 @@ const serializeNode = (node: UiNode, path: string): Record<string, unknown> => {
   }
 
   if (node.events) out.events = node.events
-  if (node.cacheable) node.serialized = { path, out }
+
+  // Kept for every node, read only for a reused one: a node that the next render keeps
+  // (see adoptNode) is then serialized already.
+  node.serialized = { path, out }
 
   return out
 }
@@ -3146,18 +3266,15 @@ export const dispatchWindowEvent = (target: string, path: string, event: string,
 }
 
 const dropSubtree = (node: UiNode, path: string, change: UiHandlerChange): void => {
-  const collected = collectNode(node, path)
+  const routes: UiRoutes = {}
 
-  for (const route in collected.routes) change.removedRoutes.push(route)
-  for (const id of collected.ids) change.removedIDs.push(id)
+  collectInto(node, path, routes, change.removedIDs)
+
+  for (const route in routes) change.removedRoutes.push(route)
 }
 
 const addSubtree = (node: UiNode, path: string, change: UiHandlerChange): void => {
-  const collected = collectNode(node, path)
-
-  Object.assign(change.routes, collected.routes)
-
-  for (const id of collected.ids) change.ids.push(id)
+  collectInto(node, path, change.routes, change.ids)
 }
 
 const itemKeysOf = (node: UiNode): Array<string | number> | undefined => {
@@ -3168,9 +3285,9 @@ const itemKeysOf = (node: UiNode): Array<string | number> | undefined => {
 const reconcileNode = (before: UiNode, after: UiNode, path: string, change: UiHandlerChange): void => {
   if (before === after) return
 
-  if (before.callbacks ?? handlers.get(before.id)) change.removedRoutes.push(path)
+  if (before.callbacks) change.removedRoutes.push(path)
 
-  const callbacks = after.callbacks ?? handlers.get(after.id)
+  const callbacks = after.callbacks
 
   if (callbacks) change.routes[path] = callbacks
 
@@ -3279,26 +3396,34 @@ const reconcileChildren = (
   for (const [childPath, node] of old) dropSubtree(node, childPath, change)
 }
 
-const collectNode = (node: UiNode, path: string): { routes: UiRoutes; ids: number[] } => {
-  if (node.cacheable && node.collected?.path === path) return node.collected
+// One pair of tables is filled for the whole tree. A path is only put together for a node that
+// has callbacks or children: most nodes are leaves that nothing is routed to.
+const collectInto = (node: UiNode, path: string, routes: UiRoutes, ids: number[]): void => {
+  // makeNode registers callbacks and puts them on the node together, so the node alone tells.
+  const callbacks = node.callbacks
 
-  const routes: UiRoutes = {}
-  const callbacks = node.callbacks ?? handlers.get(node.id)
-  const ids = [node.id]
+  ids.push(node.id)
 
   if (callbacks) routes[path] = callbacks
 
-  if (node.children) {
-    const childKeys = keyedByItems(node.type) ? (node.props.itemKeys as Array<string | number> | undefined) : undefined
-    const child = collectUiHandlers(node.children, path, childKeys, node.slots)
+  const children = node.children
 
-    Object.assign(routes, child.routes)
-    ids.push(...child.ids)
+  if (!children) return
+
+  const keys = itemKeysOf(node)
+  const slots = node.slots
+
+  for (let index = 0; index < children.length; index++) {
+    const child = children[index]!
+
+    if (!child.children && !child.callbacks) {
+      ids.push(child.id)
+
+      continue
+    }
+
+    collectInto(child, `${path}/${nodeSegment(child, index, keys, slots)}`, routes, ids)
   }
-
-  if (node.cacheable) node.collected = { path, routes, ids }
-
-  return { routes, ids }
 }
 
 export const collectUiHandlers = (
@@ -3311,10 +3436,7 @@ export const collectUiHandlers = (
   const ids: number[] = []
 
   nodes.forEach((node, index) => {
-    const collected = collectNode(node, `${parentPath}/${nodeSegment(node, index, keys, slots)}`)
-
-    Object.assign(routes, collected.routes)
-    ids.push(...collected.ids)
+    collectInto(node, `${parentPath}/${nodeSegment(node, index, keys, slots)}`, routes, ids)
   })
 
   return { routes, ids }

@@ -699,8 +699,8 @@ export class App {
 
     // A rerendered component keeps the nodes of children that did not change, so
     // their IDs show up as both removed and current; only drop the ones now gone.
-    const current = new Set(update.ids)
-    const gone = update.removedIDs.filter((id) => !current.has(id))
+    const current = update.removedIDs.length > 0 ? new Set(update.ids) : null
+    const gone = current ? update.removedIDs.filter((id) => !current.has(id)) : []
 
     for (const path of update.removedRoutes) delete routes[path]
     for (const id of gone) ids.delete(id)

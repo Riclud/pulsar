@@ -732,8 +732,17 @@ JSValue jsPulsarSend(JSContext *ctx, JSValueConst, int argc, JSValueConst *argv)
     if (argc < 1)
         return JS_UNDEFINED;
 
-    const QString text = toQString(ctx, argv[0]);
-    const QJsonDocument doc = QJsonDocument::fromJson(text.toUtf8());
+    // Straight from the engine's UTF-8: a UI tree is close to a megabyte, and a QString in
+    // between would convert it twice.
+    size_t length = 0;
+    const char *text = JS_ToCStringLen(ctx, &length, argv[0]);
+
+    if (!text)
+        return JS_UNDEFINED;
+
+    const QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromRawData(text, qsizetype(length)));
+
+    JS_FreeCString(ctx, text);
 
     if (doc.isObject())
         Q_EMIT self(ctx)->message(doc.object());
