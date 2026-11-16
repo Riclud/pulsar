@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QEasingCurve>
 #include <QHash>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -12,6 +13,7 @@
 #include <QQuickWindow>
 #include <QSet>
 #include <QString>
+#include <QVariantAnimation>
 #include <QVariantMap>
 
 #include <limits>
@@ -19,6 +21,8 @@
 #include <vector>
 
 namespace pulsar {
+
+class NativeMotion;
 
 /** Places children in list order; replaces QtQuick.Layouts for the nodes C++ owns. */
 class NativeStack : public QQuickItem {
@@ -82,6 +86,8 @@ public:
         qreal maxHeight = std::numeric_limits<qreal>::infinity();
         Align align = Align::Default;
         std::shared_ptr<QmlHints> qml;
+        /** The enter and exit motion of a child that C++ owns; it caps the height while it plays. */
+        QPointer<NativeMotion> motion;
     };
 
     explicit NativeStack(QQuickItem *parent = nullptr);
@@ -168,8 +174,8 @@ public:
     Q_INVOKABLE QObject *itemAt(const QString &path) const;
     Q_INVOKABLE void commit();
 
-    /** A pointer handler of a state box changed: hover or press. */
-    Q_INVOKABLE void stateInput(const QString &path);
+    /** Lists stop reacting to hover while they scroll; QML tells the handlers that C++ made. */
+    Q_INVOKABLE void setHoverEnabled(bool enabled);
 
     /** A right click or long press on a node that listens for contextMenu; x and y are in window space. */
     Q_INVOKABLE void contextRequested(const QString &path, qreal x, qreal y);
@@ -185,9 +191,28 @@ private slots:
     void fieldAccepted();
     void fieldCursorMoved();
     void fieldTapped();
+    void surfaceTapped();
+    void surfaceLongPressed();
+    void surfaceHoverChanged();
+    void surfacePressChanged();
+    void imageStatusChanged();
 
 private:
-    enum class Kind { Island, Shell, Stack, Scroll, Box, ClickableBox, StateBox, Text, Spacer, Control };
+    enum class Kind { Island, Shell, Stack, Scroll, Box, ClickableBox, StateBox, Text, Spacer, Control, Image };
+
+    /** Pointer handlers and colour transitions of a box that reacts to the pointer. */
+    struct Surface {
+        QPointer<QObject> hover;
+        QPointer<QObject> press;
+        QPointer<QObject> tap;
+        QPointer<QVariantAnimation> fill;
+        QPointer<QVariantAnimation> edge;
+        QPointer<QVariantAnimation> fade;
+        bool holding = false;
+        bool painted = false;
+        bool hasStateOpacity = false;
+        qreal stateOpacity = 1;
+    };
 
     struct Node {
         QString path;
@@ -200,6 +225,10 @@ private:
         Node *parent = nullptr;
         bool insideScroll = false;
         bool styled = false;
+        std::unique_ptr<Surface> surface;
+        QPointer<NativeMotion> motion;
+        // -1 until the first visible value is applied.
+        int lastVisible = -1;
         // The scroll (or the window) a node's visibility is measured in; null while it is not watched.
         QQuickItem *viewport = nullptr;
         QPointer<QQuickItem> context;
@@ -233,6 +262,8 @@ private:
         QString iconFamily;
         qreal fontScale = 1;
         int spacing = 8;
+        int motionFast = 300;
+        QEasingCurve motionCurve;
     };
 
     struct Stats {
@@ -240,6 +271,8 @@ private:
         int updated = 0;
         int removed = 0;
         int reordered = 0;
+        /** Nodes that QML had to build: islands and shells. */
+        int mounted = 0;
     };
 
     void loadTheme();
@@ -270,6 +303,17 @@ private:
     void applyBox(Node &node);
     void applyText(Node &node);
     void applyIcon(Node &node);
+    void applyImage(Node &node);
+    void applyAccessible(Node &node);
+    void applyVisible(Node &node);
+    bool motionReady() const;
+    void applyMotion(Node &node);
+    void playEnter(Node &node);
+    bool playExit(Node &node, QQuickItem *after);
+    qreal restingOpacity(const Node &node) const;
+    QObject *attachHandler(Node &node, QQmlComponent *component);
+    void paintSurface(Node &node, const QString &fill, const QString &edge, int ms);
+    void fadeSurface(Node &node, qreal opacity, int ms);
     void applyControl(Node &node);
     void bindControl(Node &node);
     void applyField(Node &node);
@@ -308,9 +352,15 @@ private:
     std::unique_ptr<QQmlComponent> text_;
     std::unique_ptr<QQmlComponent> contextTap_;
     std::unique_ptr<QQmlComponent> fieldTap_;
+    std::unique_ptr<QQmlComponent> surface_;
+    std::unique_ptr<QQmlComponent> image_;
+    std::unique_ptr<QQmlComponent> tapHandler_;
+    std::unique_ptr<QQmlComponent> hoverHandler_;
+    std::unique_ptr<QQmlComponent> pressHandler_;
+    std::unique_ptr<QQmlComponent> shift_;
     QQmlComponent *flickable_ = nullptr;
-    QQmlComponent *clickableBox_ = nullptr;
-    QQmlComponent *stateBox_ = nullptr;
+    QHash<QObject *, Node *> handlerNodes_;
+    QList<QPointer<QObject>> hoverHandlers_;
     QHash<QString, QQmlComponent *> controls_;
     std::unique_ptr<Node> tree_;
     QHash<QString, Node *> index_;

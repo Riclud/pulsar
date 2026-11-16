@@ -31,8 +31,6 @@ ApplicationWindow {
     property var nativeRenderer: null
     readonly property Item nativeHost: host
     readonly property Component nativeFlickable: flickableComponent
-    readonly property Component nativeClickableBox: clickableBoxComponent
-    readonly property Component nativeStateBox: stateBoxComponent
     readonly property Component nativeButton: buttonComponent
     readonly property Component nativeIconButton: nativeIconButtonComponent
     readonly property Component nativeCheckbox: checkboxComponent
@@ -573,22 +571,6 @@ ApplicationWindow {
 
         Rectangle {
             property var pulsarMeta: null
-        }
-    }
-
-    Component {
-        id: clickableBoxComponent
-
-        ClickableBoxNode {
-            view: viewRef
-        }
-    }
-
-    Component {
-        id: stateBoxComponent
-
-        StateBoxNode {
-            view: viewRef
         }
     }
 
@@ -5247,6 +5229,9 @@ ApplicationWindow {
 
         for (const handler of view.hoverHandlers)
             handler.enabled = enabled;
+
+        if (view.nativeRenderer)
+            view.nativeRenderer.setHoverEnabled(enabled);
     }
 
     function noteScrolling(active) {
@@ -5279,6 +5264,12 @@ ApplicationWindow {
 
             view.building--;
         }
+    }
+
+    // A box that C++ owns was tapped; the deepest of the items tapped at once gets the click.
+    function nativeTapped(item) {
+        view.tappedItems.push(item);
+        Qt.callLater(view.flushTap);
     }
 
     function nativeEnter(item) {

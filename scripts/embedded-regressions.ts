@@ -720,6 +720,70 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "motion-native",
+    serial: true,
+    quickjsDesktop: true,
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "3200" },
+    check: (output) => {
+      const lines = output.split("\n")
+      const patches = lines.filter((line) => line.includes("PulsarView patch"))
+      const tails = lines.map((line) => line.match(/TAIL (\d+)$/)?.[1]).filter((value) => value !== undefined)
+
+      // The same steps as `motion`, with every card built and animated by C++: no patch mounts QML.
+      return (
+        output.includes("PulsarView enter /root/added") &&
+        output.includes("PulsarView exit done /root/removed") &&
+        output.includes("PulsarView hide done /root/hidden") &&
+        output.includes("PulsarView enter /root/hidden") &&
+        output.includes("PulsarView enter /root/flip") &&
+        !output.includes("PulsarView hide done /root/flip") &&
+        patches.length >= 5 &&
+        patches.every((line) => line.includes(" qml=0 ")) &&
+        // Rows leaving and entering move the box under them, and it ends where it started.
+        new Set(tails).size > 2 &&
+        tails.at(-1) === tails[0]
+      )
+    },
+  },
+  {
+    name: "row-native",
+    quickjsDesktop: true,
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "3000" },
+    copies: { "wide.png": "assets/wide.png" },
+    drive: [
+      { at: 700, cmd: { cmd: "pointer", action: "hover", x: 150, y: 20 } },
+      { at: 1000, cmd: { cmd: "pointer", action: "hover", x: 300, y: 20 } },
+      { at: 1300, cmd: { cmd: "pointer", action: "press", x: 300, y: 20 } },
+      { at: 1600, cmd: { cmd: "pointer", action: "release", x: 300, y: 20 } },
+      { at: 1900, cmd: { cmd: "pointer", action: "click", x: 150, y: 20 } },
+      { at: 2200, cmd: { cmd: "pointer", action: "leave" } },
+    ],
+    check: (output) => {
+      const lines = output.split("\n")
+
+      const states = (path: string) => {
+        return lines
+          .filter((line) => line.includes("PulsarView state ") && line.includes(` ${path} `))
+          .map((line) => line.replace(/^.*PulsarView state (\w+) .*$/, "$1"))
+          .join(" ")
+      }
+
+      const clicks = lines.filter((line) => line.includes("CLICK ")).map((line) => line.replace(/^.*CLICK /, ""))
+
+      return (
+        // The whole row is built by C++: card, image and icon button.
+        lastBuilt(output)?.includes(" qml=0 ") === true &&
+        // A 44 x 22 picture drawn `contain` in a 22 x 22 box.
+        /PulsarView image status \/root\/row\/line\/avatar\/\S*icon 1 22 11/.test(output) &&
+        output.includes("PulsarView a11y /root/row/line/tile name=Open role=43") &&
+        states("/root/row/line/tile") === "normal hover pressed hover normal" &&
+        states("/root/row").startsWith("normal hover pressed hover") &&
+        // The button inside the row takes its own click; the row gets only the one on its text.
+        clicks.join(" ") === "tile row"
+      )
+    },
+  },
+  {
     name: "inertia",
     serial: true,
     quickjsDesktop: true,
@@ -1377,7 +1441,10 @@ const runScenario = async (scenario: Scenario): Promise<Outcome> => {
 
     const head = `${passed ? "ok  " : "FAIL"} ${scenario.name} (exit ${exitCode}, ${Date.now() - started} ms)`
 
-    return { name: scenario.name, passed, report: passed ? head : `${head}\n${output}`, ms: Date.now() - started }
+    // PULSAR_TEST_VERBOSE=1 prints the host output of a passing scenario too, to see what a check matched.
+    const quiet = passed && process.env.PULSAR_TEST_VERBOSE !== "1"
+
+    return { name: scenario.name, passed, report: quiet ? head : `${head}\n${output}`, ms: Date.now() - started }
   } finally {
     drive?.stop()
     rmSync(dir, { recursive: true, force: true })

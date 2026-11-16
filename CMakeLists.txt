@@ -101,6 +101,7 @@ if(IOS)
         host/quickjs_runtime.cpp
         host/quickjs_thread.cpp
         host/native_renderer.cpp
+        host/native_motion.cpp
         host/inertia.cpp
         host/shortcuts.cpp
         host/net.cpp
@@ -109,6 +110,7 @@ if(IOS)
         host/quickjs_runtime.h
         host/quickjs_thread.h
         host/native_renderer.h
+        host/native_motion.h
         host/net.h
         "${PULSAR_IOS_APP_QRC}"
     )
@@ -153,11 +155,13 @@ add_executable(qml-host
     host/quickjs_runtime.cpp
     host/quickjs_thread.cpp
     host/native_renderer.cpp
+    host/native_motion.cpp
     host/inertia.cpp
     host/shortcuts.cpp
     host/quickjs_runtime.h
     host/quickjs_thread.h
     host/native_renderer.h
+    host/native_motion.h
     host/log.cpp
     host/embedded.cpp
     host/secure.cpp
@@ -229,6 +233,7 @@ add_executable(qml-host-qjs
     host/quickjs_runtime.cpp
     host/quickjs_thread.cpp
     host/native_renderer.cpp
+    host/native_motion.cpp
     host/inertia.cpp
     host/shortcuts.cpp
     host/net.cpp
@@ -237,6 +242,7 @@ add_executable(qml-host-qjs
     host/quickjs_runtime.h
     host/quickjs_thread.h
     host/native_renderer.h
+    host/native_motion.h
     host/net.h
 )
 target_include_directories(qml-host-qjs PRIVATE host host/embedded)
@@ -297,6 +303,7 @@ if(ANDROID)
         host/quickjs_runtime.cpp
         host/quickjs_thread.cpp
         host/native_renderer.cpp
+        host/native_motion.cpp
         host/inertia.cpp
         host/shortcuts.cpp
         host/net.cpp
@@ -308,6 +315,7 @@ if(ANDROID)
         host/quickjs_runtime.h
         host/quickjs_thread.h
         host/native_renderer.h
+        host/native_motion.h
         host/net.h
     )
     target_include_directories(pulsar-android PRIVATE host host/embedded)
