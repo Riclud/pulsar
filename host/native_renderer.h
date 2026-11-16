@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QEasingCurve>
+#include <QElapsedTimer>
 #include <QHash>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -184,6 +185,7 @@ public:
 private slots:
     void refreshTheme();
     void scheduleVisibilitySlot();
+    void buildSlice();
     void controlClicked();
     void controlToggled();
     void fieldTextChanged();
@@ -198,7 +200,8 @@ private slots:
     void imageStatusChanged();
 
 private:
-    enum class Kind { Island, Shell, Stack, Scroll, Box, ClickableBox, StateBox, Text, Spacer, Control, Image };
+    // Pending: a subtree that is not built yet. It keeps its JSON and a hidden placeholder in its slot.
+    enum class Kind { Island, Shell, Stack, Scroll, Box, ClickableBox, StateBox, Text, Spacer, Control, Image, Pending };
 
     /** Pointer handlers and colour transitions of a box that reacts to the pointer. */
     struct Surface {
@@ -229,6 +232,8 @@ private:
         QPointer<NativeMotion> motion;
         // -1 until the first visible value is applied.
         int lastVisible = -1;
+        // A pending node that was put off below a node being created: its enter does not play, as if built with it.
+        bool heldEnter = false;
         // The scroll (or the window) a node's visibility is measured in; null while it is not watched.
         QQuickItem *viewport = nullptr;
         QPointer<QQuickItem> context;
@@ -273,6 +278,8 @@ private:
         int reordered = 0;
         /** Nodes that QML had to build: islands and shells. */
         int mounted = 0;
+        /** Subtrees put off to a later slice. */
+        int deferred = 0;
     };
 
     void loadTheme();
@@ -289,7 +296,12 @@ private:
     void replaceNode(Node &node, const QJsonObject &json);
 
     std::unique_ptr<Node> create(const QJsonObject &json, Node *parent);
-    std::unique_ptr<Node> createSynced(const QJsonObject &json, Node *parent);
+    std::unique_ptr<Node> createSynced(const QJsonObject &json, Node *parent, bool mayDefer = true);
+    std::unique_ptr<Node> createPending(const QJsonObject &json, Node *parent);
+    bool overBudget(const QJsonObject &json, const Node &parent) const;
+    void build(Node &node);
+    void scheduleSlice();
+    void logApplied(const char *label, qsizetype count, qint64 elapsed) const;
     void settle(Node &node);
     QQuickItem *instantiate(QQmlComponent *component);
     void adopt(QQuickItem *item, QQuickItem *parent);
@@ -370,6 +382,14 @@ private:
     QSet<QQuickItem *> pendingVisibility_;
     Theme theme_;
     Stats stats_;
+    // Subtrees waiting to be built, in the order they show.
+    QList<Node *> pending_;
+    // Where a subtree put off during a slice goes in pending_: right after the one being built. -1 outside a slice.
+    qsizetype pendingFront_ = -1;
+    QElapsedTimer sliceClock_;
+    // Since the first subtree was put off; debug output only.
+    QElapsedTimer sliceRun_;
+    bool sliceScheduled_ = false;
     QJsonArray pendingTree_;
     QList<QJsonArray> queuedPatches_;
     QString treeShape_;

@@ -784,6 +784,38 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "slices",
+    serial: true,
+    quickjsDesktop: true,
+    // A millisecond per slice from the fifth node on, so the list is still being built when its patches arrive.
+    env: { PULSAR_TRANSITION: "none", AUTO_QUIT_MS: "4200", PULSAR_SLICE_MS: "1", PULSAR_SLICE_NODES: "4" },
+    drive: [
+      { at: 2200, cmd: { cmd: "pointer", action: "click", x: 100, y: 130 } },
+      { at: 2400, cmd: { cmd: "pointer", action: "click", x: 100, y: 150 } },
+      { at: 2600, cmd: { cmd: "pointer", action: "click", x: 100, y: 170 } },
+      { at: 2800, cmd: { cmd: "pointer", action: "click", x: 100, y: 190 } },
+      { at: 3000, cmd: { cmd: "pointer", action: "click", x: 100, y: 210 } },
+      { at: 3200, cmd: { cmd: "pointer", action: "click", x: 100, y: 230 } },
+      { at: 3400, cmd: { cmd: "pointer", action: "click", text: "seven" } },
+    ],
+    check: (output) => {
+      const lines = output.split("\n")
+      const clicks = lines.filter((line) => line.includes("CLICK ")).map((line) => line.replace(/^.*CLICK /, ""))
+      const slices = lines.filter((line) => line.includes("PulsarView slice "))
+      const patched = lines.filter((line) => line.includes("PulsarView patch ") && line.includes(" pending="))
+
+      // The list is scrolled to its end: r6 is hidden and r8 is gone, so the last rows are
+      // b99, r0 to r5, seven, r9, n1, r11 and r10, 20 px each.
+      return (
+        patched.length >= 1 &&
+        slices.length >= 5 &&
+        !slices.at(-1)!.includes(" pending=") &&
+        clicks.join(" ") === "r5 r7 r9 n1 r11 r10 r7" &&
+        !output.includes("for an unknown node")
+      )
+    },
+  },
+  {
     name: "inertia",
     serial: true,
     quickjsDesktop: true,

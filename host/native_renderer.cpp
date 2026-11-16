@@ -573,6 +573,47 @@ QVariant itemArg(QObject *item)
     return QVariant::fromValue(item);
 }
 
+// Building a big tree is cut into slices so that the window keeps answering: once an update has made
+// `nodes` nodes and taken `ms`, what is left of a scroll's content waits for the next slices.
+// PULSAR_SLICE_MS sets the time (negative: never slice), PULSAR_SLICE_NODES the node count.
+struct SliceLimits {
+    int ms = 8;
+    int nodes = 300;
+};
+
+const SliceLimits &sliceLimits()
+{
+    static const SliceLimits limits = []() {
+        SliceLimits out;
+        bool ok = false;
+
+        const int ms = qEnvironmentVariableIntValue("PULSAR_SLICE_MS", &ok);
+
+        if (ok)
+            out.ms = ms;
+
+        const int nodes = qEnvironmentVariableIntValue("PULSAR_SLICE_NODES", &ok);
+
+        if (ok)
+            out.nodes = nodes;
+
+        return out;
+    }();
+
+    return limits;
+}
+
+// These mount outside their parent and place themselves, so a placeholder cannot stand in for them.
+bool placesItself(const QString &type)
+{
+    static const QSet<QString> types = {
+        QStringLiteral("sheet"), QStringLiteral("snackbar"), QStringLiteral("popover"),
+        QStringLiteral("menu"),  QStringLiteral("fab"),
+    };
+
+    return types.contains(type);
+}
+
 bool debugging()
 {
     static const bool enabled = qEnvironmentVariableIsSet("PULSAR_DEBUG");
@@ -1160,6 +1201,7 @@ void NativeRenderer::detach()
 
     // The window owns the items and is about to delete them.
     index_.clear();
+    pending_.clear();
     handlerNodes_.clear();
     hoverHandlers_.clear();
     watched_.clear();
@@ -1227,6 +1269,9 @@ void NativeRenderer::refreshTheme()
 
 void NativeRenderer::reapplyAll(Node &node)
 {
+    if (node.kind == Kind::Pending)
+        return;
+
     if (node.kind == Kind::Island) {
         updateIsland(node, false);
         return;
@@ -1322,19 +1367,16 @@ void NativeRenderer::commit()
     hasPendingTree_ = false;
     stats_ = {};
 
-    QElapsedTimer timer;
-
-    timer.start();
+    sliceClock_.start();
     syncChildren(*tree_, tree);
 
-    const qint64 elapsed = timer.elapsed();
+    const qint64 elapsed = sliceClock_.elapsed();
+
+    sliceClock_.invalidate();
+    scheduleSlice();
 
     pulsar::startupMark("ui-built");
-
-    if (debugging())
-        qInfo().noquote().nospace() << "PulsarView built " << tree.size() << " +" << stats_.created << " ~"
-                                    << stats_.updated << " -" << stats_.removed << " reorder=" << stats_.reordered
-                                    << " qml=" << stats_.mounted << " " << elapsed << "ms";
+    logApplied("built", tree.size(), elapsed);
 
     QMetaObject::invokeMethod(root_, "nativeAfterTree", Q_ARG(QVariant, QVariant(tree.size())),
                               Q_ARG(QVariant, QVariant(elapsed)));
@@ -1358,9 +1400,7 @@ void NativeRenderer::applyPatchList(const QJsonArray &patches)
     stats_ = {};
     dirtyStacks_.clear();
 
-    QElapsedTimer timer;
-
-    timer.start();
+    sliceClock_.start();
 
     for (const QJsonValue &value : patches) {
         const QJsonObject patch = value.toObject();
@@ -1380,10 +1420,152 @@ void NativeRenderer::applyPatchList(const QJsonArray &patches)
 
     dirtyStacks_.clear();
 
+    const qint64 elapsed = sliceClock_.elapsed();
+
+    sliceClock_.invalidate();
+    scheduleSlice();
+    logApplied("patch", patches.size(), elapsed);
+}
+
+// `pending` shows only while something waits, so the line of a small update reads as it always did.
+void NativeRenderer::logApplied(const char *label, qsizetype count, qint64 elapsed) const
+{
+    if (!debugging())
+        return;
+
+    const QString waiting = pending_.isEmpty() ? QString() : QStringLiteral(" pending=%1").arg(pending_.size());
+
+    qInfo().noquote().nospace() << "PulsarView " << label << " " << count << " +" << stats_.created << " ~" << stats_.updated
+                                << " -" << stats_.removed << " reorder=" << stats_.reordered << waiting
+                                << " qml=" << stats_.mounted << " " << elapsed << "ms";
+}
+
+bool NativeRenderer::overBudget(const QJsonObject &json, const Node &parent) const
+{
+    const SliceLimits &limits = sliceLimits();
+
+    if (limits.ms < 0 || !sliceClock_.isValid())
+        return false;
+
+    // Only a scroll's content: it is what grows without bound, and most of it is out of view anyway.
+    if (!parent.insideScroll && parent.kind != Kind::Scroll)
+        return false;
+
+    // A slice builds until its time is up; the update that starts it also has to be a big one.
+    const bool big = pendingFront_ >= 0 || stats_.created >= limits.nodes;
+
+    if (!big || sliceClock_.elapsed() < limits.ms)
+        return false;
+
+    return !placesItself(json.value(QLatin1String("type")).toString());
+}
+
+std::unique_ptr<NativeRenderer::Node> NativeRenderer::createPending(const QJsonObject &json, Node *parent)
+{
+    auto node = std::make_unique<Node>();
+
+    node->path = json.value(QLatin1String("path")).toString();
+    node->type = json.value(QLatin1String("type")).toString();
+    node->parent = parent;
+    node->insideScroll = true;
+    node->kind = Kind::Pending;
+    node->json = json;
+    node->props = json.value(QLatin1String("props")).toObject();
+    node->heldEnter = creationDepth_ > 0;
+    node->item = new QQuickItem();
+    node->item->setVisible(false);
+
+    adopt(node->item, parent->stack);
+
+    index_.insert(node->path, node.get());
+    stats_.deferred++;
+
+    if (!sliceRun_.isValid())
+        sliceRun_.start();
+
+    if (pendingFront_ >= 0)
+        pending_.insert(pendingFront_++, node.get());
+    else
+        pending_.append(node.get());
+
+    return node;
+}
+
+// Puts the real node in the placeholder's slot. Its own children can be put off again when time is up.
+void NativeRenderer::build(Node &node)
+{
+    Node *parent = node.parent;
+    const QJsonObject json = node.json;
+    const bool held = node.heldEnter;
+
+    const auto slot = std::find_if(parent->children.begin(), parent->children.end(),
+                                   [&](const std::unique_ptr<Node> &child) { return child.get() == &node; });
+
+    forget(node);
+    delete node.item;
+
+    creationDepth_ += held ? 1 : 0;
+    *slot = createSynced(json, parent, false);
+    creationDepth_ -= held ? 1 : 0;
+}
+
+void NativeRenderer::scheduleSlice()
+{
+    if (pending_.isEmpty() || sliceScheduled_)
+        return;
+
+    sliceScheduled_ = true;
+
+    // A zero timer runs after the input and paint events that are already waiting.
+    QTimer::singleShot(0, this, &NativeRenderer::buildSlice);
+}
+
+void NativeRenderer::buildSlice()
+{
+    sliceScheduled_ = false;
+
+    if (!root_ || pending_.isEmpty())
+        return;
+
+    stats_ = {};
+    dirtyStacks_.clear();
+
+    QSet<Node *> parents;
+
+    sliceClock_.start();
+
+    do {
+        Node *node = pending_.takeFirst();
+
+        parents.insert(node->parent);
+
+        pendingFront_ = 0;
+        build(*node);
+    } while (!pending_.isEmpty() && sliceClock_.elapsed() < sliceLimits().ms);
+
+    pendingFront_ = -1;
+
+    for (Node *parent : std::as_const(parents))
+        refreshKids(*parent);
+
+    for (Node *stack : std::as_const(dirtyStacks_))
+        refreshKids(*stack);
+
+    dirtyStacks_.clear();
+
+    const qint64 elapsed = sliceClock_.elapsed();
+
+    sliceClock_.invalidate();
+    scheduleSlice();
+    logApplied("slice", parents.size(), elapsed);
+
+    if (!pending_.isEmpty())
+        return;
+
     if (debugging())
-        qInfo().noquote().nospace() << "PulsarView patch " << patches.size() << " +" << stats_.created << " ~"
-                                    << stats_.updated << " -" << stats_.removed << " reorder=" << stats_.reordered
-                                    << " qml=" << stats_.mounted << " " << timer.elapsed() << "ms";
+        qInfo().noquote() << "PulsarView slices done" << sliceRun_.elapsed() << "ms";
+
+    sliceRun_.invalidate();
 }
 
 void NativeRenderer::applyPatch(const QString &path, const QJsonObject &json, bool shallow)
@@ -1393,6 +1575,18 @@ void NativeRenderer::applyPatch(const QString &path, const QJsonObject &json, bo
     if (!node) {
         if (!patchIsland(path, json, shallow))
             qWarning().noquote() << "pulsar: patch for an unknown node" << path;
+
+        return;
+    }
+
+    if (node->kind == Kind::Pending) {
+        QJsonObject merged = json;
+
+        if (shallow)
+            merged.insert(QLatin1String("children"), node->json.value(QLatin1String("children")));
+
+        stats_.updated++;
+        sync(*node, merged, true);
 
         return;
     }
@@ -1452,7 +1646,7 @@ bool NativeRenderer::patchIsland(const QString &path, const QJsonObject &json, b
         island = index_.value(prefix);
     }
 
-    if (island->kind != Kind::Island)
+    if (island->kind != Kind::Island && island->kind != Kind::Pending)
         return false;
 
     QJsonArray wrapper = { island->json };
@@ -1464,6 +1658,10 @@ bool NativeRenderer::patchIsland(const QString &path, const QJsonObject &json, b
     island->props = island->json.value(QLatin1String("props")).toObject();
 
     stats_.updated++;
+
+    // A subtree that is not built yet has nothing to update but its JSON.
+    if (island->kind == Kind::Pending)
+        return true;
 
     QVariant patched;
 
@@ -1580,7 +1778,7 @@ void NativeRenderer::editChildrenByJson(const QString &parentPath, const QString
     const Node *known = index_.value(parentPath);
     QJsonObject parent;
 
-    if (known && known->kind == Kind::Island) {
+    if (known && (known->kind == Kind::Island || known->kind == Kind::Pending)) {
         parent = known->json;
     } else if (known) {
         parent = snapshotNode(*known);
@@ -1597,7 +1795,7 @@ void NativeRenderer::editChildrenByJson(const QString &parentPath, const QString
 
             const Node *island = index_.value(prefix);
 
-            if (island && island->kind == Kind::Island)
+            if (island && (island->kind == Kind::Island || island->kind == Kind::Pending))
                 parent = jsonAt(island->json, parentPath);
         }
     }
@@ -1818,8 +2016,11 @@ std::unique_ptr<NativeRenderer::Node> NativeRenderer::create(const QJsonObject &
 }
 
 // The enter animation grows a node to its full height, so a shell starts it only once its children exist.
-std::unique_ptr<NativeRenderer::Node> NativeRenderer::createSynced(const QJsonObject &json, Node *parent)
+std::unique_ptr<NativeRenderer::Node> NativeRenderer::createSynced(const QJsonObject &json, Node *parent, bool mayDefer)
 {
+    if (mayDefer && overBudget(json, *parent))
+        return createPending(json, parent);
+
     creationDepth_++;
 
     std::unique_ptr<Node> node = create(json, parent);
@@ -2173,6 +2374,14 @@ void NativeRenderer::bindScroll(Node &node)
 
 void NativeRenderer::sync(Node &node, const QJsonObject &json, bool withChildren)
 {
+    if (node.kind == Kind::Pending) {
+        node.type = json.value(QLatin1String("type")).toString();
+        node.json = json;
+        node.props = json.value(QLatin1String("props")).toObject();
+
+        return;
+    }
+
     const auto watch = qScopeGuard([&]() { refreshWatch(node); });
 
     if (node.kind == Kind::Island) {
@@ -3334,7 +3543,7 @@ static bool jsonNarrows(const QJsonObject &json)
 
 bool NativeRenderer::narrowsToFit(const Node &node) const
 {
-    if (node.kind == Kind::Island)
+    if (node.kind == Kind::Island || node.kind == Kind::Pending)
         return jsonNarrows(node.json);
 
     if (node.props.contains(QLatin1String("width")))
@@ -3531,8 +3740,13 @@ void NativeRenderer::syncChildren(Node &node, const QJsonArray &children)
 
         std::unique_ptr<Node> child;
 
-        if (found != previous.end() && found->second->type == json.value(QLatin1String("type")).toString()
-            && found->second->kind == kindFor(json, found->second->insideScroll)) {
+        // A node that is not built yet takes any JSON; a built one is kept while its type and kind hold.
+        const bool reusable = found != previous.end()
+            && (found->second->kind == Kind::Pending
+                || (found->second->type == json.value(QLatin1String("type")).toString()
+                    && found->second->kind == kindFor(json, found->second->insideScroll)));
+
+        if (reusable) {
             const qsizetype position = previousOrder.value(path);
 
             moved = moved || position < lastPosition;
@@ -3569,6 +3783,9 @@ void NativeRenderer::forget(Node &node)
 {
     index_.remove(node.path);
     unwatch(node);
+
+    if (node.kind == Kind::Pending)
+        pending_.removeOne(&node);
 
     if (node.surface) {
         for (const QPointer<QObject> &handler : { node.surface->hover, node.surface->press, node.surface->tap })
@@ -3957,7 +4174,7 @@ QObject *NativeRenderer::itemAt(const QString &path) const
 
 QJsonObject NativeRenderer::snapshotNode(const Node &node) const
 {
-    if (node.kind == Kind::Island)
+    if (node.kind == Kind::Island || node.kind == Kind::Pending)
         return node.json;
 
     QJsonArray children;
