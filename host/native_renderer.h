@@ -9,6 +9,7 @@
 #include <QQmlComponent>
 #include <QQmlProperty>
 #include <QQuickItem>
+#include <QQuickWindow>
 #include <QSet>
 #include <QString>
 #include <QVariantMap>
@@ -136,6 +137,7 @@ private:
     QList<Kid> kids_;
     QList<Kid> ordered_;
     QList<Leaving> leaving_;
+    QPointer<QQuickWindow> mirrorSource_;
     Mode mode_ = Mode::Column;
     qreal gap_ = 0;
     Edges edges_;

@@ -490,7 +490,12 @@ void NativeStack::windowChanged(QQuickWindow *next)
         return;
 
     // The window mirrors layouts with LayoutMirroring and exposes the result as layoutMirrored.
-    connect(next, SIGNAL(layoutMirroredChanged()), this, SLOT(hintsChanged()), Qt::UniqueConnection);
+    // A unique connection scans every stack already connected to the window, so the window is remembered instead.
+    if (next != mirrorSource_) {
+        mirrorSource_ = next;
+
+        connect(next, SIGNAL(layoutMirroredChanged()), this, SLOT(hintsChanged()));
+    }
 
     polish();
 }
@@ -2026,13 +2031,15 @@ void NativeRenderer::applyIcon(Node &node)
 
     font.setPixelSize(int(std::round(number(props, QLatin1String("size"), 24) * theme_.fontScale)));
 
-    item->setProperty("text", props.value(QLatin1String("name")).toString());
     item->setProperty("font", font);
     item->setProperty("color", color);
     item->setProperty("horizontalAlignment", int(align == QLatin1String("center") ? Qt::AlignHCenter
                                                  : align == QLatin1String("right") || align == QLatin1String("end")
                                                      ? Qt::AlignRight
                                                      : Qt::AlignLeft));
+
+    // Last, so the glyph is laid out once, in its final font.
+    item->setProperty("text", props.value(QLatin1String("name")).toString());
 
     if (debugging())
         qInfo().noquote() << "PulsarView icon" << node.path << "family=" + font.family()
@@ -2567,7 +2574,6 @@ void NativeRenderer::applyText(Node &node)
     const QJsonValue elide = props.value(QLatin1String("elide"));
     const QJsonValue weight = props.value(QLatin1String("weight"));
 
-    item->setProperty("text", props.value(QLatin1String("text")).toString());
     item->setProperty("color", resolveColor(props.value(QLatin1String("color")), theme_.text));
 
     QFont font(props.value(QLatin1String("family")).toString(theme_.fontFamily));
@@ -2610,6 +2616,9 @@ void NativeRenderer::applyText(Node &node)
         mode = Qt::ElideRight;
 
     item->setProperty("elide", int(mode));
+
+    // Last: every property above lays the text out again, which costs nothing while it is empty.
+    item->setProperty("text", props.value(QLatin1String("text")).toString());
 }
 
 QString NativeRenderer::resolveColor(const QJsonValue &value, const QVariant &fallback) const
