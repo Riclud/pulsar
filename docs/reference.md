@@ -1648,13 +1648,25 @@ offscreen with `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software`.
 A JS-built tree is drawn by a C++ renderer (`host/native_renderer.cpp`), the only path for
 trees on every host. It creates and updates Qt Quick items directly for `Column`, `Row`,
 `Scroll`, `For`, `Box`, `Card`, `Stack`, `Spacer`, `Text`, `Icon`, `Button`, `IconButton`,
-`Checkbox`, `Switch`, `Chip`, `Divider`, `Progress`, `Spinner`, `Badge`, `Avatar`, `Input`
-and `TextArea`, with padding, flex, alignment and keyed child edits. A node with a prop or an
-event the C++ side does not know (for example `tooltip`, `a11y*`, `elevation`, `motion`), and
-types such as `Wrap` and `Image`, are drawn by QML (`PulsarView.qml`) as an island inside the
-native tree, so output does not depend on which path drew a node. The app's script runs on its
-own thread (QuickJS), and `PULSAR_FRAME_TRACE=1` logs GUI-thread stalls. `pulsar perf`
-records frame pacing under timed input.
+`Checkbox`, `Switch`, `Chip`, `Divider`, `Progress`, `Spinner`, `Badge`, `Avatar`, `Input`,
+`TextArea` and `Image` (`src` and `fillMode`), with padding, flex, alignment and keyed child
+edits. Native nodes also take the `a11y*` props, `hover`/`pressed`/`disabled` styles (colour,
+`scale`, `opacity`) with their `transition`, `enter`/`exit` motion (`opacity`, `x`, `y`,
+`scale`) and `elevation: 0`, so a typical list row is fully native. A node with a prop or an
+event the C++ side does not know (for example `tooltip`, `badge`, `drag`, `elevation` above 0,
+a shadow, gradient or blur, or an `Image` with click events), and types such as `Wrap`, are
+drawn by QML (`PulsarView.qml`) as an island inside the native tree, so output does not depend
+on which path drew a node.
+
+A large update does not block the window: once an update has created about 300 nodes in 8 ms,
+the rest of the content inside a scroll is built in slices of 8 ms between frames, in document
+order, and later patches to rows not yet built are applied to them when they are built.
+`PULSAR_SLICE_MS` (negative turns slicing off) and `PULSAR_SLICE_NODES` change the limits.
+
+The app's script runs on its own thread (QuickJS). `PULSAR_DEBUG=1` logs each update: the JS
+side as `[pulsar] ui … build= serialize= handlers= diff= send=` and the GUI side as
+`PulsarView patch … qml=N pending=N <ms>`, where `qml` counts island nodes and `pending` the
+nodes still waiting for a slice. `pulsar perf` records frame pacing under timed input.
 
 ## License
 

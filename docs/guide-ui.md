@@ -276,9 +276,12 @@ Text({
 ### Image and Icon
 
 ```ts
-Image({ src: "assets/cover.png", fillMode: "PreserveAspectCrop", height: 180 })
+Image({ src: "assets/cover.png", fillMode: "cover", height: 180 })
 Icon({ name: "settings", size: 20, color: "gray", badge: "dot" })
 ```
+
+`fillMode` is `contain` (the whole picture), `cover` (fills and crops) or `stretch` (the
+default); Qt's names such as `PreserveAspectFit` work too.
 
 Icons use [Material Icons](https://fonts.google.com/icons) names such as `add`,
 `delete`, `edit`, `check`, `arrow_back`, `close`, `search`, `settings`.

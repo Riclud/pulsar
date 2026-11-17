@@ -289,9 +289,12 @@ Text({
 ### Image и Icon
 
 ```ts
-Image({ src: "assets/cover.png", fillMode: "PreserveAspectCrop", height: 180 })
+Image({ src: "assets/cover.png", fillMode: "cover", height: 180 })
 Icon({ name: "settings", size: 20, color: "gray", badge: "dot" })
 ```
+
+`fillMode`: `contain` (картинка целиком), `cover` (заполняет и обрезает) или `stretch`
+(по умолчанию); имена Qt вроде `PreserveAspectFit` тоже работают.
 
 Значки используют имена [Material Icons](https://fonts.google.com/icons), такие
 как `add`, `delete`, `edit`, `check`, `arrow_back`, `close`, `search`,
