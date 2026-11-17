@@ -6,11 +6,39 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-11-17
+
 ### Added
 
 - On the desktop the mouse back side button raises `back-pressed`, as Android Back does, and
   does not click anything. The dev channel `pointer` command takes `button: "back"`.
 - `back-pressed` with no listener quits only on Android; the desktop ignores it.
+- `PULSAR_DEBUG` also logs the startup phases of the desktop host.
+- The agent skill has a design section that points to the UI kit.
+- `PULSAR_SLICE_MS` and `PULSAR_SLICE_NODES` tune how large updates are split across frames;
+  `PULSAR_DEBUG` patch lines now show `qml=N` (island nodes) and `pending=N`.
+
+### Changed
+
+- Long lists no longer freeze the window. A large update builds the content inside a scroll in
+  slices of 8 ms between frames, so input and painting go on while it is built. On a 210-row
+  list the longest GUI-thread block on first show fell from about 620 ms to 24 ms.
+- The C++ renderer draws `Image` (`src`, `fillMode`), the `a11y*` props, `hover`, `pressed`
+  and `disabled` styles with `scale` and `opacity`, their `transition`, `enter`/`exit` motion
+  and `elevation: 0` itself, so a typical list row no longer becomes a QML island.
+- Rendering in JS is cheaper: equal subtrees are kept across a rerender and not serialized or
+  diffed again, handlers are collected in one pass, and children without keys are inserted,
+  removed and moved by path instead of resending their parent. On the same list the first show
+  costs about 113 ms of JS instead of 230, and a search that hides 180 rows 86 ms instead of 150.
+
+### Fixed
+
+- `Image` accepts `fillMode: "contain" | "cover" | "stretch"` (and Qt's names); a string used
+  to log an assignment error and leave the picture stretched.
+- The embedded host no longer hangs on exit when it renders offscreen or in software.
+- A scroll keeps its position while its screen is hidden and through the relayout when the
+  screen is shown again.
+- Releasing the Android keyboard inset no longer touches scroll views that were destroyed.
 
 ## [2.2.0] - 2026-11-12
 
